@@ -9,6 +9,10 @@ include_directories(
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
+    ApproximatorSupport.h
+    ApproximatorCurveStore.h
+    ApproximatorOutputs.h
+    EqOptimizer.h
 )
 
 set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.approximator" CACHE STRING "The name to give to the external output file/directory" FORCE)

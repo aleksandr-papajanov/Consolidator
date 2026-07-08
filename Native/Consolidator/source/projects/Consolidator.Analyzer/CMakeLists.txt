@@ -18,6 +18,11 @@ include_directories(
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
+    AnalyzerSupport.h
+    AnalyzerFrameBuffer.h
+    AnalyzerStatistics.h
+    AnalyzerCurveBatch.h
+    AnalyzerSpectrumEngine.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../ThirdParty/KissFFT/kiss_fft.c
 )
 
