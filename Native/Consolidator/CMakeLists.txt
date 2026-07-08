@@ -7,7 +7,16 @@ get_filename_component(CONSOLIDATOR_ROOT
 )
 
 set(CONSOLIDATOR_MAX_EXTERNALS_DIR
-    "${CONSOLIDATOR_ROOT}/Max/externals"
+    "${CONSOLIDATOR_ROOT}/Max/Externals"
+)
+
+option(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX
+    "Copy built Max externals into Max/Externals after build."
+    ON
+)
+
+set(C74_LIBRARY_OUTPUT_DIRECTORY
+    "${CMAKE_CURRENT_SOURCE_DIR}/Externals"
 )
 
 enable_testing()
@@ -22,27 +31,20 @@ if (${CMAKE_GENERATOR} MATCHES "Xcode")
         endif ()
 endif ()
 
-# Fetch the correct version of the min-api
-message(STATUS "Updating Git Submodules")
-execute_process(
-    COMMAND				git submodule update --init --recursive
-    WORKING_DIRECTORY	"${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
 # Misc setup and subroutines
-include(${CMAKE_CURRENT_SOURCE_DIR}/source/min-api/script/min-package.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/Source/min-api/script/min-package.cmake)
 
 # Add the Lib, if it exists
-if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/source/min-lib/CMakeLists.txt")
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/min-lib)
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/min-lib/CMakeLists.txt")
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/min-lib)
 endif ()
 
-# Generate a project for every folder in the "source/projects" folder
-SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/source/projects)
+# Generate a project for every folder in the "Source/Projects" folder
+SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects)
 foreach (project_dir ${PROJECT_DIRS})
-    if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/source/projects/${project_dir}/CMakeLists.txt")
+    if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/${project_dir}/CMakeLists.txt")
         message("Generating: ${project_dir}")
-        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/projects/${project_dir})
+        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/${project_dir})
     endif ()
 endforeach ()
 

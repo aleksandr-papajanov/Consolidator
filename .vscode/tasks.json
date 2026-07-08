@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Consolidator: Build All",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.vscode\\build-all.cmd",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

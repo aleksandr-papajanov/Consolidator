@@ -11,6 +11,8 @@ set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
 )
 
+set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.approximator" CACHE STRING "The name to give to the external output file/directory" FORCE)
+
 add_library(
     ${PROJECT_NAME}
     MODULE
@@ -24,16 +26,18 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
-add_custom_command(
-    TARGET ${PROJECT_NAME}
-    POST_BUILD
+if (CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX)
+    add_custom_command(
+        TARGET ${PROJECT_NAME}
+        POST_BUILD
 
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "${CONSOLIDATOR_MAX_EXTERNALS_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${CONSOLIDATOR_MAX_EXTERNALS_DIR}"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:${PROJECT_NAME}>"
-        "${CONSOLIDATOR_MAX_EXTERNALS_DIR}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+            "${CONSOLIDATOR_MAX_EXTERNALS_DIR}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
 
-    COMMENT "Copying ${PROJECT_NAME} external and nlopt.dll to Max/externals"
-)
+        COMMENT "Copying ${PROJECT_NAME} external and nlopt.dll to Max/Externals"
+    )
+endif ()

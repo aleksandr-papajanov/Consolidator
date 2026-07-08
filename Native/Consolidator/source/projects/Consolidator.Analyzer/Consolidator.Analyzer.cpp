@@ -11,8 +11,8 @@ extern "C" {
 
 using namespace c74::min;
 
-class consolidator_analyzer :
-    public object<consolidator_analyzer>,
+class ConsolidatorAnalyzer :
+    public object<ConsolidatorAnalyzer>,
     public sample_operator<4, 2> {
 public:
     MIN_DESCRIPTION{ "Consolidator audio analyzer." };
@@ -422,4 +422,4 @@ private:
     }
 };
 
-MIN_EXTERNAL(consolidator_analyzer);
+MIN_EXTERNAL_CUSTOM(ConsolidatorAnalyzer, consolidator.analyzer);

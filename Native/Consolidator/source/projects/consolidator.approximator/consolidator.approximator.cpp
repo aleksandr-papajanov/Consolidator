@@ -9,7 +9,7 @@
 
 using namespace c74::min;
 
-class consolidator_approximator : public object<consolidator_approximator> {
+class ConsolidatorApproximator : public object<ConsolidatorApproximator> {
 public:
     MIN_DESCRIPTION{ "Consolidator EQ curve approximator." };
     MIN_TAGS{ "audio, eq, optimizer" };
@@ -438,4 +438,4 @@ private:
     }
 };
 
-MIN_EXTERNAL(consolidator_approximator);
+MIN_EXTERNAL_CUSTOM(ConsolidatorApproximator, consolidator.approximator);
