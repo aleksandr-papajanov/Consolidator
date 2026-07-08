@@ -1,0 +1,9 @@
+.vs/
+build/
+out/
+x64/
+.git_native_backup/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
