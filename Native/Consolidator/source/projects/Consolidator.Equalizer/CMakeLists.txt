@@ -9,13 +9,10 @@ include_directories(
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    ApproximatorSupport.h
-    ApproximatorCurveStore.h
-    ApproximatorOutputs.h
-    EqOptimizer.h
+    EqProcessor.h
 )
 
-set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.approximator" CACHE STRING "The name to give to the external output file/directory" FORCE)
+set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.equalizer" CACHE STRING "The name to give to the external output file/directory" FORCE)
 
 add_library(
     ${PROJECT_NAME}
@@ -36,14 +33,10 @@ if (CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX)
     add_custom_command(
         TARGET ${PROJECT_NAME}
         POST_BUILD
-
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "${CONSOLIDATOR_MAX_EXTERNALS_DIR}"
-
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:${PROJECT_NAME}>"
             "${CONSOLIDATOR_MAX_EXTERNALS_DIR}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
-
-        COMMENT "Copying ${PROJECT_NAME} external and nlopt.dll to Max/Externals"
     )
 endif ()

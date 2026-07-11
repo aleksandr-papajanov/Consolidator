@@ -12,17 +12,17 @@ public:
     MIN_TAGS{ "audio, analyzer, fft" };
     MIN_AUTHOR{ "Oleksandr Papaianov" };
 
+    inlet<> current_l{ this, "(signal) current left", "signal" };
+    inlet<> current_r{ this, "(signal) current right", "signal" };
     inlet<> reference_l{ this, "(signal) reference left", "signal" };
     inlet<> reference_r{ this, "(signal) reference right", "signal" };
-    inlet<> target_l{ this, "(signal) target left", "signal" };
-    inlet<> target_r{ this, "(signal) target right", "signal" };
 
     outlet<> audio_l{ this, "(signal) passthrough left", "signal" };
     outlet<> audio_r{ this, "(signal) passthrough right", "signal" };
 
+    outlet<> current_out{ this, "(list) current spectrum dB" };
     outlet<> reference_out{ this, "(list) reference spectrum dB" };
-    outlet<> target_out{ this, "(list) target spectrum dB" };
-    outlet<> difference_out{ this, "(list) target-reference dB" };
+    outlet<> difference_out{ this, "(list) reference-current dB" };
 
     attribute<int> fft_size_attr{
         this,
@@ -45,7 +45,31 @@ public:
         "smoothing",
         0.75,
         range { 0.0, 0.98 },
-        description { "Temporal smoothing amount for output curves. 0 = none, 0.98 = very slow." }
+        description { "Frequency-dependent temporal smoothing for output curves. Low frequencies are smoothed more strongly." }
+    };
+
+    attribute<double> low_frequency_amount_attr{
+        this,
+        "lowfreqsmoothing",
+        1.0,
+        range { 0.0, 1.0 },
+        description { "Amount of extra smoothing applied to low frequencies." }
+    };
+
+    attribute<double> spectrum_calibration_db_attr{
+        this,
+        "spectrumcalibrationdb",
+        24.0,
+        range { -48.0, 48.0 },
+        description { "Display calibration offset for the analyzer spectrum in dB." }
+    };
+
+    attribute<double> spectrum_tilt_db_attr{
+        this,
+        "spectrumtiltdb",
+        0.0,
+        range { -24.0, 24.0 },
+        description { "Visual tilt of the analyzer spectrum in dB. Positive values lift high frequencies." }
     };
 
     message<> dspsetup{ this, "dspsetup",
@@ -58,12 +82,12 @@ public:
         }
     };
 
-    samples<2> operator()(sample ref_l, sample ref_r, sample eq_l, sample eq_r) {
+    samples<2> operator()(sample current_l_in, sample current_r_in, sample reference_l_in, sample reference_r_in) {
         const int fft_size = spectrum_engine.sanitized_fft_size(fft_size_attr);
         const int bins_out = spectrum_engine.sanitized_detail(detail_attr, fft_size);
         const AnalyzerInputFrame frame{
-            { ref_l, ref_r },
-            { eq_l, eq_r }
+            { current_l_in, current_r_in },
+            { reference_l_in, reference_r_in }
         };
 
         input_stats.accumulate(frame);
@@ -75,12 +99,15 @@ public:
                 fft_size,
                 bins_out,
                 static_cast<double>(smoothing_attr),
+                static_cast<double>(low_frequency_amount_attr),
+                static_cast<double>(spectrum_calibration_db_attr),
+                static_cast<double>(spectrum_tilt_db_attr),
                 curves);
 
             capture.reset();
         }
 
-        return { eq_l, eq_r };
+        return { current_l_in, current_r_in };
     }
 
     message<> bang{ this, "bang", "Output latest analyzed curves.",
@@ -89,7 +116,7 @@ public:
                 return {};
             }
 
-            curves.send(reference_out, target_out, difference_out);
+            curves.send(current_out, reference_out, difference_out);
             curves.clear_pending();
 
             return {};

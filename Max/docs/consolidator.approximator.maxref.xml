@@ -31,19 +31,19 @@
 
 	<methodlist>
 
+		<method name='capture'>
+			<digest>Freeze the latest target curve for fitting </digest>
+			<description>Freeze the latest target curve for fitting </description>
+		</method>
+
 		<method name='list'>
-			<digest>Receive target difference curve </digest>
-			<description>Receive target difference curve </description>
+			<digest>Receive target or baseline curve </digest>
+			<description>Receive target or baseline curve </description>
 		</method>
 
 		<method name='fit'>
 			<digest>Fit EQ parameters to current target curve </digest>
 			<description>Fit EQ parameters to current target curve </description>
-		</method>
-
-		<method name='clear'>
-			<digest>Clear stored target curve </digest>
-			<description>Clear stored target curve </description>
 		</method>
 
 	</methodlist>

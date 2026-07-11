@@ -12,7 +12,7 @@ if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
 call "%VSDEVCMD%" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
-"%CMAKE%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX=OFF
+"%CMAKE%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX=ON
 if errorlevel 1 exit /b %errorlevel%
 
 "%CMAKE%" --build "%BUILD_DIR%" --config Debug

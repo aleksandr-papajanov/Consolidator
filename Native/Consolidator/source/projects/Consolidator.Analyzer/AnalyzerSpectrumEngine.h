@@ -41,16 +41,25 @@ public:
         return value;
     }
 
-    void analyze(const AnalyzerFrameBuffer& frame, int fft_size, int bins_out, double smoothing, AnalyzerCurveBatch& curves) const {
+    void analyze(
+        const AnalyzerFrameBuffer& frame,
+        int fft_size,
+        int bins_out,
+        double smoothing,
+        double low_frequency_amount,
+        double spectrum_calibration_db,
+        double spectrum_tilt_db,
+        AnalyzerCurveBatch& curves
+    ) const {
         const auto reference_spectrum = stereo_magnitude_db(
             frame.reference_left(),
             frame.reference_right(),
             frame.write_index(),
             fft_size);
 
-        const auto target_spectrum = stereo_magnitude_db(
-            frame.target_left(),
-            frame.target_right(),
+        const auto current_spectrum = stereo_magnitude_db(
+            frame.current_left(),
+            frame.current_right(),
             frame.write_index(),
             fft_size);
         const int previous_pending_count = curves.prepare(bins_out);
@@ -61,9 +70,12 @@ public:
             curves.store_bin(
                 i,
                 previous_pending_count,
+                current_spectrum[src_index],
                 reference_spectrum[src_index],
-                target_spectrum[src_index],
-                smoothing);
+                smoothing,
+                low_frequency_amount,
+                spectrum_calibration_db,
+                spectrum_tilt_db);
         }
 
         curves.finalize_frame();
@@ -141,13 +153,15 @@ private:
         kiss_fft_free(cfg);
 
         std::vector<double> db(fft_size / 2);
+        const double coherent_gain = 0.5; // Hann window average gain
+        const double amplitude_scale = static_cast<double>(fft_size) * coherent_gain * 0.5;
 
         for (int i = 0; i < fft_size / 2; ++i) {
             const double re = out[i].r;
             const double im = out[i].i;
             const double mag = std::sqrt(re * re + im * im);
 
-            db[i] = 20.0 * std::log10(mag + 1e-12);
+            db[i] = 20.0 * std::log10((mag / amplitude_scale) + 1e-12);
         }
 
         return db;

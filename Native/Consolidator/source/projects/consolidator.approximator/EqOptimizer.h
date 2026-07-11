@@ -1,9 +1,8 @@
 #pragma once
 
-#include "ApproximatorOutputs.h"
-
 #include "EqModel.h"
 #include "EqParams.h"
+#include "EqRanges.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,8 +18,7 @@ public:
     };
 
     FitResult fit(
-        const TargetCurve& curve,
-        ApproximatorOutputs& outputs
+        const TargetCurve& curve
     ) const {
         if (curve.frequencies.size() != curve.values.size()) {
             throw std::runtime_error("freqs and targetDb size mismatch");
@@ -39,7 +37,7 @@ public:
         optimize_shape(best, best_loss, curve, rng);
 
         for (int bell_index = 0; bell_index < 4; ++bell_index) {
-            optimize_bell(best, best_loss, curve, rng, bell_index, outputs);
+            optimize_bell(best, best_loss, curve, rng, bell_index);
         }
 
         for (int i = 0; i < 3000; ++i) {
@@ -54,13 +52,12 @@ public:
             }
         }
 
-        outputs.final_loss(best_loss);
         return { best, best_loss };
     }
 
 private:
     static EqParams initial_guess(const std::vector<double>& target_db) {
-        EqParams p;
+        EqParams p = EqRanges::defaults();
 
         double avg = 0.0;
         for (double v : target_db) {
@@ -68,25 +65,6 @@ private:
         }
 
         p.gainDb = avg / static_cast<double>(target_db.size());
-
-        p.tiltDb = 0.0;
-        p.tiltPivotHz = 1000.0;
-
-        p.lowShelf.gainDb = 0.0;
-        p.lowShelf.freqHz = 120.0;
-        p.lowShelf.q = 0.707;
-
-        p.highShelf.gainDb = 0.0;
-        p.highShelf.freqHz = 8000.0;
-        p.highShelf.q = 0.707;
-
-        const double bell_freqs[4] = { 250.0, 800.0, 2500.0, 7000.0 };
-
-        for (int i = 0; i < 4; ++i) {
-            p.bells[i].gainDb = 0.0;
-            p.bells[i].freqHz = bell_freqs[i];
-            p.bells[i].q = 1.0;
-        }
 
         return p;
     }
@@ -114,24 +92,7 @@ private:
     }
 
     static void clamp_params(EqParams& p) {
-        p.gainDb = std::clamp(p.gainDb, -18.0, 18.0);
-
-        p.tiltDb = std::clamp(p.tiltDb, -18.0, 18.0);
-        p.tiltPivotHz = std::clamp(p.tiltPivotHz, 200.0, 4000.0);
-
-        p.lowShelf.gainDb = std::clamp(p.lowShelf.gainDb, -18.0, 18.0);
-        p.lowShelf.freqHz = std::clamp(p.lowShelf.freqHz, 30.0, 800.0);
-        p.lowShelf.q = std::clamp(p.lowShelf.q, 0.2, 2.0);
-
-        p.highShelf.gainDb = std::clamp(p.highShelf.gainDb, -18.0, 18.0);
-        p.highShelf.freqHz = std::clamp(p.highShelf.freqHz, 1500.0, 18000.0);
-        p.highShelf.q = std::clamp(p.highShelf.q, 0.2, 2.0);
-
-        for (auto& b : p.bells) {
-            b.gainDb = std::clamp(b.gainDb, -18.0, 18.0);
-            b.freqHz = std::clamp(b.freqHz, 40.0, 18000.0);
-            b.q = std::clamp(b.q, 0.2, 8.0);
-        }
+        EqRanges::clamp(p);
     }
 
     static void optimize_gain(
@@ -188,8 +149,7 @@ private:
         double& best_loss,
         const TargetCurve& curve,
         std::mt19937& rng,
-        int bell_index,
-        ApproximatorOutputs& outputs
+        int bell_index
     ) {
         for (int i = 0; i < 2500; ++i) {
             EqParams candidate = best;
@@ -207,8 +167,6 @@ private:
                 best_loss = l;
             }
         }
-
-        outputs.bell_done(bell_index, best_loss);
     }
 
     static void mutate(

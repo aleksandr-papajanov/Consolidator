@@ -34,6 +34,11 @@ endif ()
 # Misc setup and subroutines
 include(${CMAKE_CURRENT_SOURCE_DIR}/Source/min-api/script/min-package.cmake)
 
+# Shared EQ math used by multiple projects.
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.EqCore/CMakeLists.txt")
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.EqCore)
+endif ()
+
 # Add the Lib, if it exists
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/min-lib/CMakeLists.txt")
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/min-lib)
@@ -42,6 +47,10 @@ endif ()
 # Generate a project for every folder in the "Source/Projects" folder
 SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects)
 foreach (project_dir ${PROJECT_DIRS})
+    if (project_dir STREQUAL "Consolidator.EqCore")
+        continue()
+    endif ()
+
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/${project_dir}/CMakeLists.txt")
         message("Generating: ${project_dir}")
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/${project_dir})

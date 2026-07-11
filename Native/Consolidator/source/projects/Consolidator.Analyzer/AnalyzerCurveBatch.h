@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 class AnalyzerCurveBatch {
 public:
@@ -24,32 +25,41 @@ public:
     void store_bin(
         int output_index,
         int previous_pending_count,
+        double raw_current_db,
         double raw_reference_db,
-        double raw_target_db,
-        double smoothing
+        double smoothing,
+        double low_frequency_amount,
+        double spectrum_calibration_db,
+        double spectrum_tilt_db
     ) {
-        const double reference_db = std::clamp(raw_reference_db, -120.0, 24.0);
-        const double target_db = std::clamp(raw_target_db, -120.0, 24.0);
-        const double difference_db = std::clamp(raw_target_db - raw_reference_db, -60.0, 60.0);
+        const double tilt_weight = spectrum_tilt_weight(output_index);
+        const double tilt_offset = spectrum_tilt_db * tilt_weight;
+        const double current_db = std::clamp(raw_current_db + spectrum_calibration_db + tilt_offset, -120.0, 48.0);
+        const double reference_db = std::clamp(raw_reference_db + spectrum_calibration_db + tilt_offset, -120.0, 48.0);
+        const double difference_db = std::clamp(raw_reference_db - raw_current_db, -60.0, 60.0);
+        const double adaptive_smoothing = frequency_dependent_smoothing(
+            output_index,
+            smoothing,
+            low_frequency_amount);
 
         if (!smoothing_initialized_ || output_index >= previous_pending_count) {
+            smoothed_current_[output_index] = current_db;
             smoothed_reference_[output_index] = reference_db;
-            smoothed_target_[output_index] = target_db;
             smoothed_difference_[output_index] = difference_db;
         }
         else {
-            smoothed_reference_[output_index] =
-                smooth_toward(smoothed_reference_[output_index], reference_db, smoothing);
+            smoothed_current_[output_index] =
+                smooth_toward(smoothed_current_[output_index], current_db, adaptive_smoothing);
 
-            smoothed_target_[output_index] =
-                smooth_toward(smoothed_target_[output_index], target_db, smoothing);
+            smoothed_reference_[output_index] =
+                smooth_toward(smoothed_reference_[output_index], reference_db, adaptive_smoothing);
 
             smoothed_difference_[output_index] =
-                smooth_toward(smoothed_difference_[output_index], difference_db, smoothing);
+                smooth_toward(smoothed_difference_[output_index], difference_db, adaptive_smoothing);
         }
 
+        pending_current_[output_index] = smoothed_current_[output_index];
         pending_reference_[output_index] = smoothed_reference_[output_index];
-        pending_target_[output_index] = smoothed_target_[output_index];
         pending_difference_[output_index] = smoothed_difference_[output_index];
     }
 
@@ -71,22 +81,22 @@ public:
     }
 
     void send(
+        c74::min::outlet<>& current_out,
         c74::min::outlet<>& reference_out,
-        c74::min::outlet<>& target_out,
         c74::min::outlet<>& difference_out
     ) const {
+        c74::min::atoms current_atoms;
         c74::min::atoms reference_atoms;
-        c74::min::atoms target_atoms;
         c74::min::atoms difference_atoms;
 
         for (int i = 0; i < pending_count_; ++i) {
+            current_atoms.push_back(pending_current_[i]);
             reference_atoms.push_back(pending_reference_[i]);
-            target_atoms.push_back(pending_target_[i]);
             difference_atoms.push_back(pending_difference_[i]);
         }
 
+        current_out.send(current_atoms);
         reference_out.send(reference_atoms);
-        target_out.send(target_atoms);
         difference_out.send(difference_atoms);
     }
 
@@ -95,11 +105,38 @@ private:
         return current * smoothing + target * (1.0 - smoothing);
     }
 
+    double frequency_dependent_smoothing(
+        int output_index,
+        double smoothing,
+        double low_frequency_amount
+    ) const {
+        if (pending_count_ <= 1) {
+            return smoothing;
+        }
+
+        const double normalized = static_cast<double>(output_index) / static_cast<double>(pending_count_ - 1);
+        const double low_frequency_weight = std::pow(std::max(0.0, 1.0 - normalized), 2.5);
+        const double low_frequency_target = 0.9997;
+        const double boosted = smoothing +
+            (low_frequency_target - smoothing) * low_frequency_amount * low_frequency_weight;
+
+        return std::clamp(boosted, 0.0, 0.9997);
+    }
+
+    double spectrum_tilt_weight(int output_index) const {
+        if (pending_count_ <= 1) {
+            return 0.0;
+        }
+
+        const double normalized = static_cast<double>(output_index) / static_cast<double>(pending_count_ - 1);
+        return std::pow(std::max(0.0, normalized), 1.35);
+    }
+
+    std::array<double, max_output_points> pending_current_{};
     std::array<double, max_output_points> pending_reference_{};
-    std::array<double, max_output_points> pending_target_{};
     std::array<double, max_output_points> pending_difference_{};
+    std::array<double, max_output_points> smoothed_current_{};
     std::array<double, max_output_points> smoothed_reference_{};
-    std::array<double, max_output_points> smoothed_target_{};
     std::array<double, max_output_points> smoothed_difference_{};
 
     int pending_count_ = 0;
