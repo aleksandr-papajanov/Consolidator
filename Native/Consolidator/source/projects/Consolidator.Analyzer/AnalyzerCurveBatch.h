@@ -83,7 +83,8 @@ public:
     void send(
         c74::min::outlet<>& current_out,
         c74::min::outlet<>& reference_out,
-        c74::min::outlet<>& difference_out
+        c74::min::outlet<>& difference_out,
+        bool send_difference
     ) const {
         c74::min::atoms current_atoms;
         c74::min::atoms reference_atoms;
@@ -97,7 +98,9 @@ public:
 
         current_out.send(current_atoms);
         reference_out.send(reference_atoms);
-        difference_out.send(difference_atoms);
+        if (send_difference) {
+            difference_out.send(difference_atoms);
+        }
     }
 
 private:

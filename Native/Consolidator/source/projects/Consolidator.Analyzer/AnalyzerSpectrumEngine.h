@@ -2,6 +2,7 @@
 
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerCurveBatch.h"
+#include "EqFrequencyGrid.h"
 
 #include <algorithm>
 #include <array>
@@ -28,17 +29,6 @@ public:
         }
 
         return nearest_power_of_two(value);
-    }
-
-    int sanitized_detail(int value, int fft_size) const {
-        value = std::clamp(value, 32, AnalyzerCurveBatch::max_output_points);
-
-        const int max_bins = fft_size / 2;
-        if (value > max_bins) {
-            value = max_bins;
-        }
-
-        return value;
     }
 
     void analyze(
@@ -174,15 +164,16 @@ private:
 
         const double normalized = static_cast<double>(i) / static_cast<double>(bins_out - 1);
         const int max_bin = (fft_size / 2) - 1;
-        const double min_frequency = 20.0;
         const double nyquist = sample_rate_ * 0.5;
-        const double min_bin = (min_frequency / nyquist) * max_bin;
-        const double log_min = std::log(std::max(1.0, min_bin));
-        const double log_max = std::log(static_cast<double>(max_bin));
-        const double mapped_bin = std::exp(log_min + normalized * (log_max - log_min));
+        const double max_frequency = std::max(
+            EqCurveGrid::min_hz,
+            std::min(EqCurveGrid::max_hz, nyquist));
+        const double frequency = EqCurveGrid::min_hz *
+            std::pow(max_frequency / EqCurveGrid::min_hz, normalized);
+        const double mapped_bin = frequency * static_cast<double>(fft_size) / sample_rate_;
 
         return std::clamp(static_cast<int>(std::round(mapped_bin)), 1, max_bin);
     }
 
-    double sample_rate_ = 44100.0;
+    double sample_rate_ = EqCurveGrid::default_sample_rate;
 };

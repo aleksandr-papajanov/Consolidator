@@ -2,7 +2,9 @@
 
 #include "c74_min.h"
 
-#include "EqParams.h"
+#include "FilterContract.h"
+#include "FilterRegistry.h"
+#include "FilterSpec.h"
 
 class ApproximatorOutputs {
 public:
@@ -16,24 +18,8 @@ public:
         debug_out_(debug_out) {
     }
 
-    void ready() const {
-        status_out_.send("ready");
-    }
-
-    void capturing() const {
-        status_out_.send("capturing");
-    }
-
-    void processing() const {
-        status_out_.send("processing");
-    }
-
-    void done() const {
-        status_out_.send("done");
-    }
-
-    void status_error() const {
-        status_out_.send("error");
+    void ready(bool available) const {
+        status_out_.send("ready", available ? 1 : 0);
     }
 
     void loss(double value) const {
@@ -56,27 +42,36 @@ public:
         debug_out_.send("cleared");
     }
 
-    void send_commands(const EqParams& p) const {
-        commands_out_.send("gain", p.gainDb);
-        commands_out_.send("tilt", p.tiltDb, p.tiltPivotHz);
+    void send_filter_commands(
+        const FilterRegistry& registry,
+        const std::vector<double>& normalized_values
+    ) const {
+        std::size_t value_offset = 0;
+        for (const auto& contract_opt : registry.all()) {
+            if (!contract_opt) {
+                continue;
+            }
 
-        commands_out_.send("lowshelf", p.lowShelf.gainDb, p.lowShelf.freqHz, p.lowShelf.q);
-        commands_out_.send("highshelf", p.highShelf.gainDb, p.highShelf.freqHz, p.highShelf.q);
+            const auto& contract = *contract_opt;
+            const auto count = contract.parameters.size();
+            if (value_offset + count > normalized_values.size()) {
+                return;
+            }
 
-        for (int i = 0; i < static_cast<int>(p.bells.size()); ++i) {
-            const auto& b = p.bells[i];
-
-            commands_out_.send(
-                "bell",
-                i,
-                b.gainDb,
-                b.freqHz,
-                b.q
-            );
+            const std::vector<double> values(
+                normalized_values.begin() + value_offset,
+                normalized_values.begin() + value_offset + count);
+            send_filter(contract, contract_to_spec(contract, values));
+            value_offset += count;
         }
     }
 
 private:
+    void send_filter(const FilterContract& contract, const FilterSpec& spec) const {
+        commands_out_.send(make_definition_atoms(contract));
+        commands_out_.send(make_filter_atoms(contract, spec));
+    }
+
     c74::min::outlet<>& commands_out_;
     c74::min::outlet<>& status_out_;
     c74::min::outlet<>& debug_out_;

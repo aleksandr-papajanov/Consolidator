@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
@@ -9,10 +9,9 @@ include_directories(
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    EqProcessor.h
 )
 
-set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.equalizer" CACHE STRING "The name to give to the external output file/directory" FORCE)
+set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.eqchain" CACHE STRING "The name to give to the external output file/directory" FORCE)
 
 add_library(
     ${PROJECT_NAME}

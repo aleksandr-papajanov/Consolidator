@@ -3,6 +3,13 @@
 #include <cmath>
 #include <vector>
 
+namespace EqCurveGrid {
+constexpr std::size_t point_count = 128;
+constexpr double min_hz = 20.0;
+constexpr double max_hz = 20000.0;
+constexpr double default_sample_rate = 48000.0;
+}
+
 inline std::vector<double> make_log_frequency_grid(size_t count, double min_hz, double max_hz) {
     std::vector<double> result;
     result.reserve(count);
@@ -19,4 +26,8 @@ inline std::vector<double> make_log_frequency_grid(size_t count, double min_hz, 
     }
 
     return result;
+}
+
+inline std::vector<double> make_eq_curve_frequency_grid(std::size_t count = EqCurveGrid::point_count) {
+    return make_log_frequency_grid(count, EqCurveGrid::min_hz, EqCurveGrid::max_hz);
 }

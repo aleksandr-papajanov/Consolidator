@@ -1,7 +1,7 @@
 # Copyright 2018 The Min-DevKit Authors. All rights reserved.
 # Use of this source code is governed by the MIT License found in the License.md file.
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 set(C74_MIN_API_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../min-api)
 include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
@@ -34,10 +34,19 @@ add_library(
     ${SOURCE_FILES}
  )
 
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE
+        Consolidator.EqCore
+)
+
 target_include_directories(${PROJECT_NAME}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../ThirdParty/KissFFT
 )
+
+if (MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /wd4267)
+endif ()
 
 if (CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX)
     add_custom_command(

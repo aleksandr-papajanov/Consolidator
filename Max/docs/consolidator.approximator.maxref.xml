@@ -31,14 +31,29 @@
 
 	<methodlist>
 
-		<method name='capture'>
-			<digest>Freeze the latest target curve for fitting </digest>
-			<description>Freeze the latest target curve for fitting </description>
+		<method name='list'>
+			<digest>Receive the differential curve </digest>
+			<description>Receive the differential curve </description>
 		</method>
 
-		<method name='list'>
-			<digest>Receive target or baseline curve </digest>
-			<description>Receive target or baseline curve </description>
+		<method name='clear'>
+			<digest>Clear the current differential curve </digest>
+			<description>Clear the current differential curve </description>
+		</method>
+
+		<method name='add_filter'>
+			<digest>Register a filter contract </digest>
+			<description>Register a filter contract </description>
+		</method>
+
+		<method name='dictionary'>
+			<digest>Register a filter contract dictionary </digest>
+			<description>Register a filter contract dictionary </description>
+		</method>
+
+		<method name='remove_filter'>
+			<digest>Remove one dynamically defined filter </digest>
+			<description>Remove one dynamically defined filter </description>
 		</method>
 
 		<method name='fit'>

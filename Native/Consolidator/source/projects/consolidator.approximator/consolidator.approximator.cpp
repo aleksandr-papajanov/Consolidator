@@ -1,7 +1,10 @@
 #include "c74_min.h"
 
 #include "ApproximatorSupport.h"
+#include "FilterContractDictionary.h"
+#include "FilterRegistry.h"
 
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -20,37 +23,29 @@ public:
         "(list) target difference curve in dB"
     };
 
-    inlet<> baseline_curve_in{
+    inlet<> current_eq_curve{
         this,
-        "(list) current EQ curve in dB"
+        "(list) current summed EQ curve in dB"
     };
 
     inlet<> commands{
         this,
-        "(anything) commands: capture, fit"
+        "(anything) commands: list, add_filter, dictionary, remove_filter, clear, fit"
     };
 
     outlet<> commands_out{
         this,
-        "(anything) EQ commands"
+        "(anything) commands: filter, add_filter, remove_filter"
     };
 
     outlet<> status_out{
         this,
-        "(symbol) status: capturing, processing, done, error"
+        "(anything) status: ready 0/1"
     };
 
     outlet<> debug_out{
         this,
-        "(anything) debug info"
-    };
-
-    enum class Status {
-        idle,
-        capturing,
-        processing,
-        done,
-        error,
+        "(anything) diagnostics: error <code>, loss <value>"
     };
 
     queue<> fit_delivery{
@@ -64,51 +59,143 @@ public:
     message<> list{
         this,
         "list",
-        "Receive target or baseline curve",
+        "Receive the differential curve",
         MIN_FUNCTION {
             if (inlet == 0) {
                 curve_store.set_target(args);
+                has_recent_input_ = !args.empty();
+                update_ready();
             }
             else if (inlet == 1) {
-                curve_store.set_baseline(args);
+                curve_store.set_current_eq(args);
+                update_ready();
             }
 
             return {};
         }
     };
 
-    message<> capture_message{
+    message<> clear_message{
         this,
-        "capture",
-        "Freeze the latest target curve for fitting",
+        "clear",
+        "Clear the current differential curve",
         MIN_FUNCTION {
-            bool join_worker = false;
-            {
-                std::lock_guard<std::mutex> lock(fit_mutex_);
-                if (fit_running_) {
-                    ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                    outputs.error("fit_in_progress");
-                    return {};
-                }
-
-                if (fit_worker_.joinable()) {
-                    join_worker = true;
-                }
-            }
-
-            if (join_worker) {
-                fit_worker_.join();
-            }
-
-            ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-
-            if (!curve_store.capture()) {
-                outputs.error("missing_curve_or_baseline");
-                set_status(Status::error);
+            if (inlet != 2) {
+                debug_out.send("error", "commands_must_use_command_inlet");
                 return {};
             }
 
-            set_status(Status::capturing);
+            curve_store.clear();
+            has_recent_input_ = false;
+            update_ready();
+            return {};
+        }
+    };
+
+    message<> loadbang{
+        this,
+        "loadbang",
+        MIN_FUNCTION {
+            set_ready(false, true);
+            return {};
+        }
+    };
+
+    message<> add_filter_message{
+        this,
+        "add_filter",
+        "Register a filter contract",
+        MIN_FUNCTION {
+            if (inlet != 2) {
+                debug_out.send("error", "commands_must_use_command_inlet");
+                return {};
+            }
+
+            if (args.size() == 1 && dictionary_atom(args[0])) {
+                FilterContract contract;
+                if (!parse_filter_contract_dictionary(contract, args[0])) {
+                    debug_out.send("error", "invalid_filter_configuration_dictionary");
+                    return {};
+                }
+
+                const bool was_empty = registry_.empty();
+                registry_.define(contract);
+                if (was_empty) {
+                    update_ready();
+                }
+                return {};
+            }
+
+            if (args.size() < 2) {
+                return {};
+            }
+
+            const auto slot = static_cast<std::size_t>(static_cast<int>(args[0]));
+            if (slot >= FilterRegistry::max_filters) {
+                return {};
+            }
+
+            FilterContract contract;
+            contract.slot = static_cast<int>(slot);
+            if (!parse_definition_arguments(contract, args)) {
+                return {};
+            }
+
+            const bool was_empty = registry_.empty();
+            registry_.define(contract);
+            if (was_empty) {
+                update_ready();
+            }
+            return {};
+        }
+    };
+
+    message<> dictionary_message{
+        this,
+        "dictionary",
+        "Register a filter contract dictionary",
+        MIN_FUNCTION {
+            if (inlet != 2 || args.size() != 1 || !dictionary_atom(args[0])) {
+                debug_out.send("error", "invalid_filter_configuration_dictionary");
+                return {};
+            }
+
+            FilterContract contract;
+            if (!parse_filter_contract_dictionary(contract, args[0])) {
+                debug_out.send("error", "invalid_filter_configuration_dictionary");
+                return {};
+            }
+
+            const bool was_empty = registry_.empty();
+            registry_.define(contract);
+            if (was_empty) {
+                update_ready();
+            }
+            return {};
+        }
+    };
+
+    message<> remove_filter_message{
+        this,
+        "remove_filter",
+        "Remove one dynamically defined filter",
+        MIN_FUNCTION {
+            if (inlet != 2) {
+                debug_out.send("error", "commands_must_use_command_inlet");
+                return {};
+            }
+
+            if (args.size() != 1) {
+                return {};
+            }
+
+            const size_t slot = static_cast<size_t>(args[0]);
+            if (slot >= FilterRegistry::max_filters) {
+                return {};
+            }
+
+            registry_.undefine(slot);
+            update_ready();
             return {};
         }
     };
@@ -118,15 +205,42 @@ public:
         "fit",
         "Fit EQ parameters to current target curve",
         MIN_FUNCTION {
-            bool join_worker = false;
-            if (!curve_store.has_captured_curve()) {
-                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                outputs.error("no_captured_curve");
-                set_status(Status::error);
+            if (inlet != 2) {
+                debug_out.send("error", "commands_must_use_command_inlet");
                 return {};
             }
 
-            const auto curve = curve_store.captured_residual_curve();
+            bool join_worker = false;
+            if (registry_.empty()) {
+                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
+                outputs.error("no_defined_filters");
+                set_ready(false);
+                return {};
+            }
+
+            if (!has_recent_input_ || !curve_store.has_live_curve()) {
+                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
+                outputs.error("no_difference_curve");
+                set_ready(false);
+                return {};
+            }
+
+            if (!curve_store.has_current_eq_curve()) {
+                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
+                outputs.error("no_current_eq_curve");
+                set_ready(false);
+                return {};
+            }
+
+            if (!curve_store.has_compatible_curves()) {
+                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
+                outputs.error("curve_size_mismatch");
+                set_ready(false);
+                return {};
+            }
+
+            const auto curve = curve_store.combined_curve();
+            const auto registry = registry_;
 
             {
                 std::lock_guard<std::mutex> lock(fit_mutex_);
@@ -150,11 +264,11 @@ public:
             }
 
             ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-            set_status(Status::processing);
+            set_ready(false);
 
-            fit_worker_ = std::thread([this, curve]() mutable {
+            fit_worker_ = std::thread([this, curve, registry]() mutable {
                 try {
-                    const auto result = optimizer.fit(curve);
+                    const auto result = optimizer.fit(curve, registry);
                     {
                         std::lock_guard<std::mutex> lock(fit_mutex_);
                         pending_result_ = result;
@@ -163,11 +277,6 @@ public:
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(fit_mutex_);
                     pending_error_ = e.what();
-                }
-
-                {
-                    std::lock_guard<std::mutex> lock(fit_mutex_);
-                    fit_running_ = false;
                 }
 
                 fit_delivery.set();
@@ -200,55 +309,55 @@ private:
             fit_worker_.join();
         }
 
+        fit_running_ = false;
+
         ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
 
         if (!error.empty()) {
             outputs.error(error.c_str());
-            set_status(Status::error);
+            update_ready();
             return;
         }
 
         if (result) {
             outputs.loss(result->loss);
-            outputs.send_commands(result->params);
-            set_status(Status::done);
-        }
-    }
-
-    void set_status(Status new_status) {
-        if (status_ == new_status) {
-            return;
-        }
-
-        status_ = new_status;
-
-        ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-        switch (new_status) {
-            case Status::idle:
-                break;
-            case Status::capturing:
-                outputs.capturing();
-                break;
-            case Status::processing:
-                outputs.processing();
-                break;
-            case Status::done:
-                outputs.done();
-                break;
-            case Status::error:
-                outputs.status_error();
-                break;
+            outputs.send_filter_commands(registry_, result->normalized_values);
+            update_ready();
         }
     }
 
     ApproximatorCurveStore curve_store;
+    FilterRegistry registry_;
     EqOptimizer optimizer;
     std::mutex fit_mutex_;
     std::thread fit_worker_;
-    bool fit_running_ = false;
+    std::atomic<bool> fit_running_ = false;
     std::optional<EqOptimizer::FitResult> pending_result_;
     std::string pending_error_;
-    Status status_ = Status::idle;
+    bool has_recent_input_ = false;
+    bool ready_available_ = false;
+
+    void update_ready() {
+        set_ready(
+            has_recent_input_ &&
+            curve_store.has_compatible_curves() &&
+            !registry_.empty() &&
+            !fit_running_.load());
+    }
+
+    void set_ready(bool available, bool force = false) {
+        if (!force && fit_running_.load()) {
+            available = false;
+        }
+
+        if (!force && ready_available_ == available) {
+            return;
+        }
+
+        ready_available_ = available;
+        ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
+        outputs.ready(available);
+    }
 };
 
 MIN_EXTERNAL_CUSTOM(ConsolidatorApproximator, consolidator.approximator);

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(Min-Starter)
 
+add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+
 get_filename_component(CONSOLIDATOR_ROOT
     "${CMAKE_CURRENT_SOURCE_DIR}/../.."
     ABSOLUTE

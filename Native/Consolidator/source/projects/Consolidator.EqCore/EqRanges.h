@@ -3,6 +3,7 @@
 #include "EqParams.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace EqRanges {
     inline constexpr double gain_min_db = -18.0;
@@ -26,6 +27,42 @@ namespace EqRanges {
     inline constexpr double bell_freq_max_hz = 18000.0;
     inline constexpr double bell_q_min = 0.2;
     inline constexpr double bell_q_max = 8.0;
+
+    inline double clamp_unit(double value) {
+        return std::clamp(value, 0.0, 1.0);
+    }
+
+    inline double unit_to_linear(double value, double min_value, double max_value) {
+        return min_value + clamp_unit(value) * (max_value - min_value);
+    }
+
+    inline double linear_to_unit(double value, double min_value, double max_value) {
+        if (max_value <= min_value) {
+            return 0.0;
+        }
+
+        return clamp_unit((value - min_value) / (max_value - min_value));
+    }
+
+    inline double unit_to_log(double value, double min_value, double max_value) {
+        if (min_value <= 0.0 || max_value <= 0.0 || max_value <= min_value) {
+            return min_value;
+        }
+
+        const double t = clamp_unit(value);
+        return min_value * std::pow(max_value / min_value, t);
+    }
+
+    inline double log_to_unit(double value, double min_value, double max_value) {
+        if (min_value <= 0.0 || max_value <= 0.0 || max_value <= min_value || value <= 0.0) {
+            return 0.0;
+        }
+
+        const double log_min = std::log(min_value);
+        const double log_max = std::log(max_value);
+        const double log_value = std::log(value);
+        return clamp_unit((log_value - log_min) / (log_max - log_min));
+    }
 
     inline void clamp(EqParams& params) {
         params.gainDb = std::clamp(params.gainDb, gain_min_db, gain_max_db);

@@ -1,0 +1,138 @@
+{
+  "controls": {
+    "gain": {
+      "defaultPosition": [0, 6.5, 50, 43]
+    },
+    "frequency": {
+      "defaultPosition": [0, 50, 45, 15]
+    },
+    "q": {
+      "defaultPosition": [0, 65, 45, 15]
+    },
+    "bypass": {
+      "defaultPosition": [45, 15, 15, 15],
+      "defaultEnabled": 1,
+      "outputValue": 1
+  },
+    "reset": {
+      "defaultPosition": [46, 30, 15, 15],
+      "defaultEnabled": 1
+    }
+  },
+  "layouts": {
+    "gain": {
+      "gain": {},
+      "frequency": { "visible": 0, "enabled": 0 },
+      "q": { "visible": 0, "enabled": 0 }
+    },
+    "tilt": {
+      "gain": {},
+      "frequency": {},
+      "q": { "visible": 0, "enabled": 0 }
+    },
+    "lowshelf": {
+      "gain": {},
+      "frequency": {},
+      "q": {}
+    },
+    "highshelf": {
+      "gain": {},
+      "frequency": {},
+      "q": {}
+    },
+    "peak": {
+      "gain": {},
+      "frequency": {},
+      "q": {}
+    }
+  },
+  "filters": {
+    "1": {
+      "slot": 1,
+      "type": "gain",
+      "color": "#7F7F7F",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 }
+      }
+    },
+    "2": {
+      "slot": 2,
+      "type": "tilt",
+      "color": "#A349A4",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "pivot": { "control": "frequency", "scale": "logarithmic", "min": 40, "max": 18000, "default": 1000 }
+      }
+    },
+    "3": {
+      "slot": 3,
+      "type": "lowshelf",
+      "color": "#00A2E8",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 40, "max": 450, "default": 200 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 0.2, "max": 1, "default": 0.707 }
+      }
+    },
+    "4": {
+      "slot": 4,
+      "type": "peak",
+      "color": "#EA3680",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 200, "max": 2500, "default": 1000 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 0.2, "max": 1, "default": 1 }
+      }
+    },
+    "5": {
+      "slot": 5,
+      "type": "peak",
+      "color": "#FF6B6B",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 600, "max": 7000, "default": 3000 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 0.2, "max": 1, "default": 1 }
+      }
+    },
+    "6": {
+      "slot": 6,
+      "type": "highshelf",
+      "color": "#FFF200",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 1500, "max": 18000, "default": 8000 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 0.2, "max": 1, "default": 0.707 }
+      }
+    },
+    "7": {
+      "slot": 7,
+      "type": "peak",
+      "color": "#7F82BB",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 40, "max": 600, "default": 200 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 1, "max": 7, "default": 3 }
+      }
+    },
+    "8": {
+      "slot": 8,
+      "type": "peak",
+      "color": "#75FA8D",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 600, "max": 3000, "default": 1000 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 1, "max": 7, "default": 3 }
+      }
+    },
+    "9": {
+      "slot": 9,
+      "type": "peak",
+      "color": "#EE8AF8",
+      "parameters": {
+        "gain": { "control": "gain", "scale": "linear", "min": -15, "max": 15, "default": 0 },
+        "freq": { "control": "frequency", "scale": "logarithmic", "min": 3000, "max": 18000, "default": 5000 },
+        "q": { "control": "q", "scale": "logarithmic", "min": 1, "max": 7, "default": 3 }
+      }
+    }
+  }
+}

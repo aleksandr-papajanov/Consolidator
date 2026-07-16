@@ -16,6 +16,7 @@ public:
     inlet<> current_r{ this, "(signal) current right", "signal" };
     inlet<> reference_l{ this, "(signal) reference left", "signal" };
     inlet<> reference_r{ this, "(signal) reference right", "signal" };
+    inlet<> commands_in{ this, "(anything) commands: difference 0/1, bang, stats" };
 
     outlet<> audio_l{ this, "(signal) passthrough left", "signal" };
     outlet<> audio_r{ this, "(signal) passthrough right", "signal" };
@@ -23,6 +24,7 @@ public:
     outlet<> current_out{ this, "(list) current spectrum dB" };
     outlet<> reference_out{ this, "(list) reference spectrum dB" };
     outlet<> difference_out{ this, "(list) reference-current dB" };
+    outlet<> debug_out{ this, "(anything) diagnostics: error <code>" };
 
     attribute<int> fft_size_attr{
         this,
@@ -30,14 +32,6 @@ public:
         2048,
         range { 512, AnalyzerFrameBuffer::max_fft_size },
         description { "FFT analysis window size in samples. Must be power of two." }
-    };
-
-    attribute<int> detail_attr{
-        this,
-        "detail",
-        128,
-        range { 32, AnalyzerCurveBatch::max_output_points },
-        description { "Number of output points sent to the UI." }
     };
 
     attribute<double> smoothing_attr{
@@ -72,6 +66,30 @@ public:
         description { "Visual tilt of the analyzer spectrum in dB. Positive values lift high frequencies." }
     };
 
+    message<> difference_message{
+        this,
+        "difference",
+        "Enable or disable differential curve output",
+        MIN_FUNCTION {
+            if (args.size() != 1) {
+                debug_out.send("error", "invalid_difference_command");
+                return {};
+            }
+
+            const double value = static_cast<double>(args[0]);
+            if (value != 0.0 && value != 1.0) {
+                debug_out.send("error", "difference_must_be_0_or_1");
+                return {};
+            }
+
+            difference_enabled_ = value == 1.0;
+            if (!difference_enabled_) {
+                curves.clear_pending();
+            }
+            return {};
+        }
+    };
+
     message<> dspsetup{ this, "dspsetup",
         MIN_FUNCTION {
             if (!args.empty()) {
@@ -84,7 +102,7 @@ public:
 
     samples<2> operator()(sample current_l_in, sample current_r_in, sample reference_l_in, sample reference_r_in) {
         const int fft_size = spectrum_engine.sanitized_fft_size(fft_size_attr);
-        const int bins_out = spectrum_engine.sanitized_detail(detail_attr, fft_size);
+        const int bins_out = static_cast<int>(EqCurveGrid::point_count);
         const AnalyzerInputFrame frame{
             { current_l_in, current_r_in },
             { reference_l_in, reference_r_in }
@@ -112,11 +130,16 @@ public:
 
     message<> bang{ this, "bang", "Output latest analyzed curves.",
         MIN_FUNCTION {
+            if (inlet != 4) {
+                debug_out.send("error", "commands_must_use_command_inlet");
+                return {};
+            }
+
             if (!curves.has_pending()) {
                 return {};
             }
 
-            curves.send(current_out, reference_out, difference_out);
+            curves.send(current_out, reference_out, difference_out, difference_enabled_);
             curves.clear_pending();
 
             return {};
@@ -125,6 +148,11 @@ public:
 
     message<> stats_message{ this, "stats", "Output input RMS diagnostics.",
         MIN_FUNCTION {
+            if (inlet != 4) {
+                debug_out.send("error", "commands_must_use_command_inlet");
+                return {};
+            }
+
             difference_out.send(input_stats.build_atoms());
             input_stats.clear();
             return {};
@@ -136,6 +164,7 @@ private:
     AnalyzerCurveBatch curves;
     AnalyzerStatistics input_stats;
     AnalyzerSpectrumEngine spectrum_engine;
+    bool difference_enabled_ = true;
 };
 
 MIN_EXTERNAL_CUSTOM(ConsolidatorAnalyzer, consolidator.analyzer);

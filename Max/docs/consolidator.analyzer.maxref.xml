@@ -31,6 +31,11 @@
 
 	<methodlist>
 
+		<method name='difference'>
+			<digest>Enable or disable differential curve output </digest>
+			<description>Enable or disable differential curve output </description>
+		</method>
+
 		<method name='bang'>
 			<digest>Output latest analyzed curves</digest>
 			<description>Output latest analyzed curves. </description>
@@ -47,11 +52,6 @@
 	<!--ATTRIBUTES-->
 
 	<attributelist>
-
-		<attribute name='detail' get='1' set='1' type='long' size='1' >
-			<digest>Number of output points sent to the UI</digest>
-			<description>Number of output points sent to the UI. </description>
-		</attribute>
 
 		<attribute name='fftsize' get='1' set='1' type='long' size='1' >
 			<digest>FFT analysis window size in samples</digest>

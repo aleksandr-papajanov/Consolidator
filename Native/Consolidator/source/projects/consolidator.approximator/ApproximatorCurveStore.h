@@ -2,107 +2,97 @@
 
 #include "c74_min.h"
 
-#include "CurveInterpolation.h"
 #include "TargetCurve.h"
 #include "EqFrequencyGrid.h"
+
+#include <stdexcept>
 
 class ApproximatorCurveStore {
 public:
     void set_target(const c74::min::atoms& args) {
-        live_curve_.values.clear();
-        live_curve_.values.reserve(args.size());
-
-        for (const auto& a : args) {
-            live_curve_.values.push_back(static_cast<double>(a));
-        }
-
-        live_curve_.frequencies = make_log_frequency_grid(live_curve_.values.size(), 20.0, 20000.0);
-        has_live_curve_ = true;
+        assign_curve(difference_curve_, has_difference_curve_, args);
     }
 
-    void set_baseline(const c74::min::atoms& args) {
-        live_baseline_.values.clear();
-        live_baseline_.values.reserve(args.size());
-
-        for (const auto& a : args) {
-            live_baseline_.values.push_back(static_cast<double>(a));
-        }
-
-        live_baseline_.frequencies = make_log_frequency_grid(live_baseline_.values.size(), 20.0, 20000.0);
-        has_live_baseline_ = true;
-    }
-
-    bool capture() {
-        if (!has_live_curve_) {
-            return false;
-        }
-
-        if (!has_live_baseline_) {
-            return false;
-        }
-
-        captured_curve_ = live_curve_;
-        captured_baseline_ = live_baseline_;
-        has_captured_curve_ = true;
-        return true;
+    void set_current_eq(const c74::min::atoms& args) {
+        assign_curve(current_eq_curve_, has_current_eq_curve_, args);
     }
 
     void clear() {
-        live_curve_.frequencies.clear();
-        live_curve_.values.clear();
-        live_baseline_.frequencies.clear();
-        live_baseline_.values.clear();
-        captured_curve_.frequencies.clear();
-        captured_curve_.values.clear();
-        captured_baseline_.frequencies.clear();
-        captured_baseline_.values.clear();
-        has_live_curve_ = false;
-        has_live_baseline_ = false;
-        has_captured_curve_ = false;
+        difference_curve_ = {};
+        current_eq_curve_ = {};
+        has_difference_curve_ = false;
+        has_current_eq_curve_ = false;
     }
 
     bool has_live_curve() const {
-        return has_live_curve_;
+        return has_difference_curve_;
     }
 
-    bool has_live_baseline() const {
-        return has_live_baseline_;
+    bool has_current_eq_curve() const {
+        return has_current_eq_curve_;
     }
 
-    bool has_captured_curve() const {
-        return has_captured_curve_;
+    bool has_compatible_curves() const {
+        return has_difference_curve_ &&
+            has_current_eq_curve_ &&
+            difference_curve_.values.size() == current_eq_curve_.values.size();
     }
 
     const TargetCurve& live_curve() const {
-        return live_curve_;
+        return difference_curve_;
     }
 
-    const TargetCurve& captured_curve() const {
-        return captured_curve_;
-    }
+    TargetCurve combined_curve() const {
+        if (!has_difference_curve_ || !has_current_eq_curve_) {
+            throw std::runtime_error("missing_curve_input");
+        }
 
-    const TargetCurve& captured_baseline_curve() const {
-        return captured_baseline_;
-    }
+        if (difference_curve_.values.size() != current_eq_curve_.values.size()) {
+            throw std::runtime_error("curve_size_mismatch");
+        }
 
-    TargetCurve captured_residual_curve() const {
-        return add_curves(captured_curve_, captured_baseline_);
+        TargetCurve result = difference_curve_;
+        for (std::size_t i = 0; i < result.values.size(); ++i) {
+            result.values[i] += current_eq_curve_.values[i];
+        }
+
+        return result;
     }
 
     const std::vector<double>& freqs() const {
-        return live_curve_.frequencies;
+        return difference_curve_.frequencies;
     }
 
     const std::vector<double>& target_db() const {
-        return live_curve_.values;
+        return difference_curve_.values;
     }
 
 private:
-    TargetCurve live_curve_;
-    TargetCurve live_baseline_;
-    TargetCurve captured_curve_;
-    TargetCurve captured_baseline_;
-    bool has_live_curve_ = false;
-    bool has_live_baseline_ = false;
-    bool has_captured_curve_ = false;
+    static void assign_curve(
+        TargetCurve& target,
+        bool& available,
+        const c74::min::atoms& args
+    ) {
+        target.values.clear();
+        target.values.reserve(args.size());
+
+        for (const auto& a : args) {
+            target.values.push_back(static_cast<double>(a));
+        }
+
+        target.frequencies = make_log_frequency_grid(
+            EqCurveGrid::point_count,
+            EqCurveGrid::min_hz,
+            EqCurveGrid::max_hz);
+        available = args.size() == EqCurveGrid::point_count;
+        if (!available) {
+            target.values.clear();
+            target.frequencies.clear();
+        }
+    }
+
+    TargetCurve difference_curve_;
+    TargetCurve current_eq_curve_;
+    bool has_difference_curve_ = false;
+    bool has_current_eq_curve_ = false;
 };
