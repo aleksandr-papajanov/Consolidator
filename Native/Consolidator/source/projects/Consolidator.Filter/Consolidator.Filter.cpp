@@ -31,14 +31,19 @@ public:
         "(message) commands: message <dictionary type=filter.define|filter.instance.state|filter.control.update|filter.update|filter.bypass|filter.edit|filter.reset>"
     };
 
+    outlet<> command_out{
+        this,
+        "(message) commands: message <dictionary type=filter.define|filter.update(filterId,values,bankIndex?)|filter.bypass>"
+    };
+
+    outlet<> status_out{
+        this,
+        "(anything) status: initializing, ready, error <code>"
+    };
+
     outlet<> curve_out{
         this,
         "(list) filter response curve in dB"
-    };
-
-    outlet<> command_out{
-        this,
-        "(message) commands: message <dictionary type=filter.define|filter.update|filter.bypass>"
     };
 
     outlet<> local_command_out{
@@ -89,6 +94,7 @@ public:
 
             auto message = consolidator::protocol::MessageFactory::from_atom(args[0]);
             if (!message) return {};
+            if (!message->is_addressed_to("filter")) return {};
             const auto result = dispatch_command(*message);
             if (result == consolidator::protocol::MessageDispatchResult::invalid) {
                 debug_out.send("error", "invalid_message_envelope");
@@ -112,12 +118,12 @@ private:
             });
     }
 
-    bool accepts_target(const long target, const bool defining = false) const {
-        return target == static_cast<long>(slot_attr) || (defining && !defined_);
+    bool accepts_target(const long target) const {
+        return target == static_cast<long>(slot_attr);
     }
 
       void handle_command(const consolidator::protocol::FilterDefineMessage& command) {
-          if (!accepts_target(command.target, true)) return;
+          if (!accepts_target(command.filterId)) return;
           if (!command.contractName.empty()) {
               const dict configuration{ symbol(command.contractName.c_str()) };
               define_from_configuration(atom{ static_cast<c74::max::t_object*>(configuration) });
@@ -127,7 +133,7 @@ private:
     }
 
     void handle_command(const consolidator::protocol::FilterInstanceStateMessage& command) {
-        if (!accepts_target(command.target)) return;
+        if (!accepts_target(command.filterId)) return;
         pending_instance_recovered_ = command.recovered;
         if (defined_) {
             apply_instance_state(*pending_instance_recovered_);
@@ -136,7 +142,7 @@ private:
     }
 
     void handle_command(const consolidator::protocol::FilterControlUpdateMessage& command) {
-        if (!accepts_target(command.target)) return;
+        if (!accepts_target(command.filterId)) return;
         if (!defined_) return;
         if (command.control == "bypass") {
             if (command.value != 0.0 && command.value != 1.0) debug_out.send("error", "bypass_must_be_0_or_1");
@@ -148,29 +154,26 @@ private:
     }
 
     void handle_command(const consolidator::protocol::FilterResetMessage& command) {
-        if (!accepts_target(command.target)) return;
+        if (!accepts_target(command.filterId)) return;
         if (!defined_) debug_out.send("error", "filter_not_defined");
         else reset_filter_state();
     }
 
     void handle_command(const consolidator::protocol::FilterUpdateMessage& command) {
-        if (!accepts_target(command.target)) return;
+        if (!accepts_target(command.filterId)) return;
         if (!defined_ || !apply_normalized_values(atoms(command.values.begin(), command.values.end()))) {
             debug_out.send("error", "invalid_global_filter_values");
             return;
         }
-        publish_parameter_values(normalized_values_);
-        publish_curve();
-        publish_handle(!bypassed_);
-        publish_filter_curve(!bypassed_);
+        publish(command.bankIndex);
     }
 
     void handle_command(const consolidator::protocol::FilterBypassMessage& command) {
-        if (accepts_target(command.target)) set_bypass(command.bypassed);
+        if (accepts_target(command.filterId)) set_bypass(command.bypassed);
     }
 
     void handle_command(const consolidator::protocol::FilterEditMessage& command) {
-        if (!accepts_target(command.target)) return;
+        if (!accepts_target(command.filterId)) return;
         if (!defined_ || (command.q && !update_parameter("q", *command.q)) ||
             (command.frequency && !apply_graph_edit(*command.frequency, *command.gain, std::nullopt))) {
             debug_out.send("error", "invalid_filter_edit");
@@ -209,6 +212,7 @@ private:
         publish_handle(true);
         publish_filter_curve(true);
         publish();
+        status_out.send("status", "ready");
     }
 
     bool update_parameter(const std::string& control, const double value) {
@@ -563,17 +567,17 @@ private:
         return true;
     }
 
-    void publish() {
+    void publish(std::optional<long> bankIndex = std::nullopt) {
         publish_curve();
         const bool active = defined_ && !bypassed_;
         publish_handle(active);
         publish_filter_curve(active);
-        if (!defined_ || bypassed_) {
+        if (!defined_) {
             return;
         }
 
         const consolidator::protocol::FilterUpdateMessage typed_message{
-            contract_.slot, normalized_values_
+            contract_.slot, normalized_values_, bankIndex
         };
         const auto message = typed_message.to_envelope();
         command_out.send("message", message.transport_atom());

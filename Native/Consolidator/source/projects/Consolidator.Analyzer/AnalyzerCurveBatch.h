@@ -13,6 +13,7 @@ public:
     int prepare(int bins_out) {
         if (last_pending_count_ != bins_out) {
             smoothing_initialized_ = false;
+            difference_smoothing_initialized_ = false;
             last_pending_count_ = bins_out;
         }
 
@@ -45,7 +46,6 @@ public:
         if (!smoothing_initialized_ || output_index >= previous_pending_count) {
             smoothed_current_[output_index] = current_db;
             smoothed_reference_[output_index] = reference_db;
-            smoothed_difference_[output_index] = difference_db;
         }
         else {
             smoothed_current_[output_index] =
@@ -53,7 +53,12 @@ public:
 
             smoothed_reference_[output_index] =
                 smooth_toward(smoothed_reference_[output_index], reference_db, adaptive_smoothing);
+        }
 
+        if (!difference_smoothing_initialized_ || output_index >= previous_pending_count) {
+            smoothed_difference_[output_index] = difference_db;
+        }
+        else {
             smoothed_difference_[output_index] =
                 smooth_toward(smoothed_difference_[output_index], difference_db, adaptive_smoothing);
         }
@@ -65,7 +70,12 @@ public:
 
     void finalize_frame() {
         smoothing_initialized_ = true;
+        difference_smoothing_initialized_ = true;
         has_pending_ = true;
+    }
+
+    void ResetDifference() {
+        difference_smoothing_initialized_ = false;
     }
 
     void clear_pending() {
@@ -146,4 +156,5 @@ private:
     int last_pending_count_ = 0;
     bool has_pending_ = false;
     bool smoothing_initialized_ = false;
+    bool difference_smoothing_initialized_ = false;
 };

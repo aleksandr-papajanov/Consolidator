@@ -39,14 +39,38 @@ public:
         debug_out_.send("error", message);
     }
 
+    void FitStarted() const {
+        debug_out_.send("fit_started");
+    }
+
+    void FitFinished() const {
+        debug_out_.send("fit_finished");
+    }
+
+    void FitResultSizeMismatch() const {
+        debug_out_.send("error", "fit_result_size_mismatch");
+    }
+
     void cleared() const {
         debug_out_.send("cleared");
     }
 
     void send_filter_commands(
         const FilterRegistry& registry,
-        const std::vector<double>& normalized_values
+        const std::vector<double>& normalized_values,
+        const long bankIndex
     ) const {
+        std::size_t expected_count = 0;
+        for (const auto& contract_opt : registry.all()) {
+            if (contract_opt) {
+                expected_count += contract_opt->parameters.size();
+            }
+        }
+        if (normalized_values.size() != expected_count) {
+            FitResultSizeMismatch();
+            return;
+        }
+
         std::size_t value_offset = 0;
         for (const auto& contract_opt : registry.all()) {
             if (!contract_opt) {
@@ -55,14 +79,10 @@ public:
 
             const auto& contract = *contract_opt;
             const auto count = contract.parameters.size();
-            if (value_offset + count > normalized_values.size()) {
-                return;
-            }
-
             const std::vector<double> values(
                 normalized_values.begin() + value_offset,
                 normalized_values.begin() + value_offset + count);
-            send_filter(contract, values);
+            send_filter(contract, values, bankIndex);
             value_offset += count;
         }
     }
@@ -70,12 +90,15 @@ public:
 private:
     void send_filter(
         const FilterContract& contract,
-        const std::vector<double>& values
+        const std::vector<double>& values,
+        const long bankIndex
     ) const {
         consolidator::protocol::MessageEnvelope message{ std::string{ "filter.update" } };
-        message.set_target(contract.slot);
+        message.set_target("filter");
         message.set_source("approximator");
+        message.set_payload_number("filterId", contract.slot);
         message.set_payload_numbers("values", values);
+        message.set_payload_number("bankIndex", bankIndex);
         commands_out_.send("message", message.transport_atom());
     }
 

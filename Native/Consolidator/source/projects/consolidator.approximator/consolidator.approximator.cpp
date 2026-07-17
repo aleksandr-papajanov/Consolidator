@@ -23,6 +23,11 @@ public:
     MIN_TAGS{ "audio, eq, optimizer" };
     MIN_AUTHOR{ "Oleksandr Papaianov" };
 
+    inlet<> commands{
+        this,
+        "(message) commands: message <dictionary type=filter.define|eq.storage.bank.changed|approximator.clear|approximator.fit>"
+    };
+
     inlet<> input_curve{
         this,
         "(list) target difference curve in dB"
@@ -33,14 +38,9 @@ public:
         "(list) current summed EQ curve in dB"
     };
 
-    inlet<> commands{
-        this,
-        "(message) commands: message <dictionary type=filter.define|approximator.clear|approximator.fit>"
-    };
-
     outlet<> commands_out{
         this,
-        "(message) commands: message <dictionary type=filter.update>"
+        "(message) commands: message <dictionary type=filter.update payload=filterId,values,bankIndex>"
     };
 
     outlet<> status_out{
@@ -50,7 +50,7 @@ public:
 
     outlet<> debug_out{
         this,
-        "(anything) diagnostics: error <code>, loss <value>"
+        "(anything) diagnostics: fit_started, fit_finished, error <code>, loss <value>"
     };
 
     queue<> fit_delivery{
@@ -66,13 +66,12 @@ public:
         "list",
         "Receive the differential curve",
         MIN_FUNCTION {
-            if (inlet == 0) {
-                curve_store.set_target(args);
-                has_recent_input_ = !args.empty();
+            if (inlet == 1) {
+                curve_store.SetTarget(args);
                 update_ready();
             }
-            else if (inlet == 1) {
-                curve_store.set_current_eq(args);
+            else if (inlet == 2) {
+                curve_store.SetCurrentEq(args);
                 update_ready();
             }
 
@@ -94,7 +93,7 @@ public:
         "message",
         "Receive a structured approximator control envelope",
         MIN_FUNCTION {
-            if (inlet != 2 || args.size() != 1) {
+            if (inlet != 0 || args.size() != 1) {
                 report_invalid_envelope(args);
                 return {};
             }
@@ -104,8 +103,12 @@ public:
                 report_invalid_envelope(args);
                 return {};
             }
+            if (!message->is_addressed_to("approximator")) {
+                return {};
+            }
             const auto result = consolidator::protocol::dispatch<
                 consolidator::protocol::FilterDefineMessage,
+                consolidator::protocol::EqStorageBankChangedMessage,
                 consolidator::protocol::ApproximatorClearMessage,
                 consolidator::protocol::ApproximatorFitMessage>(*message, [this](const auto& command) {
                     handle_command(command);
@@ -134,7 +137,7 @@ private:
     void report_invalid_typed_message(const consolidator::protocol::MessageEnvelope& message) {
         std::string type;
         std::string source;
-        long target{};
+        std::string target;
         c74::min::dict payload;
         c74::min::atom contract;
         std::string contract_name;
@@ -159,20 +162,20 @@ private:
     }
 
     void handle_command(const consolidator::protocol::FilterDefineMessage& command) {
-        if (command.target < 0 || command.target >= static_cast<long>(FilterRegistry::max_filters)) {
+        if (command.filterId < 0 || command.filterId >= static_cast<long>(FilterRegistry::max_filters)) {
             debug_out.send("error", "invalid_filter_definition");
             return;
         }
         FilterContract contract;
         const bool parsed = command.contractName.empty()
             ? parse_filter_contract_dictionary_for_slot(
-                contract, command.contract, static_cast<int>(command.target))
+                contract, command.contract, static_cast<int>(command.filterId))
             : [&]() {
                 const dict configuration{ symbol(command.contractName.c_str()) };
                 return parse_filter_contract_dictionary_for_slot(
                     contract,
                     atom{ static_cast<c74::max::t_object*>(configuration) },
-                    static_cast<int>(command.target));
+                    static_cast<int>(command.filterId));
             }();
         if (!parsed) {
             debug_out.send("error", "invalid_filter_definition");
@@ -183,9 +186,12 @@ private:
         if (was_empty) update_ready();
     }
 
+    void handle_command(const consolidator::protocol::EqStorageBankChangedMessage& command) {
+        fitBankIndex = command.bankIndex;
+    }
+
     void handle_command(const consolidator::protocol::ApproximatorClearMessage&) {
-        curve_store.clear();
-        has_recent_input_ = false;
+        curve_store.ClearTarget();
         update_ready();
     }
 
@@ -199,23 +205,23 @@ private:
             set_ready(false);
             return;
         }
-        if (!has_recent_input_ || !curve_store.has_live_curve()) {
+        if (!curve_store.HasTarget()) {
             outputs.error("no_difference_curve");
             set_ready(false);
             return;
         }
-        if (!curve_store.has_current_eq_curve()) {
+        if (!curve_store.HasCurrentEq()) {
             outputs.error("no_current_eq_curve");
             set_ready(false);
             return;
         }
-        if (!curve_store.has_compatible_curves()) {
+        if (!curve_store.HasCompatibleCurves()) {
             outputs.error("curve_size_mismatch");
             set_ready(false);
             return;
         }
 
-        const auto curve = curve_store.combined_curve();
+        const auto curve = curve_store.CombinedCurve();
         const auto registry = registry_;
         {
             std::lock_guard<std::mutex> lock(fit_mutex_);
@@ -232,6 +238,7 @@ private:
             fit_worker_.join();
         }
         set_ready(false);
+        outputs.FitStarted();
         fit_worker_ = std::thread([this, curve, registry]() mutable {
             try {
                 const auto result = optimizer.fit(curve, registry);
@@ -268,13 +275,15 @@ private:
 
         if (!error.empty()) {
             outputs.error(error.c_str());
+            outputs.FitFinished();
             update_ready();
             return;
         }
 
         if (result) {
             outputs.loss(result->loss);
-            outputs.send_filter_commands(registry_, result->normalized_values);
+            outputs.send_filter_commands(registry_, result->normalized_values, fitBankIndex);
+            outputs.FitFinished();
             update_ready();
         }
     }
@@ -287,13 +296,12 @@ private:
     std::atomic<bool> fit_running_ = false;
     std::optional<EqOptimizer::FitResult> pending_result_;
     std::string pending_error_;
-    bool has_recent_input_ = false;
     bool ready_available_ = false;
+    long fitBankIndex = 0;
 
     void update_ready() {
         set_ready(
-            has_recent_input_ &&
-            curve_store.has_compatible_curves() &&
+            curve_store.HasCompatibleCurves() &&
             !registry_.empty() &&
             !fit_running_.load());
     }

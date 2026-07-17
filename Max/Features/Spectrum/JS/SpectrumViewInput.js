@@ -1,4 +1,4 @@
-include("../Messages/MessageEnvelope.js");
+include("../../Shared/JS/Messages/MessageEnvelope.js");
 
 SpectrumViewController.prototype.list = function() {
     var index = inlet;
@@ -177,7 +177,8 @@ SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, cap
         );
         var q = this.denormalizeQ(qNormalized, spectrumState.draggedHandle.qMin, spectrumState.draggedHandle.qMax);
         spectrumState.draggedHandle.q = q;
-        this.sendEditMessage(MessageEnvelope.create("filter.edit", spectrumState.draggedHandle.slot, {
+        this.sendEditMessage(MessageEnvelope.create("filter.edit", "filter", {
+            filterId: spectrumState.draggedHandle.slot,
             parameter: "q",
             value: qNormalized
         }, "spectrum"));
@@ -196,7 +197,8 @@ SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, cap
     );
     spectrumState.draggedHandle.frequency = frequency;
     spectrumState.draggedHandle.gain = gain;
-    this.sendEditMessage(MessageEnvelope.create("filter.edit", spectrumState.draggedHandle.slot, {
+    this.sendEditMessage(MessageEnvelope.create("filter.edit", "filter", {
+        filterId: spectrumState.draggedHandle.slot,
         frequency: frequency,
         gain: gain
     }, "spectrum"));
@@ -340,6 +342,11 @@ SpectrumViewController.prototype.clear = function() {
     spectrumState.selectionCandidates = [];
     spectrumState.selectionIndex = -1;
 
+    mgraphics.redraw();
+}
+
+SpectrumViewController.prototype.clear_difference = function() {
+    spectrumState.curves[2] = [];
     mgraphics.redraw();
 }
 

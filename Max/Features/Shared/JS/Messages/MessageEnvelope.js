@@ -1,6 +1,6 @@
 function MessageEnvelope(type, target, source, payload) {
     this.type = String(type);
-    this.target = target === undefined || target === null ? null : Number(target);
+    this.target = target === undefined || target === null ? "broadcast" : String(target);
     this.source = source === undefined || source === null ? "" : String(source);
     this.payload = payload || {};
 }
@@ -21,8 +21,8 @@ MessageEnvelope.prototype.toObject = function() {
         type: this.type,
         payload: this.payload
     };
-    if (this.target !== null) result.target = this.target;
-    if (this.source) result.source = this.source;
+    result.target = this.target;
+    result.source = this.source;
     return result;
 };
 
@@ -33,8 +33,8 @@ MessageEnvelope.prototype.toJson = function() {
 MessageEnvelope.prototype.toMaxDictionary = function() {
     var dictionary = new Dict();
     dictionary.set("type", this.type);
-    if (this.target !== null) dictionary.set("target", this.target);
-    if (this.source) dictionary.set("source", this.source);
+    dictionary.set("target", this.target);
+    dictionary.set("source", this.source);
     dictionary.setparse("payload", "{}");
     for (var key in this.payload) {
         if (this.payload.hasOwnProperty(key)) {

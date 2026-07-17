@@ -21,13 +21,23 @@ The repository has two layers:
   parameter ranges and normalization, biquad/filter math, filter contracts,
   dictionary contract parsing, filter registry, and the runtime filter chain.
 - `Consolidator.Analyzer` receives current and reference stereo signals and
-  publishes spectrum curves and their difference.
+  publishes spectrum curves and their difference. Curve delivery is scheduled
+  on the Max main thread with a Min `queue<>` immediately after an FFT frame is
+  completed; do not poll Analyzer with `qmetro` or an `analyzer.publish`
+  message. Disabling `analyzer.difference` resets its difference smoothing;
+  the Approximator feature also clears the retained fit curve and the
+  Spectrum difference layer so stale data cannot remain ready or visible.
 - `Consolidator.Filter` represents one dynamically defined filter. It owns
   the filter contract and curve, accepts normalized parameter changes, and
-  publishes commands for the chain.
+  publishes commands for the chain. `Filter.maxpat` must send its abstraction
+  slot argument to the native object as `slot <id>` before it emits the filter
+  definition; do not put a literal `#1` in a native attribute argument. Native
+  message routing is strict and never infers a slot from initialization state.
 - `Consolidator.EqChain` owns the active filter chain and processes stereo
-  audio. It does not publish graphics data; filter visualization is published
-  by each `Filter` instance.
+  audio. After every definition or storage snapshot it publishes the summed
+  response of every bank for Approximator baseline correction. It does not own
+  filter visualization; individual graphics data is published by each
+  `Filter` instance.
 - `Consolidator.Approximator` stores the available filter contracts, receives
   the difference curve and current EQ curve, and fits normalized filter
   parameters.
@@ -46,17 +56,91 @@ The visual path is:
 
 `Analyzer / Filter -> SpectrumView or FilterCurveView`
 
+### Max feature domain
+
+`Max/Consolidator.amxd` is the root device. Feature code lives under
+`Max/Features/<FeatureName>/`; each feature owns its `.maxpat`, its `JS/`
+directory, and later any feature-specific images or other assets.
+`Max/Features/Shared/` owns reusable infrastructure and abstractions: `JS/`
+for shared feature code and `Patches/` for reusable Max patchers. Do not put
+feature-specific files in `Max/Features/Shared/`, and do not add new runtime
+files to the legacy `Max/JavaScript/` tree.
+
+Max object boxes reference runtime dependencies by their unique filename, not
+by a slash-separated repository path. The `.amxd` dependency cache owns each
+file's `bootpath`. Keep runtime filenames unique across features so Max can
+resolve and cache them without collisions.
+
+Every feature patcher connects to the message bus internally. Outgoing
+envelopes feed `s ---message.bus.in`; incoming envelopes come from
+`r ---message.bus.out`. BusHub owns `r ---message.bus.in -> BusHub.js ->
+s ---message.bus.out`. Do not expose or duplicate message-bus ports in the root
+device. The `---` prefix is mandatory because Max for Live expands it per
+device instance; never replace it with an unscoped global send/receive name.
+Native participants that have not yet received a feature wrapper may use one
+adjacent scoped send/receive pair in the root until they are migrated.
+
+The first inlet and outlet of every non-DSP native external are reserved for
+the same message envelope bus. `Analyzer` and `EqChain` use Min
+`sample_operator`, which requires their signal inlets to remain first; their
+command-bus inlet follows the signal inlets. The second non-audio outlet is a
+standardized direct status outlet:
+`status initializing`, `status ready`, `status processing`, or
+`error <code>`. Audio, curves, and all specialized data ports follow the two
+standard ports. This ordering is intentional and must be applied consistently
+when each external is migrated; update native declarations, Max wiring, docs,
+and this file together.
+
+`Max/Features/Shared/JS/FeatureMessageAdapter.js` is the shared envelope
+transport. Each feature owns one feature-specific `JS/*FeatureController.js`
+as its sole Max
+boundary. The controller accepts local UI commands, publishes local envelopes
+to BusHub, listens to its native status outlet, and owns the feature's control
+registry and UI actions. It must not own DSP, EQ state, or feature domain
+logic. A feature without UI behavior still has a placeholder controller.
+
+`Max/Features/Approximator/Approximator.maxpat` is the Approximator feature
+wrapper. Its local command inlet accepts `fit`, `listen 0|1`, and `clear`.
+`ApproximatorFeatureController.js` converts those commands into
+`approximator.fit`, `analyzer.difference`, and `approximator.clear` envelopes.
+`analyzer.difference` carries `payload.value` as the strict integer `0` or
+`1`; do not rename that field to `enabled`.
+The controller consumes the native `ready 0|1` selector directly. Fit is
+active only while Listen is enabled and native ready is `1`; both Fit and
+Listen are inactive during a fit. The momentary Fit button is gated on its
+value `1` so one click emits exactly one `approximator.fit` envelope.
+Native readiness is derived only from compatible difference/current-EQ curves,
+at least one defined filter, and the absence of a running fit. Clearing Listen
+removes only the difference curve; the current-EQ baseline remains valid.
+The feature receives the high-rate difference and current-EQ curves through
+`---approximator.difference.inlet` and `---spectrum.eqcurve.outlet`, while the
+message bus remains internal to the feature. Native status is exposed as
+`status <state> [values]`; native output commands are published back to
+BusHub.
+
+`BusHub` is transport and startup coordination, not domain logic. During one
+boot cycle each required feature publishes `system.status` with a ready state.
+When the static required-feature set is ready, BusHub broadcasts
+`system.start`. Feature startup must be idempotent. No FIFO, retry, or
+acknowledgement queue is introduced until a concrete delivery requirement
+needs one.
+
 `Max/Config/FilterConfig.json` is the source of truth for filter contracts and
-startup UI configuration. `FilterConfig.maxpat` loads that JSON at
+startup UI configuration. `Max/Features/Filter/FilterConfig.maxpat` loads that JSON at
 initialization, selects a filter dictionary, and sends it to the local command
 inlet of `Consolidator.Filter`. Filter parameters are defined per slot under
 `filters`; layout overrides are defined once per filter type under `layouts`.
-The filter emits local `filter.control` envelopes. `FilterControlAdapter.maxpat`
-converts them into Max `script sendbox` messages. `FilterCommandBridge.js`
-wraps UI and configuration input before it reaches the native object.
+The filter emits local `filter.control` envelopes. `FilterFeatureController`
+converts them into Max `script sendbox` messages and wraps UI/configuration
+input before it reaches BusHub.
+`FilterConfig.maxpat` has a strict local contract: its only outlet emits the
+bare name of an existing Max dictionary (for example `u123456`) with outlet
+type `dictionary`. It must not emit a JSON string, a `filters::N` path, or a
+textual `dictionary` prefix. `FilterFeatureController.dictionary()` accepts
+that dictionary name and opens it directly with `new Dict(name)`.
 Incoming parameter changes use `filter.control.update`; `Filter` publishes
 `filter.define`, `filter.update`, and `filter.bypass`
-envelopes directly to EqStorage. EqStorage owns the routes to its internal
+envelopes through `BusHub` to EqStorage. EqStorage owns the routes to its internal
 EqChain and to Approximator. `EqChain` only consumes filter definitions and
 audio commands; it has no bank or approximator command outlet. `Filter` also
 publishes `filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz>
@@ -75,29 +159,32 @@ single normalized Q gesture. `filter.update` carries the complete normalized
 parameter vector used for bank recall and state persistence; do not merge the
 two message types or infer one from the other's payload.
 
-`Max/JavaScript/Spectrum/SpectrumView.js` is only the Max JS entry point. Its
+`Max/Features/Spectrum/JS/SpectrumView.js` is the `jsui` entry point. It is the
+Spectrum feature's `FeatureController`-equivalent boundary and keeps the
+standard `list` callback required by `jsui`. Its
 implementation is split into `SpectrumViewConfig.js` for shared state and
 visual constants, `SpectrumViewGeometry.js` for coordinate conversion,
 `SpectrumViewCurves.js` for curve aggregation and drawing, and
 `SpectrumViewInput.js` for Max messages and pointer interaction.
 
-Max JavaScript is organized by feature under `Max/JavaScript/`: `Spectrum/`
+Max JavaScript is organized by feature under `Max/Features/`: `Spectrum/`
 contains spectrum visualization, `Filter/` contains filter UI adapters and
-views, `EqStorage/` contains bank storage, and `Messages/` contains shared
-message contracts. `Painters/` contains self-contained `jspainter` scripts;
+views, and `EqStorage/` contains bank storage. Shared envelope contracts live
+under `Max/Features/Shared/JS/Messages/`. `Painters/` contains
+self-contained `jspainter` scripts;
 these scripts must not depend on `include` files because Max can execute a
 `jspainterfile` in a separate runtime context. Root-level JS files are not
 used by Max patchers.
 
 ### EQ bank storage
 
-`Max/EqBankStorage.maxpat` is the reusable bank UI abstraction and audio
+`Max/Features/EqStorage/EqStorage.maxpat` is the reusable bank UI abstraction and audio
 wrapper. It owns two audio inlets and two audio outlets and contains
 `Consolidator.EqChain`; the parent device does not own another EqChain.
-Its JavaScript implementation lives in `Max/JavaScript/EqStorage/`:
+Its JavaScript implementation lives in `Max/Features/EqStorage/JS/`:
 `EqStorage` coordinates bank state and `BankFilter` owns one filter's values
 and bypass state.
-Shared protocol infrastructure lives in `Max/JavaScript/Messages/`.
+Shared protocol infrastructure lives in `Max/Features/Shared/JS/Messages/`.
 `MessageEnvelope` owns the envelope fields and Max dictionary conversion;
 `MessageFactory` is the only JS factory boundary. Legacy per-command message
 classes and `MessageCodec` are not part of the project.
@@ -107,36 +194,54 @@ Native message payloads are declared as value types in
 name and `from_envelope` deserializer. Components dispatch the registered
 types through `protocol::dispatch` and implement small typed handler overloads;
 do not add selector chains that parse payload fields inside `envelope_message`.
-The list always contains `Current` at row 0; persistent rows start at row 1.
+Storage rows are ordinary EQ banks with one-based IDs. Bank 1 is the initial
+bank created at startup; new rows are appended at 2, 3, 4 and so on. The
+user-facing list and all storage and protocol messages use this same ID.
 `Filter` publishes `filter.define`, `filter.update`, and `filter.bypass`
-directly to EqStorage. EqStorage saves each update in the
+through `BusHub` to EqStorage. EqStorage saves each update in the
 selected row immediately and forwards definitions to Approximator. It also
 publishes a complete `eq.storage.snapshot` to its internal EqChain after every
-bank mutation. All bank rows, including `Current`, are active EQ layers; the
+bank mutation. All bank rows are active EQ layers; the
 selected row controls editing only and does not select the audible EQ. EqChain
-stores every bank layer and processes them in row order. There is no request
+stores every bank layer and processes them in reverse row order. There is no request
 or capture phase.
 The UI accepts `initialize`, `bang`, `add [name]`, `remove`, `select <row>`,
-`rename <row> <name>`, and `delete <row>`. `Current` is a normal bank with the
-fixed storage ID `current`, so it is embedded and restored with the Live Set.
+`rename <row> <name>`, and `delete <row>`. Every bank has an ordinary generated
+or user-defined name and is embedded and restored with the Live Set.
 `EqStorage` owns the complete in-memory bank model and publishes its full
 snapshot after every mutation. The root `Consolidator.amxd` owns both
 `pattr eqStorageState` and the parameter-enabled
-`pattrstorage eqStorageBanks`; EqBankStorage only transports the state
+`pattrstorage eqStorageBanks`; EqStorage only transports the state
 dictionary through its private third inlet and outlet. The pattrstorage uses
 `paraminitmode 1`, so `store 1` updates the M4L parameter initial value saved
 with the Live Set. Persistence remains disabled during startup filter events.
 After `live.thisdevice -> deferlow`, the root recalls slot 1 first and then
 sends `persistence_ready`; only then may EqStorage publish state commits. Do
 not use an embedded state `dict`, a nested pattr, or a loadbang recall. Keep
-EqBankStorage non-embedded while root-level pattrstorage persists each device
+EqStorage non-embedded while root-level pattrstorage persists each device
 instance.
+Its internal EqChain publishes the summed response of all audible bank layers
+to `---spectrum.eqcurve.outlet`; Spectrum and Approximator are consumers of
+that shared absolute-dB curve.
+The source `.amxd` embeds only a clean EqStorage default with one generated
+bank, selected row 1, and no recovered `DeviceInit` flags. Runtime bank state
+belongs to the Live Set's per-instance pattrstorage value and must never be
+saved back as the device's `parameter_initial` template.
 A new bank sends
 `filter.reset` to every defined Filter; the resulting update messages populate
 the new bank with defaults. Restoring a bank sends its stored
 `filter.update`/`filter.bypass` values. Every create, select, update, rename,
 and removal publishes the envelope `eq.storage.bank.changed` with
 the action, bank index, bank name, and relevant filter data.
+Approximator consumes the selected `bankIndex` before fit. Fit results carry
+that same `bankIndex` through `filter.update`; EqStorage writes the result to
+that explicit row and republishes the complete EqChain snapshot.
+The user-facing list displays all banks in reverse order, while each row keeps
+its one-based bank ID. Adding a bank appends a new ordinary bank with a
+generated name and default filter values. EqChain processes storage rows in
+ascending order (`1..N`), matching the storage and protocol order.
+New bank names are generated as deterministic adjective-noun pairs and
+existing custom names are preserved.
 
 ### Filter contracts
 
@@ -174,7 +279,10 @@ introduce a second name such as `freq` for that parameter.
 5. Keep normalized control messages separate from absolute curve data. Filter
    parameters use normalized values; spectrum and EQ curves use absolute dB
    values. Filter colors are configuration data, not runtime `color` commands.
-6. Preserve inlet and outlet ordering. If ordering changes, update the C++
+6. Preserve standardized inlet and outlet ordering. When migrating a non-DSP
+   external, its first inlet/outlet become the envelope bus and its second
+   outlet becomes the direct status outlet. For Min `sample_operator` objects,
+   signal inlets remain first and the command bus follows them. Update C++
    declarations, Max patch wiring, descriptions, and documentation together.
 7. Status and error messages must have one owner and one clear meaning. Do not
    emit duplicate lifecycle states from multiple paths.
@@ -184,10 +292,13 @@ introduce a second name such as `freq` for that parameter.
 9. Prefer separate classes and files with intent-revealing names. Keep Max
    patchers focused on routing and presentation; keep numerical behavior in
    C++.
-10. Max JavaScript must follow the same structure: keep the Max entry point
-    thin, split domain responsibilities into separate files and classes, and
-    use intent-revealing objects instead of large collections of global state
-    and functions. New JS code belongs in the owning feature directory.
+10. Max JavaScript must follow the same structure: each feature has one
+    feature-specific `*FeatureController.js` entry point. Runtime filenames
+    must be unique across features because Max caches JavaScript dependencies
+    by filename. Keep domain helpers as separate classes
+    and files behind that controller; do not add bridge, adapter, or command
+    entry scripts alongside it. New JS code belongs in the owning feature
+    directory.
 11. When reading code, treat a discovered violation of these rules as part of
    the task: fix it when the fix is local, behavior-preserving, and can be
    verified. Do not leave an obvious protocol or architecture mismatch
@@ -197,20 +308,26 @@ introduce a second name such as `freq` for that parameter.
 13. Use ASCII for new source and documentation unless a file already requires
    another encoding.
 14. Use PascalCase for class, struct, enum, and method names. Use camelCase
-   for variables, parameters, fields, and local functions. Do not introduce
-   snake_case identifiers outside external APIs that require them.
+for variables, parameters, fields, and local functions. Do not introduce
+snake_case identifiers outside external APIs that require them.
+15. This project has no compatibility layer. Do not add migrations, legacy
+format readers, fallback command formats, aliases, or dual protocol paths.
+When a contract changes, replace the old contract directly and test the new
+one from a clean state.
 
 ### Unified control envelope
 
 The control protocol uses one envelope for every non-audio message:
-`type`, optional `target`, optional `source`, and `payload`. Protocol types are
-stable names such as `filter.update` and must not be tied to implementation
-class names. `MessageFactory` is the only factory boundary in JavaScript;
-native components use the matching `MessageEnvelope` and factory in
-`EqCore`. Max transports the envelope as `message <temporary-dictionary-name>`;
-the dictionary name is opaque transport data and must never be routed or
-inspected by a component. Audio and high-rate DSP buffers remain outside this
-protocol.
+`type`, `source`, `target`, and `payload`. Protocol types are stable names such
+as `filter.update` and must not be tied to implementation class names.
+`source` is always the feature that emitted the envelope. `target` is a feature
+address or the literal `broadcast`; it is never an entity ID. Entity IDs,
+including `filterId`, belong in `payload`. `MessageFactory` is the only factory
+boundary in JavaScript; native components use the matching `MessageEnvelope`
+and factory in `EqCore`. Max transports the envelope as
+`message <temporary-dictionary-name>`; the dictionary name is opaque transport
+data and must never be routed or inspected by a component. Audio and high-rate
+DSP buffers remain outside this protocol.
 
 Do not add selector-specific message classes, `MessageCodec`, raw command
 fallbacks, or compatibility handlers. UI-only Max commands may stay direct

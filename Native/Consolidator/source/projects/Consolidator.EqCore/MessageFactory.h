@@ -15,16 +15,16 @@ public:
     static bool matches(
         const MessageEnvelope& message,
         const char* type,
-        const long expected_target = -1
+        const char* expected_target = nullptr
     ) {
         std::string actual_type;
         if (!message.type(actual_type) || actual_type != type) {
             return false;
         }
-        if (expected_target < 0) {
+        if (!expected_target) {
             return true;
         }
-        long target = 0;
+        std::string target;
         return message.target(target) && target == expected_target;
     }
 };

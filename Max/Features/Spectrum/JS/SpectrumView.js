@@ -30,6 +30,7 @@ function onclick() { spectrumViewController.onclick.apply(spectrumViewController
 function ondrag() { spectrumViewController.ondrag.apply(spectrumViewController, arguments); }
 function onmouseup() { spectrumViewController.onmouseup.apply(spectrumViewController, arguments); }
 function clear() { spectrumViewController.clear(); }
+function clear_difference() { spectrumViewController.clear_difference(); }
 function target_size() { spectrumViewController.target_size.apply(spectrumViewController, arguments); }
 function range() { spectrumViewController.range.apply(spectrumViewController, arguments); }
 function range_mode() { spectrumViewController.range_mode.apply(spectrumViewController, arguments); }

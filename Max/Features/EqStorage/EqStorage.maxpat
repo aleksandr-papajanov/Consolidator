@@ -10,10 +10,33 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 134.0, 134.0, 900.0, 600.0 ],
+		"rect" : [ 718.0, 143.0, 900.0, 600.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 15.0, 15.0 ],
 		"boxes" : [ 			{
+				"box" : 				{
+					"id" : "obj-message-bus-send-9",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 51.0, 338.0, 145.0, 22.0 ],
+					"text" : "s ---message.bus.in"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-message-bus-receive-9",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 51.0, 154.0, 145.0, 22.0 ],
+					"text" : "r ---message.bus.out"
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"id" : "obj-1",
 					"maxclass" : "newobj",
@@ -33,57 +56,12 @@
 					"outlettype" : [ "", "", "", "", "", "", "" ],
 					"patching_rect" : [ 255.0, 195.0, 239.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "JavaScript/EqStorage/EqStorage.js",
+						"filename" : "EqStorageFeatureController.js",
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js JavaScript/EqStorage/EqStorage.js",
+					"text" : "js EqStorageFeatureController.js",
 					"varname" : "storage"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "filterEvents",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 480.0, 150.0, 176.0, 22.0 ],
-					"text" : "r ---eqstorage.filter.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "filterCommands",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 255.0, 405.0, 155.0, 22.0 ],
-					"text" : "s ---filter.commands.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "approximatorCommands",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 401.666666666666629, 256.0, 188.0, 22.0 ],
-					"text" : "s ---approximator.commands.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "events",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 438.333333333333371, 228.0, 164.0, 22.0 ],
-					"text" : "s ---eqstorage.events.outlet"
 				}
 
 			}
@@ -118,10 +96,21 @@
 					"id" : "eqchain",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 3,
-					"outlettype" : [ "signal", "signal", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "signal", "signal", "", "" ],
 					"patching_rect" : [ 270.0, 495.0, 139.0, 22.0 ],
 					"text" : "consolidator.eqchain"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "eqcurveSend",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 435.0, 495.0, 172.0, 22.0 ],
+					"text" : "s ---spectrum.eqcurve.outlet"
 				}
 
 			}
@@ -157,7 +146,6 @@
 					"maxclass" : "outlet",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"outlettype" : [ "" ],
 					"patching_rect" : [ 461.5, 495.0, 30.0, 30.0 ]
 				}
 
@@ -177,7 +165,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "JavaScript/EqStorage/EqBankListView.js",
+					"filename" : "EqBankListView.js",
 					"id" : "list",
 					"maxclass" : "jsui",
 					"numinlets" : 1,
@@ -275,6 +263,13 @@
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
+					"destination" : [ "eqcurveSend", 0 ],
+					"source" : [ "eqchain", 3 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "storage", 0 ],
 					"source" : [ "add", 0 ]
 				}
@@ -310,13 +305,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "storage", 1 ],
-					"source" : [ "filterEvents", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "eqchain", 0 ],
 					"source" : [ "inputL", 0 ]
 				}
@@ -339,6 +327,20 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "storage", 1 ],
+					"source" : [ "obj-message-bus-receive-9", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "storage", 2 ],
+					"source" : [ "persistenceInput", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "storage", 0 ],
 					"source" : [ "remove", 0 ]
 				}
@@ -353,27 +355,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "persistenceOutput", 0 ],
-					"source" : [ "storage", 6 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "storage", 2 ],
-					"source" : [ "persistenceInput", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "approximatorCommands", 0 ],
-					"source" : [ "storage", 4 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "eqchain", 2 ],
 					"source" : [ "storage", 3 ]
 				}
@@ -381,22 +362,36 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "events", 0 ],
+					"destination" : [ "list", 0 ],
+					"source" : [ "storage", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-message-bus-send-9", 0 ],
 					"source" : [ "storage", 5 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "filterCommands", 0 ],
+					"destination" : [ "obj-message-bus-send-9", 0 ],
+					"source" : [ "storage", 4 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-message-bus-send-9", 0 ],
 					"source" : [ "storage", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "list", 0 ],
-					"source" : [ "storage", 1 ]
+					"destination" : [ "persistenceOutput", 0 ],
+					"source" : [ "storage", 6 ]
 				}
 
 			}

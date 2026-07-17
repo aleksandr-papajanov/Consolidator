@@ -26,6 +26,8 @@ public:
         const std::string& action,
         std::initializer_list<double> values = {}) const {
         consolidator::protocol::MessageEnvelope message{ std::string{ "filter.control" } };
+        message.set_target("filter.ui");
+        message.set_source("filter");
         message.set_payload_symbol("control", id_);
         message.set_payload_symbol("action", action);
         message.set_payload_numbers("values", std::vector<double>(values));

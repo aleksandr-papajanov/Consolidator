@@ -50,13 +50,15 @@ MessageDispatchResult dispatch(const MessageEnvelope& envelope, Handler&& handle
 
 struct FilterDefineMessage {
     static constexpr const char* type = "filter.define";
-    long target{};
+    long filterId{};
     c74::min::atom contract;
     std::string contractName;
 
     static std::optional<FilterDefineMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterDefineMessage result;
-        if (!envelope.target(result.target)) return std::nullopt;
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId)) return std::nullopt;
+        result.filterId = static_cast<long>(filterId);
         if (envelope.payload_symbol("contractName", result.contractName)) return result;
         return envelope.payload_dictionary("contract", result.contract)
             ? std::optional<FilterDefineMessage>{ result }
@@ -65,7 +67,9 @@ struct FilterDefineMessage {
 
       MessageEnvelope to_envelope() const {
           MessageEnvelope envelope{ std::string{ type } };
-          envelope.set_target(target);
+          envelope.set_target("eq.storage");
+          envelope.set_source("filter");
+          envelope.set_payload_number("filterId", filterId);
           if (!contractName.empty()) {
               envelope.set_payload_symbol("contractName", contractName);
           }
@@ -78,43 +82,61 @@ struct FilterDefineMessage {
 
 struct FilterUpdateMessage {
     static constexpr const char* type = "filter.update";
-    long target{};
+    long filterId{};
     std::vector<double> values;
+    std::optional<long> bankIndex;
 
     static std::optional<FilterUpdateMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterUpdateMessage result;
-        return envelope.target(result.target) && envelope.payload_numbers("values", result.values)
-            ? std::optional<FilterUpdateMessage>{ std::move(result) }
-            : std::nullopt;
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId) ||
+            !envelope.payload_numbers("values", result.values)) {
+            return std::nullopt;
+        }
+        result.filterId = static_cast<long>(filterId);
+        double bankIndex{};
+        if (envelope.payload_number("bankIndex", bankIndex)) {
+            result.bankIndex = static_cast<long>(bankIndex);
+        }
+        return result;
     }
 
     MessageEnvelope to_envelope() const {
         MessageEnvelope envelope{ std::string{ type } };
-        envelope.set_target(target);
+          envelope.set_target("eq.storage");
+          envelope.set_source("filter");
+        envelope.set_payload_number("filterId", filterId);
         envelope.set_payload_numbers("values", values);
+        if (bankIndex) {
+            envelope.set_payload_number("bankIndex", *bankIndex);
+        }
         return envelope;
     }
 };
 
 struct FilterBypassMessage {
     static constexpr const char* type = "filter.bypass";
-    long target{};
+    long filterId{};
     bool bypassed{};
 
     static std::optional<FilterBypassMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterBypassMessage result;
         double value{};
-        if (!envelope.target(result.target) || !envelope.payload_number("value", value) ||
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId) || !envelope.payload_number("value", value) ||
             (value != 0.0 && value != 1.0)) {
             return std::nullopt;
         }
+        result.filterId = static_cast<long>(filterId);
         result.bypassed = value == 1.0;
         return result;
     }
 
     MessageEnvelope to_envelope() const {
         MessageEnvelope envelope{ std::string{ type } };
-        envelope.set_target(target);
+        envelope.set_target("eq.storage");
+        envelope.set_source("filter");
+        envelope.set_payload_number("filterId", filterId);
         envelope.set_payload_number("value", bypassed ? 1.0 : 0.0);
         return envelope;
     }
@@ -122,32 +144,37 @@ struct FilterBypassMessage {
 
 struct FilterControlUpdateMessage {
     static constexpr const char* type = "filter.control.update";
-    long target{};
+    long filterId{};
     std::string control;
     double value{};
 
     static std::optional<FilterControlUpdateMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterControlUpdateMessage result;
-        return envelope.target(result.target) &&
-                envelope.payload_symbol("control", result.control) &&
-                envelope.payload_number("value", result.value)
-            ? std::optional<FilterControlUpdateMessage>{ std::move(result) }
-            : std::nullopt;
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId) ||
+            !envelope.payload_symbol("control", result.control) ||
+            !envelope.payload_number("value", result.value)) {
+            return std::nullopt;
+        }
+        result.filterId = static_cast<long>(filterId);
+        return result;
     }
 };
 
 struct FilterInstanceStateMessage {
     static constexpr const char* type = "filter.instance.state";
-    long target{};
+    long filterId{};
     bool recovered{};
 
     static std::optional<FilterInstanceStateMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterInstanceStateMessage result;
         double value{};
-        if (!envelope.target(result.target) || !envelope.payload_number("recovered", value) ||
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId) || !envelope.payload_number("recovered", value) ||
             (value != 0.0 && value != 1.0)) {
             return std::nullopt;
         }
+        result.filterId = static_cast<long>(filterId);
         result.recovered = value == 1.0;
         return result;
     }
@@ -155,23 +182,28 @@ struct FilterInstanceStateMessage {
 
 struct FilterResetMessage {
     static constexpr const char* type = "filter.reset";
-    long target{};
+    long filterId{};
     static std::optional<FilterResetMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterResetMessage result;
-        return envelope.target(result.target) ? std::optional<FilterResetMessage>{ result } : std::nullopt;
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId)) return std::nullopt;
+        result.filterId = static_cast<long>(filterId);
+        return result;
     }
 };
 
 struct FilterEditMessage {
     static constexpr const char* type = "filter.edit";
-    long target{};
+    long filterId{};
     std::optional<double> frequency;
     std::optional<double> gain;
     std::optional<double> q;
 
     static std::optional<FilterEditMessage> from_envelope(const MessageEnvelope& envelope) {
         FilterEditMessage result;
-        if (!envelope.target(result.target)) return std::nullopt;
+        double filterId{};
+        if (!envelope.payload_number("filterId", filterId)) return std::nullopt;
+        result.filterId = static_cast<long>(filterId);
         std::string parameter;
         double value{};
         if (envelope.payload_symbol("parameter", parameter) && envelope.payload_number("value", value)) {
@@ -207,6 +239,21 @@ struct ApproximatorClearMessage {
     static std::optional<ApproximatorClearMessage> from_envelope(const MessageEnvelope&) { return ApproximatorClearMessage{}; }
 };
 
+struct EqStorageBankChangedMessage {
+    static constexpr const char* type = "eq.storage.bank.changed";
+    long bankIndex{};
+
+    static std::optional<EqStorageBankChangedMessage> from_envelope(
+        const MessageEnvelope& envelope
+    ) {
+        double bankIndex{};
+        if (!envelope.payload_number("bankIndex", bankIndex)) {
+            return std::nullopt;
+        }
+        return EqStorageBankChangedMessage{ static_cast<long>(bankIndex) };
+    }
+};
+
 struct ApproximatorFitMessage {
     static constexpr const char* type = "approximator.fit";
     static std::optional<ApproximatorFitMessage> from_envelope(const MessageEnvelope&) { return ApproximatorFitMessage{}; }
@@ -220,11 +267,6 @@ struct AnalyzerDifferenceMessage {
         if (!envelope.payload_number("value", value) || (value != 0.0 && value != 1.0)) return std::nullopt;
         return AnalyzerDifferenceMessage{ value == 1.0 };
     }
-};
-
-struct AnalyzerPublishMessage {
-    static constexpr const char* type = "analyzer.publish";
-    static std::optional<AnalyzerPublishMessage> from_envelope(const MessageEnvelope&) { return AnalyzerPublishMessage{}; }
 };
 
 struct AnalyzerStatsMessage {

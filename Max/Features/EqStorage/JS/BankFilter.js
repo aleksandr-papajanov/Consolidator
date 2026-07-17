@@ -14,15 +14,17 @@ BankFilter.prototype.isDefined = function() {
 };
 
 BankFilter.prototype.valueMessage = function() {
-    return MessageEnvelope.create("filter.update", Number(this.id), {
+    return MessageEnvelope.create("filter.update", "filter", {
+        filterId: Number(this.id),
         values: this.values
-    });
+    }, "eq.storage");
 };
 
 BankFilter.prototype.bypassMessage = function() {
-    return MessageEnvelope.create("filter.bypass", Number(this.id), {
+    return MessageEnvelope.create("filter.bypass", "filter", {
+        filterId: Number(this.id),
         value: this.bypass
-    });
+    }, "eq.storage");
 };
 
 function normalizeFilterValues(value) {

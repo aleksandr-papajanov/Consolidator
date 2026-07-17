@@ -9,40 +9,34 @@
 
 class ApproximatorCurveStore {
 public:
-    void set_target(const c74::min::atoms& args) {
-        assign_curve(difference_curve_, has_difference_curve_, args);
+    void SetTarget(const c74::min::atoms& args) {
+        AssignCurve(difference_curve_, has_difference_curve_, args);
     }
 
-    void set_current_eq(const c74::min::atoms& args) {
-        assign_curve(current_eq_curve_, has_current_eq_curve_, args);
+    void SetCurrentEq(const c74::min::atoms& args) {
+        AssignCurve(current_eq_curve_, has_current_eq_curve_, args);
     }
 
-    void clear() {
+    void ClearTarget() {
         difference_curve_ = {};
-        current_eq_curve_ = {};
         has_difference_curve_ = false;
-        has_current_eq_curve_ = false;
     }
 
-    bool has_live_curve() const {
+    bool HasTarget() const {
         return has_difference_curve_;
     }
 
-    bool has_current_eq_curve() const {
+    bool HasCurrentEq() const {
         return has_current_eq_curve_;
     }
 
-    bool has_compatible_curves() const {
+    bool HasCompatibleCurves() const {
         return has_difference_curve_ &&
             has_current_eq_curve_ &&
             difference_curve_.values.size() == current_eq_curve_.values.size();
     }
 
-    const TargetCurve& live_curve() const {
-        return difference_curve_;
-    }
-
-    TargetCurve combined_curve() const {
+    TargetCurve CombinedCurve() const {
         if (!has_difference_curve_ || !has_current_eq_curve_) {
             throw std::runtime_error("missing_curve_input");
         }
@@ -59,16 +53,8 @@ public:
         return result;
     }
 
-    const std::vector<double>& freqs() const {
-        return difference_curve_.frequencies;
-    }
-
-    const std::vector<double>& target_db() const {
-        return difference_curve_.values;
-    }
-
 private:
-    static void assign_curve(
+    static void AssignCurve(
         TargetCurve& target,
         bool& available,
         const c74::min::atoms& args

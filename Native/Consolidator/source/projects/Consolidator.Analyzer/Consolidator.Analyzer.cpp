@@ -21,7 +21,7 @@ public:
     inlet<> current_r{ this, "(signal) current right", "signal" };
     inlet<> reference_l{ this, "(signal) reference left", "signal" };
     inlet<> reference_r{ this, "(signal) reference right", "signal" };
-    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.publish|analyzer.stats>" };
+    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.stats>" };
 
     outlet<> audio_l{ this, "(signal) passthrough left", "signal" };
     outlet<> audio_r{ this, "(signal) passthrough right", "signal" };
@@ -30,6 +30,14 @@ public:
     outlet<> reference_out{ this, "(list) reference spectrum dB" };
     outlet<> difference_out{ this, "(list) reference-current dB" };
     outlet<> debug_out{ this, "(anything) diagnostics: error <code>" };
+
+    queue<> curve_delivery{
+        this,
+        MIN_FUNCTION {
+            publish_curves();
+            return {};
+        }
+    };
 
     attribute<int> fft_size_attr{
         this,
@@ -85,9 +93,11 @@ public:
                 debug_out.send("error", "invalid_message_envelope");
                 return {};
             }
+            if (!message->is_addressed_to("analyzer")) {
+                return {};
+            }
             const auto result = consolidator::protocol::dispatch<
                 consolidator::protocol::AnalyzerDifferenceMessage,
-                consolidator::protocol::AnalyzerPublishMessage,
                 consolidator::protocol::AnalyzerStatsMessage>(*message, [this](const auto& command) {
                     handle_command(command);
                 });
@@ -129,6 +139,7 @@ public:
                 static_cast<double>(spectrum_calibration_db_attr),
                 static_cast<double>(spectrum_tilt_db_attr),
                 curves);
+            curve_delivery.set();
 
             capture.reset();
         }
@@ -138,11 +149,16 @@ public:
 
 private:
     void handle_command(const consolidator::protocol::AnalyzerDifferenceMessage& command) {
+        const bool state_changed = difference_enabled_ != command.enabled;
         difference_enabled_ = command.enabled;
-        if (!difference_enabled_) curves.clear_pending();
+        if (!difference_enabled_) {
+            curves.clear_pending();
+        }
+        if (state_changed) {
+            curves.ResetDifference();
+        }
     }
 
-    void handle_command(const consolidator::protocol::AnalyzerPublishMessage&) { publish_curves(); }
     void handle_command(const consolidator::protocol::AnalyzerStatsMessage&) { publish_statistics(); }
 
     void publish_curves() {

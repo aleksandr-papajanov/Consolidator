@@ -34,6 +34,7 @@ public:
     outlet<> output_l{ this, "(signal) left output", "signal" };
     outlet<> output_r{ this, "(signal) right output", "signal" };
     outlet<> debug_out{ this, "(anything) diagnostics: error <code>" };
+    outlet<> response_curve_out{ this, "(list) summed response curve for all EQ banks in dB" };
 
     message<> dspsetup{
         this,
@@ -61,6 +62,9 @@ public:
             auto message = consolidator::protocol::MessageFactory::from_atom(args[0]);
             if (!message) {
                 debug_out.send("error", "invalid_message_envelope");
+                return {};
+            }
+            if (!message->is_addressed_to("eq.chain")) {
                 return {};
             }
             const auto result = consolidator::protocol::dispatch<
@@ -101,31 +105,31 @@ private:
         std::map<long, FilterChain> chains;
     };
 
-    bool valid_slot(const long target) const {
-        return target >= 0 && static_cast<std::size_t>(target) < contracts_.size();
+    bool valid_slot(const long filterId) const {
+        return filterId >= 0 && static_cast<std::size_t>(filterId) < contracts_.size();
     }
 
     void handle_command(const consolidator::protocol::FilterDefineMessage& command) {
-        if (!valid_slot(command.target)) {
+        if (!valid_slot(command.filterId)) {
             debug_out.send("error", "invalid_filter_slot");
             return;
         }
         FilterContract contract;
         const bool parsed = command.contractName.empty()
             ? parse_filter_contract_dictionary_for_slot(
-                contract, command.contract, static_cast<int>(command.target))
+                contract, command.contract, static_cast<int>(command.filterId))
             : [&]() {
                 const dict configuration{ symbol(command.contractName.c_str()) };
                 return parse_filter_contract_dictionary_for_slot(
                     contract,
                     atom{ static_cast<c74::max::t_object*>(configuration) },
-                    static_cast<int>(command.target));
+                    static_cast<int>(command.filterId));
             }();
         if (!parsed) {
             debug_out.send("error", "invalid_filter_definition");
             return;
         }
-        contracts_[static_cast<std::size_t>(command.target)] = contract;
+        contracts_[static_cast<std::size_t>(command.filterId)] = contract;
         rebuild_bank_chains();
     }
 
@@ -168,23 +172,50 @@ private:
 
     void rebuild_bank_chains() {
         auto next_runtime = std::make_shared<RuntimeState>();
-        for (const auto& [bank_id, bank] : banks_) {
-            auto& chain = next_runtime->chains[bank_id];
-            chain.set_sample_rate(sample_rate_);
-            for (std::size_t slot = 0; slot < bank.filters.size(); ++slot) {
-                if (!bank.filters[slot] || !contracts_[slot]) {
-                    continue;
-                }
-                const auto& filter = *bank.filters[slot];
-                const auto& contract = *contracts_[slot];
-                if (filter.values.size() != contract_parameter_count(contract)) {
-                    continue;
-                }
-                chain.set_filter(slot, contract_to_spec(contract, filter.values));
-                chain.set_filter_bypass(slot, filter.bypassed);
+        for (const auto& [bankId, bank] : banks_) {
+            BuildBankChain(*next_runtime, bankId, bank);
+        }
+        PublishResponseCurve(*next_runtime);
+        runtime_state_.store(std::move(next_runtime), std::memory_order_release);
+    }
+
+    void BuildBankChain(
+        RuntimeState& runtime,
+        const long chain_order,
+        const EqBankState& bank
+    ) {
+        auto& chain = runtime.chains[chain_order];
+        chain.set_sample_rate(sample_rate_);
+        for (std::size_t slot = 0; slot < bank.filters.size(); ++slot) {
+            if (!bank.filters[slot] || !contracts_[slot]) {
+                continue;
+            }
+            const auto& filter = *bank.filters[slot];
+            const auto& contract = *contracts_[slot];
+            if (filter.values.size() != contract_parameter_count(contract)) {
+                continue;
+            }
+            chain.set_filter(slot, contract_to_spec(contract, filter.values));
+            chain.set_filter_bypass(slot, filter.bypassed);
+        }
+    }
+
+    void PublishResponseCurve(const RuntimeState& runtime) {
+        const auto frequencies = make_eq_curve_frequency_grid();
+        std::vector<double> total(frequencies.size(), 0.0);
+        for (const auto& bank : runtime.chains) {
+            const auto bankCurve = bank.second.response_curve(frequencies);
+            for (std::size_t index = 0; index < total.size(); ++index) {
+                total[index] += bankCurve[index];
             }
         }
-        runtime_state_.store(std::move(next_runtime), std::memory_order_release);
+
+        atoms values;
+        values.reserve(total.size());
+        for (const auto value : total) {
+            values.push_back(value);
+        }
+        response_curve_out.send(values);
     }
 
     double sample_rate_ = EqCurveGrid::default_sample_rate;

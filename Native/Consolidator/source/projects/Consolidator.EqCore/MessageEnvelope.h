@@ -50,12 +50,17 @@ public:
         return read_symbol("type", value);
     }
 
-    bool target(long& value) const {
-        return read_long("target", value);
+    bool target(std::string& value) const {
+        return read_symbol("target", value);
     }
 
     bool source(std::string& value) const {
         return read_symbol("source", value);
+    }
+
+    bool is_addressed_to(const char* feature) const {
+        std::string value;
+        return target(value) && (value == feature || value == "broadcast");
     }
 
     bool has(const char* key) const {
@@ -146,7 +151,7 @@ public:
         }
     }
 
-    void set_target(const long value) {
+    void set_target(const std::string& value) {
         data_["target"] = value;
     }
 
