@@ -18,7 +18,6 @@ include_directories(
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    AnalyzerSupport.h
     AnalyzerFrameBuffer.h
     AnalyzerStatistics.h
     AnalyzerCurveBatch.h

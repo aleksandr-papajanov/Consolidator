@@ -1,7 +1,7 @@
 {
   "controls": {
     "gain": {
-      "defaultPosition": [0, 6.5, 50, 43]
+      "defaultPosition": [9, 18, 27, 28]
     },
     "frequency": {
       "defaultPosition": [0, 50, 45, 15]
@@ -10,12 +10,12 @@
       "defaultPosition": [0, 65, 45, 15]
     },
     "bypass": {
-      "defaultPosition": [45, 15, 15, 15],
+      "defaultPosition": [0, 0, 21, 15],
       "defaultEnabled": 1,
       "outputValue": 1
   },
     "reset": {
-      "defaultPosition": [46, 30, 15, 15],
+      "defaultPosition": [24, 0, 21, 15],
       "defaultEnabled": 1
     }
   },

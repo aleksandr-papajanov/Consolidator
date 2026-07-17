@@ -5,6 +5,9 @@
 #include "Control.h"
 #include "EqFrequencyGrid.h"
 #include "FilterSpec.h"
+#include "MessageEnvelope.h"
+#include "MessageFactory.h"
+#include "TypedMessages.h"
 
 #include <algorithm>
 #include <array>
@@ -23,14 +26,9 @@ public:
     MIN_TAGS{ "audio, eq, filter" };
     MIN_AUTHOR{ "Oleksandr Papaianov" };
 
-    inlet<> local_commands{
+    inlet<> commands{
         this,
-        "(anything) commands: define, dictionary, instance_state 0=new/1=recovered, undefine, reset, update <gain|freq|q|bypass> <value>, bang"
-    };
-
-    inlet<> global_commands{
-        this,
-        "(anything) commands: filter <filterId> <values>, edit <filterId> <frequencyHz> <gainDb>, edit <filterId> q <normalizedValue>"
+        "(message) commands: message <dictionary type=filter.define|filter.instance.state|filter.control.update|filter.update|filter.bypass|filter.edit|filter.reset>"
     };
 
     outlet<> curve_out{
@@ -40,12 +38,12 @@ public:
 
     outlet<> command_out{
         this,
-        "(anything) commands: define <slot> <type> <ranges...>, define <dictionary>, undefine <slot>, filter <slot> <normalized values...>"
+        "(message) commands: message <dictionary type=filter.define|filter.update|filter.bypass>"
     };
 
     outlet<> local_command_out{
         this,
-        "(anything) commands: control <id> <move|show|hide|enable|disable|set|outputvalue|color> <values>"
+        "(message) commands: message <dictionary type=filter.control>"
     };
 
     outlet<> debug_out{
@@ -62,7 +60,7 @@ public:
         this,
         "slot",
         0,
-        range { 0, 7 },
+        range { 0, 15 },
         description { "Filter slot index used by the chain." }
     };
 
@@ -79,354 +77,138 @@ public:
         }
     };
 
-    message<> define_message{
+    message<> envelope_message{
         this,
-        "define",
-        "Define filter type and ranges",
+        "message",
+        "Apply a structured control envelope",
         MIN_FUNCTION {
-            if (inlet != 0) {
-                debug_out.send("error", "define_must_use_local_inlet");
+            if (args.size() != 1) {
+                debug_out.send("error", "invalid_message_envelope");
                 return {};
             }
 
-            if (args.size() < 2) {
-                debug_out.send("error", "invalid_define_command");
-                return {};
+            auto message = consolidator::protocol::MessageFactory::from_atom(args[0]);
+            if (!message) return {};
+            const auto result = dispatch_command(*message);
+            if (result == consolidator::protocol::MessageDispatchResult::invalid) {
+                debug_out.send("error", "invalid_message_envelope");
             }
-
-            definition_dictionary_.clear();
-            controls_.clear();
-            contract_.slot = static_cast<int>(args[0]);
-            slot_attr = contract_.slot;
-            if (!parse_definition_arguments(contract_, args)) {
-                debug_out.send("error", "invalid_filter_contract");
-                return {};
-            }
-
-            parameter_control_ids_.clear();
-            for (const auto& parameter : contract_.parameters) {
-                parameter_control_ids_.push_back(
-                    parameter.name == "pivot" || parameter.name == "freq"
-                        ? "frequency"
-                        : parameter.name);
-            }
-
-            defined_ = true;
-            bypassed_ = false;
-            const auto defaults = default_normalized_values(contract_);
-            normalized_values_ = defaults;
-            spec_ = contract_to_spec(contract_, defaults);
-            publish_definition();
-            publish_initialization();
-            publish_curve();
-            publish_filter_curve(true);
-            return {};
-        }
-    };
-
-    message<> dictionary_message{
-        this,
-        "dictionary",
-        "Define the filter from a configuration dictionary",
-        MIN_FUNCTION {
-            if (inlet != 0 || args.empty()) {
-                debug_out.send("error", "invalid_filter_configuration_dictionary");
-                return {};
-            }
-
-            atom configuration;
-            bool has_configuration = false;
-            for (const auto& value : args) {
-                if (dictionary_atom(value)) {
-                    configuration = value;
-                    has_configuration = true;
-                    break;
-                }
-            }
-
-            if (!has_configuration) {
-                debug_out.send("error", "invalid_filter_configuration_dictionary");
-                return {};
-            }
-
-            FilterContract contract;
-            if (!parse_filter_contract_dictionary_for_slot(
-                    contract,
-                    configuration,
-                    static_cast<int>(slot_attr))) {
-                debug_out.send("error", "invalid_filter_configuration_dictionary");
-                return {};
-            }
-
-            contract_ = contract;
-            slot_attr = contract_.slot;
-            definition_dictionary_.clear();
-            read_controls(configuration);
-            defined_ = true;
-            bypassed_ = false;
-            spec_ = contract_to_spec(contract_, default_normalized_values(contract_));
-            normalized_values_ = default_normalized_values(contract_);
-            command_out.send(make_definition_atoms(contract_));
-            publish_initialization();
-            publish_curve();
-            publish_handle(true);
-            publish_filter_curve(true);
-            return {};
-        }
-    };
-
-    message<> instance_state_message{
-        this,
-        "instance_state",
-        "Set instance state: 0 new, 1 recovered",
-        MIN_FUNCTION {
-            if (inlet != 0 || args.size() != 1) {
-                debug_out.send("error", "invalid_instance_state");
-                return {};
-            }
-
-            const double value = static_cast<double>(args[0]);
-            if (value != 0.0 && value != 1.0) {
-                debug_out.send("error", "instance_state_must_be_0_or_1");
-                return {};
-            }
-
-            pending_instance_recovered_ = value == 1.0;
-            if (defined_) {
-                apply_instance_state(*pending_instance_recovered_);
-                pending_instance_recovered_.reset();
-            }
-            return {};
-        }
-    };
-
-    message<> undefine_message{
-        this,
-        "undefine",
-        "Remove the current filter definition",
-        MIN_FUNCTION {
-            if (inlet != 0) {
-                debug_out.send("error", "undefine_must_use_local_inlet");
-                return {};
-            }
-
-            if (!args.empty()) {
-                debug_out.send("error", "undefine_takes_no_arguments");
-                return {};
-            }
-
-            defined_ = false;
-            bypassed_ = false;
-            publish();
-            command_out.send("undefine", contract_.slot);
-            return {};
-        }
-    };
-
-    message<> reset_message{
-        this,
-        "reset",
-        "Restore defaults through control commands",
-        MIN_FUNCTION {
-            if (inlet != 0) {
-                debug_out.send("error", "reset_must_use_local_inlet");
-                return {};
-            }
-
-            if (!defined_) {
-                debug_out.send("error", "filter_not_defined");
-                return {};
-            }
-
-            reset_filter_state();
-            return {};
-        }
-    };
-
-    message<> update_message{
-        this,
-        "update",
-        "Update one control: gain, freq, q, or bypass",
-        MIN_FUNCTION {
-            if (inlet != 0 || args.size() != 2) {
-                debug_out.send("error", "invalid_update_command");
-                return {};
-            }
-
-            std::string control;
-            try {
-                control = static_cast<std::string>(args[0]);
-            }
-            catch (...) {
-                debug_out.send("error", "invalid_update_control");
-                return {};
-            }
-
-            const double value = static_cast<double>(args[1]);
-            if (control == "bypass") {
-                if (value != 0.0 && value != 1.0) {
-                    debug_out.send("error", "bypass_must_be_0_or_1");
-                    return {};
-                }
-                set_bypass(value == 1.0);
-                return {};
-            }
-
-            if (!defined_ || !update_parameter(control, value)) {
-                debug_out.send("error", "invalid_update_control");
-                return {};
-            }
-
-            publish();
-            return {};
-        }
-    };
-
-    message<> edit_message{
-        this,
-        "edit",
-        "Edit one filter using its configuration ID and absolute frequency/gain",
-        MIN_FUNCTION {
-            if (inlet != 1 || (args.size() != 3 && args.size() != 4)) {
-                debug_out.send("error", "invalid_edit_command");
-                return {};
-            }
-
-            const auto filter_id = static_cast<int>(args[0]);
-            if (filter_id != static_cast<int>(slot_attr)) {
-                return {};
-            }
-
-            if (!defined_) {
-                debug_out.send("error", "filter_not_defined");
-                return {};
-            }
-
-            if (args.size() == 3) {
-                try {
-                    if (static_cast<std::string>(args[1]) == "q") {
-                        const double normalized_q = static_cast<double>(args[2]);
-                        if (normalized_q < 0.0 || normalized_q > 1.0) {
-                            debug_out.send("error", "invalid_edit_q");
-                            return {};
-                        }
-
-                        bool changed = false;
-                        for (std::size_t index = 0; index < contract_.parameters.size(); ++index) {
-                            if (contract_.parameters[index].name == "q") {
-                                normalized_values_[index] = normalized_q;
-                                changed = true;
-                                break;
-                            }
-                        }
-                        if (!changed) {
-                            debug_out.send("error", "filter_has_no_q_parameter");
-                            return {};
-                        }
-
-                        spec_ = contract_to_spec(contract_, normalized_values_);
-                        publish_parameter_values(normalized_values_);
-                        publish();
-                        return {};
-                    }
-                }
-                catch (...) {
-                    debug_out.send("error", "invalid_edit_command");
-                    return {};
-                }
-            }
-
-            if (!apply_graph_edit(
-                    static_cast<double>(args[1]),
-                    static_cast<double>(args[2]),
-                    args.size() == 4
-                        ? std::optional<double>{ static_cast<double>(args[3]) }
-                        : std::nullopt)) {
-                debug_out.send("error", "invalid_edit_command");
-                return {};
-            }
-
-            publish_parameter_values(normalized_values_);
-            publish();
-            return {};
-        }
-    };
-
-    message<> filter_message{
-        this,
-        "filter",
-        "Set normalized filter values",
-        MIN_FUNCTION {
-            if (inlet == 1) {
-                handle_global_filter(args);
-                return {};
-            }
-
-            debug_out.send("error", "filter_is_global_only");
-            return {};
-        }
-    };
-
-    message<> bang{
-        this,
-        "bang",
-        MIN_FUNCTION {
-            if (inlet != 0) {
-                debug_out.send("error", "bang_must_use_local_inlet");
-                return {};
-            }
-
-            publish();
             return {};
         }
     };
 
 private:
-    bool is_unselected_root_configuration(const atom& configuration) const {
-        try {
-            dict source{ configuration };
-            double selected = 0.0;
-            if (read_dictionary_number(source, "selected", selected)) {
-                return false;
-            }
+    consolidator::protocol::MessageDispatchResult dispatch_command(
+        const consolidator::protocol::MessageEnvelope& message) {
+        return consolidator::protocol::dispatch<
+            consolidator::protocol::FilterDefineMessage,
+            consolidator::protocol::FilterInstanceStateMessage,
+            consolidator::protocol::FilterControlUpdateMessage,
+            consolidator::protocol::FilterResetMessage,
+            consolidator::protocol::FilterUpdateMessage,
+            consolidator::protocol::FilterBypassMessage,
+            consolidator::protocol::FilterEditMessage>(message, [this](const auto& command) {
+                handle_command(command);
+            });
+    }
 
-            static_cast<atom>(source.at("controls"));
-            static_cast<atom>(source.at("filters"));
-            static_cast<atom>(source.at("layouts"));
-            return true;
-        }
-        catch (...) {
-            return false;
+    bool accepts_target(const long target, const bool defining = false) const {
+        return target == static_cast<long>(slot_attr) || (defining && !defined_);
+    }
+
+      void handle_command(const consolidator::protocol::FilterDefineMessage& command) {
+          if (!accepts_target(command.target, true)) return;
+          if (!command.contractName.empty()) {
+              const dict configuration{ symbol(command.contractName.c_str()) };
+              define_from_configuration(atom{ static_cast<c74::max::t_object*>(configuration) });
+              return;
+          }
+          define_from_configuration(command.contract);
+    }
+
+    void handle_command(const consolidator::protocol::FilterInstanceStateMessage& command) {
+        if (!accepts_target(command.target)) return;
+        pending_instance_recovered_ = command.recovered;
+        if (defined_) {
+            apply_instance_state(*pending_instance_recovered_);
+            pending_instance_recovered_.reset();
         }
     }
 
-    void handle_global_filter(const atoms& args) {
-        if (args.empty()) {
+    void handle_command(const consolidator::protocol::FilterControlUpdateMessage& command) {
+        if (!accepts_target(command.target)) return;
+        if (!defined_) return;
+        if (command.control == "bypass") {
+            if (command.value != 0.0 && command.value != 1.0) debug_out.send("error", "bypass_must_be_0_or_1");
+            else set_bypass(command.value == 1.0);
             return;
         }
+        if (!update_parameter(command.control, command.value)) debug_out.send("error", "invalid_update_control");
+        else publish();
+    }
 
-        if (static_cast<int>(args[0]) != static_cast<int>(slot_attr)) {
-            return;
-        }
+    void handle_command(const consolidator::protocol::FilterResetMessage& command) {
+        if (!accepts_target(command.target)) return;
+        if (!defined_) debug_out.send("error", "filter_not_defined");
+        else reset_filter_state();
+    }
 
-        atoms values;
-        for (std::size_t i = 1; i < args.size(); ++i) {
-            values.push_back(args[i]);
-        }
-
-        if (!defined_) {
-            return;
-        }
-
-        if (!apply_normalized_values(values)) {
+    void handle_command(const consolidator::protocol::FilterUpdateMessage& command) {
+        if (!accepts_target(command.target)) return;
+        if (!defined_ || !apply_normalized_values(atoms(command.values.begin(), command.values.end()))) {
             debug_out.send("error", "invalid_global_filter_values");
             return;
         }
-
-        publish_parameter_values(normalized_values(values));
+        publish_parameter_values(normalized_values_);
         publish_curve();
         publish_handle(!bypassed_);
         publish_filter_curve(!bypassed_);
+    }
+
+    void handle_command(const consolidator::protocol::FilterBypassMessage& command) {
+        if (accepts_target(command.target)) set_bypass(command.bypassed);
+    }
+
+    void handle_command(const consolidator::protocol::FilterEditMessage& command) {
+        if (!accepts_target(command.target)) return;
+        if (!defined_ || (command.q && !update_parameter("q", *command.q)) ||
+            (command.frequency && !apply_graph_edit(*command.frequency, *command.gain, std::nullopt))) {
+            debug_out.send("error", "invalid_filter_edit");
+            return;
+        }
+        publish_parameter_values(normalized_values_);
+        publish();
+    }
+
+    void define_from_configuration(const atom& configuration) {
+        FilterContract contract;
+        if (!parse_filter_contract_dictionary_for_slot(
+                contract,
+                configuration,
+                static_cast<int>(slot_attr))) {
+            debug_out.send("error", "invalid_filter_configuration_dictionary");
+            return;
+        }
+
+          contract_ = contract;
+          slot_attr = contract_.slot;
+          const dict source{ configuration };
+          definition_dictionary_name_ = "consolidator.filter.definition." +
+              std::to_string(reinterpret_cast<std::uintptr_t>(this));
+          definition_dictionary_ = std::make_unique<dict>(
+              symbol(definition_dictionary_name_.c_str()));
+          *definition_dictionary_ = source;
+          read_controls(configuration);
+        defined_ = true;
+        bypassed_ = false;
+        normalized_values_ = default_normalized_values(contract_);
+        spec_ = contract_to_spec(contract_, normalized_values_);
+        publish_definition();
+        publish_initialization();
+        publish_curve();
+        publish_handle(true);
+        publish_filter_curve(true);
+        publish();
     }
 
     bool update_parameter(const std::string& control, const double value) {
@@ -465,12 +247,14 @@ private:
             publish_curve();
             publish_handle(false);
             publish_filter_curve(false);
-            command_out.send("undefine", contract_.slot);
+            publish_bypass_message(1.0);
         }
         else {
-            publish_definition();
             set_controls_enabled(true);
-            publish();
+            publish_curve();
+            publish_handle(true);
+            publish_filter_curve(true);
+            publish_bypass_message(0.0);
         }
     }
 
@@ -489,6 +273,14 @@ private:
 
     }
 
+    void publish_bypass_message(const double value) {
+        const consolidator::protocol::FilterBypassMessage typed_message{
+            contract_.slot, value == 1.0
+        };
+        const auto message = typed_message.to_envelope();
+        command_out.send("message", message.transport_atom());
+    }
+
     void apply_instance_state(const bool is_recovered_instance) {
         publish_control_state();
 
@@ -502,9 +294,11 @@ private:
     }
 
     void reset_filter_state() {
+        bypassed_ = false;
         const auto defaults = default_normalized_values(contract_);
         normalized_values_ = defaults;
         spec_ = contract_to_spec(contract_, normalized_values_);
+        set_controls_enabled(true);
         publish_parameter_values(defaults);
         publish();
     }
@@ -632,14 +426,18 @@ private:
         }
     }
 
+    void send_control_message(const consolidator::protocol::MessageEnvelope& message) {
+        local_command_out.send("message", message.transport_atom());
+    }
+
     void publish_control_state() {
         for (const auto& state : controls_) {
-            local_command_out.send(state.control.control_update("move", {
+            send_control_message(state.control.control_update("move", {
                 state.control.position()[0], state.control.position()[1],
                 state.control.position()[2], state.control.position()[3]
             }));
-            local_command_out.send(state.control.control_update(state.visible ? "show" : "hide"));
-            local_command_out.send(state.control.control_update(state.enabled ? "enable" : "disable"));
+            send_control_message(state.control.control_update(state.visible ? "show" : "hide"));
+            send_control_message(state.control.control_update(state.enabled ? "enable" : "disable"));
         }
         publish_control_colors_from_config();
     }
@@ -651,7 +449,7 @@ private:
                 state.control.id() == "q" ||
                 state.control.id() == "bypass" ||
                 state.control.id() == "reset") {
-                local_command_out.send(state.control.control_update("color", {
+                send_control_message(state.control.control_update("color", {
                     color_[0], color_[1], color_[2], color_[3]
                 }));
             }
@@ -661,25 +459,16 @@ private:
     void set_controls_enabled(bool enabled) {
         for (const auto& state : controls_) {
             const bool control_enabled = state.always_enabled || (enabled && state.enabled);
-            local_command_out.send(state.control.control_update(control_enabled ? "enable" : "disable"));
+            send_control_message(state.control.control_update(control_enabled ? "enable" : "disable"));
         }
     }
 
     void output_control_values() {
         for (const auto& state : controls_) {
             if (state.active) {
-                local_command_out.send(state.control.control_update("outputvalue"));
+                send_control_message(state.control.control_update("outputvalue"));
             }
         }
-    }
-
-    std::vector<double> normalized_values(const atoms& args) const {
-        std::vector<double> values;
-        values.reserve(args.size());
-        for (const auto& value : args) {
-            values.push_back(static_cast<double>(value));
-        }
-        return values;
     }
 
     void publish_parameter_values(const std::vector<double>& values) {
@@ -691,7 +480,7 @@ private:
                     return state.control.id() == parameter_control_ids_[i];
                 });
             if (control != controls_.end()) {
-                local_command_out.send(control->control.control_update("set", { values[i] }));
+                send_control_message(control->control.control_update("set", { values[i] }));
             }
         }
     }
@@ -783,7 +572,11 @@ private:
             return;
         }
 
-        command_out.send(make_filter_atoms(contract_, spec_));
+        const consolidator::protocol::FilterUpdateMessage typed_message{
+            contract_.slot, normalized_values_
+        };
+        const auto message = typed_message.to_envelope();
+        command_out.send("message", message.transport_atom());
     }
 
     void publish_handle(const bool active) {
@@ -868,13 +661,17 @@ private:
         curve_out.send(curve_atoms);
     }
 
-    void publish_definition() {
-        if (!definition_dictionary_.empty()) {
-            command_out.send("define", definition_dictionary_[0]);
+      void publish_definition() {
+          if (definition_dictionary_) {
+              const consolidator::protocol::FilterDefineMessage typed_message{
+                  contract_.slot, {}, definition_dictionary_name_
+              };
+            const auto message = typed_message.to_envelope();
+            command_out.send("message", message.transport_atom());
             return;
         }
 
-        command_out.send(make_definition_atoms(contract_));
+        debug_out.send("error", "filter_definition_requires_dictionary");
     }
 
     std::vector<double> response_curve() const {
@@ -892,7 +689,8 @@ private:
     double sample_rate_ = EqCurveGrid::default_sample_rate;
     FilterSpec spec_{};
     FilterContract contract_ = make_default_contract(0, FilterType::peak);
-    atoms definition_dictionary_;
+      std::unique_ptr<dict> definition_dictionary_;
+      std::string definition_dictionary_name_;
     struct ControlState {
         FilterControl control;
         bool visible = true;

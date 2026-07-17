@@ -11,7 +11,6 @@ find_package(NLopt CONFIG REQUIRED)
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    ApproximatorSupport.h
     ApproximatorCurveStore.h
     ApproximatorOutputs.h
     EqOptimizer.h

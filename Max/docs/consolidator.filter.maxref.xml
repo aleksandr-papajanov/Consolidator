@@ -31,49 +31,9 @@
 
 	<methodlist>
 
-		<method name='undefine'>
-			<digest>Remove the current filter definition </digest>
-			<description>Remove the current filter definition </description>
-		</method>
-
-		<method name='dictionary'>
-			<digest>Define the filter from a configuration dictionary </digest>
-			<description>Define the filter from a configuration dictionary </description>
-		</method>
-
-		<method name='define'>
-			<digest>Define filter type and ranges </digest>
-			<description>Define filter type and ranges </description>
-		</method>
-
-		<method name='reset'>
-			<digest>Restore defaults through control commands </digest>
-			<description>Restore defaults through control commands </description>
-		</method>
-
-		<method name='instance_state'>
-			<digest>Set instance state: 0 new, 1 recovered </digest>
-			<description>Set instance state: 0 new, 1 recovered </description>
-		</method>
-
-		<method name='update'>
-			<digest>Update one control: gain, freq, q, or bypass </digest>
-			<description>Update one control: gain, freq, q, or bypass </description>
-		</method>
-
-		<method name='edit'>
-			<digest>Edit one filter using its configuration ID and absolute frequency/gain </digest>
-			<description>Edit one filter using its configuration ID and absolute frequency/gain </description>
-		</method>
-
-		<method name='filter'>
-			<digest>Set normalized filter values </digest>
-			<description>Set normalized filter values </description>
-		</method>
-
-		<method name='bang'>
-			<digest></digest>
-			<description></description>
+		<method name='message'>
+			<digest>Apply a structured control envelope </digest>
+			<description>Apply a structured control envelope </description>
 		</method>
 
 	</methodlist>

@@ -1,0 +1,38 @@
+autowatch = 1;
+inlets = 6;
+outlets = 1;
+
+function SpectrumViewController() {
+}
+
+mgraphics.init();
+mgraphics.relative_coords = 0;
+mgraphics.autofill = 0;
+
+include('SpectrumViewConfig.js');
+include('SpectrumViewGeometry.js');
+include('SpectrumViewCurves.js');
+include('SpectrumViewInput.js');
+
+var spectrumViewController = new SpectrumViewController();
+
+function paint() {
+    try {
+        spectrumViewController.paint();
+    } catch (error) {
+        post("SpectrumView paint error: " + error + "\n");
+    }
+}
+function list() { spectrumViewController.list.apply(spectrumViewController, arguments); }
+function handle() { spectrumViewController.handle.apply(spectrumViewController, arguments); }
+function filter_curve() { spectrumViewController.filter_curve.apply(spectrumViewController, arguments); }
+function onclick() { spectrumViewController.onclick.apply(spectrumViewController, arguments); }
+function ondrag() { spectrumViewController.ondrag.apply(spectrumViewController, arguments); }
+function onmouseup() { spectrumViewController.onmouseup.apply(spectrumViewController, arguments); }
+function clear() { spectrumViewController.clear(); }
+function target_size() { spectrumViewController.target_size.apply(spectrumViewController, arguments); }
+function range() { spectrumViewController.range.apply(spectrumViewController, arguments); }
+function range_mode() { spectrumViewController.range_mode.apply(spectrumViewController, arguments); }
+function toggle_range() { spectrumViewController.toggle_range(); }
+function smooth() { spectrumViewController.smooth.apply(spectrumViewController, arguments); }
+function q_sensitivity() { spectrumViewController.q_sensitivity.apply(spectrumViewController, arguments); }

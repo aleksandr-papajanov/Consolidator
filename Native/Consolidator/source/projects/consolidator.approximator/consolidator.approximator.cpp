@@ -1,8 +1,13 @@
 #include "c74_min.h"
 
-#include "ApproximatorSupport.h"
+#include "ApproximatorCurveStore.h"
+#include "ApproximatorOutputs.h"
+#include "EqOptimizer.h"
 #include "FilterContractDictionary.h"
+#include "MessageEnvelope.h"
+#include "MessageFactory.h"
 #include "FilterRegistry.h"
+#include "TypedMessages.h"
 
 #include <atomic>
 #include <mutex>
@@ -30,12 +35,12 @@ public:
 
     inlet<> commands{
         this,
-        "(anything) commands: list, add_filter, dictionary, remove_filter, clear, fit"
+        "(message) commands: message <dictionary type=filter.define|approximator.clear|approximator.fit>"
     };
 
     outlet<> commands_out{
         this,
-        "(anything) commands: filter, add_filter, remove_filter"
+        "(message) commands: message <dictionary type=filter.update>"
     };
 
     outlet<> status_out{
@@ -75,23 +80,6 @@ public:
         }
     };
 
-    message<> clear_message{
-        this,
-        "clear",
-        "Clear the current differential curve",
-        MIN_FUNCTION {
-            if (inlet != 2) {
-                debug_out.send("error", "commands_must_use_command_inlet");
-                return {};
-            }
-
-            curve_store.clear();
-            has_recent_input_ = false;
-            update_ready();
-            return {};
-        }
-    };
-
     message<> loadbang{
         this,
         "loadbang",
@@ -101,187 +89,30 @@ public:
         }
     };
 
-    message<> add_filter_message{
+    message<> envelope_message{
         this,
-        "add_filter",
-        "Register a filter contract",
+        "message",
+        "Receive a structured approximator control envelope",
         MIN_FUNCTION {
-            if (inlet != 2) {
-                debug_out.send("error", "commands_must_use_command_inlet");
+            if (inlet != 2 || args.size() != 1) {
+                report_invalid_envelope(args);
                 return {};
             }
 
-            if (args.size() == 1 && dictionary_atom(args[0])) {
-                FilterContract contract;
-                if (!parse_filter_contract_dictionary(contract, args[0])) {
-                    debug_out.send("error", "invalid_filter_configuration_dictionary");
-                    return {};
-                }
-
-                const bool was_empty = registry_.empty();
-                registry_.define(contract);
-                if (was_empty) {
-                    update_ready();
-                }
+            auto message = consolidator::protocol::MessageFactory::from_atom(args[0]);
+            if (!message) {
+                report_invalid_envelope(args);
                 return {};
             }
-
-            if (args.size() < 2) {
-                return {};
+            const auto result = consolidator::protocol::dispatch<
+                consolidator::protocol::FilterDefineMessage,
+                consolidator::protocol::ApproximatorClearMessage,
+                consolidator::protocol::ApproximatorFitMessage>(*message, [this](const auto& command) {
+                    handle_command(command);
+                });
+            if (result == consolidator::protocol::MessageDispatchResult::invalid) {
+                report_invalid_typed_message(*message);
             }
-
-            const auto slot = static_cast<std::size_t>(static_cast<int>(args[0]));
-            if (slot >= FilterRegistry::max_filters) {
-                return {};
-            }
-
-            FilterContract contract;
-            contract.slot = static_cast<int>(slot);
-            if (!parse_definition_arguments(contract, args)) {
-                return {};
-            }
-
-            const bool was_empty = registry_.empty();
-            registry_.define(contract);
-            if (was_empty) {
-                update_ready();
-            }
-            return {};
-        }
-    };
-
-    message<> dictionary_message{
-        this,
-        "dictionary",
-        "Register a filter contract dictionary",
-        MIN_FUNCTION {
-            if (inlet != 2 || args.size() != 1 || !dictionary_atom(args[0])) {
-                debug_out.send("error", "invalid_filter_configuration_dictionary");
-                return {};
-            }
-
-            FilterContract contract;
-            if (!parse_filter_contract_dictionary(contract, args[0])) {
-                debug_out.send("error", "invalid_filter_configuration_dictionary");
-                return {};
-            }
-
-            const bool was_empty = registry_.empty();
-            registry_.define(contract);
-            if (was_empty) {
-                update_ready();
-            }
-            return {};
-        }
-    };
-
-    message<> remove_filter_message{
-        this,
-        "remove_filter",
-        "Remove one dynamically defined filter",
-        MIN_FUNCTION {
-            if (inlet != 2) {
-                debug_out.send("error", "commands_must_use_command_inlet");
-                return {};
-            }
-
-            if (args.size() != 1) {
-                return {};
-            }
-
-            const size_t slot = static_cast<size_t>(args[0]);
-            if (slot >= FilterRegistry::max_filters) {
-                return {};
-            }
-
-            registry_.undefine(slot);
-            update_ready();
-            return {};
-        }
-    };
-
-    message<> fit_message{
-        this,
-        "fit",
-        "Fit EQ parameters to current target curve",
-        MIN_FUNCTION {
-            if (inlet != 2) {
-                debug_out.send("error", "commands_must_use_command_inlet");
-                return {};
-            }
-
-            bool join_worker = false;
-            if (registry_.empty()) {
-                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                outputs.error("no_defined_filters");
-                set_ready(false);
-                return {};
-            }
-
-            if (!has_recent_input_ || !curve_store.has_live_curve()) {
-                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                outputs.error("no_difference_curve");
-                set_ready(false);
-                return {};
-            }
-
-            if (!curve_store.has_current_eq_curve()) {
-                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                outputs.error("no_current_eq_curve");
-                set_ready(false);
-                return {};
-            }
-
-            if (!curve_store.has_compatible_curves()) {
-                ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                outputs.error("curve_size_mismatch");
-                set_ready(false);
-                return {};
-            }
-
-            const auto curve = curve_store.combined_curve();
-            const auto registry = registry_;
-
-            {
-                std::lock_guard<std::mutex> lock(fit_mutex_);
-                if (fit_running_) {
-                    ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-                    outputs.error("fit_in_progress");
-                    return {};
-                }
-
-                if (fit_worker_.joinable()) {
-                    join_worker = true;
-                }
-
-                fit_running_ = true;
-                pending_error_.clear();
-                pending_result_.reset();
-            }
-
-            if (join_worker) {
-                fit_worker_.join();
-            }
-
-            ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
-            set_ready(false);
-
-            fit_worker_ = std::thread([this, curve, registry]() mutable {
-                try {
-                    const auto result = optimizer.fit(curve, registry);
-                    {
-                        std::lock_guard<std::mutex> lock(fit_mutex_);
-                        pending_result_ = result;
-                    }
-                }
-                catch (const std::exception& e) {
-                    std::lock_guard<std::mutex> lock(fit_mutex_);
-                    pending_error_ = e.what();
-                }
-
-                fit_delivery.set();
-            });
-
             return {};
         }
     };
@@ -293,6 +124,128 @@ public:
     }
 
 private:
+    void report_invalid_envelope(const atoms& args) {
+        atoms details{ "error", "invalid_message_envelope", "argument_count",
+            static_cast<long>(args.size()), "arguments" };
+        details.insert(details.end(), args.begin(), args.end());
+        debug_out.send(details);
+    }
+
+    void report_invalid_typed_message(const consolidator::protocol::MessageEnvelope& message) {
+        std::string type;
+        std::string source;
+        long target{};
+        c74::min::dict payload;
+        c74::min::atom contract;
+        std::string contract_name;
+
+        message.type(type);
+        const bool has_target = message.target(target);
+        const bool has_source = message.source(source);
+        const bool has_payload = message.payload(payload);
+        const bool has_contract_name = message.payload_symbol("contractName", contract_name);
+        const bool has_contract_dictionary = message.payload_dictionary("contract", contract);
+
+        atoms details{ "error", "invalid_message_envelope", "type", type,
+            "has_target", has_target ? 1L : 0L,
+            "target", target,
+            "has_source", has_source ? 1L : 0L,
+            "source", source,
+            "has_payload", has_payload ? 1L : 0L,
+            "has_contract_name", has_contract_name ? 1L : 0L,
+            "contract_name", contract_name,
+            "has_contract_dictionary", has_contract_dictionary ? 1L : 0L };
+        debug_out.send(details);
+    }
+
+    void handle_command(const consolidator::protocol::FilterDefineMessage& command) {
+        if (command.target < 0 || command.target >= static_cast<long>(FilterRegistry::max_filters)) {
+            debug_out.send("error", "invalid_filter_definition");
+            return;
+        }
+        FilterContract contract;
+        const bool parsed = command.contractName.empty()
+            ? parse_filter_contract_dictionary_for_slot(
+                contract, command.contract, static_cast<int>(command.target))
+            : [&]() {
+                const dict configuration{ symbol(command.contractName.c_str()) };
+                return parse_filter_contract_dictionary_for_slot(
+                    contract,
+                    atom{ static_cast<c74::max::t_object*>(configuration) },
+                    static_cast<int>(command.target));
+            }();
+        if (!parsed) {
+            debug_out.send("error", "invalid_filter_definition");
+            return;
+        }
+        const bool was_empty = registry_.empty();
+        registry_.define(contract);
+        if (was_empty) update_ready();
+    }
+
+    void handle_command(const consolidator::protocol::ApproximatorClearMessage&) {
+        curve_store.clear();
+        has_recent_input_ = false;
+        update_ready();
+    }
+
+    void handle_command(const consolidator::protocol::ApproximatorFitMessage&) { start_fit(); }
+
+    void start_fit() {
+        bool join_worker = false;
+        ApproximatorOutputs outputs{ commands_out, status_out, debug_out };
+        if (registry_.empty()) {
+            outputs.error("no_defined_filters");
+            set_ready(false);
+            return;
+        }
+        if (!has_recent_input_ || !curve_store.has_live_curve()) {
+            outputs.error("no_difference_curve");
+            set_ready(false);
+            return;
+        }
+        if (!curve_store.has_current_eq_curve()) {
+            outputs.error("no_current_eq_curve");
+            set_ready(false);
+            return;
+        }
+        if (!curve_store.has_compatible_curves()) {
+            outputs.error("curve_size_mismatch");
+            set_ready(false);
+            return;
+        }
+
+        const auto curve = curve_store.combined_curve();
+        const auto registry = registry_;
+        {
+            std::lock_guard<std::mutex> lock(fit_mutex_);
+            if (fit_running_) {
+                outputs.error("fit_in_progress");
+                return;
+            }
+            join_worker = fit_worker_.joinable();
+            fit_running_ = true;
+            pending_error_.clear();
+            pending_result_.reset();
+        }
+        if (join_worker) {
+            fit_worker_.join();
+        }
+        set_ready(false);
+        fit_worker_ = std::thread([this, curve, registry]() mutable {
+            try {
+                const auto result = optimizer.fit(curve, registry);
+                std::lock_guard<std::mutex> lock(fit_mutex_);
+                pending_result_ = result;
+            }
+            catch (const std::exception& error) {
+                std::lock_guard<std::mutex> lock(fit_mutex_);
+                pending_error_ = error.what();
+            }
+            fit_delivery.set();
+        });
+    }
+
     void deliver_fit_result() {
         std::optional<EqOptimizer::FitResult> result;
         std::string error;

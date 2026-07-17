@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EqConstants.h"
 #include "FilterContract.h"
 
 #include <array>
@@ -7,7 +8,7 @@
 
 class FilterRegistry {
 public:
-    static constexpr std::size_t max_filters = 8;
+    static constexpr std::size_t max_filters = consolidator::eq::max_filter_slots;
 
     void clear() {
         contracts_.fill(std::nullopt);

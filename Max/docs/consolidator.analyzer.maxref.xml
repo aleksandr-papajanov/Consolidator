@@ -31,19 +31,9 @@
 
 	<methodlist>
 
-		<method name='difference'>
-			<digest>Enable or disable differential curve output </digest>
-			<description>Enable or disable differential curve output </description>
-		</method>
-
-		<method name='bang'>
-			<digest>Output latest analyzed curves</digest>
-			<description>Output latest analyzed curves. </description>
-		</method>
-
-		<method name='stats'>
-			<digest>Output input RMS diagnostics</digest>
-			<description>Output input RMS diagnostics. </description>
+		<method name='message'>
+			<digest>Apply a structured analyzer control envelope </digest>
+			<description>Apply a structured analyzer control envelope </description>
 		</method>
 
 	</methodlist>

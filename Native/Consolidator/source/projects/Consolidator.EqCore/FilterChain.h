@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EqConstants.h"
 #include "EqBiquad.h"
 #include "EqFrequencyGrid.h"
 #include "FilterSpec.h"
@@ -11,7 +12,7 @@
 
 class FilterChain {
 public:
-    static constexpr size_t max_filters = 8;
+    static constexpr size_t max_filters = consolidator::eq::max_filter_slots;
 
     void set_sample_rate(double sample_rate) {
         if (sample_rate_ != sample_rate) {
@@ -43,6 +44,15 @@ public:
 
         slots_[index].spec = spec;
         slots_[index].active = true;
+        dirty_ = true;
+    }
+
+    void set_filter_bypass(size_t index, bool bypassed) {
+        if (index >= max_filters) {
+            return;
+        }
+
+        slots_[index].active = !bypassed;
         dirty_ = true;
     }
 

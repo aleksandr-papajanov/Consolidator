@@ -36,29 +36,9 @@
 			<description>Receive the differential curve </description>
 		</method>
 
-		<method name='clear'>
-			<digest>Clear the current differential curve </digest>
-			<description>Clear the current differential curve </description>
-		</method>
-
-		<method name='add_filter'>
-			<digest>Register a filter contract </digest>
-			<description>Register a filter contract </description>
-		</method>
-
-		<method name='dictionary'>
-			<digest>Register a filter contract dictionary </digest>
-			<description>Register a filter contract dictionary </description>
-		</method>
-
-		<method name='remove_filter'>
-			<digest>Remove one dynamically defined filter </digest>
-			<description>Remove one dynamically defined filter </description>
-		</method>
-
-		<method name='fit'>
-			<digest>Fit EQ parameters to current target curve </digest>
-			<description>Fit EQ parameters to current target curve </description>
+		<method name='message'>
+			<digest>Receive a structured approximator control envelope </digest>
+			<description>Receive a structured approximator control envelope </description>
 		</method>
 
 	</methodlist>

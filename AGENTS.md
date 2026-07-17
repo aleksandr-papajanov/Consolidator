@@ -36,11 +36,11 @@ The repository has two layers:
 
 The normal fitting path is:
 
-`Analyzer -> difference curve -> Approximator -> filter commands -> EqChain`
+`Analyzer -> difference curve -> Approximator -> Filter -> EqStorage -> EqChain`
 
 The audio path is:
 
-`audio -> EqChain -> audio`
+`audio -> EqStorage (EqChain) -> audio`
 
 The visual path is:
 
@@ -51,12 +51,14 @@ startup UI configuration. `FilterConfig.maxpat` loads that JSON at
 initialization, selects a filter dictionary, and sends it to the local command
 inlet of `Consolidator.Filter`. Filter parameters are defined per slot under
 `filters`; layout overrides are defined once per filter type under `layouts`.
-The filter emits local semantic commands in the form
-`control <id> <action> <values>`. `FilterControlAdapter.maxpat` converts them
-into Max `script sendbox` messages.
-Incoming parameter changes use `update gain|freq|q <normalizedValue>` and
-`update bypass <0|1>`. It then publishes the definition to `EqChain`, and
-`EqChain` forwards the available contract to `Approximator`. `Filter` also
+The filter emits local `filter.control` envelopes. `FilterControlAdapter.maxpat`
+converts them into Max `script sendbox` messages. `FilterCommandBridge.js`
+wraps UI and configuration input before it reaches the native object.
+Incoming parameter changes use `filter.control.update`; `Filter` publishes
+`filter.define`, `filter.update`, and `filter.bypass`
+envelopes directly to EqStorage. EqStorage owns the routes to its internal
+EqChain and to Approximator. `EqChain` only consumes filter definitions and
+audio commands; it has no bank or approximator command outlet. `Filter` also
 publishes `filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz>
 <gainDb> <type> <q> <qMin> <qMax> <curve...>` and
 draggable graph metadata as `handle <filterId> <frequencyHz> <gainDb> <type>
@@ -67,11 +69,70 @@ with its configured color, and computes the thick summed line itself. It emits
 dragging a marker keeps its frequency and gain fixed and edits Q directly as a
 normalized value from 0 at the bottom to 1 at the top.
 
-`SpectrumView.js` is only the Max JS entry point. Its implementation is split
-into `SpectrumViewConfig.js` for shared state and visual constants,
-`SpectrumViewGeometry.js` for coordinate conversion,
+`Consolidator.Filter` has one command inlet. `filter.edit` is reserved for
+SpectrumView and carries absolute graph coordinates (frequency/gain) or a
+single normalized Q gesture. `filter.update` carries the complete normalized
+parameter vector used for bank recall and state persistence; do not merge the
+two message types or infer one from the other's payload.
+
+`Max/JavaScript/Spectrum/SpectrumView.js` is only the Max JS entry point. Its
+implementation is split into `SpectrumViewConfig.js` for shared state and
+visual constants, `SpectrumViewGeometry.js` for coordinate conversion,
 `SpectrumViewCurves.js` for curve aggregation and drawing, and
 `SpectrumViewInput.js` for Max messages and pointer interaction.
+
+Max JavaScript is organized by feature under `Max/JavaScript/`: `Spectrum/`
+contains spectrum visualization, `Filter/` contains filter UI adapters and
+views, `EqStorage/` contains bank storage, and `Messages/` contains shared
+message contracts. `Painters/` contains self-contained `jspainter` scripts;
+these scripts must not depend on `include` files because Max can execute a
+`jspainterfile` in a separate runtime context. Root-level JS files are not
+used by Max patchers.
+
+### EQ bank storage
+
+`Max/EqBankStorage.maxpat` is the reusable bank UI abstraction and audio
+wrapper. It owns two audio inlets and two audio outlets and contains
+`Consolidator.EqChain`; the parent device does not own another EqChain.
+Its JavaScript implementation lives in `Max/JavaScript/EqStorage/`:
+`EqStorage` coordinates bank state and `BankFilter` owns one filter's values
+and bypass state.
+Shared protocol infrastructure lives in `Max/JavaScript/Messages/`.
+`MessageEnvelope` owns the envelope fields and Max dictionary conversion;
+`MessageFactory` is the only JS factory boundary. Legacy per-command message
+classes and `MessageCodec` are not part of the project.
+
+Native message payloads are declared as value types in
+`Consolidator.EqCore/TypedMessages.h`. Each type owns its stable protocol type
+name and `from_envelope` deserializer. Components dispatch the registered
+types through `protocol::dispatch` and implement small typed handler overloads;
+do not add selector chains that parse payload fields inside `envelope_message`.
+The list always contains `Current` at row 0; persistent rows start at row 1.
+`Filter` publishes `filter.define`, `filter.update`, and `filter.bypass`
+directly to EqStorage. EqStorage saves each update in the
+selected row immediately and forwards definitions to Approximator. It also
+publishes a complete `eq.storage.snapshot` to its internal EqChain after every
+bank mutation. All bank rows, including `Current`, are active EQ layers; the
+selected row controls editing only and does not select the audible EQ. EqChain
+stores every bank layer and processes them in row order. There is no request
+or capture phase.
+The UI accepts `initialize`, `bang`, `add [name]`, `remove`, `select <row>`,
+`rename <row> <name>`, and `delete <row>`. `Current` is a normal bank with the
+fixed storage ID `current`, so it is embedded and restored with the Live Set.
+The storage `dict @embed 1` belongs to `Consolidator.amxd`, not EqBankStorage.
+The parent sends its dictionary reference through EqBankStorage's third,
+message-only inlet. EqStorage binds that reference and initializes before it
+handles queued startup filter envelopes. Keep EqBankStorage non-embedded; its
+file contains code and UI only, while each device instance persists its own
+parent dictionary in the Live Set. Do not derive dictionary names from
+bpatcher arguments or `#0`, because those arguments can arrive literally as
+`#0`.
+A new bank sends
+`filter.reset` to every defined Filter; the resulting update messages populate
+the new bank with defaults. Restoring a bank sends its stored
+`filter.update`/`filter.bypass` values. Every create, select, update, rename,
+and removal publishes the envelope `eq.storage.bank.changed` with
+the action, bank index, bank name, and relevant filter data.
 
 ### Filter contracts
 
@@ -119,14 +180,37 @@ introduce a second name such as `freq` for that parameter.
 9. Prefer separate classes and files with intent-revealing names. Keep Max
    patchers focused on routing and presentation; keep numerical behavior in
    C++.
-10. When reading code, treat a discovered violation of these rules as part of
-    the task: fix it when the fix is local, behavior-preserving, and can be
-    verified. Do not leave an obvious protocol or architecture mismatch
-    unexplained.
-11. Do not change Max patch wiring or behavior incidentally while editing C++.
-    Make patch changes only when the requested behavior requires them.
-12. Use ASCII for new source and documentation unless a file already requires
-    another encoding.
+10. Max JavaScript must follow the same structure: keep the Max entry point
+    thin, split domain responsibilities into separate files and classes, and
+    use intent-revealing objects instead of large collections of global state
+    and functions. New JS code belongs in the owning feature directory.
+11. When reading code, treat a discovered violation of these rules as part of
+   the task: fix it when the fix is local, behavior-preserving, and can be
+   verified. Do not leave an obvious protocol or architecture mismatch
+   unexplained.
+12. Do not change Max patch wiring or behavior incidentally while editing C++.
+   Make patch changes only when the requested behavior requires them.
+13. Use ASCII for new source and documentation unless a file already requires
+   another encoding.
+14. Use PascalCase for class, struct, enum, and method names. Use camelCase
+   for variables, parameters, fields, and local functions. Do not introduce
+   snake_case identifiers outside external APIs that require them.
+
+### Unified control envelope
+
+The control protocol uses one envelope for every non-audio message:
+`type`, optional `target`, optional `source`, and `payload`. Protocol types are
+stable names such as `filter.update` and must not be tied to implementation
+class names. `MessageFactory` is the only factory boundary in JavaScript;
+native components use the matching `MessageEnvelope` and factory in
+`EqCore`. Max transports the envelope as `message <temporary-dictionary-name>`;
+the dictionary name is opaque transport data and must never be routed or
+inspected by a component. Audio and high-rate DSP buffers remain outside this
+protocol.
+
+Do not add selector-specific message classes, `MessageCodec`, raw command
+fallbacks, or compatibility handlers. UI-only Max commands may stay direct
+only after the control envelope has been decoded at the UI adapter boundary.
 
 ## Verification
 

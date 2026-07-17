@@ -1,50 +1,51 @@
-var curves = [[], [], [], [], []];
-var filterCurves = {};
-var handles = [];
-var draggedHandle = null;
-var draggedHandleSlot = null;
-var selectionCandidates = [];
-var selectionIndex = -1;
-var selectionX = 0;
-var selectionY = 0;
-var selectedHandleSlot = null;
-var clickWasRepeat = false;
-var clickMoved = false;
-var draggingWithAlt = false;
-var dragStartX = 0;
-var dragStartY = 0;
-var dragStartFrequency = 0;
-var dragStartGain = 0;
-var dragStartQNormalized = 0;
-var qSensitivity = 1.5;
+function SpectrumViewState() {
+this.curves = [[], [], [], [], []];
+this.filterCurves = {};
+this.handles = [];
+this.draggedHandle = null;
+this.draggedHandleSlot = null;
+this.selectionCandidates = [];
+this.selectionIndex = -1;
+this.selectionX = 0;
+this.selectionY = 0;
+this.selectedHandleSlot = null;
+this.clickWasRepeat = false;
+this.clickMoved = false;
+this.draggingWithAlt = false;
+this.dragStartX = 0;
+this.dragStartY = 0;
+this.dragStartFrequency = 0;
+this.dragStartGain = 0;
+this.dragStartQNormalized = 0;
+this.qSensitivity = 1.5;
 
-var minDb = -15;
-var maxDb = 15;
-var dbRangePresets = [
+this.minDb = -15;
+this.maxDb = 15;
+this.dbRangePresets = [
     { min: -15, max: 15, label: "15 dB" },
     { min: -30, max: 30, label: "30 dB" }
 ];
-var dbRangeIndex = 1;
-var displayMinFrequency = 10;
-var displayMaxFrequency = 20000;
-var curveMinFrequency = 20;
+this.dbRangeIndex = 1;
+this.displayMinFrequency = 10;
+this.displayMaxFrequency = 20000;
+this.curveMinFrequency = 20;
 
-var frequencyBands = [
+this.frequencyBands = [
     { min: 10, max: 100, width: 0.31 },
     { min: 100, max: 1000, width: 0.31 },
     { min: 1000, max: 10000, width: 0.31 },
     { min: 10000, max: 20000, width: 0.07 }
 ];
 
-var frequencyLabels = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
-var majorFrequencies = [100, 1000, 10000];
-var minorFrequencies = [
+this.frequencyLabels = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
+this.majorFrequencies = [100, 1000, 10000];
+this.minorFrequencies = [
     10, 20, 30, 40, 50, 60, 70, 80, 90,
     200, 300, 400, 500, 600, 700, 800, 900,
     2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000
 ];
 
-var visualSettings = {
+this.visualSettings = {
     background: { r: 0.07, g: 0.07, b: 0.07, a: 1.0 },
     reference: { r: 1.00, g: 1.00, b: 1.00, a: 0.60 },
     target: { r: 1.00, g: 0.88, b: 0.25, a: 0.60 },
@@ -80,38 +81,40 @@ var visualSettings = {
 };
 
 // 0 = no temporal smoothing, 0.9 = very slow/smooth
-var smoothing = 0.75;
+this.smoothing = 0.75;
 
-var styles = [
-    createCurveStyle(
-        visualSettings.reference,
+this.styles = [
+        this.createCurveStyle(
+        this.visualSettings.reference,
         { r: 1.00, g: 1.00, b: 1.00, a: 0.1 },
         null
     ),
-    createCurveStyle(
-        visualSettings.target,
+    this.createCurveStyle(
+        this.visualSettings.target,
         { r: 1.00, g: 0.88, b: 0.25, a: 0.1 },
         null
     ),
-    createCurveStyle(
+    this.createCurveStyle(
         { r: 1.00, g: 1.00, b: 1.00, a: 0.00 },
         { r: 1.00, g: 1.00, b: 1.00, a: 0.00 },
-        { r: visualSettings.difference.r, g: visualSettings.difference.g, b: visualSettings.difference.b,
-            a: visualSettings.difference.a, width: visualSettings.totalLineWidth }
+        { r: this.visualSettings.difference.r, g: this.visualSettings.difference.g, b: this.visualSettings.difference.b,
+            a: this.visualSettings.difference.a, width: this.visualSettings.totalLineWidth }
     ),
-    createCurveStyle(
+    this.createCurveStyle(
         { r: 0.75, g: 1.00, b: 0.35, a: 0.16 },
         { r: 0.75, g: 1.00, b: 0.35, a: 0.04 },
         { r: 0.75, g: 1.00, b: 0.35, a: 0.90, width: 1.5 }
     ),
-    createCurveStyle(
+    this.createCurveStyle(
         { r: 0.90, g: 0.45, b: 1.00, a: 0.16 },
         { r: 0.90, g: 0.45, b: 1.00, a: 0.04 },
         { r: 0.90, g: 0.45, b: 1.00, a: 0.90, width: 1.5 }
     )
 ];
 
-function createCurveStyle(fillTop, fillBottom, outline) {
+}
+
+SpectrumViewState.prototype.createCurveStyle = function(fillTop, fillBottom, outline) {
     return {
         fill: {
             top: fillTop,
@@ -119,5 +122,7 @@ function createCurveStyle(fillTop, fillBottom, outline) {
         },
         outline: outline
     };
-}
+};
+
+var spectrumState = new SpectrumViewState();
 // Shared state, frequency display settings, visual constants, and curve styles.

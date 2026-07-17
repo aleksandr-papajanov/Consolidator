@@ -1,6 +1,11 @@
 #include "c74_min.h"
 
-#include "AnalyzerSupport.h"
+#include "AnalyzerCurveBatch.h"
+#include "AnalyzerFrameBuffer.h"
+#include "AnalyzerSpectrumEngine.h"
+#include "AnalyzerStatistics.h"
+#include "MessageFactory.h"
+#include "TypedMessages.h"
 
 using namespace c74::min;
 
@@ -16,7 +21,7 @@ public:
     inlet<> current_r{ this, "(signal) current right", "signal" };
     inlet<> reference_l{ this, "(signal) reference left", "signal" };
     inlet<> reference_r{ this, "(signal) reference right", "signal" };
-    inlet<> commands_in{ this, "(anything) commands: difference 0/1, bang, stats" };
+    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.publish|analyzer.stats>" };
 
     outlet<> audio_l{ this, "(signal) passthrough left", "signal" };
     outlet<> audio_r{ this, "(signal) passthrough right", "signal" };
@@ -66,25 +71,28 @@ public:
         description { "Visual tilt of the analyzer spectrum in dB. Positive values lift high frequencies." }
     };
 
-    message<> difference_message{
+    message<> envelope_message{
         this,
-        "difference",
-        "Enable or disable differential curve output",
+        "message",
+        "Apply a structured analyzer control envelope",
         MIN_FUNCTION {
-            if (args.size() != 1) {
-                debug_out.send("error", "invalid_difference_command");
+            if (inlet != 4 || args.size() != 1) {
+                debug_out.send("error", "invalid_message_envelope");
                 return {};
             }
-
-            const double value = static_cast<double>(args[0]);
-            if (value != 0.0 && value != 1.0) {
-                debug_out.send("error", "difference_must_be_0_or_1");
+            auto message = consolidator::protocol::MessageFactory::from_atom(args[0]);
+            if (!message) {
+                debug_out.send("error", "invalid_message_envelope");
                 return {};
             }
-
-            difference_enabled_ = value == 1.0;
-            if (!difference_enabled_) {
-                curves.clear_pending();
+            const auto result = consolidator::protocol::dispatch<
+                consolidator::protocol::AnalyzerDifferenceMessage,
+                consolidator::protocol::AnalyzerPublishMessage,
+                consolidator::protocol::AnalyzerStatsMessage>(*message, [this](const auto& command) {
+                    handle_command(command);
+                });
+            if (result == consolidator::protocol::MessageDispatchResult::invalid) {
+                debug_out.send("error", "invalid_message_envelope");
             }
             return {};
         }
@@ -128,38 +136,28 @@ public:
         return { current_l_in, current_r_in };
     }
 
-    message<> bang{ this, "bang", "Output latest analyzed curves.",
-        MIN_FUNCTION {
-            if (inlet != 4) {
-                debug_out.send("error", "commands_must_use_command_inlet");
-                return {};
-            }
-
-            if (!curves.has_pending()) {
-                return {};
-            }
-
-            curves.send(current_out, reference_out, difference_out, difference_enabled_);
-            curves.clear_pending();
-
-            return {};
-        }
-    };
-
-    message<> stats_message{ this, "stats", "Output input RMS diagnostics.",
-        MIN_FUNCTION {
-            if (inlet != 4) {
-                debug_out.send("error", "commands_must_use_command_inlet");
-                return {};
-            }
-
-            difference_out.send(input_stats.build_atoms());
-            input_stats.clear();
-            return {};
-        }
-    };
-
 private:
+    void handle_command(const consolidator::protocol::AnalyzerDifferenceMessage& command) {
+        difference_enabled_ = command.enabled;
+        if (!difference_enabled_) curves.clear_pending();
+    }
+
+    void handle_command(const consolidator::protocol::AnalyzerPublishMessage&) { publish_curves(); }
+    void handle_command(const consolidator::protocol::AnalyzerStatsMessage&) { publish_statistics(); }
+
+    void publish_curves() {
+        if (!curves.has_pending()) {
+            return;
+        }
+        curves.send(current_out, reference_out, difference_out, difference_enabled_);
+        curves.clear_pending();
+    }
+
+    void publish_statistics() {
+        difference_out.send(input_stats.build_atoms());
+        input_stats.clear();
+    }
+
     AnalyzerFrameBuffer capture;
     AnalyzerCurveBatch curves;
     AnalyzerStatistics input_stats;

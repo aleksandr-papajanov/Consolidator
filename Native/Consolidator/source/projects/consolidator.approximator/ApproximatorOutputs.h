@@ -5,6 +5,7 @@
 #include "FilterContract.h"
 #include "FilterRegistry.h"
 #include "FilterSpec.h"
+#include "MessageEnvelope.h"
 
 class ApproximatorOutputs {
 public:
@@ -61,15 +62,21 @@ public:
             const std::vector<double> values(
                 normalized_values.begin() + value_offset,
                 normalized_values.begin() + value_offset + count);
-            send_filter(contract, contract_to_spec(contract, values));
+            send_filter(contract, values);
             value_offset += count;
         }
     }
 
 private:
-    void send_filter(const FilterContract& contract, const FilterSpec& spec) const {
-        commands_out_.send(make_definition_atoms(contract));
-        commands_out_.send(make_filter_atoms(contract, spec));
+    void send_filter(
+        const FilterContract& contract,
+        const std::vector<double>& values
+    ) const {
+        consolidator::protocol::MessageEnvelope message{ std::string{ "filter.update" } };
+        message.set_target(contract.slot);
+        message.set_source("approximator");
+        message.set_payload_numbers("values", values);
+        commands_out_.send("message", message.transport_atom());
     }
 
     c74::min::outlet<>& commands_out_;

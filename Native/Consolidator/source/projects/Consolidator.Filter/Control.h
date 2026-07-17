@@ -1,16 +1,16 @@
 #pragma once
 
 #include "c74_min.h"
+#include "MessageEnvelope.h"
 
 #include <array>
 #include <initializer_list>
 #include <string>
 #include <utility>
+#include <vector>
 
 class FilterControl {
 public:
-    using atoms = c74::min::atoms;
-
     FilterControl(std::string id, std::array<double, 4> position)
         : id_(std::move(id)), position_(position) {}
 
@@ -22,15 +22,14 @@ public:
         position_ = position;
     }
 
-    atoms control_update(const std::string& action, std::initializer_list<double> values = {}) const {
-        atoms result;
-        result.push_back("control");
-        result.push_back(id_);
-        result.push_back(action);
-        for (const auto value : values) {
-            result.push_back(value);
-        }
-        return result;
+    consolidator::protocol::MessageEnvelope control_update(
+        const std::string& action,
+        std::initializer_list<double> values = {}) const {
+        consolidator::protocol::MessageEnvelope message{ std::string{ "filter.control" } };
+        message.set_payload_symbol("control", id_);
+        message.set_payload_symbol("action", action);
+        message.set_payload_numbers("values", std::vector<double>(values));
+        return message;
     }
 
 private:

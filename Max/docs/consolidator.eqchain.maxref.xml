@@ -31,24 +31,9 @@
 
 	<methodlist>
 
-		<method name='undefine'>
-			<digest>Remove one dynamically defined filter </digest>
-			<description>Remove one dynamically defined filter </description>
-		</method>
-
-		<method name='dictionary'>
-			<digest>Define a slot from a configuration dictionary </digest>
-			<description>Define a slot from a configuration dictionary </description>
-		</method>
-
-		<method name='filter'>
-			<digest>Set a normalized filter slot </digest>
-			<description>Set a normalized filter slot </description>
-		</method>
-
-		<method name='define'>
-			<digest>Define a slot dynamically </digest>
-			<description>Define a slot dynamically </description>
+		<method name='message'>
+			<digest>Apply a structured control envelope </digest>
+			<description>Apply a structured control envelope </description>
 		</method>
 
 	</methodlist>
