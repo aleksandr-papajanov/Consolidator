@@ -119,14 +119,18 @@ or capture phase.
 The UI accepts `initialize`, `bang`, `add [name]`, `remove`, `select <row>`,
 `rename <row> <name>`, and `delete <row>`. `Current` is a normal bank with the
 fixed storage ID `current`, so it is embedded and restored with the Live Set.
-The storage `dict @embed 1` belongs to `Consolidator.amxd`, not EqBankStorage.
-The parent sends its dictionary reference through EqBankStorage's third,
-message-only inlet. EqStorage binds that reference and initializes before it
-handles queued startup filter envelopes. Keep EqBankStorage non-embedded; its
-file contains code and UI only, while each device instance persists its own
-parent dictionary in the Live Set. Do not derive dictionary names from
-bpatcher arguments or `#0`, because those arguments can arrive literally as
-`#0`.
+`EqStorage` owns the complete in-memory bank model and publishes its full
+snapshot after every mutation. The root `Consolidator.amxd` owns both
+`pattr eqStorageState` and the parameter-enabled
+`pattrstorage eqStorageBanks`; EqBankStorage only transports the state
+dictionary through its private third inlet and outlet. The pattrstorage uses
+`paraminitmode 1`, so `store 1` updates the M4L parameter initial value saved
+with the Live Set. Persistence remains disabled during startup filter events.
+After `live.thisdevice -> deferlow`, the root recalls slot 1 first and then
+sends `persistence_ready`; only then may EqStorage publish state commits. Do
+not use an embedded state `dict`, a nested pattr, or a loadbang recall. Keep
+EqBankStorage non-embedded while root-level pattrstorage persists each device
+instance.
 A new bank sends
 `filter.reset` to every defined Filter; the resulting update messages populate
 the new bank with defaults. Restoring a bank sends its stored

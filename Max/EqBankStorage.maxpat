@@ -37,20 +37,8 @@
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js JavaScript/EqStorage/EqStorage.js"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"comment" : "dictionary <name>",
-					"id" : "stateInput",
-					"index" : 3,
-					"maxclass" : "inlet",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 510.0, 450.0, 30.0, 30.0 ]
+					"text" : "js JavaScript/EqStorage/EqStorage.js",
+					"varname" : "storage"
 				}
 
 			}
@@ -83,7 +71,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 435.0, 270.0, 188.0, 22.0 ],
+					"patching_rect" : [ 401.666666666666629, 256.0, 188.0, 22.0 ],
 					"text" : "s ---approximator.commands.inlet"
 				}
 
@@ -94,7 +82,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 480.0, 240.0, 164.0, 22.0 ],
+					"patching_rect" : [ 438.333333333333371, 228.0, 164.0, 22.0 ],
 					"text" : "s ---eqstorage.events.outlet"
 				}
 
@@ -163,13 +151,27 @@
 			}
 , 			{
 				"box" : 				{
-					"comment" : "state dictionary",
-					"id" : "stateOutput",
+					"comment" : "dictionary <name> after an EqStorage mutation",
+					"id" : "persistenceOutput",
 					"index" : 3,
 					"maxclass" : "outlet",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 510.0, 540.0, 30.0, 30.0 ]
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 461.5, 495.0, 30.0, 30.0 ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"comment" : "dictionary <name> restored from root pattrstorage",
+					"id" : "persistenceInput",
+					"index" : 3,
+					"maxclass" : "inlet",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 461.5, 373.0, 45.0, 22.0 ]
 				}
 
 			}
@@ -337,20 +339,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "storage", 2 ],
-					"source" : [ "stateInput", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "stateOutput", 0 ],
-					"source" : [ "storage", 6 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "storage", 0 ],
 					"source" : [ "remove", 0 ]
 				}
@@ -360,6 +348,20 @@
 				"patchline" : 				{
 					"destination" : [ "remove", 0 ],
 					"source" : [ "removeButton", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "persistenceOutput", 0 ],
+					"source" : [ "storage", 6 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "storage", 2 ],
+					"source" : [ "persistenceInput", 0 ]
 				}
 
 			}

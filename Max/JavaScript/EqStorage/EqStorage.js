@@ -6,31 +6,36 @@ autowatch = 1;
 inlets = 3;
 outlets = 7;
 
-var storageDictionaryName = null;
-
 // Inlet 0: initialize, bang, add <name>, remove, select <index>, rename <index> <name>, delete <index>.
 // Inlet 1: message <dictionary type=filter.define|filter.update|filter.bypass>.
-// Inlet 2: dictionary <embedded-dictionary-name>.
+// Inlet 2: dictionary <name> restores state; persistence_ready enables state commits after recall.
 // Outlet 0: message <dictionary type=filter.update|filter.bypass|filter.reset> to Filter instances.
 // Outlet 1: clear, append <name>, set <index> for the bank list.
 // Outlet 2: error <code>, status <...>.
 // Outlet 3: message <dictionary type=filter.define|eq.storage.snapshot> to EqChain.
 // Outlet 4: message <dictionary type=filter.define> to Approximator.
 // Outlet 5: message <dictionary type=eq.storage.bank.changed>.
-// Outlet 6: dictionary <name> commits the current state to the parent dict.
+// Outlet 6: dictionary <name> with the complete persistent bank state.
 
 function EqStorage() {
-    this.state = null;
+    this.state = new Dict();
     this.schemaVersion = 5;
     this.filterOrder = [];
     this.filterDefinitions = {};
     this.selectedRow = 0;
     this.isApplyingBank = false;
+    this.isPersistingState = false;
+    this.persistenceReady = false;
     this.snapshotSequence = 0;
-    this.pendingFilterMessages = [];
 }
 
 EqStorage.prototype.initialize = function() {
+    this.initializeStateModel();
+    this.publishBankList();
+    this.publishEqChainSnapshot();
+};
+
+EqStorage.prototype.initializeStateModel = function() {
     if (this.isMissing(this.state.get("schema_version"))) {
         this.state.replace("schema_version", this.schemaVersion);
         this.state.replace("bank_count", 0);
@@ -44,17 +49,19 @@ EqStorage.prototype.initialize = function() {
     this.state.replace(this.currentBankNameKey(), "Current");
     this.selectedRow = this.clampRow(this.state.get("selected_row"));
     this.state.replace("selected_row", this.selectedRow);
-    this.publishBankList();
-    this.publishEqChainSnapshot();
 };
 
 EqStorage.prototype.dispatch = function(input, command, args) {
     if (input === 2) {
-        if (command !== "dictionary" || args.length !== 1) {
-            this.emitError("invalid_storage_dictionary");
+        if (command === "dictionary" && args.length === 1) {
+            this.restoreState(args[0]);
             return;
         }
-        this.bindStorageDictionary(args[0]);
+        if (command === "persistence_ready" && args.length === 0) {
+            this.enablePersistence();
+            return;
+        }
+        this.emitError("invalid_storage_command");
         return;
     }
     if (input === 0) {
@@ -68,28 +75,20 @@ EqStorage.prototype.dispatch = function(input, command, args) {
     this.emitError("unsupported_message_selector");
 };
 
-EqStorage.prototype.bindStorageDictionary = function(name) {
-    if (this.state) {
+EqStorage.prototype.restoreState = function(dictionaryName) {
+    if (this.isPersistingState) {
         return;
     }
-
-    storageDictionaryName = String(name);
-    this.state = new Dict(storageDictionaryName);
+    this.state = new Dict(String(dictionaryName));
     this.initialize();
+};
 
-    var messages = this.pendingFilterMessages;
-    this.pendingFilterMessages = [];
-    for (var i = 0; i < messages.length; i++) {
-        this.handleFilterMessage(messages[i]);
-    }
+EqStorage.prototype.enablePersistence = function() {
+    this.persistenceReady = true;
+    this.commitState();
 };
 
 EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
-    if (!this.state) {
-        this.pendingFilterMessages.push(dictionaryName);
-        return;
-    }
-
     var message = MessageFactory.fromMax(dictionaryName);
     if (!message) {
         this.emitError("invalid_message_envelope");
@@ -336,7 +335,12 @@ EqStorage.prototype.publishEqChainSnapshot = function() {
 };
 
 EqStorage.prototype.commitState = function() {
-    outlet(6, "dictionary", storageDictionaryName);
+    if (!this.persistenceReady) {
+        return;
+    }
+    this.isPersistingState = true;
+    outlet(6, "dictionary", this.state.name);
+    this.isPersistingState = false;
 };
 
 EqStorage.prototype.sendEnvelope = function(outletIndex, message) {
@@ -437,6 +441,11 @@ EqStorage.prototype.emitError = function(code) { outlet(2, "error", code); };
 
 var eqStorage = new EqStorage();
 
+function loadbang() {
+    eqStorage.initializeStateModel();
+    eqStorage.publishBankList();
+}
+
 function DispatchUiCommand(command, args) {
     if (inlet === 0) eqStorage.handleUiCommand(command, args);
 }
@@ -450,7 +459,6 @@ function rename() { DispatchUiCommand("rename", arrayfromargs(arguments)); }
 function delete_bank() { DispatchUiCommand("delete", arrayfromargs(arguments)); }
 function msg_int(value) { if (inlet === 0) eqStorage.selectRow(value); }
 function message() { eqStorage.dispatch(inlet, "message", arrayfromargs(arguments)); }
-function dictionary() { eqStorage.dispatch(inlet, "dictionary", arrayfromargs(arguments)); }
 function list() {
     var args = arrayfromargs(arguments);
     if (args.length > 0) eqStorage.dispatch(inlet, String(args[0]), args.slice(1));
