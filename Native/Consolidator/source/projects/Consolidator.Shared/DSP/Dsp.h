@@ -8,7 +8,7 @@
 #include "DspChainBuilder.h"
 #include "Eq/Eq.h"
 #include "Eq/EqFilterFactory.h"
-#include "Eq/EqState.h"
+#include "Eq/EqRuntime.h"
 #include "Eq/IEqFilter.h"
 #include "Eq/Filters/BiquadBellFilter.h"
 #include "Eq/Filters/BiquadFilter.h"

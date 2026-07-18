@@ -17,6 +17,7 @@ function BusHub() {
 BusHub.prototype.ForwardEnvelope = function(dictionaryName) {
     var message = MessageFactory.fromMax(dictionaryName);
     if (!message) {
+        post("BusHub: invalid_message_envelope\n");
         return;
     }
     outlet(0, "message", String(dictionaryName));

@@ -177,8 +177,7 @@ SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, cap
             1
         );
         var q = this.denormalizeQ(qNormalized, spectrumState.draggedHandle.qMin, spectrumState.draggedHandle.qMax);
-        spectrumState.draggedHandle.q = q;
-        this.sendEditMessage(MessageEnvelope.create("filter.edit", "filter", {
+        this.sendEditMessage(MessageEnvelope.create("filter.set", "eq.storage", {
             filterId: spectrumState.draggedHandle.slot,
             parameter: "q",
             value: q
@@ -196,9 +195,7 @@ SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, cap
         spectrumState.minDb,
         spectrumState.maxDb
     );
-    spectrumState.draggedHandle.frequency = frequency;
-    spectrumState.draggedHandle.gain = gain;
-    this.sendEditMessage(MessageEnvelope.create("filter.edit", "filter", {
+    this.sendEditMessage(MessageEnvelope.create("filter.set", "eq.storage", {
         filterId: spectrumState.draggedHandle.slot,
         frequency: frequency,
         gain: gain
@@ -212,6 +209,26 @@ SpectrumViewController.prototype.sendEditMessage = function(message) {
     var dictionary = message.toMaxDictionary();
     outlet(0, "message", dictionary.name);
 }
+
+SpectrumViewController.prototype.HandleBusMessage = function(dictionaryName) {
+    var message = MessageEnvelope.fromMaxDictionary(dictionaryName);
+    if (!message) return;
+    if (message.target === "analyzer" && message.type === "analyzer.difference") {
+        if (Number(message.payload.value) === 0) this.clear_difference();
+        return;
+    }
+    if (message.target !== "spectrum" || message.type !== "filter.state") return;
+    var payload = message.payload || {};
+    var index = this.findHandle(Number(payload.filterId));
+    if (index < 0) return;
+    spectrumState.handles[index].frequency = Number(payload.frequency);
+    spectrumState.handles[index].gain = Number(payload.gain);
+    spectrumState.handles[index].q = Number(payload.q);
+    if (this.sameHandle(spectrumState.draggedHandle, spectrumState.handles[index])) {
+        spectrumState.draggedHandle = spectrumState.handles[index];
+    }
+    mgraphics.redraw();
+};
 
 SpectrumViewController.prototype.setDragAnchor = function(point, qMode) {
     spectrumState.dragStartX = point.x;

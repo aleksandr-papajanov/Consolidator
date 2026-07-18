@@ -1,12 +1,7 @@
 #include "c74_min.h"
 
-#include "DSP/Eq/EqState.h"
-#include "MaxEqSnapshotAdapter.h"
-#include "MaxFilterDefinitionAdapter.h"
-#include "MaxMessageAdapter.h"
-#include "Messaging/MessageRegistry.h"
-#include "Messaging/Messages/EqSnapshotMessage.h"
-#include "Messaging/Messages/FilterDefinitionMessage.h"
+#include "ComponentHost.h"
+#include "DSP/Eq/EqRuntime.h"
 #include "Settings/GlobalSettings.h"
 
 #include <atomic>
@@ -26,7 +21,7 @@ public:
     inlet<> inputRight{ this, "(signal) right input", "signal" };
     inlet<> commandsIn{
         this,
-        "(message) commands: message <dictionary type=filter.define|eq.storage.snapshot>"
+        "(message) commands: message <dictionary type=device.state.changed>"
     };
 
     outlet<> outputLeft{ this, "(signal) left output", "signal" };
@@ -54,21 +49,7 @@ public:
                 debugOut.send("error", "invalid_message_envelope");
                 return {};
             }
-            const auto envelope = consolidator::maxadapter::MaxMessageAdapter::Deserialize(args[0]);
-            if (!envelope || !consolidator::maxadapter::MaxMessageAdapter::IsAddressedTo(*envelope, "eq.chain")) {
-                if (!envelope) debugOut.send("error", "invalid_message_envelope");
-                return {};
-            }
-            const auto command = messageFactory.Deserialize(*envelope);
-            if (const auto* definition = dynamic_cast<consolidator::messaging::FilterDefinitionMessage*>(command.get())) {
-                Handle(*definition);
-            }
-            else if (const auto* snapshot = dynamic_cast<consolidator::messaging::EqSnapshotMessage*>(command.get())) {
-                Handle(*snapshot);
-            }
-            else {
-                debugOut.send("error", "invalid_message_envelope");
-            }
+            component.Receive(args);
             return {};
         }
     };
@@ -79,43 +60,29 @@ public:
         return { output.left, output.right };
     }
 
+    void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
+        eqRuntime.ClearDefinitions();
+        for (const auto& definition : state.filterDefinitions) eqRuntime.Define(definition);
+        eqRuntime.SetSnapshot(state.snapshot);
+        RebuildRuntime();
+    }
+
 private:
     struct RuntimeState {
         consolidator::dsp::StereoDspChain chain;
     };
 
-    void Handle(const consolidator::messaging::FilterDefinitionMessage& command) {
-        const auto definition = consolidator::maxadapter::MaxFilterDefinitionAdapter::Read(
-            command.contractName, command.filterId, command.defaultBypass);
-        if (!definition) {
-            debugOut.send("error", "invalid_filter_definition");
-            return;
-        }
-        eqState.Define(*definition);
-        RebuildRuntime();
-    }
-
-    void Handle(const consolidator::messaging::EqSnapshotMessage& command) {
-        const auto snapshot = consolidator::maxadapter::MaxEqSnapshotAdapter::Read(
-            command.snapshotName, command.selectedBankId);
-        if (!snapshot) {
-            debugOut.send("error", "invalid_eq_storage_snapshot");
-            return;
-        }
-        eqState.SetSnapshot(*snapshot);
-        RebuildRuntime();
-    }
-
     void RebuildRuntime() {
         auto runtime = std::make_shared<RuntimeState>();
-        runtime->chain = eqState.BuildAllBanks(sampleRate).BuildStereo();
+        runtime->chain = eqRuntime.BuildAllBanks(sampleRate).BuildStereo();
         runtimeState.store(std::move(runtime), std::memory_order_release);
     }
 
     double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
-    consolidator::dsp::EqState eqState;
-    consolidator::messaging::MessageFactory messageFactory =
-        consolidator::messaging::MessageRegistry::CreateFactory();
+    consolidator::dsp::EqRuntime eqRuntime;
+    consolidator::maxadapter::ComponentHost<ConsolidatorEqChain> component{
+        *this, "eq.chain", nullptr, nullptr, &debugOut
+    };
     std::atomic<std::shared_ptr<RuntimeState>> runtimeState{ std::make_shared<RuntimeState>() };
 };
 

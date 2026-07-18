@@ -5,11 +5,11 @@
 
 namespace consolidator::messaging {
 
-class FilterChangedMessage final : public FilterStateMessage {
+class FilterSetManyMessage final : public FilterStateMessage {
 public:
-    static constexpr const char* TypeName = "filter.changed";
+    static constexpr const char* TypeName = "filter.set_many";
 
-    explicit FilterChangedMessage(models::FilterState state)
+    explicit FilterSetManyMessage(models::FilterState state)
         : state(std::move(state)) {}
 
     std::string_view Type() const override {
@@ -20,9 +20,9 @@ public:
         return SerializeState(state);
     }
 
-    static std::optional<FilterChangedMessage> Deserialize(const MessagePayload& payload) {
+    static std::optional<FilterSetManyMessage> Deserialize(const MessagePayload& payload) {
         const auto state = DeserializeState(payload);
-        return state ? std::optional<FilterChangedMessage>{ *state } : std::nullopt;
+        return state ? std::optional<FilterSetManyMessage>{ *state } : std::nullopt;
     }
 
     models::FilterState state;

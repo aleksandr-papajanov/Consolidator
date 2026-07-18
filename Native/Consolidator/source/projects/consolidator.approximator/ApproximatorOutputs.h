@@ -1,9 +1,8 @@
 #pragma once
 
 #include "c74_min.h"
-#include "MaxMessageAdapter.h"
-#include "Messaging/MessageFactory.h"
-#include "Messaging/Messages/FilterApplyMessage.h"
+#include "ComponentOutputs.h"
+#include "Messaging/Messages/FilterSetManyMessage.h"
 #include "Models/FilterDefinition.h"
 #include "Models/FilterState.h"
 
@@ -14,17 +13,14 @@ class ApproximatorOutputs {
 public:
     using Definitions = std::map<long, consolidator::models::FilterDefinition>;
 
-    ApproximatorOutputs(
-        c74::min::outlet<>& commands,
-        c74::min::outlet<>& status,
-        c74::min::outlet<>& debug
-    ) : commands(commands), status(status), debug(debug) {}
+    explicit ApproximatorOutputs(consolidator::maxadapter::ComponentOutputs& outputs)
+        : outputs(outputs) {}
 
-    void Ready(bool value) const { status.send("ready", value ? 1 : 0); }
-    void Loss(double value) const { debug.send("loss", value); }
-    void Error(const char* value) const { debug.send("error", value); }
-    void FitStarted() const { debug.send("fit_started"); }
-    void FitFinished() const { debug.send("fit_finished"); }
+    void Ready(bool value) const { outputs.Ready(value); }
+    void Loss(double value) const { outputs.Debug("loss", value); }
+    void Error(const char* value) const { outputs.Error(value); }
+    void FitStarted() const { outputs.Debug("fit_started"); }
+    void FitFinished() const { outputs.Debug("fit_finished"); }
 
     void SendFilterCommands(
         const Definitions& definitions,
@@ -45,16 +41,12 @@ public:
                 }
                 state.values.push_back(parameter.range.Denormalize(solverValues[offset++]));
             }
-            const auto envelope = consolidator::messaging::MessageFactory::Create<
-                consolidator::messaging::FilterApplyMessage>(
-                    "approximator", "filter", std::move(state));
-            commands.send("message", consolidator::maxadapter::MaxMessageAdapter::Serialize(envelope));
+            outputs.Send<consolidator::messaging::FilterSetManyMessage>(
+                "approximator", "eq.storage", std::move(state));
         }
         if (offset != solverValues.size()) Error("fit_result_size_mismatch");
     }
 
 private:
-    c74::min::outlet<>& commands;
-    c74::min::outlet<>& status;
-    c74::min::outlet<>& debug;
+    consolidator::maxadapter::ComponentOutputs& outputs;
 };

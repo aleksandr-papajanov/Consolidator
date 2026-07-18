@@ -2,7 +2,7 @@
 
 #include "DSP/Curve/Curve.h"
 #include "DSP/Eq/EqFilterFactory.h"
-#include "DSP/Eq/EqState.h"
+#include "DSP/Eq/EqRuntime.h"
 #include "Models/EqSnapshot.h"
 #include "Models/FilterDefinition.h"
 #include "Settings/GlobalSettings.h"
@@ -19,7 +19,11 @@ public:
     }
 
     void Define(consolidator::models::FilterDefinition definition) {
-        state.Define(std::move(definition));
+        eqRuntime.Define(std::move(definition));
+    }
+
+    void ClearDefinitions() {
+        eqRuntime.ClearDefinitions();
     }
 
     bool SetSnapshot(consolidator::models::EqSnapshot snapshot) {
@@ -27,7 +31,7 @@ public:
             snapshotError = "selected_bank_not_found";
             return false;
         }
-        state.SetSnapshot(std::move(snapshot));
+        eqRuntime.SetSnapshot(std::move(snapshot));
         snapshotError.clear();
         return true;
     }
@@ -37,9 +41,9 @@ public:
     }
 
     void PublishSelected(c74::min::outlet<>& outlet) const {
-        const auto& snapshot = state.Snapshot();
+        const auto& snapshot = eqRuntime.Snapshot();
         const auto selected = snapshot.SelectedBank();
-        for (const auto& [filterId, definition] : state.Definitions()) {
+        for (const auto& [filterId, definition] : eqRuntime.Definitions()) {
             const auto filter = selected ? selected->FindFilter(filterId) : nullptr;
             PublishFilter(definition, filter, outlet);
         }
@@ -47,10 +51,6 @@ public:
 
     void PublishTotal(c74::min::outlet<>& outlet) const {
         SendCurve(SumBanks(false), outlet);
-    }
-
-    void PublishSelectedBank(c74::min::outlet<>& outlet) const {
-        SendCurve(SumSelectedBank(), outlet);
     }
 
     consolidator::dsp::Curve SelectedPrefixCurve() const {
@@ -99,17 +99,9 @@ private:
 
     consolidator::dsp::Curve SumBanks(bool stopAtSelected) const {
         consolidator::dsp::Curve result;
-        for (const auto& bank : state.Snapshot().banks) {
-            if (stopAtSelected && bank.bankId > state.Snapshot().selectedBankId) break;
+        for (const auto& bank : eqRuntime.Snapshot().banks) {
+            if (stopAtSelected && bank.bankId > eqRuntime.Snapshot().selectedBankId) break;
             AddBank(bank, result);
-        }
-        return result;
-    }
-
-    consolidator::dsp::Curve SumSelectedBank() const {
-        consolidator::dsp::Curve result;
-        if (const auto bank = state.Snapshot().SelectedBank()) {
-            AddBank(*bank, result);
         }
         return result;
     }
@@ -120,8 +112,8 @@ private:
     ) const {
         for (const auto& filter : bank.filters) {
             if (filter.bypass) continue;
-            const auto definition = state.Definitions().find(filter.filterId);
-            if (definition == state.Definitions().end()) continue;
+            const auto definition = eqRuntime.Definitions().find(filter.filterId);
+            if (definition == eqRuntime.Definitions().end()) continue;
             consolidator::dsp::EqFilterFactory factory{
                 definition->second, filter.values, sampleRate };
             const auto processor = factory.CreateFilter();
@@ -156,6 +148,6 @@ private:
     }
 
     double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
-    consolidator::dsp::EqState state;
+    consolidator::dsp::EqRuntime eqRuntime;
     std::string snapshotError;
 };

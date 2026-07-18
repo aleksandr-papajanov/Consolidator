@@ -10,27 +10,10 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 34.0, 77.0, 1212.0, 891.0 ],
+		"rect" : [ 127.0, 85.0, 1212.0, 875.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 15.0, 15.0 ],
 		"boxes" : [ 			{
-				"box" : 				{
-					"id" : "obj-local-command",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 4,
-					"outlettype" : [ "", "", "", "" ],
-					"patching_rect" : [ 75.0, 225.0, 334.0, 22.0 ],
-					"saved_object_attributes" : 					{
-						"filename" : "consolidator.approximator.controller.js",
-						"parameter_enable" : 0
-					}
-,
-					"text" : "js consolidator.approximator.controller.js"
-				}
-
-			}
-, 			{
 				"box" : 				{
 					"id" : "obj-fit-trigger",
 					"maxclass" : "newobj",
@@ -44,24 +27,43 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "obj-fit-message",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 195.0, 225.0, 35.0, 22.0 ],
+					"text" : "fit"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-local-command",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 3,
+					"outlettype" : [ "", "", "" ],
+					"patching_rect" : [ 85.0, 228.0, 334.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "consolidator.approximator.controller.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js consolidator.approximator.controller.js"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "obj-ui-script",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
 					"patching_rect" : [ 615.0, 270.0, 73.0, 22.0 ],
+					"save" : [ "#N", "thispatcher", ";", "#Q", "end", ";" ],
 					"text" : "thispatcher"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-difference-clear-send",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 430.0, 270.0, 174.0, 22.0 ],
-					"text" : "s ---spectrum.difference.inlet"
 				}
 
 			}
@@ -102,21 +104,9 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "obj-current-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 540.0, 90.0, 190.0, 22.0 ],
-					"text" : "r ---approximator.eqcurve.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "obj-native",
 					"maxclass" : "newobj",
-					"numinlets" : 3,
+					"numinlets" : 2,
 					"numoutlets" : 3,
 					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 240.0, 135.0, 319.0, 22.0 ],
@@ -178,20 +168,10 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "obj-fit-message",
-					"maxclass" : "message",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 195.0, 225.0, 35.0, 22.0 ],
-					"text" : "fit"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "obj-listen-button",
 					"maxclass" : "live.text",
+					"mode" : 1,
+					"outputmode" : 0,
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
@@ -257,15 +237,8 @@
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
-					"destination" : [ "obj-ui-script", 0 ],
-					"source" : [ "obj-local-command", 3 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-difference-clear-send", 0 ],
-					"source" : [ "obj-local-command", 2 ]
+					"destination" : [ "obj-local-command", 0 ],
+					"source" : [ "obj-fit-message", 0 ]
 				}
 
 			}
@@ -280,13 +253,6 @@
 				"patchline" : 				{
 					"destination" : [ "obj-local-command", 0 ],
 					"source" : [ "obj-clear-message", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native", 2 ],
-					"source" : [ "obj-current-receive", 0 ]
 				}
 
 			}
@@ -308,13 +274,6 @@
 				"patchline" : 				{
 					"destination" : [ "obj-fit-message", 0 ],
 					"source" : [ "obj-fit-trigger", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-local-command", 0 ],
-					"source" : [ "obj-fit-message", 0 ]
 				}
 
 			}
@@ -348,7 +307,23 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "obj-ui-script", 0 ],
+					"source" : [ "obj-local-command", 2 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "obj-debug", 0 ],
+					"order" : 0,
+					"source" : [ "obj-native", 2 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-local-command", 1 ],
+					"order" : 1,
 					"source" : [ "obj-native", 2 ]
 				}
 

@@ -94,8 +94,8 @@
 					"linecount" : 2,
 					"maxclass" : "newobj",
 					"numinlets" : 5,
-					"numoutlets" : 7,
-					"outlettype" : [ "", "", "", "", "", "", "" ],
+					"numoutlets" : 6,
+					"outlettype" : [ "", "", "", "", "", "" ],
 					"patching_rect" : [ 315.0, 330.0, 520.249999999999886, 36.0 ],
 					"text" : "consolidator.analyzer"
 				}
@@ -121,21 +121,10 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "eqCurveSend",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 735.0, 405.0, 180.0, 22.0 ],
-					"text" : "s ---approximator.eqcurve.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"filename" : "consolidator.analyzer.spectrumview.js",
 					"id" : "spectrumView",
 					"maxclass" : "jsui",
-					"numinlets" : 5,
+					"numinlets" : 6,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
@@ -171,14 +160,6 @@
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "debug", 0 ],
-					"source" : [ "analyzer", 6 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "eqCurveSend", 0 ],
-					"order" : 0,
 					"source" : [ "analyzer", 5 ]
 				}
 
@@ -231,6 +212,15 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "analyzer", 4 ],
+					"order" : 0,
+					"source" : [ "busReceive", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "spectrumView", 5 ],
+					"order" : 1,
 					"source" : [ "busReceive", 0 ]
 				}
 
@@ -280,7 +270,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 1 ],
-					"source" : [ "analyzer", 6 ]
+					"source" : [ "analyzer", 5 ]
 				}
 
 			}

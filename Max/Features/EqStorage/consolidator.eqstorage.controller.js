@@ -25,6 +25,7 @@ EqStorageFeatureController.prototype.HandleStatus = function(command, args) {
     }
     else if (command === "error" && args.length > 0) {
         this.lastError = String(args[0]);
+        post("EqStorage: " + this.lastError + "\n");
     }
 };
 

@@ -1,9 +1,10 @@
 autowatch = 1;
 inlets = 2;
-outlets = 4;
+outlets = 3;
 
-// Inlets: 0 local commands fit, listen 0|1, clear; 1 native ready 0|1.
-// Outlets: 0 envelopes; 1 status ready 0|1; 2 clear_difference; 3 thispatcher script commands.
+// Inlets: 0 local commands fit, listen 0|1, clear;
+// 1 native ready 0|1, fit_started, fit_finished, loss <value>, error <code>.
+// Outlets: 0 envelopes; 1 status <state> [values]; 2 thispatcher script commands.
 
 include("../Shared/JS/DictionaryReader.js");
 include("../Shared/JS/Messages/MessageEnvelope.js");
@@ -27,13 +28,11 @@ ApproximatorFeatureController.prototype.EmitEnvelope = function(type, target, pa
 
 ApproximatorFeatureController.prototype.HandleLocalCommand = function(command, values) {
     if (command === "fit") {
-        if (!this.ready || !this.listenEnabled || this.fitting) {
+        if (!this.listenEnabled || this.fitting) {
             return;
         }
 
-        this.fitting = true;
-        this.UpdateControls();
-        outlet(3, "script", "sendbox", "fit_button", "set", 0);
+        outlet(2, "script", "sendbox", "fit_button", "set", 0);
         this.EmitEnvelope("approximator.fit", this.featureId, {});
         return;
     }
@@ -58,7 +57,6 @@ ApproximatorFeatureController.prototype.HandleLocalCommand = function(command, v
 
         if (!enabled) {
             this.EmitEnvelope("approximator.clear", this.featureId, {});
-            outlet(2, "clear_difference");
         }
     }
 };
@@ -66,20 +64,20 @@ ApproximatorFeatureController.prototype.HandleLocalCommand = function(command, v
 ApproximatorFeatureController.prototype.HandleNativeStatus = function(state, values) {
     if (state === "ready" && values.length > 0) {
         this.ready = Number(values[0]) !== 0;
-        if (this.ready) {
-            this.fitting = false;
-        }
-        this.UpdateControls();
     }
+    else if (state === "fit_started") this.fitting = true;
+    else if (state === "fit_finished" || state === "error") this.fitting = false;
+
+    this.UpdateControls();
 
     outlet(1, ["status", state].concat(values));
 };
 
 ApproximatorFeatureController.prototype.UpdateControls = function() {
-    var fitActive = this.listenEnabled && this.ready && !this.fitting ? 1 : 0;
+    var fitActive = this.listenEnabled && !this.fitting ? 1 : 0;
     var listenActive = this.fitting ? 0 : 1;
-    outlet(3, "script", "sendbox", "fit_button", "active", fitActive);
-    outlet(3, "script", "sendbox", "listen_button", "active", listenActive);
+    outlet(2, "script", "sendbox", "fit_button", "active", fitActive);
+    outlet(2, "script", "sendbox", "listen_button", "active", listenActive);
 };
 
 var controller = new ApproximatorFeatureController();
@@ -87,7 +85,7 @@ var controller = new ApproximatorFeatureController();
 function inletassist(index) {
     var descriptions = [
         "Commands: fit, listen 0|1, clear",
-        "Native status: ready 0|1 or status <state>"
+        "Native events: ready 0|1, fit_started, fit_finished, loss <value>, error <code>"
     ];
     assist(descriptions[index] || "");
 }
@@ -96,7 +94,6 @@ function outletassist(index) {
     var descriptions = [
         "message <envelope dictionary> to the message bus",
         "Feature status: status <state> [values]",
-        "clear_difference for SpectrumView",
         "thispatcher commands for Fit and Listen controls"
     ];
     assist(descriptions[index] || "");
@@ -107,7 +104,7 @@ setoutletassist(-1, outletassist);
 
 function loadbang() {
     controller.UpdateControls();
-    outlet(3, "script", "sendbox", "listen_button", "outputvalue");
+    outlet(2, "script", "sendbox", "listen_button", "outputvalue");
     controller.EmitEnvelope("system.status", "bus.hub", {
         feature: "approximator",
         state: "ready"

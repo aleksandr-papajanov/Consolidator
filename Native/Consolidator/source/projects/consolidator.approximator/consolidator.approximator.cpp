@@ -2,14 +2,11 @@
 
 #include "ApproximatorCurveStore.h"
 #include "ApproximatorOutputs.h"
+#include "ComponentHost.h"
+#include "DSP/Eq/EqRuntime.h"
 #include "EqOptimizer.h"
-#include "MaxFilterDefinitionAdapter.h"
-#include "MaxMessageAdapter.h"
-#include "Messaging/MessageRegistry.h"
 #include "Messaging/Messages/ApproximatorClearMessage.h"
 #include "Messaging/Messages/ApproximatorFitMessage.h"
-#include "Messaging/Messages/EqBankChangedMessage.h"
-#include "Messaging/Messages/FilterDefinitionMessage.h"
 
 #include <atomic>
 #include <map>
@@ -28,14 +25,13 @@ public:
 
     inlet<> commands{
         this,
-        "(message) commands: message <dictionary type=filter.define|eq.storage.bank.changed|approximator.clear|approximator.fit>"
+        "(message) commands: message <dictionary type=device.state.changed|approximator.clear|approximator.fit>"
     };
     inlet<> inputCurve{ this, "(list) target difference curve in dB" };
-    inlet<> currentEqCurve{ this, "(list) current summed EQ curve in dB" };
 
     outlet<> commandsOut{
         this,
-        "(message) commands: message <dictionary type=filter.apply payload=filterId,values,bankIndex>"
+        "(message) commands: message <dictionary type=filter.set_many payload=filterId,values,bankIndex>"
     };
     outlet<> statusOut{ this, "(anything) status: ready 0/1" };
     outlet<> debugOut{ this, "(anything) diagnostics: fit_started, fit_finished, error <code>, loss <value>" };
@@ -54,7 +50,6 @@ public:
         "Receive analysis curves",
         MIN_FUNCTION {
             if (inlet == 1) curveStore.SetTarget(args);
-            else if (inlet == 2) curveStore.SetCurrentEq(args);
             UpdateReady();
             return {};
         }
@@ -78,31 +73,7 @@ public:
                 debugOut.send("error", "invalid_message_envelope");
                 return {};
             }
-            const auto envelope = consolidator::maxadapter::MaxMessageAdapter::Deserialize(args[0]);
-            if (!envelope) {
-                debugOut.send("error", "invalid_message_envelope");
-                return {};
-            }
-            if (!consolidator::maxadapter::MaxMessageAdapter::IsAddressedTo(*envelope, "approximator")) {
-                return {};
-            }
-            const auto command = messageFactory.Deserialize(*envelope);
-            if (const auto* definition = dynamic_cast<consolidator::messaging::FilterDefinitionMessage*>(command.get())) {
-                Handle(*definition);
-            }
-            else if (const auto* bank = dynamic_cast<consolidator::messaging::EqBankChangedMessage*>(command.get())) {
-                Handle(*bank);
-            }
-            else if (dynamic_cast<consolidator::messaging::ApproximatorClearMessage*>(command.get())) {
-                curveStore.ClearTarget();
-                UpdateReady();
-            }
-            else if (dynamic_cast<consolidator::messaging::ApproximatorFitMessage*>(command.get())) {
-                StartFit();
-            }
-            else {
-                debugOut.send("error", "invalid_message_envelope");
-            }
+            component.Receive(args);
             return {};
         }
     };
@@ -111,28 +82,34 @@ public:
         if (fitWorker.joinable()) fitWorker.join();
     }
 
-private:
-    using Definitions = EqOptimizer::Definitions;
-
-    void Handle(const consolidator::messaging::FilterDefinitionMessage& command) {
-        const auto definition = consolidator::maxadapter::MaxFilterDefinitionAdapter::Read(
-            command.contractName, command.filterId, command.defaultBypass);
-        if (!definition) {
-            debugOut.send("error", "invalid_filter_definition");
-            return;
+    void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
+        definitions.clear();
+        eqRuntime.ClearDefinitions();
+        for (const auto& definition : state.filterDefinitions) {
+            definitions[definition.filterId] = definition;
+            eqRuntime.Define(definition);
         }
-        definitions[definition->filterId] = *definition;
-        UpdateReady();
-    }
-
-    void Handle(const consolidator::messaging::EqBankChangedMessage& command) {
-        fitBankIndex = command.bankIndex;
+        fitBankIndex = state.snapshot.selectedBankId;
+        eqRuntime.SetSnapshot(state.snapshot);
+        curveStore.SetCurrentEq(eqRuntime.BuildBankCurve(fitBankIndex, sampleRate));
         curveStore.ClearTarget();
         UpdateReady();
     }
 
+    void OnMessage(const consolidator::messaging::ApproximatorClearMessage&) {
+        curveStore.ClearTarget();
+        UpdateReady();
+    }
+
+    void OnMessage(const consolidator::messaging::ApproximatorFitMessage&) {
+        StartFit();
+    }
+
+private:
+    using Definitions = EqOptimizer::Definitions;
+
     void StartFit() {
-        ApproximatorOutputs outputs{ commandsOut, statusOut, debugOut };
+        ApproximatorOutputs outputs{ component.Outputs() };
         if (fitBankIndex < 1) {
             outputs.Error("no_selected_bank");
             SetReady(false);
@@ -202,7 +179,7 @@ private:
         if (fitWorker.joinable()) fitWorker.join();
         fitRunning = false;
 
-        ApproximatorOutputs outputs{ commandsOut, statusOut, debugOut };
+        ApproximatorOutputs outputs{ component.Outputs() };
         if (!error.empty()) outputs.Error(error.c_str());
         else if (result) {
             outputs.Loss(result->loss);
@@ -222,14 +199,19 @@ private:
         if (!force && fitRunning) available = false;
         if (!force && readyAvailable == available) return;
         readyAvailable = available;
-        ApproximatorOutputs{ commandsOut, statusOut, debugOut }.Ready(available);
+        ApproximatorOutputs{ component.Outputs() }.Ready(available);
     }
 
     ApproximatorCurveStore curveStore;
     Definitions definitions;
     EqOptimizer optimizer;
-    consolidator::messaging::MessageFactory messageFactory =
-        consolidator::messaging::MessageRegistry::CreateFactory();
+    consolidator::dsp::EqRuntime eqRuntime;
+    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
+    consolidator::maxadapter::ComponentHost<
+        ConsolidatorApproximator,
+        consolidator::messaging::ApproximatorClearMessage,
+        consolidator::messaging::ApproximatorFitMessage
+    > component{ *this, "approximator", &commandsOut, &statusOut, &debugOut };
     std::mutex fitMutex;
     std::thread fitWorker;
     std::atomic<bool> fitRunning = false;

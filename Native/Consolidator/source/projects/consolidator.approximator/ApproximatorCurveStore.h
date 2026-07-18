@@ -14,8 +14,9 @@ public:
         hasTarget = Assign(differenceCurve, values);
     }
 
-    void SetCurrentEq(const c74::min::atoms& values) {
-        hasCurrentEq = Assign(currentEqCurve, values);
+    void SetCurrentEq(consolidator::dsp::Curve curve) {
+        currentEqCurve = std::move(curve);
+        hasCurrentEq = true;
     }
 
     void ClearTarget() {

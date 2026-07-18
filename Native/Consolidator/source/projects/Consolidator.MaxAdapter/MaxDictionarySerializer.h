@@ -1,51 +1,52 @@
 #pragma once
 
+#include "DeviceStateDictionaryCodec.h"
+#include "MessageEnvelopeDictionaryCodec.h"
+
 #include "c74_min.h"
-#include "Messaging/MessageEnvelope.h"
 
 #include <atomic>
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <string>
 
 namespace consolidator::maxadapter {
 
-class MaxMessageAdapter final {
+class MaxDictionarySerializer final {
 public:
-    static std::optional<messaging::MessageEnvelope> Deserialize(const c74::min::atom& atom) {
+    template <typename Type>
+    static std::optional<Type> Deserialize(const c74::min::atom& atom) {
+        const auto object = Read(atom);
+        return object ? DictionaryCodec<Type>::Deserialize(*object) : std::nullopt;
+    }
+
+    template <typename Type>
+    static std::optional<Type> Deserialize(const std::string& dictionaryName) {
+        return Deserialize<Type>(c74::min::atom{
+            c74::min::symbol{ dictionaryName.c_str() }
+        });
+    }
+
+    template <typename Type, typename Sender>
+    static void Serialize(const Type& value, Sender&& sender) {
+        const auto name = NextDictionaryName();
+        c74::min::dict dictionary{ name };
+        WriteObject(dictionary, DictionaryCodec<Type>::Serialize(value));
+        sender(c74::min::atom{ dictionary.name() });
+    }
+
+private:
+    static std::optional<messaging::MessageObject> Read(const c74::min::atom& atom) {
         try {
             auto dictionary = OpenDictionary(atom);
-            const auto type = ReadString(dictionary, "type");
-            const auto source = ReadString(dictionary, "source");
-            const auto target = ReadString(dictionary, "target");
-            if (!type || !source || !target) return std::nullopt;
-
-            c74::min::dict payload{ static_cast<c74::min::atom>(dictionary.at("payload")) };
-            return messaging::MessageEnvelope{
-                *type, *source, *target, messaging::MessagePayload{ ReadObject(payload) } };
+            return ReadObject(dictionary);
         }
         catch (...) {
             return std::nullopt;
         }
     }
 
-    static c74::min::atom Serialize(const messaging::MessageEnvelope& envelope) {
-        const auto name = NextDictionaryName();
-        c74::min::dict dictionary{ name };
-        dictionary["type"] = envelope.type;
-        dictionary["source"] = envelope.source;
-        dictionary["target"] = envelope.target;
-        c74::min::dict payload;
-        WriteObject(payload, envelope.payload.Values());
-        AppendDictionary(dictionary, "payload", payload);
-        return c74::min::atom{ dictionary.name() };
-    }
-
-    static bool IsAddressedTo(const messaging::MessageEnvelope& envelope, const char* target) {
-        return envelope.target == target || envelope.target == "broadcast";
-    }
-
-private:
     static c74::min::dict OpenDictionary(const c74::min::atom& atom) {
         if (c74::max::atomisdictionary(const_cast<c74::max::t_atom*>(
                 static_cast<const c74::max::t_atom*>(&atom)))) {
@@ -54,24 +55,12 @@ private:
         return c74::min::dict{ c74::min::symbol{ static_cast<std::string>(atom).c_str() } };
     }
 
-    static std::optional<std::string> ReadString(c74::min::dict& dictionary, const char* key) {
-        try {
-            const auto value = static_cast<std::string>(static_cast<c74::min::atom>(dictionary.at(key)));
-            return value.empty() ? std::nullopt : std::optional<std::string>{ value };
-        }
-        catch (...) {
-            return std::nullopt;
-        }
-    }
-
     static messaging::MessageObject ReadObject(c74::min::dict& dictionary) {
         messaging::MessageObject object;
         for (const auto& key : dictionary.keys()) {
             const std::string name = static_cast<const char* const>(key);
             const auto atoms = static_cast<c74::min::atoms>(dictionary.at(key));
-            if (atoms.size() == 1) {
-                object[name] = ReadAtom(atoms.front());
-            }
+            if (atoms.size() == 1) object[name] = ReadAtom(atoms.front());
             else {
                 messaging::MessageArray values;
                 values.reserve(atoms.size());
@@ -104,7 +93,12 @@ private:
     }
 
     static void WriteObject(c74::min::dict& dictionary, const messaging::MessageObject& object) {
-        for (const auto& [key, value] : object) WriteValue(dictionary, key, value);
+        for (const auto& [key, value] : object) {
+            if (!value.As<messaging::MessageObject>()) WriteValue(dictionary, key, value);
+        }
+        for (const auto& [key, value] : object) {
+            if (value.As<messaging::MessageObject>()) WriteValue(dictionary, key, value);
+        }
     }
 
     static void WriteValue(
@@ -118,9 +112,10 @@ private:
         else if (const auto text = value.As<std::string>()) dictionary[key] = *text;
         else if (const auto array = value.As<messaging::MessageArray>()) WriteArray(dictionary, key, *array);
         else if (const auto object = value.As<messaging::MessageObject>()) {
-            c74::min::dict nested;
+            auto* nestedObject = c74::max::dictionary_new();
+            c74::min::dict nested{ nestedObject, false };
             WriteObject(nested, *object);
-            AppendDictionary(dictionary, key, nested);
+            AppendDictionary(dictionary, key, nestedObject);
         }
     }
 
@@ -148,20 +143,22 @@ private:
     static void AppendDictionary(
         c74::min::dict& destination,
         const std::string& key,
-        c74::min::dict& value
+        c74::max::t_dictionary* value
     ) {
         auto* destinationObject = static_cast<c74::max::t_object*>(destination);
-        auto* valueObject = static_cast<c74::max::t_object*>(value);
-        c74::max::dictionary_appenddictionary(
+        const auto error = c74::max::dictionary_appenddictionary(
             reinterpret_cast<c74::max::t_dictionary*>(destinationObject),
-            c74::max::gensym(key.c_str()), valueObject);
+            c74::max::gensym(key.c_str()), reinterpret_cast<c74::max::t_object*>(value));
         c74::max::object_release(destinationObject);
-        c74::max::object_release(valueObject);
+        if (error != c74::max::MAX_ERR_NONE) {
+            c74::max::object_free(value);
+            throw std::runtime_error("Could not append nested Max dictionary");
+        }
     }
 
     static c74::min::symbol NextDictionaryName() {
         static std::atomic<unsigned long> sequence{ 0 };
-        const auto name = std::string{ "consolidator.message." } + std::to_string(++sequence);
+        const auto name = std::string{ "consolidator.dictionary." } + std::to_string(++sequence);
         return c74::min::symbol{ name.c_str() };
     }
 };

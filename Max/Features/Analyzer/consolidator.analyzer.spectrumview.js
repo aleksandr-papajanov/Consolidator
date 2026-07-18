@@ -1,5 +1,5 @@
 autowatch = 1;
-inlets = 5;
+inlets = 6;
 outlets = 1;
 
 function SpectrumViewController() {
@@ -22,14 +22,15 @@ function inletassist(index) {
         "Reference signal spectrum in dB",
         "Difference spectrum in dB",
         "Individual filter curves and handles",
-        "Total EQ response curve in dB"
+        "Total EQ response curve in dB",
+        "message <dictionary type=filter.state|analyzer.difference>"
     ];
     assist(descriptions[index] || "");
 }
 
 function outletassist(index) {
     assist(index === 0
-        ? "Filter edit command for the message bus"
+        ? "message <dictionary type=filter.set> for EqStorage"
         : "");
 }
 
@@ -57,3 +58,9 @@ function range_mode() { spectrumViewController.range_mode.apply(spectrumViewCont
 function toggle_range() { spectrumViewController.toggle_range(); }
 function smooth() { spectrumViewController.smooth.apply(spectrumViewController, arguments); }
 function q_sensitivity() { spectrumViewController.q_sensitivity.apply(spectrumViewController, arguments); }
+function message(dictionaryName) {
+    if (inlet === 5) spectrumViewController.HandleBusMessage(dictionaryName);
+}
+function anything() {
+    if (inlet === 5) spectrumViewController.HandleBusMessage(messagename);
+}

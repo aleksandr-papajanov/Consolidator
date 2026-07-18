@@ -13,14 +13,6 @@ BankFilter.prototype.IsDefined = function() {
     return this.values.length > 0;
 };
 
-BankFilter.prototype.RestoreMessage = function() {
-    return MessageEnvelope.create("filter.restore", "filter", {
-        filterId: Number(this.id),
-        values: this.values,
-        bypass: this.bypass
-    }, "eq.storage");
-};
-
 function toFilterValues(value) {
     if (value === null || value === undefined || value === "") {
         return [];

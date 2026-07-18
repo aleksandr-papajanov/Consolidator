@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../DspChainBuilder.h"
+#include "../Curve/Curve.h"
 #include "../../Models/EqSnapshot.h"
 #include "../../Models/FilterDefinition.h"
 #include "EqFilterFactory.h"
@@ -11,10 +12,14 @@
 
 namespace consolidator::dsp {
 
-class EqState final {
+class EqRuntime final {
 public:
     void Define(models::FilterDefinition definition) {
         definitions[definition.filterId] = std::move(definition);
+    }
+
+    void ClearDefinitions() {
+        definitions.clear();
     }
 
     void SetSnapshot(models::EqSnapshot snapshot) {
@@ -50,6 +55,25 @@ public:
             AddBank(builder, bank, sampleRate);
         }
         return builder;
+    }
+
+    Curve BuildBankCurve(long bankId, double sampleRate) const {
+        Curve curve;
+        const auto bank = snapshot.FindBank(bankId);
+        if (!bank) return curve;
+
+        for (const auto& filter : bank->filters) {
+            if (filter.bypass) continue;
+            const auto definition = definitions.find(filter.filterId);
+            if (definition == definitions.end()) continue;
+            EqFilterFactory factory{ definition->second, filter.values, sampleRate };
+            const auto processor = factory.CreateFilter();
+            if (!processor) continue;
+            for (std::size_t index = 0; index < curve.Inputs().size(); ++index) {
+                curve.AddValue(index, processor->GetMagnitudeDb(curve.Inputs()[index]));
+            }
+        }
+        return curve;
     }
 
 private:

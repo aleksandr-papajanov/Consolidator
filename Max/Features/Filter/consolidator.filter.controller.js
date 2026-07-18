@@ -6,6 +6,7 @@ include("../Shared/JS/DictionaryReader.js");
 
 function FilterFeatureController(slot) {
     this.slot = Number(slot);
+    this.configurationDictionary = null;
     this.configuration = null;
     this.configurationName = "";
     this.selectedFilter = null;
@@ -21,6 +22,19 @@ function FilterFeatureController(slot) {
     this.bypassed = false;
     this.filterReady = false;
 }
+
+FilterFeatureController.ConfigurationPath = "Config/FilterConfig.json";
+
+FilterFeatureController.prototype.LoadConfiguration = function() {
+    try {
+        this.configurationDictionary = new Dict();
+        this.configurationDictionary.import_json(FilterFeatureController.ConfigurationPath);
+        this.Configure(this.configurationDictionary.name);
+    }
+    catch (error) {
+        post("FilterFeatureController: cannot_read_filter_configuration\n");
+    }
+};
 
 FilterFeatureController.prototype.SendFilterCommand = function() {
     var values = arrayfromargs(arguments);
@@ -65,14 +79,14 @@ FilterFeatureController.prototype.Configure = function(dictionaryName) {
                 scale: String(parameter.scale || "linear"),
                 min: this.Number(parameter.min, 0),
                 max: this.Number(parameter.max, 1),
-                defaultValue: this.Number(parameter.default, 0)
+                defaultValue: this.Number(parameter["default"], 0)
             };
             this.parameters.push(definition);
         }
 
         this.BuildControls();
         this.ApplyLayout();
-        this.SendFilterCommand("define", this.configurationName);
+        this.SendFilterCommand("configure");
     }
     catch (error) {
         post("FilterFeatureController: invalid_filter_configuration_dictionary\n");
@@ -213,10 +227,6 @@ FilterFeatureController.prototype.ParseColor = function(value) {
     ];
 };
 
-FilterFeatureController.prototype.HandleLocalDictionary = function(name) {
-    this.Configure(name);
-};
-
 FilterFeatureController.prototype.HandleLocalCommand = function(command, values) {
     if (command === "update" && values.length === 2) {
         if (!this.configuration || !this.filterReady) return;
@@ -240,7 +250,7 @@ var controller = new FilterFeatureController(jsarguments[1]);
 
 function inletassist(index) {
     var descriptions = [
-        "Local UI commands: dictionary, update, reset",
+        "Local UI commands: update <control> <0..1>, reset",
         "Filter status and normalized filter values"
     ];
     assist(descriptions[index] || "");
@@ -248,7 +258,7 @@ function inletassist(index) {
 
 function outletassist(index) {
     var descriptions = [
-        "Local consolidator.filter.js commands: define <dictionary>, update <control> <0..1>, reset",
+        "Local consolidator.filter.js commands: configure, update <control> <0..1>, reset",
         "thispatcher commands for filter controls"
     ];
     assist(descriptions[index] || "");
@@ -257,9 +267,7 @@ function outletassist(index) {
 setinletassist(-1, inletassist);
 setoutletassist(-1, outletassist);
 
-function dictionary(name) {
-    if (inlet === 0) controller.HandleLocalDictionary(name);
-}
+function loadbang() { controller.LoadConfiguration(); }
 
 function update(control, value) {
     if (inlet === 0) controller.HandleLocalCommand("update", [control, value]);

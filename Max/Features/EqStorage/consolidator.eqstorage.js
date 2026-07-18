@@ -2,25 +2,26 @@ include("../Shared/JS/DictionaryReader.js");
 include("../Shared/JS/Messages/MessageEnvelope.js");
 include("../Shared/JS/Messages/MessageFactory.js");
 include("JS/BankFilter.js");
+include("JS/DeviceStateStore.js");
 
 autowatch = 1;
 inlets = 3;
 outlets = 7;
 
 // Inlet 0: initialize, bang, add <name>, remove, select <index>, rename <index> <name>, delete <index>.
-// Inlet 1: message <dictionary type=filter.define|filter.changed>.
+// Inlet 1: message <dictionary type=filter.control|filter.set|filter.set_many|filter.reset|system.status>.
 // Inlet 2: dictionary <name> restores state; persistence_ready enables state commits after recall.
-// Outlet 0: message <dictionary type=filter.restore> to Filter instances.
+// Outlet 0: reserved.
 // Outlet 1: clear, append <name>, set <index> for the bank list.
 // Outlet 2: error <code>, status <...>.
-// Outlet 3: message <dictionary type=filter.define|eq.storage.snapshot> to EqChain.
-// Outlet 4: message <dictionary type=filter.define> to Approximator.
-// Outlet 5: message <dictionary type=filter.define|eq.storage.bank.changed|eq.storage.snapshot|system.status> to BusHub.
+// Outlet 3: message <dictionary type=device.state.changed> to EqChain.
+// Outlet 4: reserved.
+// Outlet 5: message <dictionary type=filter.state|device.state.changed|system.status> to BusHub.
 // Outlet 6: dictionary <name> with the complete persistent bank state.
 
 function EqStorage() {
-    this.state = new Dict();
-    this.schemaVersion = 2;
+    this.store = new DeviceStateStore(this.HandleStoreCommit, this);
+    this.schemaVersion = 3;
     this.initialized = false;
     this.filterOrder = [];
     this.filterDefinitions = {};
@@ -28,7 +29,7 @@ function EqStorage() {
     this.isPersistingState = false;
     this.persistenceReady = false;
     this.started = false;
-    this.snapshotSequence = 0;
+    this.persistenceTask = new Task(this.commitState, this);
     this.bankAdjectives = [
         "Neon", "Velvet", "Silent", "Electric", "Golden",
         "Midnight", "Crystal", "Cosmic", "Liquid", "Hidden"
@@ -39,29 +40,36 @@ function EqStorage() {
     ];
 }
 
+EqStorage.ConfigurationPath = "Config/FilterConfig.json";
+
 EqStorage.prototype.initialize = function() {
     this.initializeStateModel();
     this.publishBankList();
-    this.publishBankChanged("selected");
-    this.publishSnapshot();
+    this.PublishStateNow();
 };
 
 EqStorage.prototype.initializeStateModel = function() {
-    if (this.numberOrDefault(this.state.get("schema_version"), 0) !== this.schemaVersion) {
-        this.state.clear();
-        this.state.replace("schema_version", this.schemaVersion);
-        this.state.replace("bank_count", 1);
-        this.state.replace("selected_row", 1);
+    if (!this.LoadFilterDefinitions()) return;
+
+    if (this.numberOrDefault(this.store.Get("schema_version"), 0) !== this.schemaVersion) {
+        this.store.Clear();
+        this.store.Replace("schema_version", this.schemaVersion);
+        this.store.Replace("revision", 0);
+        this.store.Replace("generation", 0);
+        this.store.Replace("bank_count", 1);
+        this.store.Replace("selected_row", 1);
+        this.store.SetParse("filters", "{}");
     }
 
     if (this.bankCount() < 1) {
-        this.state.replace("bank_count", 1);
-        this.state.replace("selected_row", 1);
+        this.store.Replace("bank_count", 1);
+        this.store.Replace("selected_row", 1);
     }
 
     this.ensureBankNames();
-    this.selectedRow = this.clampRow(this.state.get("selected_row"));
-    this.state.replace("selected_row", this.selectedRow);
+    this.WriteDefinitionsToStore();
+    this.selectedRow = this.clampRow(this.store.Get("selected_row"));
+    this.store.Replace("selected_row", this.selectedRow);
     this.initialized = true;
     this.EnsureAllDefinedFiltersInBanks();
 };
@@ -100,7 +108,7 @@ EqStorage.prototype.restoreState = function(dictionaryName) {
     if (this.isPersistingState) {
         return;
     }
-    this.state = new Dict(String(dictionaryName));
+    this.store.Attach(dictionaryName);
     this.initialized = false;
     this.initialize();
 };
@@ -109,8 +117,7 @@ EqStorage.prototype.enablePersistence = function() {
     this.persistenceReady = true;
     this.initializeStateModel();
     this.publishBankList();
-    this.publishBankChanged("selected");
-    this.publishSnapshot();
+    this.PublishStateNow();
     this.sendEnvelope(5, MessageEnvelope.create(
         "system.status", "bus.hub",
         { feature: "eq.storage", state: "ready" }, "eq.storage"));
@@ -127,38 +134,25 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
         if (!this.started) {
             this.started = true;
             this.applySelectedBank();
-            this.publishBankChanged("selected");
-            this.publishSnapshot();
+            this.PublishStateNow();
         }
+        return;
+    }
+    if (message.type === "system.status" &&
+            message.payload &&
+            message.payload.feature === "filter" &&
+            message.payload.state === "ready") {
+        this.PublishFilterState(message.payload.filterId, this.selectedRow);
         return;
     }
     if (message.target !== "eq.storage") {
         return;
     }
 
-    if (message.type === "filter.define") {
-        var definedFilterId = message.payload.filterId;
-        this.rememberFilter(definedFilterId, message.payload);
-        this.ensureFilterInAllBanks(definedFilterId);
-        this.forwardFilterDefinition(3, "eq.chain", message);
-        this.forwardFilterDefinition(4, "approximator", message);
-        this.forwardFilterDefinition(5, "analyzer", message);
-        if (this.started) this.restoreSelectedFilter(definedFilterId);
-        this.publishSnapshot();
-        return;
-    }
-
-    if (message.type === "filter.changed") {
-        var updatedFilterId = message.payload.filterId;
-        this.rememberFilter(updatedFilterId);
-        this.storeFilterState(
-            updatedFilterId,
-            message.payload.values,
-            message.payload.bypass,
-            message.payload.bankIndex
-        );
-        return;
-    }
+    if (message.type === "filter.control") return this.ApplyFilterControl(message.payload);
+    if (message.type === "filter.set") return this.ApplyFilterSet(message.payload);
+    if (message.type === "filter.set_many") return this.ApplyFilterSetMany(message.payload);
+    if (message.type === "filter.reset") return this.ResetFilter(message.payload);
 
     this.emitError("unsupported_filter_message");
 };
@@ -184,33 +178,31 @@ EqStorage.prototype.handleUiCommand = function(command, args) {
 EqStorage.prototype.addBank = function(label) {
     var index = this.bankCount() + 1;
     var name = label.length > 0 ? label : this.generateBankName(index);
-    this.state.replace(this.bankNameKey(index), name);
-    this.state.replace("bank_count", index);
+    this.store.Replace(this.bankNameKey(index), name);
+    this.store.Replace("bank_count", index);
     this.initializeBankDefaults(index);
     this.selectRow(index, false);
     this.applySelectedBank();
-    this.publishBankChanged("created", null, name, index);
     this.emitStatus("bank_created", index, name);
 };
 
 EqStorage.prototype.selectRow = function(row, applyValues) {
     row = this.clampRow(row);
     this.selectedRow = row;
-    this.state.replace("selected_row", row);
+    this.store.Replace("selected_row", row);
     this.publishBankList();
 
     if (applyValues !== false) {
         this.applySelectedBank();
     }
 
-    this.publishBankChanged("selected");
-    this.publishSnapshot();
+    this.PublishStateNow();
     this.emitStatus("selected", row, this.selectedBankName());
 };
 
 EqStorage.prototype.applySelectedBank = function() {
     for (var i = 0; i < this.filterOrder.length; i++) {
-        this.restoreSelectedFilter(this.filterOrder[i]);
+        this.PublishFilterState(this.filterOrder[i], this.selectedRow);
     }
 };
 
@@ -235,9 +227,8 @@ EqStorage.prototype.deleteBank = function(row) {
         this.copyBankRow(i + 1, i);
     }
     this.removeBankRowState(count);
-    this.state.replace("bank_count", count - 1);
+    this.store.Replace("bank_count", count - 1);
     this.selectRow(Math.min(index, count - 1));
-    this.publishBankChanged("removed", null, removedName, index);
 };
 
 EqStorage.prototype.renameBank = function(row, name) {
@@ -246,80 +237,270 @@ EqStorage.prototype.renameBank = function(row, name) {
         this.emitError("invalid_bank_name");
         return;
     }
-    this.state.replace(this.bankNameKey(index), name);
+    this.store.Replace(this.bankNameKey(index), name);
     this.publishBankList();
-    this.publishSnapshot();
-    this.publishBankChanged("renamed", null, name, index);
+    this.PublishStateNow();
 };
 
-EqStorage.prototype.storeFilterState = function(id, values, bypass, bankIndex) {
-    if (bankIndex !== undefined && bankIndex !== null && bankIndex !== "") {
-        this.storeFilterStateAtBank(id, values, bypass, Number(bankIndex));
+EqStorage.prototype.ApplyFilterControl = function(payload) {
+    var id = String(payload.filterId);
+    var definition = this.filterDefinitions[id];
+    var filter = this.loadStoredFilter(id);
+    var control = String(payload.control || "");
+    var normalized = Number(payload.value);
+    if (!definition || !definition.source || !filter || !isFinite(normalized) || normalized < 0 || normalized > 1) {
+        this.emitError("invalid_filter_control");
         return;
     }
-
-    var filter = this.loadStoredFilter(id) || new BankFilter(id, [], 0);
-    filter.values = toFilterValues(values);
-    filter.bypass = this.numberOrDefault(bypass, 0) === 1 ? 1 : 0;
+    if (control === "bypass") {
+        filter.bypass = normalized >= 0.5 ? 1 : 0;
+    } else {
+        var parameterIndex = this.FindControlParameterIndex(definition.source, control);
+        if (parameterIndex < 0) {
+            this.emitError("invalid_filter_control");
+            return;
+        }
+        var parameter = this.ParameterEntries(definition.source)[parameterIndex];
+        filter.values[parameterIndex] = this.Denormalize(parameter, normalized);
+    }
     this.saveStoredFilter(filter);
-    this.publishSnapshot();
-    this.publishBankChanged("updated", id, null, null, filter);
+    this.PublishFilterState(id, this.selectedRow);
+    this.RequestStatePublish();
 };
 
-EqStorage.prototype.storeFilterStateAtBank = function(id, values, bypass, bankIndex) {
-    bankIndex = Math.floor(Number(bankIndex));
-    if (!isFinite(bankIndex) || bankIndex < 1 || bankIndex > this.bankCount()) {
-        this.emitError("invalid_bank_slot");
+EqStorage.prototype.ApplyFilterSet = function(payload) {
+    var id = String(payload.filterId);
+    var definition = this.filterDefinitions[id];
+    var filter = this.loadStoredFilter(id);
+    if (!definition || !definition.source || !filter) {
+        this.emitError("invalid_filter_set");
         return;
     }
+    var parameters = this.ParameterEntries(definition.source);
+    if (payload.parameter === "q") {
+        var qIndex = this.FindParameterIndex(parameters, "q");
+        if (qIndex < 0) return this.emitError("invalid_filter_set");
+        filter.values[qIndex] = this.ClampParameter(parameters[qIndex], Number(payload.value));
+    } else {
+        var gainIndex = this.FindParameterIndex(parameters, "gain");
+        var frequencyIndex = this.FindFrequencyParameterIndex(parameters);
+        if (gainIndex >= 0 && payload.gain !== undefined) {
+            filter.values[gainIndex] = this.ClampParameter(parameters[gainIndex], Number(payload.gain));
+        }
+        if (frequencyIndex >= 0 && payload.frequency !== undefined) {
+            filter.values[frequencyIndex] = this.ClampParameter(parameters[frequencyIndex], Number(payload.frequency));
+        }
+    }
+    this.saveStoredFilter(filter);
+    this.PublishFilterState(id, this.selectedRow);
+    this.RequestStatePublish();
+};
 
+EqStorage.prototype.ApplyFilterSetMany = function(payload) {
+    var id = String(payload.filterId);
+    var bankIndex = payload.bankIndex === undefined ? this.selectedRow : Math.floor(Number(payload.bankIndex));
+    var definition = this.filterDefinitions[id];
+    var parameters = definition && definition.source ? this.ParameterEntries(definition.source) : [];
+    var values = payload.values instanceof Array
+        ? payload.values
+        : (payload.values === undefined ? [] : [payload.values]);
+    if (bankIndex < 1 || bankIndex > this.bankCount() || parameters.length !== values.length) {
+        this.emitError("invalid_filter_set_many");
+        return;
+    }
     var filter = this.loadStoredFilterAtBank(id, bankIndex) || new BankFilter(id, [], 0);
-    filter.values = toFilterValues(values);
-    filter.bypass = this.numberOrDefault(bypass, 0) === 1 ? 1 : 0;
+    filter.values = [];
+    for (var index = 0; index < parameters.length; index++) {
+        filter.values.push(this.ClampParameter(parameters[index], Number(values[index])));
+    }
+    filter.bypass = Number(payload.bypass) === 1 ? 1 : 0;
     this.saveStoredFilterAtBank(filter, bankIndex);
-    this.publishSnapshot();
-    this.publishBankChanged("updated", id, null, bankIndex, filter);
+    if (bankIndex === this.selectedRow) this.PublishFilterState(id, bankIndex);
+    this.RequestStatePublish();
+};
+
+EqStorage.prototype.ResetFilter = function(payload) {
+    var id = String(payload.filterId);
+    var definition = this.filterDefinitions[id];
+    if (!definition || !definition.source) return this.emitError("invalid_filter_reset");
+    var filter = new BankFilter(id, definition.defaultValues, definition.defaultBypass);
+    this.saveStoredFilter(filter);
+    this.PublishFilterState(id, this.selectedRow);
+    this.RequestStatePublish();
+};
+
+EqStorage.prototype.PublishFilterState = function(id, bankIndex) {
+    var definition = this.filterDefinitions[String(id)];
+    var filter = this.loadStoredFilterAtBank(id, bankIndex);
+    if (!definition || !definition.source || !filter) return;
+    var parameters = this.ParameterEntries(definition.source);
+    var normalizedValues = [];
+    for (var index = 0; index < parameters.length; index++) {
+        normalizedValues.push(this.Normalize(parameters[index], filter.values[index]));
+    }
+    var payload = {
+        filterId: Number(id),
+        bankIndex: Number(bankIndex),
+        values: filter.values,
+        normalizedValues: normalizedValues,
+        bypass: filter.bypass,
+        gain: this.ParameterValue(parameters, filter.values, "gain", 0),
+        frequency: this.FrequencyValue(parameters, filter.values),
+        q: this.ParameterValue(parameters, filter.values, "q", 0)
+    };
+    this.sendEnvelope(5, MessageEnvelope.create("filter.state", "filter", payload, "eq.storage"));
+    this.sendEnvelope(5, MessageEnvelope.create("filter.state", "spectrum", payload, "eq.storage"));
 };
 
 EqStorage.prototype.loadStoredFilter = function(id) {
-    var values = this.state.get(this.activeFilterPath(id));
+    var values = this.store.Get(this.activeFilterPath(id));
     if (this.isMissing(values)) {
         return null;
     }
     return new BankFilter(
         id,
         values,
-        this.numberOrDefault(this.state.get(this.activeBypassPath(id)), 0)
+        this.numberOrDefault(this.store.Get(this.activeBypassPath(id)), 0)
     );
 };
 
 EqStorage.prototype.saveStoredFilter = function(filter) {
-    this.state.replace(this.activeFilterPath(filter.id), filter.values);
-    this.state.replace(this.activeBypassPath(filter.id), filter.bypass);
+    this.store.Replace(this.activeFilterPath(filter.id), filter.values);
+    this.store.Replace(this.activeBypassPath(filter.id), filter.bypass);
 };
 
 EqStorage.prototype.loadStoredFilterAtBank = function(id, bankIndex) {
-    var values = this.state.get(this.filterPath(bankIndex, id));
+    var values = this.store.Get(this.filterPath(bankIndex, id));
     if (this.isMissing(values)) {
         return null;
     }
-    var bypass = this.state.get(this.bypassPath(bankIndex, id));
+    var bypass = this.store.Get(this.bypassPath(bankIndex, id));
     return new BankFilter(id, values, this.numberOrDefault(bypass, 0));
 };
 
 EqStorage.prototype.saveStoredFilterAtBank = function(filter, bankIndex) {
-    this.state.replace(this.filterPath(bankIndex, filter.id), filter.values);
-    this.state.replace(this.bypassPath(bankIndex, filter.id), filter.bypass);
+    this.store.Replace(this.filterPath(bankIndex, filter.id), filter.values);
+    this.store.Replace(this.bypassPath(bankIndex, filter.id), filter.bypass);
 };
 
-EqStorage.prototype.rememberFilter = function(id, definition) {
-    id = String(id);
-    if (Object.prototype.hasOwnProperty.call(this.filterDefinitions, id)) {
-        if (definition) this.filterDefinitions[id] = definition;
-        return;
+EqStorage.prototype.LoadFilterDefinitions = function() {
+    try {
+        var configurationDictionary = new Dict();
+        configurationDictionary.import_json(EqStorage.ConfigurationPath);
+        var configuration = new DictionaryReader(configurationDictionary.name);
+        var filters = configuration.filters || {};
+        var ids = [];
+        for (var key in filters) {
+            if (Object.prototype.hasOwnProperty.call(filters, key)) ids.push(String(key));
+        }
+        ids.sort(function(left, right) { return Number(left) - Number(right); });
+        if (ids.length === 0) throw new Error("missing_filter_definitions");
+
+        this.filterOrder = ids;
+        this.filterDefinitions = {};
+        for (var index = 0; index < ids.length; index++) {
+            var id = ids[index];
+            var source = filters[id];
+            var parameters = this.ParameterEntries(source);
+            var defaults = [];
+            for (var parameterIndex = 0; parameterIndex < parameters.length; parameterIndex++) {
+                defaults.push(Number(source.parameters[parameters[parameterIndex].name]["default"]));
+            }
+            this.filterDefinitions[id] = {
+                defaultValues: defaults,
+                defaultBypass: 0,
+                source: source
+            };
+        }
+        return true;
     }
-    this.filterDefinitions[id] = definition || this.filterDefinitions[id] || null;
-    this.filterOrder.push(id);
+    catch (error) {
+        this.filterOrder = [];
+        this.filterDefinitions = {};
+        this.emitError("invalid_filter_configuration_dictionary");
+        return false;
+    }
+};
+
+EqStorage.prototype.WriteDefinitionsToStore = function() {
+    this.store.Replace("filter_order", this.filterOrder.map(Number));
+    this.store.SetParse("filters", "{}");
+    for (var index = 0; index < this.filterOrder.length; index++) {
+        var id = String(this.filterOrder[index]);
+        var definition = this.filterDefinitions[id];
+        if (!definition) continue;
+        this.store.Replace(
+            "filter_" + id + "_default_bypass",
+            this.numberOrDefault(definition.defaultBypass, 0)
+        );
+        this.store.SetParse("filters::" + id, JSON.stringify(definition.source));
+    }
+};
+
+EqStorage.prototype.ParameterEntries = function(definition) {
+    var names = definition.type === "gain" ? ["gain"] :
+        (definition.type === "tilt" ? ["gain", "pivot"] : ["gain", "freq", "q"]);
+    var result = [];
+    for (var index = 0; index < names.length; index++) {
+        var parameter = definition.parameters[names[index]];
+        result.push({
+            name: names[index],
+            control: String(parameter.control || ""),
+            scale: String(parameter.scale || "linear"),
+            min: Number(parameter.min),
+            max: Number(parameter.max)
+        });
+    }
+    return result;
+};
+
+EqStorage.prototype.FindControlParameterIndex = function(definition, control) {
+    var parameters = this.ParameterEntries(definition);
+    for (var index = 0; index < parameters.length; index++) {
+        if (parameters[index].control === control) return index;
+    }
+    return -1;
+};
+
+EqStorage.prototype.FindParameterIndex = function(parameters, name) {
+    for (var index = 0; index < parameters.length; index++) {
+        if (parameters[index].name === name) return index;
+    }
+    return -1;
+};
+
+EqStorage.prototype.FindFrequencyParameterIndex = function(parameters) {
+    var index = this.FindParameterIndex(parameters, "freq");
+    return index >= 0 ? index : this.FindParameterIndex(parameters, "pivot");
+};
+
+EqStorage.prototype.ClampParameter = function(parameter, value) {
+    if (!isFinite(value)) value = parameter.min;
+    return Math.max(parameter.min, Math.min(parameter.max, value));
+};
+
+EqStorage.prototype.Denormalize = function(parameter, value) {
+    value = Math.max(0, Math.min(1, value));
+    return parameter.scale === "logarithmic"
+        ? parameter.min * Math.pow(parameter.max / parameter.min, value)
+        : parameter.min + value * (parameter.max - parameter.min);
+};
+
+EqStorage.prototype.Normalize = function(parameter, value) {
+    value = this.ClampParameter(parameter, Number(value));
+    return parameter.scale === "logarithmic"
+        ? Math.log(value / parameter.min) / Math.log(parameter.max / parameter.min)
+        : (value - parameter.min) / (parameter.max - parameter.min);
+};
+
+EqStorage.prototype.ParameterValue = function(parameters, values, name, fallback) {
+    var index = this.FindParameterIndex(parameters, name);
+    return index >= 0 ? Number(values[index]) : fallback;
+};
+
+EqStorage.prototype.FrequencyValue = function(parameters, values) {
+    var index = this.FindFrequencyParameterIndex(parameters);
+    return index >= 0 ? Number(values[index]) : 1000;
 };
 
 EqStorage.prototype.ensureFilterInAllBanks = function(id) {
@@ -359,75 +540,46 @@ EqStorage.prototype.initializeBankDefaults = function(row) {
 };
 
 EqStorage.prototype.restoreSelectedFilter = function(id) {
-    var filter = this.loadStoredFilter(id);
-    if (filter && filter.IsDefined()) {
-        this.sendFilterMessage(filter.RestoreMessage());
-    }
+    this.PublishFilterState(id, this.selectedRow);
 };
 
-EqStorage.prototype.sendFilterMessage = function(message) {
-    this.sendEnvelope(0, message);
-};
-
-EqStorage.prototype.forwardFilterDefinition = function(outletIndex, target, message) {
-    var payload = {
-        filterId: Number(message.payload.filterId),
-        contractName: String(message.payload.contractName),
-        defaultValues: message.payload.defaultValues.slice(0),
-        defaultBypass: this.numberOrDefault(message.payload.defaultBypass, 0)
-    };
-    this.sendEnvelope(outletIndex, MessageEnvelope.create(
-        "filter.define", target, payload, "eq.storage"
-    ));
-};
-
-EqStorage.prototype.publishSnapshot = function() {
+EqStorage.prototype.RequestStatePublish = function() {
     this.EnsureInitialized();
-    var name = "consolidator.eqstorage.snapshot." + (++this.snapshotSequence);
-    var snapshot = new Dict(name);
-    snapshot.clear();
-    snapshot.setparse("banks", "{}");
+    this.store.RequestPublish();
+};
 
-    for (var row = 1; row <= this.bankCount(); row++) {
-        var bankPath = "banks::" + row;
-        snapshot.replace(bankPath + "::name", this.bankName(row));
-        snapshot.setparse(bankPath + "::filters", "{}");
-        for (var index = 0; index < this.filterOrder.length; index++) {
-            var filterId = this.filterOrder[index];
-            var values = this.state.get(this.filterPath(row, filterId));
-            if (this.isMissing(values)) {
-                continue;
-            }
-            var filterPath = bankPath + "::filters::" + filterId;
-            snapshot.replace(filterPath + "::values", toFilterValues(values));
-            snapshot.replace(
-                filterPath + "::bypass",
-                this.numberOrDefault(this.state.get(this.bypassPath(row, filterId)), 0)
-            );
-        }
-    }
+EqStorage.prototype.PublishStateNow = function() {
+    this.EnsureInitialized();
+    this.store.PublishNow();
+};
 
+EqStorage.prototype.HandleStoreCommit = function(stateName, generation) {
+    var payload = { stateName: stateName, generation: generation };
     this.sendEnvelope(3, MessageEnvelope.create(
-        "eq.storage.snapshot", "eq.chain", {
-            snapshotName: name,
-            selectedBankId: this.selectedRow
-        }, "eq.storage"
+        "device.state.changed", "eq.chain", payload, "eq.storage"
     ));
     this.sendEnvelope(5, MessageEnvelope.create(
-        "eq.storage.snapshot", "analyzer", {
-            snapshotName: name,
-            selectedBankId: this.selectedRow
-        }, "eq.storage"
+        "device.state.changed", "analyzer", payload, "eq.storage"
     ));
-    this.commitState();
+    this.sendEnvelope(5, MessageEnvelope.create(
+        "device.state.changed", "approximator", payload, "eq.storage"
+    ));
+    this.SchedulePersistence();
+};
+
+EqStorage.prototype.SchedulePersistence = function() {
+    if (!this.persistenceReady) return;
+    this.persistenceTask.cancel();
+    this.persistenceTask.schedule(DeviceStateStore.PersistenceDelayMs);
 };
 
 EqStorage.prototype.commitState = function() {
     if (!this.persistenceReady) {
         return;
     }
+    this.store.CommitRevision();
     this.isPersistingState = true;
-    outlet(6, "dictionary", this.state.name);
+    outlet(6, "dictionary", this.store.Name());
     this.isPersistingState = false;
 };
 
@@ -438,27 +590,6 @@ EqStorage.prototype.sendEnvelope = function(outletIndex, message) {
         return;
     }
     outlet(outletIndex, "message", dictionary.name);
-};
-
-EqStorage.prototype.publishBankChanged = function(action, filterId, name, row, filter) {
-    var bankRow = row === undefined || row === null ? this.selectedRow : Number(row);
-    var payload = {
-        action: String(action),
-        bankIndex: bankRow,
-        bankName: name === undefined || name === null
-            ? this.bankName(bankRow)
-            : String(name)
-    };
-    if (filterId !== undefined && filterId !== null) {
-        payload.filterId = Number(filterId);
-    }
-    if (filter) {
-        payload.values = filter.values;
-        payload.bypass = filter.bypass;
-    }
-    this.sendEnvelope(5, MessageEnvelope.create(
-        "eq.storage.bank.changed", "broadcast", payload, "eq.storage"
-    ));
 };
 
 EqStorage.prototype.publishBankList = function() {
@@ -483,8 +614,8 @@ EqStorage.prototype.selectBankRow = function(row) {
 EqStorage.prototype.ensureBankNames = function() {
     for (var i = 1; i <= this.bankCount(); i++) {
         var key = this.bankNameKey(i);
-        if (this.isMissing(this.state.get(key))) {
-            this.state.replace(key, this.generateBankName(i));
+        if (this.isMissing(this.store.Get(key))) {
+            this.store.Replace(key, this.generateBankName(i));
         }
     }
 };
@@ -497,7 +628,7 @@ EqStorage.prototype.generateBankName = function(index) {
         var candidate = adjective + " " + noun;
         var duplicate = false;
         for (var i = 1; i <= this.bankCount(); i++) {
-            var existingName = this.state.get(this.bankNameKey(i));
+            var existingName = this.store.Get(this.bankNameKey(i));
             if (!this.isMissing(existingName) && String(existingName) === candidate) {
                 duplicate = true;
                 break;
@@ -512,7 +643,7 @@ EqStorage.prototype.generateBankName = function(index) {
 };
 
 EqStorage.prototype.copyBankRow = function(from, to) {
-    this.state.replace(this.bankNameKey(to), this.state.get(this.bankNameKey(from)));
+    this.store.Replace(this.bankNameKey(to), this.store.Get(this.bankNameKey(from)));
     for (var i = 0; i < this.filterOrder.length; i++) {
         var id = this.filterOrder[i];
         var filter = this.loadStoredFilterAtBank(id, from);
@@ -529,16 +660,16 @@ EqStorage.prototype.removeBankRowState = function(row) {
 };
 
 EqStorage.prototype.removeBankState = function(index) {
-    this.state.remove(this.bankNameKey(index));
+    this.store.Remove(this.bankNameKey(index));
     for (var i = 0; i < this.filterOrder.length; i++) {
-        this.state.remove(this.filterPath(index, this.filterOrder[i]));
-        this.state.remove(this.bypassPath(index, this.filterOrder[i]));
+        this.store.Remove(this.filterPath(index, this.filterOrder[i]));
+        this.store.Remove(this.bypassPath(index, this.filterOrder[i]));
     }
 };
 
 EqStorage.prototype.removeStoredFilterAtBank = function(id, bankIndex) {
-    this.state.remove(this.filterPath(bankIndex, id));
-    this.state.remove(this.bypassPath(bankIndex, id));
+    this.store.Remove(this.filterPath(bankIndex, id));
+    this.store.Remove(this.bypassPath(bankIndex, id));
 };
 
 EqStorage.prototype.activeFilterPath = function(id) {
@@ -552,10 +683,10 @@ EqStorage.prototype.activeBypassPath = function(id) {
 EqStorage.prototype.filterPath = function(index, id) { return "bank_" + index + "_filter_" + id; };
 EqStorage.prototype.bypassPath = function(index, id) { return "bank_" + index + "_bypass_" + id; };
 EqStorage.prototype.bankNameKey = function(index) { return "bank_" + index + "_name"; };
-EqStorage.prototype.bankCount = function() { return this.numberOrDefault(this.state.get("bank_count"), 0); };
+EqStorage.prototype.bankCount = function() { return this.numberOrDefault(this.store.Get("bank_count"), 0); };
 EqStorage.prototype.selectedBankName = function() { return this.bankName(this.selectedRow); };
 EqStorage.prototype.bankName = function(index) {
-    var value = this.state.get(this.bankNameKey(index));
+    var value = this.store.Get(this.bankNameKey(index));
     return this.isMissing(value) ? this.generateBankName(index) : String(value);
 };
 EqStorage.prototype.clampRow = function(row) {
@@ -582,7 +713,7 @@ var eqStorage = new EqStorage();
 function inletassist(index) {
     var descriptions = [
         "Commands: initialize, bang, add, remove, select, rename, delete",
-        "message <filter envelope dictionary>",
+        "message <dictionary type=filter.control|filter.set|filter.set_many|filter.reset|system.status>",
         "Persistence: dictionary <state> or persistence_ready"
     ];
     assist(descriptions[index] || "");
@@ -590,12 +721,12 @@ function inletassist(index) {
 
 function outletassist(index) {
     var descriptions = [
-        "message <filter.restore envelope dictionary> to Filter instances",
+        "reserved",
         "Bank list commands: clear, append, setid",
         "Status and errors",
-        "message <filter definition or storage snapshot> to EqChain",
-        "message <filter definition> to Approximator",
-        "message <filter.define|bank changed|storage snapshot|system.status> to the message bus",
+        "message <device.state.changed> to EqChain",
+        "reserved",
+        "message <filter.state|device.state.changed|system.status> to the message bus",
         "dictionary <complete persistent bank state>"
     ];
     assist(descriptions[index] || "");
