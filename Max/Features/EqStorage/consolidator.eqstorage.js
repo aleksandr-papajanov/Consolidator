@@ -1,7 +1,7 @@
-include("../../Shared/JS/DictionaryReader.js");
-include("../../Shared/JS/Messages/MessageEnvelope.js");
-include("../../Shared/JS/Messages/MessageFactory.js");
-include("BankFilter.js");
+include("../Shared/JS/DictionaryReader.js");
+include("../Shared/JS/Messages/MessageEnvelope.js");
+include("../Shared/JS/Messages/MessageFactory.js");
+include("JS/BankFilter.js");
 
 autowatch = 1;
 inlets = 3;
@@ -108,7 +108,7 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
         this.emitError("invalid_message_envelope");
         return;
     }
-    if (message.target !== "eq.storage" && message.target !== "broadcast") {
+    if (message.target !== "eq.storage") {
         return;
     }
 

@@ -9,10 +9,10 @@ mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-include('SpectrumViewConfig.js');
-include('SpectrumViewGeometry.js');
-include('SpectrumViewCurves.js');
-include('SpectrumViewInput.js');
+include('JS/SpectrumViewConfig.js');
+include('JS/SpectrumViewGeometry.js');
+include('JS/SpectrumViewCurves.js');
+include('JS/SpectrumViewInput.js');
 
 var spectrumViewController = new SpectrumViewController();
 

@@ -2,14 +2,10 @@ autowatch = 1;
 inlets = 2;
 outlets = 2;
 
-include("../../Shared/JS/DictionaryReader.js");
-include("../../Shared/JS/Messages/MessageEnvelope.js");
-include("../../Shared/JS/Messages/MessageFactory.js");
-include("FeatureMessageAdapter.js");
+include("../Shared/JS/DictionaryReader.js");
 
 function FilterFeatureController(slot) {
     this.slot = Number(slot);
-    this.adapter = new FeatureMessageAdapter("filter", MessageFactory, {});
     this.configuration = null;
     this.configurationName = "";
     this.selectedFilter = null;
@@ -24,16 +20,20 @@ function FilterFeatureController(slot) {
     this.parameters = [];
     this.bypassed = false;
     this.instanceRecovered = null;
-    this.nativeReady = false;
+    this.filterReady = false;
 }
 
-FilterFeatureController.prototype.Emit = function(type, payload) {
-    payload.filterId = this.slot;
-    var envelope = MessageEnvelope.create(type, "filter", payload, "filter");
-    this.adapter.EmitEnvelope(envelope, function(message) {
-        var dictionary = MessageFactory.toMax(message);
-        outlet(0, "message", dictionary.name);
-    });
+FilterFeatureController.prototype.SendFilterCommand = function() {
+    var values = arrayfromargs(arguments);
+    if (values.length === 1) {
+        outlet(0, values[0]);
+    }
+    else if (values.length === 2) {
+        outlet(0, values[0], values[1]);
+    }
+    else if (values.length === 3) {
+        outlet(0, values[0], values[1], values[2]);
+    }
 };
 
 FilterFeatureController.prototype.Number = function(value, fallback) {
@@ -47,7 +47,7 @@ FilterFeatureController.prototype.Array = function(value) {
 
 FilterFeatureController.prototype.Configure = function(dictionaryName) {
     try {
-        this.nativeReady = false;
+        this.filterReady = false;
         this.configurationName = String(dictionaryName);
         this.configuration = new DictionaryReader(this.configurationName);
         var selected = this.Number(this.configuration.selected, this.slot);
@@ -73,7 +73,7 @@ FilterFeatureController.prototype.Configure = function(dictionaryName) {
 
         this.BuildControls();
         this.ApplyLayout();
-        this.Emit("filter.define", { contractName: this.configurationName });
+        this.SendFilterCommand("define", this.configurationName);
         this.ApplyPendingInstanceState();
     }
     catch (error) {
@@ -173,21 +173,6 @@ FilterFeatureController.prototype.ApplyValues = function(values) {
     this.ApplyEnabledState();
 };
 
-FilterFeatureController.prototype.ApplyDefaults = function() {
-    var values = [];
-    for (var i = 0; i < this.parameters.length; i++) {
-        var parameter = this.parameters[i];
-        var normalized = parameter.scale === "logarithmic"
-            ? Math.log(parameter.defaultValue / parameter.min) /
-              Math.log(parameter.max / parameter.min)
-            : (parameter.defaultValue - parameter.min) /
-              (parameter.max - parameter.min);
-        values.push(Math.max(0, Math.min(1, normalized)));
-    }
-    values.push(0);
-    this.ApplyValues(values);
-};
-
 FilterFeatureController.prototype.OutputActiveValues = function() {
     var ids = ["gain", "frequency", "q", "bypass", "reset"];
     for (var i = 0; i < ids.length; i++) {
@@ -199,12 +184,11 @@ FilterFeatureController.prototype.OutputActiveValues = function() {
 };
 
 FilterFeatureController.prototype.ApplyPendingInstanceState = function() {
-    if (this.instanceRecovered === null || !this.nativeReady) return;
+    if (this.instanceRecovered === null || !this.filterReady) return;
 
     if (this.instanceRecovered) this.OutputActiveValues();
     else {
-        this.ApplyDefaults();
-        this.Emit("filter.reset", {});
+        this.SendFilterCommand("reset");
     }
     this.instanceRecovered = null;
 };
@@ -258,46 +242,41 @@ FilterFeatureController.prototype.HandleLocalDictionary = function(name) {
 
 FilterFeatureController.prototype.HandleLocalCommand = function(command, values) {
     if (command === "update" && values.length === 2) {
-        if (!this.configuration || !this.nativeReady) return;
-        this.Emit("filter.control.update", {
-            control: String(values[0]),
-            value: Number(values[1])
-        });
+        if (!this.configuration || !this.filterReady) return;
+        this.SendFilterCommand("update", String(values[0]), Number(values[1]));
     }
     else if (command === "instance_state" && values.length === 1) {
         this.instanceRecovered = Number(values[0]) === 1;
         this.ApplyPendingInstanceState();
     }
     else if (command === "reset" && values.length === 0) {
-        this.ApplyDefaults();
-        this.Emit("filter.reset", {});
+        this.SendFilterCommand("reset");
     }
 };
 
-FilterFeatureController.prototype.HandleNativeStatus = function(state, values) {
+FilterFeatureController.prototype.HandleFilterStatus = function(state, values) {
     if (state === "ready") {
-        this.nativeReady = true;
+        this.filterReady = true;
         this.ApplyPendingInstanceState();
     }
     else if (state === "values") {
         this.ApplyValues(values);
     }
-    this.adapter.HandleStatus(state, values);
 };
 
 var controller = new FilterFeatureController(jsarguments[1]);
 
 function inletassist(index) {
     var descriptions = [
-        "Local commands: dictionary, update, instance_state, reset",
-        "Native status and normalized filter values"
+        "Local UI commands: dictionary, update, instance_state, reset",
+        "Filter status and normalized filter values"
     ];
     assist(descriptions[index] || "");
 }
 
 function outletassist(index) {
     var descriptions = [
-        "message <envelope dictionary> to the message bus",
+        "Local consolidator.filter.js commands: define <dictionary>, update <control> <0..1>, reset",
         "thispatcher commands for filter controls"
     ];
     assist(descriptions[index] || "");
@@ -324,13 +303,13 @@ function reset() {
 
 function status(state) {
     if (inlet === 1) {
-        controller.HandleNativeStatus(state, arrayfromargs(arguments).slice(1));
+        controller.HandleFilterStatus(state, arrayfromargs(arguments).slice(1));
     }
 }
 
 function message() {
     if (inlet === 1) {
-        controller.HandleNativeStatus(messagename, arrayfromargs(arguments));
+        controller.HandleFilterStatus(messagename, arrayfromargs(arguments));
     }
 }
 
@@ -338,6 +317,6 @@ function anything() {
     var values = arrayfromargs(arguments);
     if (inlet === 0) controller.HandleLocalCommand(messagename, values);
     else if (messagename === "status") {
-        controller.HandleNativeStatus(values[0], values.slice(1));
+        controller.HandleFilterStatus(values[0], values.slice(1));
     }
 }

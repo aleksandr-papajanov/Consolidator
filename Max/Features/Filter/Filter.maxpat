@@ -393,7 +393,12 @@
 					"numoutlets" : 3,
 					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 210.0, 240.0, 229.0, 22.0 ],
-					"text" : "consolidator.filter"
+					"saved_object_attributes" : 					{
+						"filename" : "consolidator.filter.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js consolidator.filter.js #1"
 				}
 
 			}
@@ -406,11 +411,11 @@
 					"outlettype" : [ "", "" ],
 					"patching_rect" : [ 45.0, 330.0, 259.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "FilterFeatureController.js",
+						"filename" : "consolidator.filter.controller.js",
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js FilterFeatureController.js #1"
+					"text" : "js consolidator.filter.controller.js #1"
 				}
 
 			}
@@ -552,7 +557,7 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-message-bus-send-3", 0 ],
+					"destination" : [ "obj-20", 0 ],
 					"source" : [ "obj-96", 0 ]
 				}
 

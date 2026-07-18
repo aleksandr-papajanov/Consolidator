@@ -26,13 +26,28 @@
         "box": {
           "id": "busScript",
           "maxclass": "newobj",
-          "text": "js BusHub.js",
+          "text": "js consolidator.bushub.js",
           "numinlets": 1,
           "numoutlets": 1,
           "outlettype": [""],
           "patching_rect": [110.0, 35.0, 190.0, 22.0],
           "saved_object_attributes": {
-            "filename": "BusHub.js",
+            "filename": "consolidator.bushub.js",
+            "parameter_enable": 0
+          }
+        }
+      },
+      {
+        "box": {
+          "id": "controller",
+          "maxclass": "newobj",
+          "text": "js consolidator.bushub.controller.js",
+          "numinlets": 1,
+          "numoutlets": 1,
+          "outlettype": [""],
+          "patching_rect": [110.0, 70.0, 190.0, 22.0],
+          "saved_object_attributes": {
+            "filename": "consolidator.bushub.controller.js",
             "parameter_enable": 0
           }
         }
@@ -52,6 +67,12 @@
       {
         "patchline": {
           "source": ["busInput", 0],
+          "destination": ["controller", 0]
+        }
+      },
+      {
+        "patchline": {
+          "source": ["controller", 0],
           "destination": ["busScript", 0]
         }
       },

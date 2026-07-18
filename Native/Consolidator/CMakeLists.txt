@@ -8,14 +8,33 @@ get_filename_component(CONSOLIDATOR_ROOT
     ABSOLUTE
 )
 
-set(CONSOLIDATOR_MAX_EXTERNALS_DIR
-    "${CONSOLIDATOR_ROOT}/Max/Externals"
+set(CONSOLIDATOR_MAX_FEATURES_DIR
+    "${CONSOLIDATOR_ROOT}/Max/Features"
 )
 
 option(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX
-    "Copy built Max externals into Max/Externals after build."
+    "Copy built Max externals into their owning Max feature after build."
     ON
 )
+
+function(consolidator_copy_external_to_feature target featureName)
+    if (CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX)
+        set(destinationDirectory
+            "${CONSOLIDATOR_MAX_FEATURES_DIR}/${featureName}"
+        )
+
+        add_custom_command(
+            TARGET ${target}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${destinationDirectory}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:${target}>"
+                "${destinationDirectory}/$<TARGET_FILE_NAME:${target}>"
+            COMMENT "Copying ${target} external to Max feature ${featureName}"
+        )
+    endif ()
+endfunction()
 
 set(C74_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_SOURCE_DIR}/Externals"

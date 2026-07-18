@@ -54,14 +54,32 @@
 					"numinlets" : 3,
 					"numoutlets" : 7,
 					"outlettype" : [ "", "", "", "", "", "", "" ],
-					"patching_rect" : [ 255.0, 195.0, 239.0, 22.0 ],
+					"patching_rect" : [ 255.0, 195.0, 148.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "EqStorageFeatureController.js",
+						"filename" : "consolidator.eqstorage.js",
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js EqStorageFeatureController.js",
+					"text" : "js consolidator.eqstorage.js",
 					"varname" : "storage"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "controller",
+					"maxclass" : "newobj",
+					"numinlets" : 3,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 255.0, 150.0, 217.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "consolidator.eqstorage.controller.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js consolidator.eqstorage.controller.js",
+					"varname" : "controller"
 				}
 
 			}
@@ -154,7 +172,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "EqBankListView.js",
+					"filename" : "consolidator.eqstorage.banklistview.js",
 					"id" : "list",
 					"maxclass" : "jsui",
 					"numinlets" : 1,
@@ -252,7 +270,7 @@
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
-					"destination" : [ "storage", 0 ],
+					"destination" : [ "controller", 0 ],
 					"source" : [ "add", 0 ]
 				}
 
@@ -301,7 +319,7 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "storage", 0 ],
+					"destination" : [ "controller", 0 ],
 					"midpoints" : [ 309.5, 393.0, 210.5, 393.0, 210.5, 183.0, 264.5, 183.0 ],
 					"source" : [ "list", 0 ]
 				}
@@ -323,7 +341,7 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "storage", 0 ],
+					"destination" : [ "controller", 0 ],
 					"source" : [ "remove", 0 ]
 				}
 
@@ -337,6 +355,20 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "storage", 0 ],
+					"source" : [ "controller", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "controller", 1 ],
+					"source" : [ "storage", 2 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "eqchain", 2 ],
 					"source" : [ "storage", 3 ]
 				}
@@ -344,8 +376,15 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "list", 0 ],
+					"destination" : [ "controller", 2 ],
 					"source" : [ "storage", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "list", 0 ],
+					"source" : [ "controller", 1 ]
 				}
 
 			}

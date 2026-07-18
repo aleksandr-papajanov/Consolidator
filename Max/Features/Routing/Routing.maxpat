@@ -1232,6 +1232,24 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "controller",
+					"maxclass" : "newobj",
+					"numinlets" : 4,
+					"numoutlets" : 4,
+					"outlettype" : [ "", "", "", "" ],
+					"patching_rect" : [ 150.0, 120.0, 220.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "consolidator.routing.controller.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js consolidator.routing.controller.js",
+					"varname" : "controller"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"allowdrag" : 0,
 					"annotation" : "Selects the input channel",
 					"bgcolor" : [ 1, 1, 1, 0 ],
@@ -1306,7 +1324,7 @@
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
-					"destination" : [ "obj-47", 0 ],
+					"destination" : [ "controller", 3 ],
 					"midpoints" : [ 116.643471360206604, 183.469990819692612, 40.704819321632385, 183.469990819692612 ],
 					"source" : [ "obj-20", 1 ]
 				}
@@ -1314,14 +1332,14 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-48", 0 ],
+					"destination" : [ "controller", 2 ],
 					"source" : [ "obj-20", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-20", 1 ],
+					"destination" : [ "controller", 1 ],
 					"midpoints" : [ 40.704819321632385, 223.097794204950333, 135.473876953125, 223.097794204950333, 135.473876953125, 113.08433997631073, 116.643471360206604, 113.08433997631073 ],
 					"source" : [ "obj-47", 0 ]
 				}
@@ -1329,9 +1347,37 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-20", 0 ],
+					"destination" : [ "controller", 0 ],
 					"midpoints" : [ 73.204819321632385, 184.08433997631073, 21.616253226995468, 184.08433997631073, 21.616253226995468, 113.08433997631073, 39.5, 113.08433997631073 ],
 					"source" : [ "obj-48", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-20", 0 ],
+					"source" : [ "controller", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-20", 1 ],
+					"source" : [ "controller", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-48", 0 ],
+					"source" : [ "controller", 2 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-47", 0 ],
+					"source" : [ "controller", 3 ]
 				}
 
 			}

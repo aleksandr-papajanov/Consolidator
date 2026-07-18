@@ -9,7 +9,8 @@ result through dynamically defined filter objects.
 The repository has two layers:
 
 - `Max/` contains Max for Live patchers, UI views, routing, configuration, and
-  the built `.mxe64` externals used by Live.
+  the built `.mxe64` externals used by Live. Each external is copied into its
+  owning feature directory, never into a central `Max/Externals` directory.
 - `Native/Consolidator/` contains the C++20 Min-DevKit project. Its Max
   externals are built from `Source/Projects/`.
 
@@ -30,13 +31,12 @@ The repository has two layers:
   Analyzer also owns individual filter visualization: it receives targeted
   `filter.define`, `filter.update`, and `filter.bypass` envelopes, then builds
   `filter_curve` with the shared filter contract and EQ math.
-- `Consolidator.Filter` represents one dynamically defined filter. It owns
-  the filter contract, accepts normalized parameter changes, and publishes
-  commands for the chain. It does not publish visual curves or handles.
-  `Filter.maxpat` must send its abstraction
-  slot argument to the native object as `slot <id>` before it emits the filter
-  definition; do not put a literal `#1` in a native attribute argument. Native
-  message routing is strict and never infers a slot from initialization state.
+- `Max/Features/Filter/consolidator.filter.js` represents one dynamically defined
+  filter. It owns the filter contract, normalized parameter state, bypass
+  state, and publishes `filter.define`, `filter.update`, and `filter.bypass`
+  envelopes for EqStorage and Analyzer. It does not process audio or publish
+  visual curves or handles. `Filter.maxpat` sends its abstraction slot as
+  `slot <id>` before the definition envelope is emitted.
 - `Consolidator.EqChain` owns the active filter chain and processes stereo
   audio. It does not calculate or publish visual curves.
 - `Consolidator.Approximator` stores the available filter contracts, receives
@@ -74,7 +74,8 @@ resolve and cache them without collisions.
 
 Every feature patcher connects to the message bus internally. Outgoing
 envelopes feed `s ---message.bus.in`; incoming envelopes come from
-`r ---message.bus.out`. BusHub owns `r ---message.bus.in -> BusHub.js ->
+`r ---message.bus.out`. BusHub owns `r ---message.bus.in ->
+consolidator.bushub.controller.js -> consolidator.bushub.js ->
 s ---message.bus.out`. Do not expose or duplicate message-bus ports in the root
 device. The `---` prefix is mandatory because Max for Live expands it per
 device instance; never replace it with an unscoped global send/receive name.
@@ -92,13 +93,24 @@ standard ports. This ordering is intentional and must be applied consistently
 when each external is migrated; update native declarations, Max wiring, docs,
 and this file together.
 
-`Max/Features/Shared/JS/FeatureMessageAdapter.js` is the shared envelope
-transport. Each feature owns one feature-specific `JS/*FeatureController.js`
-as its sole Max
-boundary. The controller accepts local UI commands, publishes local envelopes
-to BusHub, listens to its native status outlet, and owns the feature's control
-registry and UI actions. It must not own DSP, EQ state, or feature domain
-logic. A feature without UI behavior still has a placeholder controller.
+Each executable feature has exactly one root runtime component: either a native
+`consolidator.<feature>.mxe64`, a root `<Feature>.js`/
+`consolidator.<feature>.js` state component, or the root `<Feature>.maxpat`
+for a pure Max feature. Every feature also owns exactly one root
+`consolidator.<feature>.controller.js`. The controller owns the local UI boundary and
+forwards commands either directly to its root state component or, when the
+native public command endpoint is the common bus, as an envelope through
+BusHub. Direct component status and diagnostics return to the controller when
+the component exposes them. Pure Max presentation features route their local
+UI feedback through the controller and do not need a message-bus connection.
+Controllers must not own DSP, EQ state, persistence, or feature domain logic.
+A feature without UI behavior still has a forwarding placeholder controller.
+`consolidator.filter.js` is the Filter state component that
+replaces the removed native Filter external while
+`consolidator.filter.controller.js`
+remains responsible only for UI controls and layout. `EqStorage.js` is the
+EqStorage state component; its controller owns local UI/list routing but does
+not store banks or route the message bus.
 `Max/Features/Shared/JS/DictionaryReader.js` is the single JavaScript boundary
 for reading a Max dictionary. It resolves a dictionary reference once,
 deserializes it to a plain object, and exposes root keys directly, for example
@@ -107,7 +119,7 @@ own direct `thispatcher` commands; do not introduce a shared control registry.
 
 `Max/Features/Approximator/Approximator.maxpat` is the Approximator feature
 wrapper. Its local command inlet accepts `fit`, `listen 0|1`, and `clear`.
-`ApproximatorFeatureController.js` converts those commands into
+`consolidator.approximator.controller.js` converts those commands into
 `approximator.fit`, `analyzer.difference`, and `approximator.clear` envelopes.
 `analyzer.difference` carries `payload.value` as the strict integer `0` or
 `1`; do not rename that field to `enabled`.
@@ -143,19 +155,19 @@ needs one.
 `Max/Config/FilterConfig.json` is the source of truth for filter contracts and
 startup UI configuration. `Max/Features/Filter/FilterConfig.maxpat` loads that JSON at
 initialization, selects a filter dictionary, and sends it to the local command
-inlet of `Consolidator.Filter`. Filter parameters are defined per slot under
+inlet of `consolidator.filter.js`. Filter parameters are defined per slot under
 `filters`; layout overrides are defined once per filter type under `layouts`.
-`FilterFeatureController` owns all Max control behavior: it reads
+`consolidator.filter.controller.js` owns all Max control behavior: it reads
 `controls`/`layouts`, emits `script sendbox` commands for position, visibility,
-enabled state, colors, and values, and wraps UI/configuration input before it
-reaches BusHub. Native Filter does not parse or emit UI-control envelopes.
+enabled state, colors, and values. It sends local `define`, `update`, and
+`reset` commands directly to `consolidator.filter.js`, then updates controls only from the
+Filter status outlet. UI-control changes never enter BusHub.
 `FilterConfig.maxpat` has a strict local contract: its only outlet emits the
 bare name of an existing Max dictionary (for example `u123456`) with outlet
 type `dictionary`. It must not emit a JSON string, a `filters::N` path, or a
-textual `dictionary` prefix. `FilterFeatureController.dictionary()` accepts
+textual `dictionary` prefix. `consolidator.filter.controller.js` accepts
 that dictionary name and opens it through `new DictionaryReader(name)`.
-Incoming parameter changes use `filter.control.update`; `Filter` publishes
-`filter.define`, `filter.update`, and `filter.bypass`
+`consolidator.filter.js` publishes `filter.define`, `filter.update`, and `filter.bypass`
 envelopes through `BusHub` to both EqStorage and Analyzer. EqStorage owns the routes to its internal
 EqChain and to Approximator. `EqChain` only consumes filter definitions and
 audio commands; it has no bank or approximator command outlet. `Filter` also
@@ -169,13 +181,13 @@ with its configured color, and computes the thick summed line itself. It emits
 dragging a marker keeps its frequency and gain fixed and edits Q directly as a
 normalized value from 0 at the bottom to 1 at the top.
 
-`Consolidator.Filter` has one command inlet. `filter.edit` is reserved for
+`consolidator.filter.js` has one command inlet. `filter.edit` is reserved for
 SpectrumView and carries absolute graph coordinates (frequency/gain) or a
 single normalized Q gesture. `filter.update` carries the complete normalized
 parameter vector used for bank recall and state persistence; do not merge the
 two message types or infer one from the other's payload.
 
-`Max/Features/Analyzer/JS/SpectrumView.js` is the `jsui` entry point owned by
+`Max/Features/Analyzer/consolidator.analyzer.spectrumview.js` is the `jsui` entry point owned by
 the Analyzer feature. It keeps the
 standard `list` callback required by `jsui`. Its
 implementation is split into `SpectrumViewConfig.js` for shared state and
@@ -268,8 +280,8 @@ UI controls are declared once in the JSON `controls` section. A filter type
 uses its `layouts` entry for overrides such as `position`, `visible`, and
 `enabled`; every slot of that type receives the same layout. Each filter slot
 stores its own `color` in `filters.<slot>`.
-Native Filter has no UI-control model. UI control IDs and their Max varnames
-belong exclusively to `FilterFeatureController`.
+consolidator.filter.js has no UI-control model. UI control IDs and their Max varnames
+belong exclusively to `consolidator.filter.controller.js`.
 
 Parameter values sent as filter commands are normalized to `0..1`. Contract
 ranges define how values are denormalized. Supported parameter scales are
@@ -291,9 +303,10 @@ contract parameter `freq` or `pivot`. Do not emit `freq` as a UI control ID.
    call `assist()` with the same contract.
 2. Keep command routing explicit. Do not infer command meaning from argument
    count, value ranges, outlet position, or undocumented fallback behavior.
-3. Keep shared EQ math in `Consolidator.EqCore`. Analyzer, Filter, EqChain, and
-   Approximator must use the same filter formulas, frequency grid, sample-rate
-   assumptions, and parameter normalization rules.
+3. Keep shared EQ DSP math in `Consolidator.EqCore`. Analyzer, EqChain, and
+   Approximator must use the same filter formulas, frequency grid, and
+   sample-rate assumptions. `consolidator.filter.js` performs only normalized control-range
+   conversion from the same JSON contract; it does not implement DSP math.
 4. Preserve the dictionary contract across the dynamic filter flow. Do not
    serialize a dictionary to an ad-hoc string when a Max dictionary atom can be
    passed directly.
@@ -313,13 +326,20 @@ contract parameter `freq` or `pivot`. Do not emit `freq` as a UI control ID.
 9. Prefer separate classes and files with intent-revealing names. Keep Max
    patchers focused on routing and presentation; keep numerical behavior in
    C++.
-10. Max JavaScript must follow the same structure: each feature has one
-    feature-specific `*FeatureController.js` entry point. Runtime filenames
-    must be unique across features because Max caches JavaScript dependencies
-    by filename. Keep domain helpers as separate classes
-    and files behind that controller; do not add bridge, adapter, or command
-    entry scripts alongside it. New JS code belongs in the owning feature
-    directory.
+10. Every executable Max feature has one root runtime component and one root
+    `consolidator.<feature>.controller.js`. The root component is named
+    either `consolidator.<feature>.mxe64` for native code,
+    `<Feature>.js`/`consolidator.<feature>.js` for JavaScript state code, or
+    `<Feature>.maxpat` for pure Max code. Its wrapper must route local UI
+    through the controller, route direct component status back to the
+    controller when available, and use BusHub only for interfeature envelopes.
+    Every JavaScript or `jsui` file instantiated by a `.maxpat` must be in the
+    owning feature root and named `consolidator.<feature>.<role>.js`; this also
+    applies to controllers and views. Runtime filenames must be unique across
+    features because Max caches dependencies by filename. Keep painters,
+    includes, contracts, models, and other helper classes in `JS/` or the
+    appropriate shared directory. Do not add bridge, adapter, or command entry
+    scripts. New JS code belongs in the owning feature directory.
 11. When reading code, treat a discovered violation of these rules as part of
    the task: fix it when the fix is local, behavior-preserving, and can be
    verified. Do not leave an obvious protocol or architecture mismatch
@@ -335,10 +355,14 @@ snake_case identifiers outside external APIs that require them.
 format readers, fallback command formats, aliases, or dual protocol paths.
 When a contract changes, replace the old contract directly and test the new
 one from a clean state.
+16. BusHub transports only interfeature envelopes. A feature controller must
+    send UI actions directly to its local state component and update UI only
+    from that component's direct status outlet. Never put UI control commands
+    or types such as `filter.control.update` on the message bus.
 
 ### Unified control envelope
 
-The control protocol uses one envelope for every non-audio message:
+The control protocol uses one envelope for every non-audio interfeature message:
 `type`, `source`, `target`, and `payload`. Protocol types are stable names such
 as `filter.update` and must not be tied to implementation class names.
 `source` is always the feature that emitted the envelope. `target` is a feature
@@ -349,6 +373,9 @@ and factory in `EqCore`. Max transports the envelope as
 `message <temporary-dictionary-name>`; the dictionary name is opaque transport
 data and must never be routed or inspected by a component. Audio and high-rate
 DSP buffers remain outside this protocol.
+Components ignore broadcast envelopes unless their documented command contract
+explicitly declares the broadcast type; a broadcast is never treated as a
+generic request for every feature.
 
 After `MessageFactory.fromMax`, JavaScript components use
 `message.payload.<field>` directly. Envelope serialization and deserialization
@@ -357,16 +384,16 @@ happens only inside `MessageEnvelope`; configuration dictionaries use
 implement their own envelope parsing.
 
 Do not add selector-specific message classes, `MessageCodec`, raw command
-fallbacks, or compatibility handlers. UI-only Max commands may stay direct
-only after the control envelope has been decoded at the UI adapter boundary.
+fallbacks, or compatibility handlers. UI-only Max commands stay direct within
+their feature and must never be serialized into an envelope or sent to BusHub.
 
 ## Verification
 
 Run `.vscode/build-all.cmd` from the repository root to configure and build
 all native externals. The build uses Visual Studio x64, CMake, and vcpkg with
-the static x64 triplet. Max may lock files in `Max/Externals`; a successful
-native compile can still fail only at the final copy step if Live or Max has
-the external loaded.
+the static x64 triplet. Max may lock files in an owning
+`Max/Features/<Feature>` directory; a successful native compile can still fail
+only at the final copy step if Live or Max has the external loaded.
 
 Before finishing a change:
 

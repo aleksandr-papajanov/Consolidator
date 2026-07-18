@@ -2,7 +2,7 @@ autowatch = 1;
 inlets = 1;
 outlets = 1;
 
-include("BankListModel.js");
+include("JS/BankListModel.js");
 
 mgraphics.init();
 mgraphics.relative_coords = 0;

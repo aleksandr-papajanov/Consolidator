@@ -48,15 +48,7 @@ if (MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /wd4267)
 endif ()
 
-if (CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX)
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:${PROJECT_NAME}>"
-            "${CONSOLIDATOR_MAX_EXTERNALS_DIR}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
-    )
-endif ()
+consolidator_copy_external_to_feature(${PROJECT_NAME} "Analyzer")
 
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)

@@ -103,6 +103,24 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "controller",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 315.0, 630.0, 218.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"filename" : "consolidator.analyzer.controller.js",
+						"parameter_enable" : 0
+					}
+,
+					"text" : "js consolidator.analyzer.controller.js",
+					"varname" : "controller"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "eqCurveSend",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -114,7 +132,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "SpectrumView.js",
+					"filename" : "consolidator.analyzer.spectrumview.js",
 					"id" : "spectrumView",
 					"maxclass" : "jsui",
 					"numinlets" : 5,
@@ -247,8 +265,22 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "busSend", 0 ],
+					"destination" : [ "controller", 0 ],
 					"source" : [ "spectrumView", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "busSend", 0 ],
+					"source" : [ "controller", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "controller", 1 ],
+					"source" : [ "analyzer", 5 ]
 				}
 
 			}

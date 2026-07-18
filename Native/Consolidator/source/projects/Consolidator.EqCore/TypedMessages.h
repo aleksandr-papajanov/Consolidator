@@ -142,25 +142,6 @@ struct FilterBypassMessage {
     }
 };
 
-struct FilterControlUpdateMessage {
-    static constexpr const char* type = "filter.control.update";
-    long filterId{};
-    std::string control;
-    double value{};
-
-    static std::optional<FilterControlUpdateMessage> from_envelope(const MessageEnvelope& envelope) {
-        FilterControlUpdateMessage result;
-        double filterId{};
-        if (!envelope.payload_number("filterId", filterId) ||
-            !envelope.payload_symbol("control", result.control) ||
-            !envelope.payload_number("value", result.value)) {
-            return std::nullopt;
-        }
-        result.filterId = static_cast<long>(filterId);
-        return result;
-    }
-};
-
 struct FilterInstanceStateMessage {
     static constexpr const char* type = "filter.instance.state";
     long filterId{};

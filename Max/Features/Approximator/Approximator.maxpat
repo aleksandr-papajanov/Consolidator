@@ -22,11 +22,11 @@
 					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 75.0, 225.0, 334.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "ApproximatorFeatureController.js",
+						"filename" : "consolidator.approximator.controller.js",
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js ApproximatorFeatureController.js"
+					"text" : "js consolidator.approximator.controller.js"
 				}
 
 			}
