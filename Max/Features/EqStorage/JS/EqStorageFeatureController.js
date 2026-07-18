@@ -1,3 +1,4 @@
+include("../../Shared/JS/DictionaryReader.js");
 include("../../Shared/JS/Messages/MessageEnvelope.js");
 include("../../Shared/JS/Messages/MessageFactory.js");
 include("BankFilter.js");
@@ -112,7 +113,7 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
     }
 
     if (message.type === "filter.define") {
-        var definedFilterId = message.payloadValue("filterId");
+        var definedFilterId = message.payload.filterId;
         this.rememberFilter(definedFilterId);
         this.forwardFilterDefinition(3, "eq.chain", message);
         this.forwardFilterDefinition(4, "approximator", message);
@@ -121,8 +122,8 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
     }
 
     if (message.type === "filter.update") {
-        var updatedFilterId = message.payloadValue("filterId");
-        var updateBankIndex = message.payloadValue("bankIndex");
+        var updatedFilterId = message.payload.filterId;
+        var updateBankIndex = message.payload.bankIndex;
         var hasExplicitBank = updateBankIndex !== undefined &&
             updateBankIndex !== null && updateBankIndex !== "";
         if (this.isApplyingBank && !hasExplicitBank && this.ConsumeRecallFilter(updatedFilterId)) {
@@ -131,19 +132,19 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
         this.rememberFilter(updatedFilterId);
         this.storeFilterValues(
             updatedFilterId,
-            message.payloadValue("values"),
+            message.payload.values,
             updateBankIndex
         );
         return;
     }
 
     if (message.type === "filter.bypass") {
-        var bypassedFilterId = message.payloadValue("filterId");
+        var bypassedFilterId = message.payload.filterId;
         if (this.isApplyingBank && this.ConsumeRecallFilter(bypassedFilterId)) {
             return;
         }
         this.rememberFilter(bypassedFilterId);
-        this.storeFilterBypass(bypassedFilterId, message.payloadValue("value"));
+        this.storeFilterBypass(bypassedFilterId, message.payload.value);
         return;
     }
 
@@ -380,8 +381,8 @@ EqStorage.prototype.sendFilterMessage = function(message) {
 
 EqStorage.prototype.forwardFilterDefinition = function(outletIndex, target, message) {
     var payload = {
-        filterId: Number(message.payloadValue("filterId")),
-        contractName: String(message.payloadValue("contractName"))
+        filterId: Number(message.payload.filterId),
+        contractName: String(message.payload.contractName)
     };
     this.sendEnvelope(outletIndex, MessageEnvelope.create(
         "filter.define", target, payload, "eq.storage"

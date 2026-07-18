@@ -1,3 +1,4 @@
+include("../../Shared/JS/DictionaryReader.js");
 include("../../Shared/JS/Messages/MessageEnvelope.js");
 
 SpectrumViewController.prototype.list = function() {

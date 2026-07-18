@@ -37,8 +37,7 @@ MessageFactory.toJson = function(message) {
 };
 
 MessageFactory.fromMax = function(value) {
-    var envelope = MessageEnvelope.fromMaxDictionary(value);
-    return envelope;
+    return MessageEnvelope.fromMaxDictionary(value);
 };
 
 MessageFactory.toMax = function(message) {

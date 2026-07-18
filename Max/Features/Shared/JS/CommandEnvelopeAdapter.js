@@ -2,6 +2,7 @@ autowatch = 1;
 inlets = 1;
 outlets = 1;
 
+include("DictionaryReader.js");
 include("Messages/MessageEnvelope.js");
 
 var feature = String(jsarguments[1]);

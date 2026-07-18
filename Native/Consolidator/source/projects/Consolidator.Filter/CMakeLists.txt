@@ -9,7 +9,6 @@ include_directories(
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    Control.h
 )
 
 set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.filter" CACHE STRING "The name to give to the external output file/directory" FORCE)

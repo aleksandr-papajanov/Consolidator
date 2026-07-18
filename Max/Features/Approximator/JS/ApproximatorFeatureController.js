@@ -5,6 +5,7 @@ outlets = 4;
 // Inlets: 0 local commands fit, listen 0|1, clear; 1 native ready 0|1.
 // Outlets: 0 envelopes; 1 status ready 0|1; 2 clear_difference; 3 thispatcher script commands.
 
+include("../../Shared/JS/DictionaryReader.js");
 include("../../Shared/JS/Messages/MessageEnvelope.js");
 include("../../Shared/JS/Messages/MessageFactory.js");
 

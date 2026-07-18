@@ -98,6 +98,11 @@ boundary. The controller accepts local UI commands, publishes local envelopes
 to BusHub, listens to its native status outlet, and owns the feature's control
 registry and UI actions. It must not own DSP, EQ state, or feature domain
 logic. A feature without UI behavior still has a placeholder controller.
+`Max/Features/Shared/JS/DictionaryReader.js` is the single JavaScript boundary
+for reading a Max dictionary. It resolves a dictionary reference once,
+deserializes it to a plain object, and exposes root keys directly, for example
+`config.filters[1]`. Feature controllers define their own UI objects and their
+own direct `thispatcher` commands; do not introduce a shared control registry.
 
 `Max/Features/Approximator/Approximator.maxpat` is the Approximator feature
 wrapper. Its local command inlet accepts `fit`, `listen 0|1`, and `clear`.
@@ -130,19 +135,23 @@ startup UI configuration. `Max/Features/Filter/FilterConfig.maxpat` loads that J
 initialization, selects a filter dictionary, and sends it to the local command
 inlet of `Consolidator.Filter`. Filter parameters are defined per slot under
 `filters`; layout overrides are defined once per filter type under `layouts`.
-The filter emits local `filter.control` envelopes. `FilterFeatureController`
-converts them into Max `script sendbox` messages and wraps UI/configuration
-input before it reaches BusHub.
+`FilterFeatureController` owns all Max control behavior: it reads
+`controls`/`layouts`, emits `script sendbox` commands for position, visibility,
+enabled state, colors, and values, and wraps UI/configuration input before it
+reaches BusHub. Native Filter does not parse or emit UI-control envelopes.
 `FilterConfig.maxpat` has a strict local contract: its only outlet emits the
 bare name of an existing Max dictionary (for example `u123456`) with outlet
 type `dictionary`. It must not emit a JSON string, a `filters::N` path, or a
 textual `dictionary` prefix. `FilterFeatureController.dictionary()` accepts
-that dictionary name and opens it directly with `new Dict(name)`.
+that dictionary name and opens it through `new DictionaryReader(name)`.
 Incoming parameter changes use `filter.control.update`; `Filter` publishes
 `filter.define`, `filter.update`, and `filter.bypass`
 envelopes through `BusHub` to EqStorage. EqStorage owns the routes to its internal
 EqChain and to Approximator. `EqChain` only consumes filter definitions and
 audio commands; it has no bank or approximator command outlet. `Filter` also
+publishes direct status `status values <normalized...> <bypass>` for controller
+state synchronization and lifecycle status `status ready`.
+It also
 publishes `filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz>
 <gainDb> <type> <q> <qMin> <qMax> <curve...>` and
 draggable graph metadata as `handle <filterId> <frequencyHz> <gainDb> <type>
@@ -252,8 +261,8 @@ UI controls are declared once in the JSON `controls` section. A filter type
 uses its `layouts` entry for overrides such as `position`, `visible`, and
 `enabled`; every slot of that type receives the same layout. Each filter slot
 stores its own `color` in `filters.<slot>`.
-The native `FilterControl` value object emits semantic `control`
-for `move`, `show`, `hide`, `enable`, and `disable`.
+Native Filter has no UI-control model. UI control IDs and their Max varnames
+belong exclusively to `FilterFeatureController`.
 
 Parameter values sent as filter commands are normalized to `0..1`. Contract
 ranges define how values are denormalized. Supported parameter scales are
@@ -261,6 +270,9 @@ ranges define how values are denormalized. Supported parameter scales are
 
 For `tilt`, the frequency parameter is named `pivot` everywhere. Do not
 introduce a second name such as `freq` for that parameter.
+UI control messages use semantic control IDs: `gain`, `frequency`, `q`, and
+`bypass`. The UI must always emit `frequency`; Native Filter maps it to the
+contract parameter `freq` or `pivot`. Do not emit `freq` as a UI control ID.
 
 ## Mandatory rules
 
@@ -328,6 +340,12 @@ and factory in `EqCore`. Max transports the envelope as
 `message <temporary-dictionary-name>`; the dictionary name is opaque transport
 data and must never be routed or inspected by a component. Audio and high-rate
 DSP buffers remain outside this protocol.
+
+After `MessageFactory.fromMax`, JavaScript components use
+`message.payload.<field>` directly. Envelope serialization and deserialization
+happens only inside `MessageEnvelope`; configuration dictionaries use
+`DictionaryReader`. Feature controllers must not read `payload::...` paths or
+implement their own envelope parsing.
 
 Do not add selector-specific message classes, `MessageCodec`, raw command
 fallbacks, or compatibility handlers. UI-only Max commands may stay direct
