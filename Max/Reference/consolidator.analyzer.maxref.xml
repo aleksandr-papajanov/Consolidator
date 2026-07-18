@@ -43,31 +43,6 @@
 
 	<attributelist>
 
-		<attribute name='fftsize' get='1' set='1' type='long' size='1' >
-			<digest>FFT analysis window size in samples</digest>
-			<description>FFT analysis window size in samples. Must be power of two. </description>
-		</attribute>
-
-		<attribute name='lowfreqsmoothing' get='1' set='1' type='float64' size='1' >
-			<digest>Amount of extra smoothing applied to low frequencies</digest>
-			<description>Amount of extra smoothing applied to low frequencies. </description>
-		</attribute>
-
-		<attribute name='smoothing' get='1' set='1' type='float64' size='1' >
-			<digest>Frequency-dependent temporal smoothing for output curves</digest>
-			<description>Frequency-dependent temporal smoothing for output curves. Low frequencies are smoothed more strongly. </description>
-		</attribute>
-
-		<attribute name='spectrumcalibrationdb' get='1' set='1' type='float64' size='1' >
-			<digest>Display calibration offset for the analyzer spectrum in dB</digest>
-			<description>Display calibration offset for the analyzer spectrum in dB. </description>
-		</attribute>
-
-		<attribute name='spectrumtiltdb' get='1' set='1' type='float64' size='1' >
-			<digest>Visual tilt of the analyzer spectrum in dB</digest>
-			<description>Visual tilt of the analyzer spectrum in dB. Positive values lift high frequencies. </description>
-		</attribute>
-
 	</attributelist>
 
 

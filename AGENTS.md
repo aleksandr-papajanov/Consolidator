@@ -18,14 +18,48 @@ The repository has two layers:
 
 ### Native components
 
-- `Consolidator.EqCore` is the shared domain layer. It owns filter types,
-  parameter ranges, biquad/filter math, filter contracts,
-  dictionary contract parsing, filter registry, and the runtime filter chain.
+- `Consolidator.Shared` is the transport-neutral native foundation.
+  `Audio/AudioBlockView` is a non-owning mono block. `DSP/IDspDevice`
+  processes a sample or its default block loop, and `DSP/DspChain` applies an
+  ordered set of devices to that block. Stateful stereo processing must own
+  separate left and right device instances; never process both channels with
+  one stateful chain. `DSP/Spectrum/FftSettings` owns FFT configuration and
+  `DSP/Spectrum/FftEngine` is the transport-neutral
+  radix-2 real/complex FFT layer; windowing, dB conversion, and display
+  smoothing belong above it. `DSP/Curve/`
+  contains `ICurveSource`, generic `Curve`, and `CurveRenderer`. `DSP/Eq/IEqFilter`
+  combines both for frequency-response filters. `DSP/Eq/Filters/` contains
+  `BiquadFilter`, concrete filter settings and filters. `BiquadFilter` owns
+  shared state and response behavior; concrete filters own their coefficient
+  formulas. `DSP/Eq/Eq` composes EQ filters. `Messaging/` owns envelope and factory infrastructure, and
+  `Messaging/Messages/` owns typed message contracts. `MessageRegistry`
+  registers every Shared message type for `MessageFactory` deserialization.
+  Only reusable domain
+  state such as `FilterDefinition`, `FilterState`, and `EqSnapshot` belongs in
+  `Consolidator.Shared/Models/`; one-off command data stays in message fields.
+  `Consolidator.Shared/Settings/GlobalSettings.h` owns shared defaults and
+  global constants for this new foundation. Reusable numeric sanitization,
+  clamping, range validation, and math utilities belong in
+  `Consolidator.Shared/Helpers/`. Keep domain equations and algorithm steps in
+  their owning DSP classes; extract only reusable mathematical operations.
+  `Consolidator.Shared/Audio/` owns shared audio value types including
+  `StereoSample`, `AnalyzerInputFrame`, `AudioFormat`, and `StereoBufferView`.
+  `DSP/IDspDeviceFactory`, `DSP/DspChainBuilder`, and `DSP/StereoDspChain`
+  build arbitrary ordered mono or stereo device chains without knowledge of
+  EQ, Max, or concrete device contracts. Concrete adapters register factories
+  for EQ filters, compressors, saturators, or future devices.
+- `Consolidator.MaxAdapter` is the only native layer that depends on Max
+  dictionaries. It converts Max envelopes, filter configuration dictionaries,
+  and EqStorage snapshot dictionaries into transport-neutral Shared messages
+  and models.
 - `Consolidator.Analyzer` receives current and reference stereo signals and
   publishes spectrum curves and their difference. Curve delivery is scheduled
   on the Max main thread with a Min `queue<>` immediately after an FFT frame is
   completed; do not poll Analyzer with `qmetro` or an `analyzer.publish`
-  message. Disabling `analyzer.difference` resets its difference smoothing;
+  message. FFT size, spectrum smoothing, calibration, tilt, dB bounds, and
+  related numeric analysis defaults come only from
+  `Consolidator.Shared/Settings/GlobalSettings.h`; Analyzer exposes no Max
+  attributes for them. Disabling `analyzer.difference` resets its difference smoothing;
   the Approximator feature also clears the retained fit curve and the
   Spectrum difference layer so stale data cannot remain ready or visible.
   Analyzer receives filter definitions and the complete atomic EqStorage
@@ -176,6 +210,9 @@ EqStorage must synchronously initialize at least bank 1 before handling any
 After persistent state replaces the in-memory dictionary, EqStorage must
 backfill every already registered Filter into every bank before publishing the
 restored snapshot; runtime filter definitions are preserved across recall.
+When it receives `system.start`, EqStorage must republish the selected-bank
+event after restoring Filters. This gives Approximator a valid bank ID after
+the startup barrier even when it was not available during persistence recall.
 
 `Max/Config/FilterConfig.json` is the source of truth for filter contracts and
 startup UI configuration. `Max/Features/Filter/FilterConfig.maxpat` loads that JSON at
@@ -243,11 +280,11 @@ Shared protocol infrastructure lives in `Max/Features/Shared/JS/Messages/`.
 `MessageFactory` is the only JS factory boundary. Legacy per-command message
 classes and `MessageCodec` are not part of the project.
 
-Native message payloads are declared as value types in
-`Consolidator.EqCore/TypedMessages.h`. Each type owns its stable protocol type
-name and `from_envelope` deserializer. Components dispatch the registered
-types through `protocol::dispatch` and implement small typed handler overloads;
-do not add selector chains that parse payload fields inside `envelope_message`.
+Native message payloads are declared as typed contracts in
+`Consolidator.Shared/Messaging/Messages/`. `MessageRegistry` is the single
+native registration point. Max dictionary conversion happens only in
+`Consolidator.MaxAdapter`; components consume typed messages and must not parse
+payload fields inside their envelope handlers.
 Storage rows are ordinary EQ banks with one-based IDs. Bank 1 is the initial
 bank created at startup; new rows are appended at 2, 3, 4 and so on. The
 user-facing list and all storage and protocol messages use this same ID.
@@ -314,7 +351,7 @@ between a Max control, Filter controller, and `consolidator.filter.js` use
 normalized `0..1`. Contract ranges define that private conversion. NLopt may
 use unit solver coordinates internally, but those coordinates never enter an
 envelope, snapshot, status, or persisted state. Supported parameter scales are
-`linear`, `logarithmic`, and `discrete`.
+`linear` and `logarithmic`.
 
 For `tilt`, the frequency parameter is named `pivot` everywhere. Do not
 introduce a second name such as `freq` for that parameter.
@@ -332,7 +369,7 @@ contract parameter `freq` or `pivot`. Do not emit `freq` as a UI control ID.
    call `assist()` with the same contract.
 2. Keep command routing explicit. Do not infer command meaning from argument
    count, value ranges, outlet position, or undocumented fallback behavior.
-3. Keep shared EQ DSP math in `Consolidator.EqCore`. Analyzer, EqChain, and
+3. Keep shared EQ DSP math in `Consolidator.Shared`. Analyzer, EqChain, and
    Approximator must use the same filter formulas, frequency grid, and
    sample-rate assumptions. `consolidator.filter.js` performs only normalized control-range
    conversion from the same JSON contract; it does not implement DSP math.
@@ -398,9 +435,10 @@ as `filter.changed` and must not be tied to implementation class names.
 `source` is always the feature that emitted the envelope. `target` is a feature
 address or the literal `broadcast`; it is never an entity ID. Entity IDs,
 including `filterId`, belong in `payload`. `MessageFactory` is the only factory
-boundary in JavaScript; native components use the matching `MessageEnvelope`
-and factory in `EqCore`. Max transports the envelope as
-`message <temporary-dictionary-name>`; the dictionary name is opaque transport
+boundary in JavaScript; native components use the matching Shared
+`MessageEnvelope` and `MessageFactory`. Max transports the envelope as
+`message <temporary-dictionary-name>` through `Consolidator.MaxAdapter`; the
+dictionary name is opaque transport
 data and must never be routed or inspected by a component. Audio and high-rate
 DSP buffers remain outside this protocol.
 Components ignore broadcast envelopes unless their documented command contract
@@ -410,7 +448,8 @@ generic request for every feature.
 Stable flow contracts are:
 
 - `system.status` carries `feature`, `state`, and an optional entity ID;
-  `system.start` is the one startup broadcast.
+  `system.start` is the one startup broadcast and is represented by the
+  registered Shared `SystemStartMessage` contract.
 - `filter.define` carries `filterId`, `contractName`, absolute
   `defaultValues`, and `defaultBypass`.
 - `filter.restore` carries `filterId`, absolute `values`, and `bypass`; Filter

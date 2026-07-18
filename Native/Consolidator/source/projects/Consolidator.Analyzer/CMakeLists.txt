@@ -19,11 +19,9 @@ include_directories(
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
     AnalyzerFrameBuffer.h
-    AnalyzerStatistics.h
     AnalyzerCurveBatch.h
     AnalyzerFilterVisuals.h
     AnalyzerSpectrumEngine.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../ThirdParty/KissFFT/kiss_fft.c
 )
 
 set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.analyzer" CACHE STRING "The name to give to the external output file/directory" FORCE)
@@ -36,12 +34,8 @@ add_library(
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        Consolidator.EqCore
-)
-
-target_include_directories(${PROJECT_NAME}
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../ThirdParty/KissFFT
+        Consolidator.Shared
+        Consolidator.MaxAdapter
 )
 
 if (MSVC)

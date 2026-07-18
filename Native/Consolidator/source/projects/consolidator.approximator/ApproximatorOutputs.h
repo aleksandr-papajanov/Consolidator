@@ -1,113 +1,60 @@
 #pragma once
 
 #include "c74_min.h"
+#include "MaxMessageAdapter.h"
+#include "Messaging/MessageFactory.h"
+#include "Messaging/Messages/FilterApplyMessage.h"
+#include "Models/FilterDefinition.h"
+#include "Models/FilterState.h"
 
-#include "FilterContract.h"
-#include "FilterRegistry.h"
-#include "FilterSpec.h"
-#include "MessageEnvelope.h"
-#include "TypedMessages.h"
+#include <map>
+#include <vector>
 
 class ApproximatorOutputs {
 public:
+    using Definitions = std::map<long, consolidator::models::FilterDefinition>;
+
     ApproximatorOutputs(
-        c74::min::outlet<>& commands_out,
-        c74::min::outlet<>& status_out,
-        c74::min::outlet<>& debug_out
-    ) :
-        commands_out_(commands_out),
-        status_out_(status_out),
-        debug_out_(debug_out) {
-    }
+        c74::min::outlet<>& commands,
+        c74::min::outlet<>& status,
+        c74::min::outlet<>& debug
+    ) : commands(commands), status(status), debug(debug) {}
 
-    void ready(bool available) const {
-        status_out_.send("ready", available ? 1 : 0);
-    }
+    void Ready(bool value) const { status.send("ready", value ? 1 : 0); }
+    void Loss(double value) const { debug.send("loss", value); }
+    void Error(const char* value) const { debug.send("error", value); }
+    void FitStarted() const { debug.send("fit_started"); }
+    void FitFinished() const { debug.send("fit_finished"); }
 
-    void loss(double value) const {
-        debug_out_.send("loss", value);
-    }
-
-    void final_loss(double value) const {
-        debug_out_.send("final_loss", value);
-    }
-
-    void bell_done(int bell_index, double value) const {
-        debug_out_.send("bell_done", bell_index, value);
-    }
-
-    void error(const char* message) const {
-        debug_out_.send("error", message);
-    }
-
-    void FitStarted() const {
-        debug_out_.send("fit_started");
-    }
-
-    void FitFinished() const {
-        debug_out_.send("fit_finished");
-    }
-
-    void FitResultSizeMismatch() const {
-        debug_out_.send("error", "fit_result_size_mismatch");
-    }
-
-    void cleared() const {
-        debug_out_.send("cleared");
-    }
-
-    void send_filter_commands(
-        const FilterRegistry& registry,
+    void SendFilterCommands(
+        const Definitions& definitions,
         const std::vector<double>& solverValues,
-        const long bankIndex
+        long bankIndex
     ) const {
-        std::size_t expected_count = 0;
-        for (const auto& contract_opt : registry.all()) {
-            if (contract_opt) {
-                expected_count += contract_opt->parameters.size();
+        std::size_t offset = 0;
+        for (const auto& [filterId, definition] : definitions) {
+            consolidator::models::FilterState state;
+            state.filterId = filterId;
+            state.bankIndex = bankIndex;
+            state.bypass = false;
+            state.values.reserve(definition.parameters.size());
+            for (const auto& parameter : definition.parameters) {
+                if (offset >= solverValues.size()) {
+                    Error("fit_result_size_mismatch");
+                    return;
+                }
+                state.values.push_back(parameter.range.Denormalize(solverValues[offset++]));
             }
+            const auto envelope = consolidator::messaging::MessageFactory::Create<
+                consolidator::messaging::FilterApplyMessage>(
+                    "approximator", "filter", std::move(state));
+            commands.send("message", consolidator::maxadapter::MaxMessageAdapter::Serialize(envelope));
         }
-        if (solverValues.size() != expected_count) {
-            FitResultSizeMismatch();
-            return;
-        }
-
-        std::size_t value_offset = 0;
-        for (const auto& contract_opt : registry.all()) {
-            if (!contract_opt) {
-                continue;
-            }
-
-            const auto& contract = *contract_opt;
-            const auto count = contract.parameters.size();
-            const std::vector<double> values(
-                solverValues.begin() + value_offset,
-                solverValues.begin() + value_offset + count);
-            send_filter(contract, values, bankIndex);
-            value_offset += count;
-        }
+        if (offset != solverValues.size()) Error("fit_result_size_mismatch");
     }
 
 private:
-    void send_filter(
-        const FilterContract& contract,
-        const std::vector<double>& values,
-        const long bankIndex
-    ) const {
-        std::vector<double> absoluteValues;
-        absoluteValues.reserve(values.size());
-        for (std::size_t index = 0; index < values.size(); ++index) {
-            absoluteValues.push_back(denormalize_parameter(
-                contract.parameters[index].range, values[index]));
-        }
-
-        const consolidator::protocol::FilterApplyMessage command{
-            contract.slot, absoluteValues, bankIndex };
-        const auto message = command.to_envelope();
-        commands_out_.send("message", message.transport_atom());
-    }
-
-    c74::min::outlet<>& commands_out_;
-    c74::min::outlet<>& status_out_;
-    c74::min::outlet<>& debug_out_;
+    c74::min::outlet<>& commands;
+    c74::min::outlet<>& status;
+    c74::min::outlet<>& debug;
 };

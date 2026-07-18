@@ -1,165 +1,158 @@
 #pragma once
 
 #include "c74_min.h"
+#include "DSP/Curve/Curve.h"
+#include "Settings/GlobalSettings.h"
 
 #include <algorithm>
-#include <array>
-#include <cmath>
-#include <vector>
 
 class AnalyzerCurveBatch {
 public:
-    static constexpr int max_output_points = 1024;
-
-    int prepare(int bins_out) {
-        if (last_pending_count_ != bins_out) {
-            smoothing_initialized_ = false;
-            difference_smoothing_initialized_ = false;
-            last_pending_count_ = bins_out;
+    int Prepare(int binsOut = static_cast<int>(consolidator::settings::GlobalSettings::DefaultCurvePointCount)) {
+        if (lastPendingCount != binsOut) {
+            ResetCurves(binsOut);
+            smoothingInitialized = false;
+            differenceSmoothingInitialized = false;
+            lastPendingCount = binsOut;
         }
 
-        const int previous_pending_count = pending_count_;
-        pending_count_ = bins_out;
+        const int previousPendingCount = pendingCount;
+        pendingCount = binsOut;
 
-        return previous_pending_count;
+        return previousPendingCount;
     }
 
-    void store_bin(
-        int output_index,
-        int previous_pending_count,
-        double raw_current_db,
-        double raw_reference_db,
-        double smoothing,
-        double low_frequency_amount,
-        double spectrum_calibration_db,
-        double spectrum_tilt_db
+    void StoreBin(
+        int outputIndex,
+        int previousPendingCount,
+        double rawCurrentDb,
+        double rawReferenceDb,
+        double smoothing = consolidator::settings::GlobalSettings::DefaultSpectrumSmoothing,
+        double lowFrequencyAmount = consolidator::settings::GlobalSettings::DefaultLowFrequencySmoothing,
+        double spectrumCalibrationDb = consolidator::settings::GlobalSettings::DefaultSpectrumCalibrationDb,
+        double spectrumTiltDb = consolidator::settings::GlobalSettings::DefaultSpectrumTiltDb
     ) {
-        const double tilt_weight = spectrum_tilt_weight(output_index);
-        const double tilt_offset = spectrum_tilt_db * tilt_weight;
-        const double current_db = std::clamp(raw_current_db + spectrum_calibration_db + tilt_offset, -120.0, 48.0);
-        const double reference_db = std::clamp(raw_reference_db + spectrum_calibration_db + tilt_offset, -120.0, 48.0);
-        const double difference_db = std::clamp(raw_reference_db - raw_current_db, -60.0, 60.0);
-        const double adaptive_smoothing = frequency_dependent_smoothing(
-            output_index,
+        const double tiltWeight = consolidator::dsp::Curve::HighFrequencyWeight(
+            static_cast<std::size_t>(outputIndex),
+            static_cast<std::size_t>(pendingCount));
+        const double tiltOffset = spectrumTiltDb * tiltWeight;
+        const double currentDb = std::clamp(rawCurrentDb + spectrumCalibrationDb + tiltOffset,
+            consolidator::settings::GlobalSettings::MinimumSpectrumDb,
+            consolidator::settings::GlobalSettings::MaximumSpectrumDb);
+        const double referenceDb = std::clamp(rawReferenceDb + spectrumCalibrationDb + tiltOffset,
+            consolidator::settings::GlobalSettings::MinimumSpectrumDb,
+            consolidator::settings::GlobalSettings::MaximumSpectrumDb);
+        const double differenceDb = std::clamp(rawReferenceDb - rawCurrentDb,
+            consolidator::settings::GlobalSettings::MinimumDifferenceDb,
+            consolidator::settings::GlobalSettings::MaximumDifferenceDb);
+        const double adaptiveSmoothing = consolidator::dsp::Curve::FrequencyDependentSmoothing(
+            static_cast<std::size_t>(outputIndex),
+            static_cast<std::size_t>(pendingCount),
             smoothing,
-            low_frequency_amount);
+            lowFrequencyAmount);
 
-        if (!smoothing_initialized_ || output_index >= previous_pending_count) {
-            smoothed_current_[output_index] = current_db;
-            smoothed_reference_[output_index] = reference_db;
+        if (!smoothingInitialized || outputIndex >= previousPendingCount) {
+            smoothedCurrent.SetValue(outputIndex, currentDb);
+            smoothedReference.SetValue(outputIndex, referenceDb);
         }
         else {
-            smoothed_current_[output_index] =
-                smooth_toward(smoothed_current_[output_index], current_db, adaptive_smoothing);
-
-            smoothed_reference_[output_index] =
-                smooth_toward(smoothed_reference_[output_index], reference_db, adaptive_smoothing);
+            smoothedCurrent.SmoothValue(outputIndex, currentDb, adaptiveSmoothing);
+            smoothedReference.SmoothValue(outputIndex, referenceDb, adaptiveSmoothing);
         }
 
-        if (!difference_smoothing_initialized_ || output_index >= previous_pending_count) {
-            smoothed_difference_[output_index] = difference_db;
+        if (!differenceSmoothingInitialized || outputIndex >= previousPendingCount) {
+            smoothedDifference.SetValue(outputIndex, differenceDb);
         }
         else {
-            smoothed_difference_[output_index] =
-                smooth_toward(smoothed_difference_[output_index], difference_db, adaptive_smoothing);
+            smoothedDifference.SmoothValue(outputIndex, differenceDb, adaptiveSmoothing);
         }
 
-        pending_current_[output_index] = smoothed_current_[output_index];
-        pending_reference_[output_index] = smoothed_reference_[output_index];
-        pending_difference_[output_index] = smoothed_difference_[output_index];
+        pendingCurrent.SetValue(outputIndex, smoothedCurrent.Values().at(outputIndex));
+        pendingReference.SetValue(outputIndex, smoothedReference.Values().at(outputIndex));
+        pendingDifference.SetValue(outputIndex, smoothedDifference.Values().at(outputIndex));
     }
 
-    void finalize_frame() {
-        smoothing_initialized_ = true;
-        difference_smoothing_initialized_ = true;
-        has_pending_ = true;
+    void FinalizeFrame() {
+        smoothingInitialized = true;
+        differenceSmoothingInitialized = true;
+        hasPending = true;
     }
 
     void ResetDifference() {
-        difference_smoothing_initialized_ = false;
+        differenceSmoothingInitialized = false;
     }
 
-    void clear_pending() {
-        has_pending_ = false;
+    void ClearPending() {
+        hasPending = false;
     }
 
-    bool has_pending() const {
-        return has_pending_;
+    bool HasPending() const {
+        return hasPending;
     }
 
-    int pending_count() const {
-        return pending_count_;
+    int PendingCount() const {
+        return pendingCount;
     }
 
-    void send(
-        c74::min::outlet<>& current_out,
-        c74::min::outlet<>& reference_out,
-        c74::min::outlet<>& difference_out,
-        bool send_difference,
-        const std::vector<double>& selectedPrefixCurve
+    void Send(
+        c74::min::outlet<>& currentOut,
+        c74::min::outlet<>& referenceOut,
+        c74::min::outlet<>& differenceOut,
+        bool sendDifference,
+        const consolidator::dsp::Curve& selectedPrefixCurve
     ) const {
-        c74::min::atoms current_atoms;
-        c74::min::atoms reference_atoms;
-        c74::min::atoms difference_atoms;
+        c74::min::atoms currentAtoms;
+        c74::min::atoms referenceAtoms;
+        c74::min::atoms differenceAtoms;
+        const auto& current = pendingCurrent.Values();
+        const auto& reference = pendingReference.Values();
+        const auto& difference = pendingDifference.Values();
+        const auto& eqCurve = selectedPrefixCurve.Values();
 
-        for (int i = 0; i < pending_count_; ++i) {
-            const auto eqOffset = i < static_cast<int>(selectedPrefixCurve.size())
-                ? selectedPrefixCurve[static_cast<std::size_t>(i)]
+        for (int i = 0; i < pendingCount; ++i) {
+            const auto eqOffset = i < static_cast<int>(eqCurve.size())
+                ? eqCurve[static_cast<std::size_t>(i)]
                 : 0.0;
-            current_atoms.push_back(pending_current_[i] + eqOffset);
-            reference_atoms.push_back(pending_reference_[i]);
-            difference_atoms.push_back(pending_difference_[i] - eqOffset);
+            currentAtoms.push_back(current[static_cast<std::size_t>(i)] + eqOffset);
+            referenceAtoms.push_back(reference[static_cast<std::size_t>(i)]);
+            differenceAtoms.push_back(difference[static_cast<std::size_t>(i)] - eqOffset);
         }
 
-        current_out.send(current_atoms);
-        reference_out.send(reference_atoms);
-        if (send_difference) {
-            difference_out.send(difference_atoms);
+        currentOut.send(currentAtoms);
+        referenceOut.send(referenceAtoms);
+        if (sendDifference) {
+            differenceOut.send(differenceAtoms);
         }
     }
 
 private:
-    static double smooth_toward(double current, double target, double smoothing) {
-        return current * smoothing + target * (1.0 - smoothing);
+    static consolidator::dsp::Curve MakeCurve(
+        int pointCount = static_cast<int>(consolidator::settings::GlobalSettings::DefaultCurvePointCount)
+    ) {
+        auto settings = consolidator::dsp::CurveSettings{};
+        settings.pointCount = static_cast<std::size_t>(pointCount);
+        return consolidator::dsp::Curve{ settings };
     }
 
-    double frequency_dependent_smoothing(
-        int output_index,
-        double smoothing,
-        double low_frequency_amount
-    ) const {
-        if (pending_count_ <= 1) {
-            return smoothing;
-        }
-
-        const double normalized = static_cast<double>(output_index) / static_cast<double>(pending_count_ - 1);
-        const double low_frequency_weight = std::pow(std::max(0.0, 1.0 - normalized), 2.5);
-        const double low_frequency_target = 0.9997;
-        const double boosted = smoothing +
-            (low_frequency_target - smoothing) * low_frequency_amount * low_frequency_weight;
-
-        return std::clamp(boosted, 0.0, 0.9997);
+    void ResetCurves(int pointCount) {
+        pendingCurrent = MakeCurve(pointCount);
+        pendingReference = MakeCurve(pointCount);
+        pendingDifference = MakeCurve(pointCount);
+        smoothedCurrent = MakeCurve(pointCount);
+        smoothedReference = MakeCurve(pointCount);
+        smoothedDifference = MakeCurve(pointCount);
     }
 
-    double spectrum_tilt_weight(int output_index) const {
-        if (pending_count_ <= 1) {
-            return 0.0;
-        }
+    consolidator::dsp::Curve pendingCurrent;
+    consolidator::dsp::Curve pendingReference;
+    consolidator::dsp::Curve pendingDifference;
+    consolidator::dsp::Curve smoothedCurrent;
+    consolidator::dsp::Curve smoothedReference;
+    consolidator::dsp::Curve smoothedDifference;
 
-        const double normalized = static_cast<double>(output_index) / static_cast<double>(pending_count_ - 1);
-        return std::pow(std::max(0.0, normalized), 1.35);
-    }
-
-    std::array<double, max_output_points> pending_current_{};
-    std::array<double, max_output_points> pending_reference_{};
-    std::array<double, max_output_points> pending_difference_{};
-    std::array<double, max_output_points> smoothed_current_{};
-    std::array<double, max_output_points> smoothed_reference_{};
-    std::array<double, max_output_points> smoothed_difference_{};
-
-    int pending_count_ = 0;
-    int last_pending_count_ = 0;
-    bool has_pending_ = false;
-    bool smoothing_initialized_ = false;
-    bool difference_smoothing_initialized_ = false;
+    int pendingCount = 0;
+    int lastPendingCount = 0;
+    bool hasPending = false;
+    bool smoothingInitialized = false;
+    bool differenceSmoothingInitialized = false;
 };

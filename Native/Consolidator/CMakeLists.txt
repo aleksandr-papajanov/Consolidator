@@ -55,10 +55,9 @@ endif ()
 # Misc setup and subroutines
 include(${CMAKE_CURRENT_SOURCE_DIR}/Source/min-api/script/min-package.cmake)
 
-# Shared EQ math used by multiple projects.
-if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.EqCore/CMakeLists.txt")
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.EqCore)
-endif ()
+# Shared native foundation and Max transport adapters used by multiple projects.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.Shared)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.MaxAdapter)
 
 # Add the Lib, if it exists
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/min-lib/CMakeLists.txt")
@@ -68,7 +67,8 @@ endif ()
 # Generate a project for every folder in the "Source/Projects" folder
 SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects)
 foreach (project_dir ${PROJECT_DIRS})
-    if (project_dir STREQUAL "Consolidator.EqCore")
+    if (project_dir STREQUAL "Consolidator.Shared" OR
+        project_dir STREQUAL "Consolidator.MaxAdapter")
         continue()
     endif ()
 

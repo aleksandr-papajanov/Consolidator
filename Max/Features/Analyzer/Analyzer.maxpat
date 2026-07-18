@@ -97,7 +97,7 @@
 					"numoutlets" : 7,
 					"outlettype" : [ "", "", "", "", "", "", "" ],
 					"patching_rect" : [ 315.0, 330.0, 520.249999999999886, 36.0 ],
-					"text" : "consolidator.analyzer @fftsize 8096 @smoothing 0.4 @lowfreqsmoothing 1 @spectrumcalibrationdb 30 @spectrumtiltdb 24"
+					"text" : "consolidator.analyzer"
 				}
 
 			}

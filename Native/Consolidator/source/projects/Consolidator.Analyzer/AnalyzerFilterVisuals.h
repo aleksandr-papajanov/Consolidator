@@ -1,126 +1,47 @@
 #pragma once
 
-#include "FilterContractDictionary.h"
-#include "FilterSpec.h"
-#include "TypedMessages.h"
+#include "DSP/Curve/Curve.h"
+#include "DSP/Eq/EqFilterFactory.h"
+#include "DSP/Eq/EqState.h"
+#include "Models/EqSnapshot.h"
+#include "Models/FilterDefinition.h"
+#include "Settings/GlobalSettings.h"
 
-#include <array>
-#include <cctype>
-#include <map>
+#include "c74_min.h"
+
 #include <string>
 #include <vector>
 
 class AnalyzerFilterVisuals {
 public:
     void SetSampleRate(double sampleRate) {
-        sampleRate_ = sampleRate;
+        this->sampleRate = sampleRate;
     }
 
-    bool Define(const consolidator::protocol::FilterDefineMessage& message) {
-        FilterContract contract;
-        std::array<double, 4> color{ 1.0, 1.0, 1.0, 1.0 };
-
-        if (!message.contractName.empty()) {
-            const c74::min::dict configuration{ c74::min::symbol(message.contractName.c_str()) };
-            const auto atom = c74::min::atom{ static_cast<c74::max::t_object*>(configuration) };
-            if (!parse_filter_contract_dictionary_for_slot(
-                    contract, atom, static_cast<int>(message.filterId))) {
-                return false;
-            }
-            color = ReadColor(atom, message.filterId);
-        }
-        else {
-            if (!dictionary_atom(message.contract)) return false;
-            c74::min::dict definition{ message.contract };
-            if (!parse_filter_contract_definition(contract, definition)) return false;
-            contract.slot = static_cast<int>(message.filterId);
-        }
-
-        filters_[message.filterId] = VisualFilter{ contract, color };
-        return true;
+    void Define(consolidator::models::FilterDefinition definition) {
+        state.Define(std::move(definition));
     }
 
-    bool SetSnapshot(const consolidator::protocol::EqStorageSnapshotMessage& message) {
-        std::map<long, EqBank> nextBanks;
-        const long nextSelectedBankId = message.selectedBankId;
-        snapshotError_ = "unknown";
-        c74::min::dict snapshot;
-        try {
-            snapshot = c74::min::dict{ c74::min::symbol(message.snapshotName.c_str()) };
-            if (!snapshot.valid()) {
-                snapshotError_ = "dictionary_not_found";
-                return false;
-            }
-        }
-        catch (...) {
-            snapshotError_ = "dictionary_not_found";
+    bool SetSnapshot(consolidator::models::EqSnapshot snapshot) {
+        if (!snapshot.SelectedBank()) {
+            snapshotError = "selected_bank_not_found";
             return false;
         }
-        c74::min::dict sourceBanks;
-        try {
-            sourceBanks = c74::min::dict{ static_cast<c74::min::atom>(snapshot.at("banks")) };
-            if (!sourceBanks.valid()) {
-                snapshotError_ = "invalid_banks_dictionary";
-                return false;
-            }
-        }
-        catch (...) {
-            snapshotError_ = "invalid_banks_dictionary";
-            return false;
-        }
-
-        try {
-            for (const auto& bankSymbol : sourceBanks.keys()) {
-                const auto bankId = std::stol(static_cast<const char* const>(bankSymbol));
-                c74::min::dict sourceBank{ static_cast<c74::min::atom>(sourceBanks.at(bankSymbol)) };
-                c74::min::dict sourceFilters{ static_cast<c74::min::atom>(sourceBank.at("filters")) };
-                auto& bank = nextBanks[bankId];
-                for (const auto& filterSymbol : sourceFilters.keys()) {
-                    const auto filterId = std::stol(static_cast<const char* const>(filterSymbol));
-                    c74::min::dict sourceFilter{
-                        static_cast<c74::min::atom>(sourceFilters.at(filterSymbol)) };
-                    const auto values = static_cast<std::vector<c74::min::number>>(
-                        sourceFilter.at("values"));
-                    bool bypassed = false;
-                    try {
-                        bypassed = static_cast<double>(
-                            static_cast<c74::min::atom>(sourceFilter.at("bypass"))) != 0.0;
-                    }
-                    catch (...) {
-                    }
-                    bank.filters[filterId] = StoredFilter{
-                        std::vector<double>(values.begin(), values.end()), bypassed };
-                }
-            }
-        }
-        catch (...) {
-            snapshotError_ = "invalid_bank_contents";
-            return false;
-        }
-
-        if (nextBanks.find(nextSelectedBankId) == nextBanks.end()) {
-            snapshotError_ = "selected_bank_not_found";
-            return false;
-        }
-        selectedBankId_ = nextSelectedBankId;
-        banks_ = std::move(nextBanks);
-        snapshotError_.clear();
+        state.SetSnapshot(std::move(snapshot));
+        snapshotError.clear();
         return true;
     }
 
     const std::string& SnapshotError() const {
-        return snapshotError_;
+        return snapshotError;
     }
 
     void PublishSelected(c74::min::outlet<>& outlet) const {
-        const auto selected = banks_.find(selectedBankId_);
-        for (const auto& [filterId, visual] : filters_) {
-            const StoredFilter* state = nullptr;
-            if (selected != banks_.end()) {
-                const auto stored = selected->second.filters.find(filterId);
-                if (stored != selected->second.filters.end()) state = &stored->second;
-            }
-            PublishFilter(filterId, visual, state, outlet);
+        const auto& snapshot = state.Snapshot();
+        const auto selected = snapshot.SelectedBank();
+        for (const auto& [filterId, definition] : state.Definitions()) {
+            const auto filter = selected ? selected->FindFilter(filterId) : nullptr;
+            PublishFilter(definition, filter, outlet);
         }
     }
 
@@ -132,148 +53,109 @@ public:
         SendCurve(SumSelectedBank(), outlet);
     }
 
-    std::vector<double> SelectedPrefixCurve() const {
+    consolidator::dsp::Curve SelectedPrefixCurve() const {
         return SumBanks(true);
     }
 
 private:
-    struct VisualFilter {
-        FilterContract contract;
-        std::array<double, 4> color{ 1.0, 1.0, 1.0, 1.0 };
-    };
-
-    struct StoredFilter {
-        std::vector<double> values;
-        bool bypassed = false;
-    };
-
-    struct EqBank {
-        std::map<long, StoredFilter> filters;
-    };
+    using EqBank = consolidator::models::EqBank;
+    using FilterState = consolidator::models::FilterState;
+    using FilterDefinition = consolidator::models::FilterDefinition;
 
     void PublishFilter(
-        long filterId,
-        const VisualFilter& visual,
-        const StoredFilter* state,
+        const FilterDefinition& definition,
+        const FilterState* state,
         c74::min::outlet<>& outlet
     ) const {
-        const bool active = state && !state->bypassed &&
-            AbsoluteValuesMatchContract(visual.contract, state->values);
-        const auto values = state && AbsoluteValuesMatchContract(visual.contract, state->values)
-            ? state->values
-            : DefaultAbsoluteValues(visual.contract);
-        const auto spec = AbsoluteValuesToSpec(visual.contract, values);
-        const auto frequencies = make_eq_curve_frequency_grid();
-        std::vector<double> curve(frequencies.size(), 0.0);
-        if (active) {
-            for (std::size_t index = 0; index < frequencies.size(); ++index) {
-                curve[index] = filter_response_db(spec, frequencies[index], sampleRate_);
-            }
-        }
+        const bool active = state && !state->bypass;
+        const auto values = state ? state->values : definition.DefaultValues();
+        auto curve = BuildFilterCurve(definition, values, active);
 
-        double q = 0.0;
-        double qMin = 0.0;
-        double qMax = 0.0;
-        for (const auto& parameter : visual.contract.parameters) {
-            if (parameter.name == "q") {
-                q = spec.q;
-                qMin = parameter.range.min_value;
-                qMax = parameter.range.max_value;
-            }
-        }
+        const auto frequencyName = definition.type == consolidator::models::FilterType::Tilt
+            ? "pivot" : "freq";
+        const double frequency = definition.Value(values, frequencyName,
+            consolidator::settings::GlobalSettings::DefaultFrequencyHz);
+        const double gain = definition.Value(values, "gain", 0.0);
+        const auto qParameter = definition.FindParameter("q");
+        const double q = definition.Value(values, "q", 0.0);
+        const double qMinimum = qParameter ? qParameter->range.minimum : 0.0;
+        const double qMaximum = qParameter ? qParameter->range.maximum : 0.0;
 
         c74::min::atoms output;
-        output.reserve(13 + curve.size());
+        output.reserve(13 + curve.Values().size());
         output.push_back("filter_curve");
-        output.push_back(filterId);
+        output.push_back(definition.filterId);
         output.push_back(active ? 1 : 0);
-        for (const auto component : visual.color) output.push_back(component);
-        output.push_back(visual.contract.type == FilterType::tilt ? spec.pivotHz : spec.freqHz);
-        output.push_back(spec.gainDb);
-        output.push_back(filter_type_name(visual.contract.type));
+        for (const auto component : definition.color) output.push_back(component);
+        output.push_back(frequency);
+        output.push_back(gain);
+        output.push_back(std::string{ consolidator::models::FilterTypeName(definition.type) });
         output.push_back(q);
-        output.push_back(qMin);
-        output.push_back(qMax);
-        for (const auto value : curve) output.push_back(value);
+        output.push_back(qMinimum);
+        output.push_back(qMaximum);
+        for (const auto value : curve.Values()) output.push_back(value);
         outlet.send(output);
     }
 
-    std::vector<double> SumBanks(bool stopAtSelected) const {
-        const auto frequencies = make_eq_curve_frequency_grid();
-        std::vector<double> result(frequencies.size(), 0.0);
-        for (const auto& [bankId, bank] : banks_) {
-            if (stopAtSelected && bankId > selectedBankId_) break;
-            AddBank(bank, frequencies, result);
+    consolidator::dsp::Curve SumBanks(bool stopAtSelected) const {
+        consolidator::dsp::Curve result;
+        for (const auto& bank : state.Snapshot().banks) {
+            if (stopAtSelected && bank.bankId > state.Snapshot().selectedBankId) break;
+            AddBank(bank, result);
         }
         return result;
     }
 
-    std::vector<double> SumSelectedBank() const {
-        const auto frequencies = make_eq_curve_frequency_grid();
-        std::vector<double> result(frequencies.size(), 0.0);
-        const auto selected = banks_.find(selectedBankId_);
-        if (selected != banks_.end()) AddBank(selected->second, frequencies, result);
+    consolidator::dsp::Curve SumSelectedBank() const {
+        consolidator::dsp::Curve result;
+        if (const auto bank = state.Snapshot().SelectedBank()) {
+            AddBank(*bank, result);
+        }
         return result;
     }
 
     void AddBank(
         const EqBank& bank,
-        const std::vector<double>& frequencies,
-        std::vector<double>& result
+        consolidator::dsp::Curve& result
     ) const {
-        for (const auto& [filterId, state] : bank.filters) {
-            const auto visual = filters_.find(filterId);
-            if (visual == filters_.end() || state.bypassed ||
-                !AbsoluteValuesMatchContract(visual->second.contract, state.values)) {
-                continue;
-            }
-            const auto spec = AbsoluteValuesToSpec(visual->second.contract, state.values);
-            for (std::size_t index = 0; index < frequencies.size(); ++index) {
-                result[index] += filter_response_db(spec, frequencies[index], sampleRate_);
+        for (const auto& filter : bank.filters) {
+            if (filter.bypass) continue;
+            const auto definition = state.Definitions().find(filter.filterId);
+            if (definition == state.Definitions().end()) continue;
+            consolidator::dsp::EqFilterFactory factory{
+                definition->second, filter.values, sampleRate };
+            const auto processor = factory.CreateFilter();
+            if (!processor) continue;
+            for (std::size_t index = 0; index < result.Inputs().size(); ++index) {
+                result.AddValue(index, processor->GetMagnitudeDb(result.Inputs()[index]));
             }
         }
     }
 
-    static void SendCurve(const std::vector<double>& curve, c74::min::outlet<>& outlet) {
+    consolidator::dsp::Curve BuildFilterCurve(
+        const FilterDefinition& definition,
+        const std::vector<double>& values,
+        bool active
+    ) const {
+        consolidator::dsp::Curve result;
+        if (!active) return result;
+        consolidator::dsp::EqFilterFactory factory{ definition, values, sampleRate };
+        const auto processor = factory.CreateFilter();
+        if (!processor) return result;
+        for (std::size_t index = 0; index < result.Inputs().size(); ++index) {
+            result.SetValue(index, processor->GetMagnitudeDb(result.Inputs()[index]));
+        }
+        return result;
+    }
+
+    static void SendCurve(const consolidator::dsp::Curve& curve, c74::min::outlet<>& outlet) {
         c74::min::atoms output;
-        output.reserve(curve.size());
-        for (const auto value : curve) output.push_back(value);
+        output.reserve(curve.Values().size());
+        for (const auto value : curve.Values()) output.push_back(value);
         outlet.send(output);
     }
 
-    std::array<double, 4> ReadColor(const c74::min::atom& configuration, long filterId) const {
-        try {
-            c74::min::dict root{ configuration };
-            c74::min::dict filters{ static_cast<c74::min::atom>(root.at("filters")) };
-            c74::min::dict filter{ static_cast<c74::min::atom>(filters.at(std::to_string(filterId))) };
-            return ParseColor(static_cast<c74::min::atom>(filter.at("color")));
-        }
-        catch (...) {
-            return { 1.0, 1.0, 1.0, 1.0 };
-        }
-    }
-
-    static std::array<double, 4> ParseColor(const c74::min::atom& value) {
-        std::string text;
-        try { text = static_cast<std::string>(value); }
-        catch (...) { return { 1.0, 1.0, 1.0, 1.0 }; }
-        if (!text.empty() && text.front() == '#') text.erase(text.begin());
-        if (text.size() != 6 && text.size() != 8) return { 1.0, 1.0, 1.0, 1.0 };
-        for (const auto character : text) {
-            if (!std::isxdigit(static_cast<unsigned char>(character))) {
-                return { 1.0, 1.0, 1.0, 1.0 };
-            }
-        }
-        const auto component = [&text](std::size_t offset) {
-            return static_cast<double>(std::stoul(text.substr(offset, 2), nullptr, 16)) / 255.0;
-        };
-        return { component(0), component(2), component(4),
-            text.size() == 8 ? component(6) : 1.0 };
-    }
-
-    double sampleRate_ = EqCurveGrid::default_sample_rate;
-    long selectedBankId_ = 0;
-    std::string snapshotError_;
-    std::map<long, EqBank> banks_;
-    std::map<long, VisualFilter> filters_;
+    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
+    consolidator::dsp::EqState state;
+    std::string snapshotError;
 };

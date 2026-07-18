@@ -21,7 +21,8 @@ add_library(
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        Consolidator.EqCore
+        Consolidator.Shared
+        Consolidator.MaxAdapter
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)

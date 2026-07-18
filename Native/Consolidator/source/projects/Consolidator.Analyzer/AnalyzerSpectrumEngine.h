@@ -2,178 +2,132 @@
 
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerCurveBatch.h"
-#include "EqFrequencyGrid.h"
+#include "DSP/Spectrum/FftEngine.h"
+#include "Settings/GlobalSettings.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 #include <vector>
-
-extern "C" {
-#include "kiss_fft.h"
-}
 
 class AnalyzerSpectrumEngine {
 public:
-    void set_sample_rate(double sample_rate) {
-        sample_rate_ = sample_rate;
+    void SetSampleRate(double sampleRate) {
+        this->sampleRate = sampleRate;
     }
 
-    int sanitized_fft_size(int value) const {
-        if (value < 512) {
-            value = 512;
-        }
-
-        if (value > AnalyzerFrameBuffer::max_fft_size) {
-            value = AnalyzerFrameBuffer::max_fft_size;
-        }
-
-        return nearest_power_of_two(value);
-    }
-
-    void analyze(
+    void Analyze(
         const AnalyzerFrameBuffer& frame,
-        int fft_size,
-        int bins_out,
-        double smoothing,
-        double low_frequency_amount,
-        double spectrum_calibration_db,
-        double spectrum_tilt_db,
         AnalyzerCurveBatch& curves
     ) const {
-        const auto reference_spectrum = stereo_magnitude_db(
-            frame.reference_left(),
-            frame.reference_right(),
-            frame.write_index(),
-            fft_size);
+        const int fftSize = static_cast<int>(consolidator::settings::GlobalSettings::DefaultFftSize);
+        const int binsOut = static_cast<int>(consolidator::settings::GlobalSettings::DefaultCurvePointCount);
+        const auto referenceSpectrum = StereoMagnitudeDb(
+            frame.ReferenceLeft(),
+            frame.ReferenceRight(),
+            frame.WriteIndex(),
+            fftSize);
 
-        const auto current_spectrum = stereo_magnitude_db(
-            frame.current_left(),
-            frame.current_right(),
-            frame.write_index(),
-            fft_size);
-        const int previous_pending_count = curves.prepare(bins_out);
+        const auto currentSpectrum = StereoMagnitudeDb(
+            frame.CurrentLeft(),
+            frame.CurrentRight(),
+            frame.WriteIndex(),
+            fftSize);
+        const int previousPendingCount = curves.Prepare();
 
-        for (int i = 0; i < bins_out; ++i) {
-            const int src_index = map_output_bin_to_fft_bin(i, bins_out, fft_size);
+        for (int i = 0; i < binsOut; ++i) {
+            const int sourceIndex = MapOutputBinToFftBin(i, binsOut, fftSize);
 
-            curves.store_bin(
+            curves.StoreBin(
                 i,
-                previous_pending_count,
-                current_spectrum[src_index],
-                reference_spectrum[src_index],
-                smoothing,
-                low_frequency_amount,
-                spectrum_calibration_db,
-                spectrum_tilt_db);
+                previousPendingCount,
+                currentSpectrum[sourceIndex],
+                referenceSpectrum[sourceIndex]);
         }
 
-        curves.finalize_frame();
+        curves.FinalizeFrame();
     }
 
 private:
-    static constexpr double pi = 3.1415926535897932384626433832795;
-
-    static int nearest_power_of_two(int value) {
-        int power = 1;
-
-        while (power * 2 <= value) {
-            power *= 2;
-        }
-
-        return power;
-    }
-
-    static double average_magnitude_db(double left_db, double right_db) {
-        const double left_mag = std::pow(10.0, left_db / 20.0);
-        const double right_mag = std::pow(10.0, right_db / 20.0);
-        const double average_mag = 0.5 * (left_mag + right_mag);
-
-        return 20.0 * std::log10(average_mag + 1e-12);
-    }
-
-    std::vector<double> stereo_magnitude_db(
-        const std::array<double, AnalyzerFrameBuffer::max_fft_size>& left,
-        const std::array<double, AnalyzerFrameBuffer::max_fft_size>& right,
-        int write_index,
-        int fft_size
+    std::vector<double> StereoMagnitudeDb(
+        const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& left,
+        const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& right,
+        int writeIndex,
+        int fftSize
     ) const {
-        const auto left_db = magnitude_db(make_windowed_copy(left, write_index, fft_size), fft_size);
-        const auto right_db = magnitude_db(make_windowed_copy(right, write_index, fft_size), fft_size);
+        const auto leftDb = MagnitudeDb(MakeWindowedCopy(left, writeIndex, fftSize));
+        const auto rightDb = MagnitudeDb(MakeWindowedCopy(right, writeIndex, fftSize));
 
-        std::vector<double> stereo_db(fft_size / 2);
+        std::vector<double> stereoDb(fftSize / 2);
 
-        for (int i = 0; i < fft_size / 2; ++i) {
-            stereo_db[i] = average_magnitude_db(left_db[i], right_db[i]);
+        for (int i = 0; i < fftSize / 2; ++i) {
+            stereoDb[i] = consolidator::audio::StereoSample::FromDecibels(
+                leftDb[i], rightDb[i]).MagnitudeDb();
         }
 
-        return stereo_db;
+        return stereoDb;
     }
 
-    std::vector<double> make_windowed_copy(
-        const std::array<double, AnalyzerFrameBuffer::max_fft_size>& source,
-        int write_index,
-        int fft_size
+    std::vector<double> MakeWindowedCopy(
+        const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& source,
+        int writeIndex,
+        int fftSize
     ) const {
-        std::vector<double> out(fft_size);
-        const int start = write_index;
+        std::vector<double> output(fftSize);
+        const int start = writeIndex;
 
-        for (int i = 0; i < fft_size; ++i) {
-            const int index = (start + i) % fft_size;
-            const double hann = 0.5 * (1.0 - std::cos((2.0 * pi * i) / (fft_size - 1)));
+        for (int i = 0; i < fftSize; ++i) {
+            const int index = (start + i) % fftSize;
+            const double hann = consolidator::settings::GlobalSettings::HannWindowCoefficient * (1.0 - std::cos(
+                (2.0 * std::numbers::pi * i) / (fftSize - 1)));
 
-            out[i] = source[index] * hann;
+            output[i] = source[index] * hann;
         }
 
-        return out;
+        return output;
     }
 
-    std::vector<double> magnitude_db(const std::vector<double>& input, int fft_size) const {
-        kiss_fft_cfg cfg = kiss_fft_alloc(fft_size, 0, nullptr, nullptr);
+    std::vector<double> MagnitudeDb(const std::vector<double>& input) const {
+        const consolidator::dsp::FftEngine engine;
+        const auto output = engine.Forward(input);
 
-        std::vector<kiss_fft_cpx> in(fft_size);
-        std::vector<kiss_fft_cpx> out(fft_size);
+        const int fftSize = static_cast<int>(engine.Size());
+        std::vector<double> decibels(fftSize / 2);
+        const double coherentGain = consolidator::settings::GlobalSettings::HannWindowCoherentGain;
+        const double amplitudeScale = static_cast<double>(fftSize) * coherentGain *
+            consolidator::settings::GlobalSettings::SingleSidedSpectrumScale;
 
-        for (int i = 0; i < fft_size; ++i) {
-            in[i].r = static_cast<kiss_fft_scalar>(input[i]);
-            in[i].i = 0;
+        for (int i = 0; i < fftSize / 2; ++i) {
+            const double re = output[static_cast<std::size_t>(i)].real();
+            const double im = output[static_cast<std::size_t>(i)].imag();
+            const double magnitude = std::sqrt(re * re + im * im);
+
+            decibels[i] = consolidator::helpers::NumericHelper::MagnitudeToDecibels(
+                magnitude / amplitudeScale);
         }
 
-        kiss_fft(cfg, in.data(), out.data());
-        kiss_fft_free(cfg);
-
-        std::vector<double> db(fft_size / 2);
-        const double coherent_gain = 0.5; // Hann window average gain
-        const double amplitude_scale = static_cast<double>(fft_size) * coherent_gain * 0.5;
-
-        for (int i = 0; i < fft_size / 2; ++i) {
-            const double re = out[i].r;
-            const double im = out[i].i;
-            const double mag = std::sqrt(re * re + im * im);
-
-            db[i] = 20.0 * std::log10((mag / amplitude_scale) + 1e-12);
-        }
-
-        return db;
+        return decibels;
     }
 
-    int map_output_bin_to_fft_bin(int i, int bins_out, int fft_size) const {
-        if (bins_out <= 1) {
+    int MapOutputBinToFftBin(int index, int binsOut, int fftSize) const {
+        if (binsOut <= 1) {
             return 0;
         }
 
-        const double normalized = static_cast<double>(i) / static_cast<double>(bins_out - 1);
-        const int max_bin = (fft_size / 2) - 1;
-        const double nyquist = sample_rate_ * 0.5;
-        const double max_frequency = std::max(
-            EqCurveGrid::min_hz,
-            std::min(EqCurveGrid::max_hz, nyquist));
-        const double frequency = EqCurveGrid::min_hz *
-            std::pow(max_frequency / EqCurveGrid::min_hz, normalized);
-        const double mapped_bin = frequency * static_cast<double>(fft_size) / sample_rate_;
+        const double normalized = static_cast<double>(index) / static_cast<double>(binsOut - 1);
+        const int maxBin = (fftSize / 2) - 1;
+        const double nyquist = sampleRate * 0.5;
+        const double maximumFrequency = std::max(
+            consolidator::settings::GlobalSettings::MinimumFrequencyHz,
+            std::min(consolidator::settings::GlobalSettings::MaximumFrequencyHz, nyquist));
+        const double frequencyHz = consolidator::settings::GlobalSettings::MinimumFrequencyHz *
+            std::pow(maximumFrequency /
+                consolidator::settings::GlobalSettings::MinimumFrequencyHz, normalized);
+        const double mappedBin = frequencyHz * static_cast<double>(fftSize) / sampleRate;
 
-        return std::clamp(static_cast<int>(std::round(mapped_bin)), 1, max_bin);
+        return std::clamp(static_cast<int>(std::round(mappedBin)), 1, maxBin);
     }
 
-    double sample_rate_ = EqCurveGrid::default_sample_rate;
+    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
 };

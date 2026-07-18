@@ -127,6 +127,7 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
         if (!this.started) {
             this.started = true;
             this.applySelectedBank();
+            this.publishBankChanged("selected");
             this.publishSnapshot();
         }
         return;
@@ -371,7 +372,9 @@ EqStorage.prototype.sendFilterMessage = function(message) {
 EqStorage.prototype.forwardFilterDefinition = function(outletIndex, target, message) {
     var payload = {
         filterId: Number(message.payload.filterId),
-        contractName: String(message.payload.contractName)
+        contractName: String(message.payload.contractName),
+        defaultValues: message.payload.defaultValues.slice(0),
+        defaultBypass: this.numberOrDefault(message.payload.defaultBypass, 0)
     };
     this.sendEnvelope(outletIndex, MessageEnvelope.create(
         "filter.define", target, payload, "eq.storage"

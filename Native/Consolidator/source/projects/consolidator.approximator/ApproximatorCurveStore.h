@@ -1,84 +1,63 @@
 #pragma once
 
 #include "c74_min.h"
-
-#include "TargetCurve.h"
-#include "EqFrequencyGrid.h"
+#include "DSP/Curve/Curve.h"
+#include "Settings/GlobalSettings.h"
 
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 class ApproximatorCurveStore {
 public:
-    void SetTarget(const c74::min::atoms& args) {
-        AssignCurve(difference_curve_, has_difference_curve_, args);
+    void SetTarget(const c74::min::atoms& values) {
+        hasTarget = Assign(differenceCurve, values);
     }
 
-    void SetCurrentEq(const c74::min::atoms& args) {
-        AssignCurve(current_eq_curve_, has_current_eq_curve_, args);
+    void SetCurrentEq(const c74::min::atoms& values) {
+        hasCurrentEq = Assign(currentEqCurve, values);
     }
 
     void ClearTarget() {
-        difference_curve_ = {};
-        has_difference_curve_ = false;
+        differenceCurve = consolidator::dsp::Curve{};
+        hasTarget = false;
     }
 
     bool HasTarget() const {
-        return has_difference_curve_;
+        return hasTarget;
     }
 
     bool HasCurrentEq() const {
-        return has_current_eq_curve_;
+        return hasCurrentEq;
     }
 
     bool HasCompatibleCurves() const {
-        return has_difference_curve_ &&
-            has_current_eq_curve_ &&
-            difference_curve_.values.size() == current_eq_curve_.values.size();
+        return hasTarget && hasCurrentEq &&
+            differenceCurve.Settings() == currentEqCurve.Settings();
     }
 
-    TargetCurve CombinedCurve() const {
-        if (!has_difference_curve_ || !has_current_eq_curve_) {
-            throw std::runtime_error("missing_curve_input");
-        }
-
-        if (difference_curve_.values.size() != current_eq_curve_.values.size()) {
-            throw std::runtime_error("curve_size_mismatch");
-        }
-
-        TargetCurve result = difference_curve_;
-        for (std::size_t i = 0; i < result.values.size(); ++i) {
-            result.values[i] += current_eq_curve_.values[i];
-        }
-
-        return result;
+    consolidator::dsp::Curve CombinedCurve() const {
+        if (!HasCompatibleCurves()) throw std::runtime_error("missing_or_incompatible_curve_input");
+        return differenceCurve + currentEqCurve;
     }
 
 private:
-    static void AssignCurve(
-        TargetCurve& target,
-        bool& available,
-        const c74::min::atoms& args
-    ) {
-        target.values.clear();
-        target.values.reserve(args.size());
-
-        for (const auto& a : args) {
-            target.values.push_back(static_cast<double>(a));
+    static bool Assign(consolidator::dsp::Curve& curve, const c74::min::atoms& values) {
+        if (values.size() != consolidator::settings::GlobalSettings::DefaultCurvePointCount) {
+            curve = consolidator::dsp::Curve{};
+            return false;
         }
-
-        target.frequencies = make_log_frequency_grid(
-            EqCurveGrid::point_count,
-            EqCurveGrid::min_hz,
-            EqCurveGrid::max_hz);
-        available = args.size() == EqCurveGrid::point_count;
-        if (!available) {
-            target.values.clear();
-            target.frequencies.clear();
+        std::vector<double> curveValues;
+        curveValues.reserve(values.size());
+        for (std::size_t index = 0; index < values.size(); ++index) {
+            curveValues.push_back(static_cast<double>(values[index]));
         }
+        curve = consolidator::dsp::Curve::FromValues(std::move(curveValues));
+        return true;
     }
 
-    TargetCurve difference_curve_;
-    TargetCurve current_eq_curve_;
-    bool has_difference_curve_ = false;
-    bool has_current_eq_curve_ = false;
+    consolidator::dsp::Curve differenceCurve;
+    consolidator::dsp::Curve currentEqCurve;
+    bool hasTarget = false;
+    bool hasCurrentEq = false;
 };

@@ -130,6 +130,7 @@ Filter.prototype.Apply = function(payload) {
         return;
     }
 
+    this.bypassed = Number(payload.bypass) === 1;
     this.PublishChanged(payload.bankIndex);
     this.PublishValues();
 };
@@ -194,8 +195,7 @@ Filter.prototype.ReadParameters = function(definition) {
             scale: String(source.scale || "linear"),
             min: this.Number(source.min, NaN),
             max: this.Number(source.max, NaN),
-            defaultValue: this.Number(source.default, NaN),
-            discreteValues: source.values instanceof Array ? source.values.map(Number) : []
+            defaultValue: this.Number(source.default, NaN)
         };
         this.ValidateParameter(parameter);
         parameters.push(parameter);
@@ -205,20 +205,8 @@ Filter.prototype.ReadParameters = function(definition) {
 
 Filter.prototype.ValidateParameter = function(parameter) {
     if (!isFinite(parameter.defaultValue) ||
-        (parameter.scale !== "linear" && parameter.scale !== "logarithmic" && parameter.scale !== "discrete")) {
+        (parameter.scale !== "linear" && parameter.scale !== "logarithmic")) {
         throw new Error("invalid_filter_parameter");
-    }
-
-    if (parameter.scale === "discrete") {
-        if (parameter.discreteValues.length === 0) {
-            throw new Error("invalid_discrete_parameter");
-        }
-        parameter.min = Math.min.apply(null, parameter.discreteValues);
-        parameter.max = Math.max.apply(null, parameter.discreteValues);
-        if (parameter.discreteValues.indexOf(parameter.defaultValue) < 0) {
-            throw new Error("invalid_discrete_default");
-        }
-        return;
     }
 
     if (!isFinite(parameter.min) || !isFinite(parameter.max) ||
@@ -302,49 +290,24 @@ Filter.prototype.Denormalize = function(parameter, value) {
     if (parameter.scale === "logarithmic") {
         return parameter.min * Math.pow(parameter.max / parameter.min, normalized);
     }
-    if (parameter.scale === "discrete") {
-        var index = Math.round(normalized * (parameter.discreteValues.length - 1));
-        return parameter.discreteValues[index];
-    }
     return parameter.min + normalized * (parameter.max - parameter.min);
 };
 
 Filter.prototype.ClampAbsolute = function(parameter, value) {
-    var clamped = Math.max(parameter.min, Math.min(parameter.max, Number(value)));
-    if (parameter.scale !== "discrete") {
-        return clamped;
-    }
-    var closest = parameter.discreteValues[0];
-    for (var index = 1; index < parameter.discreteValues.length; index++) {
-        if (Math.abs(parameter.discreteValues[index] - clamped) < Math.abs(closest - clamped)) {
-            closest = parameter.discreteValues[index];
-        }
-    }
-    return closest;
+    return Math.max(parameter.min, Math.min(parameter.max, Number(value)));
 };
 
 Filter.prototype.IsAbsoluteValueValid = function(parameter, value) {
     if (!isFinite(value) || value < parameter.min || value > parameter.max) {
         return false;
     }
-    return parameter.scale !== "discrete" || parameter.discreteValues.indexOf(value) >= 0;
+    return true;
 };
 
 Filter.prototype.Normalize = function(parameter, value) {
     var number = Math.max(parameter.min, Math.min(parameter.max, Number(value)));
     if (parameter.scale === "logarithmic") {
         return Math.log(number / parameter.min) / Math.log(parameter.max / parameter.min);
-    }
-    if (parameter.scale === "discrete") {
-        var closest = 0;
-        for (var index = 1; index < parameter.discreteValues.length; index++) {
-            if (Math.abs(parameter.discreteValues[index] - number) <
-                Math.abs(parameter.discreteValues[closest] - number)) {
-                closest = index;
-            }
-        }
-        return parameter.discreteValues.length === 1 ? 0 :
-            closest / (parameter.discreteValues.length - 1);
     }
     return (number - parameter.min) / (parameter.max - parameter.min);
 };
