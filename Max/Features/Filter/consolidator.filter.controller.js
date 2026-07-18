@@ -19,7 +19,6 @@ function FilterFeatureController(slot) {
     };
     this.parameters = [];
     this.bypassed = false;
-    this.instanceRecovered = null;
     this.filterReady = false;
 }
 
@@ -74,7 +73,6 @@ FilterFeatureController.prototype.Configure = function(dictionaryName) {
         this.BuildControls();
         this.ApplyLayout();
         this.SendFilterCommand("define", this.configurationName);
-        this.ApplyPendingInstanceState();
     }
     catch (error) {
         post("FilterFeatureController: invalid_filter_configuration_dictionary\n");
@@ -130,7 +128,6 @@ FilterFeatureController.prototype.BuildControls = function() {
         control.alwaysEnabled = alwaysEnabled;
         control.visible = visible;
         control.enabled = enabled;
-        control.outputValue = this.Number(controlConfiguration.outputValue, 0) === 1;
     }
 };
 
@@ -171,26 +168,6 @@ FilterFeatureController.prototype.ApplyValues = function(values) {
 
     this.bypassed = this.Number(values[this.parameters.length], 0) === 1;
     this.ApplyEnabledState();
-};
-
-FilterFeatureController.prototype.OutputActiveValues = function() {
-    var ids = ["gain", "frequency", "q", "bypass", "reset"];
-    for (var i = 0; i < ids.length; i++) {
-        var state = this.controls[ids[i]];
-        if (state && (state.active || state.outputValue)) {
-            this.SendControl(ids[i], "outputvalue");
-        }
-    }
-};
-
-FilterFeatureController.prototype.ApplyPendingInstanceState = function() {
-    if (this.instanceRecovered === null || !this.filterReady) return;
-
-    if (this.instanceRecovered) this.OutputActiveValues();
-    else {
-        this.SendFilterCommand("reset");
-    }
-    this.instanceRecovered = null;
 };
 
 FilterFeatureController.prototype.SendControl = function(controlId, action, values) {
@@ -245,10 +222,6 @@ FilterFeatureController.prototype.HandleLocalCommand = function(command, values)
         if (!this.configuration || !this.filterReady) return;
         this.SendFilterCommand("update", String(values[0]), Number(values[1]));
     }
-    else if (command === "instance_state" && values.length === 1) {
-        this.instanceRecovered = Number(values[0]) === 1;
-        this.ApplyPendingInstanceState();
-    }
     else if (command === "reset" && values.length === 0) {
         this.SendFilterCommand("reset");
     }
@@ -257,7 +230,6 @@ FilterFeatureController.prototype.HandleLocalCommand = function(command, values)
 FilterFeatureController.prototype.HandleFilterStatus = function(state, values) {
     if (state === "ready") {
         this.filterReady = true;
-        this.ApplyPendingInstanceState();
     }
     else if (state === "values") {
         this.ApplyValues(values);
@@ -268,7 +240,7 @@ var controller = new FilterFeatureController(jsarguments[1]);
 
 function inletassist(index) {
     var descriptions = [
-        "Local UI commands: dictionary, update, instance_state, reset",
+        "Local UI commands: dictionary, update, reset",
         "Filter status and normalized filter values"
     ];
     assist(descriptions[index] || "");
@@ -291,10 +263,6 @@ function dictionary(name) {
 
 function update(control, value) {
     if (inlet === 0) controller.HandleLocalCommand("update", [control, value]);
-}
-
-function instance_state(recovered) {
-    if (inlet === 0) controller.HandleLocalCommand("instance_state", [recovered]);
 }
 
 function reset() {

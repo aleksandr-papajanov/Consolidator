@@ -40,7 +40,7 @@ public:
 
     outlet<> commands_out{
         this,
-        "(message) commands: message <dictionary type=filter.update payload=filterId,values,bankIndex>"
+        "(message) commands: message <dictionary type=filter.apply payload=filterId,values,bankIndex>"
     };
 
     outlet<> status_out{
@@ -188,6 +188,8 @@ private:
 
     void handle_command(const consolidator::protocol::EqStorageBankChangedMessage& command) {
         fitBankIndex = command.bankIndex;
+        curve_store.ClearTarget();
+        update_ready();
     }
 
     void handle_command(const consolidator::protocol::ApproximatorClearMessage&) {
@@ -231,6 +233,7 @@ private:
             }
             join_worker = fit_worker_.joinable();
             fit_running_ = true;
+            activeFitBankIndex = fitBankIndex;
             pending_error_.clear();
             pending_result_.reset();
         }
@@ -282,7 +285,7 @@ private:
 
         if (result) {
             outputs.loss(result->loss);
-            outputs.send_filter_commands(registry_, result->normalized_values, fitBankIndex);
+            outputs.send_filter_commands(registry_, result->solverValues, activeFitBankIndex);
             outputs.FitFinished();
             update_ready();
         }
@@ -298,6 +301,7 @@ private:
     std::string pending_error_;
     bool ready_available_ = false;
     long fitBankIndex = 0;
+    long activeFitBankIndex = 0;
 
     void update_ready() {
         set_ready(

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <vector>
 
 class AnalyzerCurveBatch {
 public:
@@ -94,16 +95,20 @@ public:
         c74::min::outlet<>& current_out,
         c74::min::outlet<>& reference_out,
         c74::min::outlet<>& difference_out,
-        bool send_difference
+        bool send_difference,
+        const std::vector<double>& selectedPrefixCurve
     ) const {
         c74::min::atoms current_atoms;
         c74::min::atoms reference_atoms;
         c74::min::atoms difference_atoms;
 
         for (int i = 0; i < pending_count_; ++i) {
-            current_atoms.push_back(pending_current_[i]);
+            const auto eqOffset = i < static_cast<int>(selectedPrefixCurve.size())
+                ? selectedPrefixCurve[static_cast<std::size_t>(i)]
+                : 0.0;
+            current_atoms.push_back(pending_current_[i] + eqOffset);
             reference_atoms.push_back(pending_reference_[i]);
-            difference_atoms.push_back(pending_difference_[i]);
+            difference_atoms.push_back(pending_difference_[i] - eqOffset);
         }
 
         current_out.send(current_atoms);

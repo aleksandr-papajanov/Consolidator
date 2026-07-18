@@ -6,6 +6,7 @@
 #include "FilterRegistry.h"
 #include "FilterSpec.h"
 #include "MessageEnvelope.h"
+#include "TypedMessages.h"
 
 class ApproximatorOutputs {
 public:
@@ -57,7 +58,7 @@ public:
 
     void send_filter_commands(
         const FilterRegistry& registry,
-        const std::vector<double>& normalized_values,
+        const std::vector<double>& solverValues,
         const long bankIndex
     ) const {
         std::size_t expected_count = 0;
@@ -66,7 +67,7 @@ public:
                 expected_count += contract_opt->parameters.size();
             }
         }
-        if (normalized_values.size() != expected_count) {
+        if (solverValues.size() != expected_count) {
             FitResultSizeMismatch();
             return;
         }
@@ -80,8 +81,8 @@ public:
             const auto& contract = *contract_opt;
             const auto count = contract.parameters.size();
             const std::vector<double> values(
-                normalized_values.begin() + value_offset,
-                normalized_values.begin() + value_offset + count);
+                solverValues.begin() + value_offset,
+                solverValues.begin() + value_offset + count);
             send_filter(contract, values, bankIndex);
             value_offset += count;
         }
@@ -93,12 +94,16 @@ private:
         const std::vector<double>& values,
         const long bankIndex
     ) const {
-        consolidator::protocol::MessageEnvelope message{ std::string{ "filter.update" } };
-        message.set_target("filter");
-        message.set_source("approximator");
-        message.set_payload_number("filterId", contract.slot);
-        message.set_payload_numbers("values", values);
-        message.set_payload_number("bankIndex", bankIndex);
+        std::vector<double> absoluteValues;
+        absoluteValues.reserve(values.size());
+        for (std::size_t index = 0; index < values.size(); ++index) {
+            absoluteValues.push_back(denormalize_parameter(
+                contract.parameters[index].range, values[index]));
+        }
+
+        const consolidator::protocol::FilterApplyMessage command{
+            contract.slot, absoluteValues, bankIndex };
+        const auto message = command.to_envelope();
         commands_out_.send("message", message.transport_atom());
     }
 

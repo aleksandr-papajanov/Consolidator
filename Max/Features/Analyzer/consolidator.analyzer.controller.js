@@ -2,6 +2,10 @@ autowatch = 1;
 inlets = 2;
 outlets = 1;
 
+include("../Shared/JS/DictionaryReader.js");
+include("../Shared/JS/Messages/MessageEnvelope.js");
+include("../Shared/JS/Messages/MessageFactory.js");
+
 // Inlet 0: local SpectrumView envelopes: message <dictionary>.
 // Inlet 1: direct Analyzer status and diagnostics: status <state> or error <code>.
 // Outlet 0: interfeature envelopes: message <dictionary> to BusHub.
@@ -42,6 +46,13 @@ function message() {
     if (inlet === 0 && values.length === 1) {
         outlet(0, "message", values[0]);
     }
+}
+
+function loadbang() {
+    var message = MessageFactory.create(
+        "system.status", "bus.hub", { feature: "analyzer", state: "ready" }, "analyzer");
+    var dictionary = MessageFactory.toMax(message);
+    if (dictionary) outlet(0, "message", dictionary.name);
 }
 
 function anything() {

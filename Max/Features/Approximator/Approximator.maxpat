@@ -108,7 +108,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 540.0, 90.0, 190.0, 22.0 ],
-					"text" : "r ---spectrum.eqcurve.outlet"
+					"text" : "r ---approximator.eqcurve.inlet"
 				}
 
 			}

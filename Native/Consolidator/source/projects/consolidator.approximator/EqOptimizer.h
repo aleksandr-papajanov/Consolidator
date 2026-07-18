@@ -15,7 +15,7 @@
 class EqOptimizer {
 public:
     struct FitResult {
-        std::vector<double> normalized_values;
+        std::vector<double> solverValues;
         double loss = 0.0;
     };
 

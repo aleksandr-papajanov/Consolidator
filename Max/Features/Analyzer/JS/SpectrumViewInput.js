@@ -181,7 +181,7 @@ SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, cap
         this.sendEditMessage(MessageEnvelope.create("filter.edit", "filter", {
             filterId: spectrumState.draggedHandle.slot,
             parameter: "q",
-            value: qNormalized
+            value: q
         }, "spectrum"));
         return;
     }

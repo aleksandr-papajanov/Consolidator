@@ -193,7 +193,10 @@ private:
             if (filter.values.size() != contract_parameter_count(contract)) {
                 continue;
             }
-            chain.set_filter(slot, contract_to_spec(contract, filter.values));
+            if (!AbsoluteValuesMatchContract(contract, filter.values)) {
+                continue;
+            }
+            chain.set_filter(slot, AbsoluteValuesToSpec(contract, filter.values));
             chain.set_filter_bypass(slot, filter.bypassed);
         }
     }

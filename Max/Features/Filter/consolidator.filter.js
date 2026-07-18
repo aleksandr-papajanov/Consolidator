@@ -22,14 +22,11 @@ Filter.prototype.HandleEnvelope = function(dictionaryName) {
         return;
     }
 
-    if (message.type === "filter.reset") {
-        this.Reset(message.payload);
+    if (message.type === "filter.restore") {
+        this.Restore(message.payload);
     }
-    else if (message.type === "filter.update") {
-        this.Update(message.payload);
-    }
-    else if (message.type === "filter.bypass") {
-        this.SetBypass(message.payload);
+    else if (message.type === "filter.apply") {
+        this.Apply(message.payload);
     }
     else if (message.type === "filter.edit") {
         this.Edit(message.payload);
@@ -55,9 +52,13 @@ Filter.prototype.Define = function(configurationName) {
         this.defined = true;
 
         this.PublishDefinition();
-        this.PublishUpdate();
         this.PublishValues();
         this.PublishStatus("ready");
+        this.PublishEnvelope("system.status", "bus.hub", {
+            feature: "filter",
+            filterId: this.slot,
+            state: "ready"
+        });
     }
     catch (error) {
         this.PublishError("invalid_filter_configuration_dictionary");
@@ -81,25 +82,17 @@ Filter.prototype.UpdateControl = function(control, value) {
             this.PublishError("bypass_must_be_0_or_1");
             return;
         }
-        this.SetLocalBypass(value);
+        this.SetLocalBypass(value, true);
         return;
     }
 
-    if (value < 0 || value > 1 || !this.SetParameter(control, value)) {
+    if (value < 0 || value > 1 || !this.SetNormalizedParameter(control, value)) {
         this.PublishError("unsupported_filter_control");
         return;
     }
 
-    this.PublishUpdate();
+    this.PublishChanged();
     this.PublishValues();
-};
-
-Filter.prototype.Reset = function(payload) {
-    if (!this.IsTarget(payload) || !this.defined) {
-        return;
-    }
-
-    this.ResetState();
 };
 
 Filter.prototype.ResetState = function() {
@@ -109,11 +102,11 @@ Filter.prototype.ResetState = function() {
 
     this.bypassed = false;
     this.values = this.DefaultValues();
-    this.PublishUpdate();
+    this.PublishChanged();
     this.PublishValues();
 };
 
-Filter.prototype.Update = function(payload) {
+Filter.prototype.Restore = function(payload) {
     if (!this.IsTarget(payload) || !this.defined) {
         return;
     }
@@ -123,19 +116,25 @@ Filter.prototype.Update = function(payload) {
         return;
     }
 
-    this.PublishUpdate(payload.bankIndex);
+    this.bypassed = Number(payload.bypass) === 1;
     this.PublishValues();
 };
 
-Filter.prototype.SetBypass = function(payload) {
+Filter.prototype.Apply = function(payload) {
     if (!this.IsTarget(payload) || !this.defined) {
         return;
     }
 
-    this.SetLocalBypass(Number(payload.value));
+    if (!this.SetValues(payload.values)) {
+        this.PublishError("invalid_global_filter_values");
+        return;
+    }
+
+    this.PublishChanged(payload.bankIndex);
+    this.PublishValues();
 };
 
-Filter.prototype.SetLocalBypass = function(value) {
+Filter.prototype.SetLocalBypass = function(value, publish) {
     if (value !== 0 && value !== 1) {
         this.PublishError("bypass_must_be_0_or_1");
         return;
@@ -147,7 +146,9 @@ Filter.prototype.SetLocalBypass = function(value) {
     }
 
     this.bypassed = bypassed;
-    this.PublishBypass();
+    if (publish) {
+        this.PublishChanged();
+    }
     this.PublishValues();
 };
 
@@ -157,7 +158,7 @@ Filter.prototype.Edit = function(payload) {
     }
 
     if (payload.parameter === "q") {
-        if (!this.SetParameter("q", Number(payload.value))) {
+        if (!this.SetAbsoluteParameter("q", Number(payload.value))) {
             this.PublishError("invalid_filter_edit");
             return;
         }
@@ -172,7 +173,7 @@ Filter.prototype.Edit = function(payload) {
         }
     }
 
-    this.PublishUpdate();
+    this.PublishChanged();
     this.PublishValues();
 };
 
@@ -231,7 +232,7 @@ Filter.prototype.ValidateParameter = function(parameter) {
 Filter.prototype.DefaultValues = function() {
     var values = [];
     for (var index = 0; index < this.parameters.length; index++) {
-        values.push(this.Normalize(this.parameters[index], this.parameters[index].defaultValue));
+        values.push(this.parameters[index].defaultValue);
     }
     return values;
 };
@@ -244,7 +245,7 @@ Filter.prototype.SetValues = function(values) {
     var nextValues = [];
     for (var index = 0; index < values.length; index++) {
         var value = Number(values[index]);
-        if (!isFinite(value) || value < 0 || value > 1) {
+        if (!this.IsAbsoluteValueValid(this.parameters[index], value)) {
             return false;
         }
         nextValues.push(value);
@@ -253,7 +254,7 @@ Filter.prototype.SetValues = function(values) {
     return true;
 };
 
-Filter.prototype.SetParameter = function(control, value) {
+Filter.prototype.SetNormalizedParameter = function(control, value) {
     if (!isFinite(value) || value < 0 || value > 1) {
         return false;
     }
@@ -262,6 +263,17 @@ Filter.prototype.SetParameter = function(control, value) {
         var parameter = this.parameters[index];
         if (parameter.name === control ||
             (control === "frequency" && (parameter.name === "freq" || parameter.name === "pivot"))) {
+            this.values[index] = this.Denormalize(parameter, value);
+            return true;
+        }
+    }
+    return false;
+};
+
+Filter.prototype.SetAbsoluteParameter = function(control, value) {
+    for (var index = 0; index < this.parameters.length; index++) {
+        var parameter = this.parameters[index];
+        if (parameter.name === control && this.IsAbsoluteValueValid(parameter, value)) {
             this.values[index] = value;
             return true;
         }
@@ -274,15 +286,48 @@ Filter.prototype.SetGraphParameters = function(frequency, gain) {
     for (var index = 0; index < this.parameters.length; index++) {
         var parameter = this.parameters[index];
         if (parameter.name === "gain") {
-            this.values[index] = this.Normalize(parameter, gain);
+            this.values[index] = this.ClampAbsolute(parameter, gain);
             changed = true;
         }
         else if (parameter.name === "freq" || parameter.name === "pivot") {
-            this.values[index] = this.Normalize(parameter, frequency);
+            this.values[index] = this.ClampAbsolute(parameter, frequency);
             changed = true;
         }
     }
     return changed;
+};
+
+Filter.prototype.Denormalize = function(parameter, value) {
+    var normalized = Math.max(0, Math.min(1, Number(value)));
+    if (parameter.scale === "logarithmic") {
+        return parameter.min * Math.pow(parameter.max / parameter.min, normalized);
+    }
+    if (parameter.scale === "discrete") {
+        var index = Math.round(normalized * (parameter.discreteValues.length - 1));
+        return parameter.discreteValues[index];
+    }
+    return parameter.min + normalized * (parameter.max - parameter.min);
+};
+
+Filter.prototype.ClampAbsolute = function(parameter, value) {
+    var clamped = Math.max(parameter.min, Math.min(parameter.max, Number(value)));
+    if (parameter.scale !== "discrete") {
+        return clamped;
+    }
+    var closest = parameter.discreteValues[0];
+    for (var index = 1; index < parameter.discreteValues.length; index++) {
+        if (Math.abs(parameter.discreteValues[index] - clamped) < Math.abs(closest - clamped)) {
+            closest = parameter.discreteValues[index];
+        }
+    }
+    return closest;
+};
+
+Filter.prototype.IsAbsoluteValueValid = function(parameter, value) {
+    if (!isFinite(value) || value < parameter.min || value > parameter.max) {
+        return false;
+    }
+    return parameter.scale !== "discrete" || parameter.discreteValues.indexOf(value) >= 0;
 };
 
 Filter.prototype.Normalize = function(parameter, value) {
@@ -305,24 +350,25 @@ Filter.prototype.Normalize = function(parameter, value) {
 };
 
 Filter.prototype.PublishDefinition = function() {
-    var payload = { filterId: this.slot, contractName: this.definitionName };
+    var payload = {
+        filterId: this.slot,
+        contractName: this.definitionName,
+        defaultValues: this.DefaultValues(),
+        defaultBypass: 0
+    };
     this.PublishEnvelope("filter.define", "eq.storage", payload);
-    this.PublishEnvelope("filter.define", "analyzer", payload);
 };
 
-Filter.prototype.PublishUpdate = function(bankIndex) {
-    var payload = { filterId: this.slot, values: this.values.slice(0) };
+Filter.prototype.PublishChanged = function(bankIndex) {
+    var payload = {
+        filterId: this.slot,
+        values: this.values.slice(0),
+        bypass: this.bypassed ? 1 : 0
+    };
     if (bankIndex !== undefined && bankIndex !== null) {
         payload.bankIndex = Number(bankIndex);
     }
-    this.PublishEnvelope("filter.update", "eq.storage", payload);
-    this.PublishEnvelope("filter.update", "analyzer", payload);
-};
-
-Filter.prototype.PublishBypass = function() {
-    var payload = { filterId: this.slot, value: this.bypassed ? 1 : 0 };
-    this.PublishEnvelope("filter.bypass", "eq.storage", payload);
-    this.PublishEnvelope("filter.bypass", "analyzer", payload);
+    this.PublishEnvelope("filter.changed", "eq.storage", payload);
 };
 
 Filter.prototype.PublishEnvelope = function(type, target, payload) {
@@ -332,7 +378,11 @@ Filter.prototype.PublishEnvelope = function(type, target, payload) {
 };
 
 Filter.prototype.PublishValues = function() {
-    outlet(1, ["status", "values"].concat(this.values, [this.bypassed ? 1 : 0]));
+    var normalizedValues = [];
+    for (var index = 0; index < this.values.length; index++) {
+        normalizedValues.push(this.Normalize(this.parameters[index], this.values[index]));
+    }
+    outlet(1, ["status", "values"].concat(normalizedValues, [this.bypassed ? 1 : 0]));
 };
 
 Filter.prototype.PublishStatus = function(state) {
@@ -356,13 +406,13 @@ var filter = new Filter(jsarguments[1]);
 
 function inletassist(index) {
     assist(index === 0
-        ? "Local: define <dictionary>, update <control> <0..1>, reset, slot <id>; bus: filter.reset|filter.update|filter.bypass|filter.edit envelope"
+        ? "Local: define <dictionary>, update <control> <0..1>, reset, slot <id>; bus: filter.restore|filter.apply|filter.edit envelope"
         : "");
 }
 
 function outletassist(index) {
     var descriptions = [
-        "message <filter.define|filter.update|filter.bypass envelope>",
+        "message <filter.define|filter.changed envelope>",
         "status ready or values <normalized parameters> <bypass>",
         "error <code>"
     ];

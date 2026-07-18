@@ -176,6 +176,64 @@ inline std::vector<double> default_normalized_values(const FilterContract& contr
     return values;
 }
 
+inline std::vector<double> DefaultAbsoluteValues(const FilterContract& contract) {
+    std::vector<double> values;
+    values.reserve(contract.parameters.size());
+
+    for (const auto& parameter : contract.parameters) {
+        values.push_back(parameter.default_value);
+    }
+
+    return values;
+}
+
+inline bool AbsoluteValuesMatchContract(
+    const FilterContract& contract,
+    const std::vector<double>& values
+) {
+    if (values.size() != contract.parameters.size()) {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        const auto& parameter = contract.parameters[index];
+        const auto value = values[index];
+        if (!std::isfinite(value) || value < parameter.range.min_value ||
+            value > parameter.range.max_value) {
+            return false;
+        }
+        if (parameter.range.scale == ParameterScale::discrete &&
+            std::find(parameter.range.discrete_values.begin(),
+                parameter.range.discrete_values.end(), value) ==
+                parameter.range.discrete_values.end()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+inline FilterSpec AbsoluteValuesToSpec(
+    const FilterContract& contract,
+    const std::vector<double>& values
+) {
+    FilterSpec spec;
+    spec.type = contract.type;
+    if (!AbsoluteValuesMatchContract(contract, values)) {
+        return spec;
+    }
+
+    spec.gainDb = values[0];
+    if (contract.type == FilterType::tilt) {
+        spec.pivotHz = values[1];
+    }
+    else if (contract.type != FilterType::gain) {
+        spec.freqHz = values[1];
+        spec.q = values[2];
+    }
+    return spec;
+}
+
 inline std::vector<double> spec_to_normalized_values(
     const FilterContract& contract,
     const FilterSpec& spec

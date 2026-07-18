@@ -21,17 +21,13 @@ public:
         std::array<double, 4> color{ 1.0, 1.0, 1.0, 1.0 };
 
         if (!message.contractName.empty()) {
-            const c74::min::dict configuration{
-                c74::min::symbol(message.contractName.c_str()) };
+            const c74::min::dict configuration{ c74::min::symbol(message.contractName.c_str()) };
+            const auto atom = c74::min::atom{ static_cast<c74::max::t_object*>(configuration) };
             if (!parse_filter_contract_dictionary_for_slot(
-                    contract,
-                    c74::min::atom{ static_cast<c74::max::t_object*>(configuration) },
-                    static_cast<int>(message.filterId))) {
+                    contract, atom, static_cast<int>(message.filterId))) {
                 return false;
             }
-            color = ReadColor(
-                c74::min::atom{ static_cast<c74::max::t_object*>(configuration) },
-                message.filterId);
+            color = ReadColor(atom, message.filterId);
         }
         else {
             if (!dictionary_atom(message.contract)) return false;
@@ -40,40 +36,40 @@ public:
             contract.slot = static_cast<int>(message.filterId);
         }
 
-        VisualFilter visual;
-        visual.contract = contract;
-        visual.spec = contract_to_spec(contract, default_normalized_values(contract));
-        visual.color = color;
-        filters_[message.filterId] = visual;
-        return true;
-    }
-
-    bool Update(const consolidator::protocol::FilterUpdateMessage& message) {
-        const auto found = filters_.find(message.filterId);
-        if (found == filters_.end() ||
-            message.values.size() != contract_parameter_count(found->second.contract)) {
-            return false;
-        }
-        for (const auto value : message.values) {
-            if (value < 0.0 || value > 1.0) return false;
-        }
-
-        found->second.spec = contract_to_spec(found->second.contract, message.values);
-        return true;
-    }
-
-    bool SetBypass(const consolidator::protocol::FilterBypassMessage& message) {
-        const auto found = filters_.find(message.filterId);
-        if (found == filters_.end()) return false;
-        found->second.bypassed = message.bypassed;
+        filters_[message.filterId] = VisualFilter{ contract, color };
         return true;
     }
 
     bool SetSnapshot(const consolidator::protocol::EqStorageSnapshotMessage& message) {
         std::map<long, EqBank> nextBanks;
+        const long nextSelectedBankId = message.selectedBankId;
+        snapshotError_ = "unknown";
+        c74::min::dict snapshot;
         try {
-            c74::min::dict snapshot{ c74::min::symbol(message.snapshotName.c_str()) };
-            c74::min::dict sourceBanks{ static_cast<c74::min::atom>(snapshot.at("banks")) };
+            snapshot = c74::min::dict{ c74::min::symbol(message.snapshotName.c_str()) };
+            if (!snapshot.valid()) {
+                snapshotError_ = "dictionary_not_found";
+                return false;
+            }
+        }
+        catch (...) {
+            snapshotError_ = "dictionary_not_found";
+            return false;
+        }
+        c74::min::dict sourceBanks;
+        try {
+            sourceBanks = c74::min::dict{ static_cast<c74::min::atom>(snapshot.at("banks")) };
+            if (!sourceBanks.valid()) {
+                snapshotError_ = "invalid_banks_dictionary";
+                return false;
+            }
+        }
+        catch (...) {
+            snapshotError_ = "invalid_banks_dictionary";
+            return false;
+        }
+
+        try {
             for (const auto& bankSymbol : sourceBanks.keys()) {
                 const auto bankId = std::stol(static_cast<const char* const>(bankSymbol));
                 c74::min::dict sourceBank{ static_cast<c74::min::atom>(sourceBanks.at(bankSymbol)) };
@@ -98,93 +94,52 @@ public:
             }
         }
         catch (...) {
+            snapshotError_ = "invalid_bank_contents";
             return false;
         }
 
+        if (nextBanks.find(nextSelectedBankId) == nextBanks.end()) {
+            snapshotError_ = "selected_bank_not_found";
+            return false;
+        }
+        selectedBankId_ = nextSelectedBankId;
         banks_ = std::move(nextBanks);
+        snapshotError_.clear();
         return true;
     }
 
-    void Publish(long filterId, c74::min::outlet<>& outlet) const {
-        const auto found = filters_.find(filterId);
-        if (found == filters_.end()) return;
-
-        const auto& filter = found->second;
-        const bool active = !filter.bypassed;
-        const auto frequencies = make_eq_curve_frequency_grid();
-        const auto curve = active
-            ? ResponseCurve(filter.spec, frequencies)
-            : std::vector<double>(frequencies.size(), 0.0);
-
-        double q = 0.0;
-        double qMin = 0.0;
-        double qMax = 0.0;
-        for (const auto& parameter : filter.contract.parameters) {
-            if (parameter.name == "q") {
-                q = filter.spec.q;
-                qMin = parameter.range.min_value;
-                qMax = parameter.range.max_value;
-                break;
-            }
-        }
-
-        c74::min::atoms output;
-        output.reserve(13 + curve.size());
-        output.push_back("filter_curve");
-        output.push_back(filterId);
-        output.push_back(active ? 1 : 0);
-        output.push_back(filter.color[0]);
-        output.push_back(filter.color[1]);
-        output.push_back(filter.color[2]);
-        output.push_back(filter.color[3]);
-        output.push_back(filter.contract.type == FilterType::tilt
-            ? filter.spec.pivotHz : filter.spec.freqHz);
-        output.push_back(filter.spec.gainDb);
-        output.push_back(filter_type_name(filter.contract.type));
-        output.push_back(q);
-        output.push_back(qMin);
-        output.push_back(qMax);
-        for (const auto value : curve) output.push_back(value);
-        outlet.send(output);
+    const std::string& SnapshotError() const {
+        return snapshotError_;
     }
 
-    void PublishAll(c74::min::outlet<>& outlet) const {
-        for (const auto& item : filters_) {
-            Publish(item.first, outlet);
+    void PublishSelected(c74::min::outlet<>& outlet) const {
+        const auto selected = banks_.find(selectedBankId_);
+        for (const auto& [filterId, visual] : filters_) {
+            const StoredFilter* state = nullptr;
+            if (selected != banks_.end()) {
+                const auto stored = selected->second.filters.find(filterId);
+                if (stored != selected->second.filters.end()) state = &stored->second;
+            }
+            PublishFilter(filterId, visual, state, outlet);
         }
     }
 
     void PublishTotal(c74::min::outlet<>& outlet) const {
-        const auto frequencies = make_eq_curve_frequency_grid();
-        std::vector<double> total(frequencies.size(), 0.0);
+        SendCurve(SumBanks(false), outlet);
+    }
 
-        for (const auto& [bankId, bank] : banks_) {
-            for (const auto& [filterId, filter] : bank.filters) {
-                const auto definition = filters_.find(filterId);
-                if (definition == filters_.end() || filter.bypassed ||
-                    filter.values.size() != contract_parameter_count(definition->second.contract)) {
-                    continue;
-                }
+    void PublishSelectedBank(c74::min::outlet<>& outlet) const {
+        SendCurve(SumSelectedBank(), outlet);
+    }
 
-                const auto spec = contract_to_spec(definition->second.contract, filter.values);
-                for (std::size_t index = 0; index < frequencies.size(); ++index) {
-                    total[index] += filter_response_db(spec, frequencies[index], sampleRate_);
-                }
-            }
-        }
-
-        c74::min::atoms output;
-        output.reserve(total.size());
-        for (const auto value : total) output.push_back(value);
-        outlet.send(output);
+    std::vector<double> SelectedPrefixCurve() const {
+        return SumBanks(true);
     }
 
 private:
     struct VisualFilter {
         FilterContract contract;
-        FilterSpec spec;
         std::array<double, 4> color{ 1.0, 1.0, 1.0, 1.0 };
-        bool bypassed = false;
     };
 
     struct StoredFilter {
@@ -196,25 +151,101 @@ private:
         std::map<long, StoredFilter> filters;
     };
 
-    std::vector<double> ResponseCurve(
-        const FilterSpec& spec,
-        const std::vector<double>& frequencies) const {
-        std::vector<double> result;
-        result.reserve(frequencies.size());
-        for (const auto frequency : frequencies) {
-            result.push_back(filter_response_db(spec, frequency, sampleRate_));
+    void PublishFilter(
+        long filterId,
+        const VisualFilter& visual,
+        const StoredFilter* state,
+        c74::min::outlet<>& outlet
+    ) const {
+        const bool active = state && !state->bypassed &&
+            AbsoluteValuesMatchContract(visual.contract, state->values);
+        const auto values = state && AbsoluteValuesMatchContract(visual.contract, state->values)
+            ? state->values
+            : DefaultAbsoluteValues(visual.contract);
+        const auto spec = AbsoluteValuesToSpec(visual.contract, values);
+        const auto frequencies = make_eq_curve_frequency_grid();
+        std::vector<double> curve(frequencies.size(), 0.0);
+        if (active) {
+            for (std::size_t index = 0; index < frequencies.size(); ++index) {
+                curve[index] = filter_response_db(spec, frequencies[index], sampleRate_);
+            }
+        }
+
+        double q = 0.0;
+        double qMin = 0.0;
+        double qMax = 0.0;
+        for (const auto& parameter : visual.contract.parameters) {
+            if (parameter.name == "q") {
+                q = spec.q;
+                qMin = parameter.range.min_value;
+                qMax = parameter.range.max_value;
+            }
+        }
+
+        c74::min::atoms output;
+        output.reserve(13 + curve.size());
+        output.push_back("filter_curve");
+        output.push_back(filterId);
+        output.push_back(active ? 1 : 0);
+        for (const auto component : visual.color) output.push_back(component);
+        output.push_back(visual.contract.type == FilterType::tilt ? spec.pivotHz : spec.freqHz);
+        output.push_back(spec.gainDb);
+        output.push_back(filter_type_name(visual.contract.type));
+        output.push_back(q);
+        output.push_back(qMin);
+        output.push_back(qMax);
+        for (const auto value : curve) output.push_back(value);
+        outlet.send(output);
+    }
+
+    std::vector<double> SumBanks(bool stopAtSelected) const {
+        const auto frequencies = make_eq_curve_frequency_grid();
+        std::vector<double> result(frequencies.size(), 0.0);
+        for (const auto& [bankId, bank] : banks_) {
+            if (stopAtSelected && bankId > selectedBankId_) break;
+            AddBank(bank, frequencies, result);
         }
         return result;
     }
 
-    std::array<double, 4> ReadColor(
-        const c74::min::atom& configuration,
-        long filterId) const {
+    std::vector<double> SumSelectedBank() const {
+        const auto frequencies = make_eq_curve_frequency_grid();
+        std::vector<double> result(frequencies.size(), 0.0);
+        const auto selected = banks_.find(selectedBankId_);
+        if (selected != banks_.end()) AddBank(selected->second, frequencies, result);
+        return result;
+    }
+
+    void AddBank(
+        const EqBank& bank,
+        const std::vector<double>& frequencies,
+        std::vector<double>& result
+    ) const {
+        for (const auto& [filterId, state] : bank.filters) {
+            const auto visual = filters_.find(filterId);
+            if (visual == filters_.end() || state.bypassed ||
+                !AbsoluteValuesMatchContract(visual->second.contract, state.values)) {
+                continue;
+            }
+            const auto spec = AbsoluteValuesToSpec(visual->second.contract, state.values);
+            for (std::size_t index = 0; index < frequencies.size(); ++index) {
+                result[index] += filter_response_db(spec, frequencies[index], sampleRate_);
+            }
+        }
+    }
+
+    static void SendCurve(const std::vector<double>& curve, c74::min::outlet<>& outlet) {
+        c74::min::atoms output;
+        output.reserve(curve.size());
+        for (const auto value : curve) output.push_back(value);
+        outlet.send(output);
+    }
+
+    std::array<double, 4> ReadColor(const c74::min::atom& configuration, long filterId) const {
         try {
             c74::min::dict root{ configuration };
             c74::min::dict filters{ static_cast<c74::min::atom>(root.at("filters")) };
-            c74::min::dict filter{
-                static_cast<c74::min::atom>(filters.at(std::to_string(filterId))) };
+            c74::min::dict filter{ static_cast<c74::min::atom>(filters.at(std::to_string(filterId))) };
             return ParseColor(static_cast<c74::min::atom>(filter.at("color")));
         }
         catch (...) {
@@ -222,15 +253,10 @@ private:
         }
     }
 
-    std::array<double, 4> ParseColor(const c74::min::atom& value) const {
+    static std::array<double, 4> ParseColor(const c74::min::atom& value) {
         std::string text;
-        try {
-            text = static_cast<std::string>(value);
-        }
-        catch (...) {
-            return { 1.0, 1.0, 1.0, 1.0 };
-        }
-
+        try { text = static_cast<std::string>(value); }
+        catch (...) { return { 1.0, 1.0, 1.0, 1.0 }; }
         if (!text.empty() && text.front() == '#') text.erase(text.begin());
         if (text.size() != 6 && text.size() != 8) return { 1.0, 1.0, 1.0, 1.0 };
         for (const auto character : text) {
@@ -238,17 +264,16 @@ private:
                 return { 1.0, 1.0, 1.0, 1.0 };
             }
         }
-
-        auto component = [&text](std::size_t offset) {
+        const auto component = [&text](std::size_t offset) {
             return static_cast<double>(std::stoul(text.substr(offset, 2), nullptr, 16)) / 255.0;
         };
-        return {
-            component(0), component(2), component(4),
-            text.size() == 8 ? component(6) : 1.0
-        };
+        return { component(0), component(2), component(4),
+            text.size() == 8 ? component(6) : 1.0 };
     }
 
     double sampleRate_ = EqCurveGrid::default_sample_rate;
+    long selectedBankId_ = 0;
+    std::string snapshotError_;
     std::map<long, EqBank> banks_;
     std::map<long, VisualFilter> filters_;
 };

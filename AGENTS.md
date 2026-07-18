@@ -19,7 +19,7 @@ The repository has two layers:
 ### Native components
 
 - `Consolidator.EqCore` is the shared domain layer. It owns filter types,
-  parameter ranges and normalization, biquad/filter math, filter contracts,
+  parameter ranges, biquad/filter math, filter contracts,
   dictionary contract parsing, filter registry, and the runtime filter chain.
 - `Consolidator.Analyzer` receives current and reference stereo signals and
   publishes spectrum curves and their difference. Curve delivery is scheduled
@@ -28,26 +28,29 @@ The repository has two layers:
   message. Disabling `analyzer.difference` resets its difference smoothing;
   the Approximator feature also clears the retained fit curve and the
   Spectrum difference layer so stale data cannot remain ready or visible.
-  Analyzer also owns individual filter visualization: it receives targeted
-  `filter.define`, `filter.update`, and `filter.bypass` envelopes, then builds
-  `filter_curve` with the shared filter contract and EQ math.
+  Analyzer receives filter definitions and the complete atomic EqStorage
+  snapshot. It derives the selected bank's filter curves, the selected bank
+  response, the selected-prefix response, and the total response from that
+  single state source.
 - `Max/Features/Filter/consolidator.filter.js` represents one dynamically defined
-  filter. It owns the filter contract, normalized parameter state, bypass
-  state, and publishes `filter.define`, `filter.update`, and `filter.bypass`
-  envelopes for EqStorage and Analyzer. It does not process audio or publish
-  visual curves or handles. `Filter.maxpat` sends its abstraction slot as
-  `slot <id>` before the definition envelope is emitted.
+  filter. It owns the filter contract and absolute parameter/bypass state. UI
+  values are normalized only at its local boundary. It publishes
+  `filter.define` once and `filter.changed` after user, graph, or fit edits. It
+  applies `filter.restore` without publishing a change and applies
+  `filter.apply` with one resulting `filter.changed`. It does not process audio
+  or publish visual curves or handles.
 - `Consolidator.EqChain` owns the active filter chain and processes stereo
-  audio. It does not calculate or publish visual curves.
+  audio. It consumes only filter definitions and complete storage snapshots;
+  it has no selected-bank, UI, analysis, or visualization behavior.
 - `Consolidator.Approximator` stores the available filter contracts, receives
-  the difference curve and current EQ curve, and fits normalized filter
-  parameters.
+  the difference curve and selected-bank EQ baseline, and emits absolute
+  `filter.apply` values for the bank captured when fitting started.
 
 ### Max data flow
 
 The normal fitting path is:
 
-`Analyzer -> difference curve -> Approximator -> Filter -> EqStorage -> EqChain`
+`EqStorage snapshot -> Analyzer -> difference/baseline -> Approximator -> Filter -> EqStorage -> snapshot -> EqChain`
 
 The audio path is:
 
@@ -130,8 +133,10 @@ value `1` so one click emits exactly one `approximator.fit` envelope.
 Native readiness is derived only from compatible difference/current-EQ curves,
 at least one defined filter, and the absence of a running fit. Clearing Listen
 removes only the difference curve; the current-EQ baseline remains valid.
+Every `eq.storage.bank.changed` invalidates the retained difference curve so a
+fit cannot combine a new bank baseline with an older analysis frame.
 The feature receives the high-rate difference and current-EQ curves through
-`---approximator.difference.inlet` and `---spectrum.eqcurve.outlet`, while the
+`---approximator.difference.inlet` and `---approximator.eqcurve.inlet`, while the
 message bus remains internal to the feature. Native status is exposed as
 `status <state> [values]`; native output commands are published back to
 BusHub.
@@ -141,16 +146,36 @@ signal inlets and no outlets. It owns SpectrumView and connects to the common
 message bus internally. SpectrumView inputs are, in order: current spectrum,
 sidechain spectrum, difference curve, individual filter curves, and the total
 curve calculated by Analyzer from the full EqStorage snapshot. Analyzer sends
-that total curve to `---spectrum.eqcurve.outlet` for SpectrumView and
-Approximator. Spectrum edits are emitted to the bus as `filter.edit`.
-Do not connect this feature to the root device until it is verified alone.
+the selected-bank curve to `---approximator.eqcurve.inlet`; the total curve is
+only the fifth SpectrumView layer. Spectrum edits are emitted to the bus as
+absolute `filter.edit` values.
 
-`BusHub` is transport and startup coordination, not domain logic. During one
-boot cycle each required feature publishes `system.status` with a ready state.
-When the static required-feature set is ready, BusHub broadcasts
-`system.start`. Feature startup must be idempotent. No FIFO, retry, or
+Analyzer's current stereo input must be the pre-EQ current signal. From the
+snapshot it adds the response of banks `1..selectedBankId` to the displayed
+current spectrum and subtracts the same response from reference-minus-current.
+Banks after the selected bank are intentionally excluded. Approximator does
+not receive that prefix: it receives only the selected bank response, because
+the full fit target is `selected bank + residual difference`. Feeding the
+prefix would fold earlier banks into the selected bank and accumulate error.
+
+`BusHub` is transport and startup coordination, not domain logic. Analyzer,
+Approximator, EqStorage, and every Filter publish `system.status`. The static
+startup barrier contains `analyzer`, `approximator`, and `eq.storage`; dynamic
+Filter instances are observable participants but do not block startup because
+their count is not a BusHub concern. When the static set is ready, BusHub
+broadcasts `system.start` exactly once. EqStorage applies the selected state on
+start and restores a Filter that defines itself later, so startup remains
+order-independent and idempotent. No FIFO, retry, or
 acknowledgement queue is introduced until a concrete delivery requirement
 needs one.
+The barrier coordinates feature roots, not internal implementation objects:
+EqChain and SpectrumView do not publish separate startup states.
+EqStorage must synchronously initialize at least bank 1 before handling any
+`filter.define` or publishing any snapshot. Max does not guarantee that its
+`loadbang` runs before messages emitted by another abstraction's `loadbang`.
+After persistent state replaces the in-memory dictionary, EqStorage must
+backfill every already registered Filter into every bank before publishing the
+restored snapshot; runtime filter definitions are preserved across recall.
 
 `Max/Config/FilterConfig.json` is the source of truth for filter contracts and
 startup UI configuration. `Max/Features/Filter/FilterConfig.maxpat` loads that JSON at
@@ -167,25 +192,26 @@ bare name of an existing Max dictionary (for example `u123456`) with outlet
 type `dictionary`. It must not emit a JSON string, a `filters::N` path, or a
 textual `dictionary` prefix. `consolidator.filter.controller.js` accepts
 that dictionary name and opens it through `new DictionaryReader(name)`.
-`consolidator.filter.js` publishes `filter.define`, `filter.update`, and `filter.bypass`
-envelopes through `BusHub` to both EqStorage and Analyzer. EqStorage owns the routes to its internal
-EqChain and to Approximator. `EqChain` only consumes filter definitions and
-audio commands; it has no bank or approximator command outlet. `Filter` also
+`consolidator.filter.js` publishes `filter.define` and `filter.changed` through
+BusHub to EqStorage. EqStorage forwards definitions and publishes complete
+snapshots to its internal EqChain and Analyzer; it forwards definitions to
+Approximator. `EqChain` has no bank-selection or approximator command outlet. Filter also
 publishes direct status `status values <normalized...> <bypass>` for controller
 state synchronization and lifecycle status `status ready`. `Analyzer` publishes
 `filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb>
 <type> <q> <qMin> <qMax> <curve...>`. `SpectrumView` stores active filter curves, draws each curve
 with its configured color, and computes the thick summed line itself. It emits
-`edit <filterId> <frequencyHz> <gainDb>` or `edit <filterId> q <normalizedValue>`;
-`Filter` converts graph values to normalized parameters. Holding Alt while
+`edit <filterId> <frequencyHz> <gainDb>` or `edit <filterId> q <absoluteQ>`;
+Filter validates the absolute graph values. Holding Alt while
 dragging a marker keeps its frequency and gain fixed and edits Q directly as a
-normalized value from 0 at the bottom to 1 at the top.
+logarithmically mapped absolute value.
 
 `consolidator.filter.js` has one command inlet. `filter.edit` is reserved for
 SpectrumView and carries absolute graph coordinates (frequency/gain) or a
-single normalized Q gesture. `filter.update` carries the complete normalized
-parameter vector used for bank recall and state persistence; do not merge the
-two message types or infer one from the other's payload.
+single absolute Q gesture. `filter.restore` carries complete absolute state
+from EqStorage and never emits `filter.changed`. `filter.apply` carries complete
+absolute fit state and emits exactly one `filter.changed`. Local normalized UI
+changes also emit exactly one complete `filter.changed` state.
 
 `Max/Features/Analyzer/consolidator.analyzer.spectrumview.js` is the `jsui` entry point owned by
 the Analyzer feature. It keeps the
@@ -225,13 +251,14 @@ do not add selector chains that parse payload fields inside `envelope_message`.
 Storage rows are ordinary EQ banks with one-based IDs. Bank 1 is the initial
 bank created at startup; new rows are appended at 2, 3, 4 and so on. The
 user-facing list and all storage and protocol messages use this same ID.
-`Filter` publishes `filter.define`, `filter.update`, and `filter.bypass`
-through `BusHub` to EqStorage and Analyzer. EqStorage saves each update in the
-selected row immediately and forwards definitions to Approximator. It also
-publishes a complete `eq.storage.snapshot` to its internal EqChain and Analyzer
-after every bank mutation. All bank rows are active EQ layers; the
+Filter publishes `filter.define` and complete `filter.changed` state through
+BusHub to EqStorage. EqStorage saves each change in the selected or explicit
+fit row immediately and forwards definitions to EqChain, Analyzer, and
+Approximator. It publishes `eq.storage.snapshot` to EqChain and Analyzer after
+every state mutation. The snapshot envelope contains `selectedBankId`; its
+dictionary contains every bank's absolute filter values and bypass state. All bank rows are active EQ layers; the
 selected row controls editing only and does not select the audible EQ. EqChain
-stores every bank layer and processes them in reverse row order. There is no request
+stores every bank layer and processes them in ascending row order. There is no request
 or capture phase.
 The UI accepts `initialize`, `bang`, `add [name]`, `remove`, `select <row>`,
 `rename <row> <name>`, and `delete <row>`. Every bank has an ordinary generated
@@ -248,21 +275,19 @@ sends `persistence_ready`; only then may EqStorage publish state commits. Do
 not use an embedded state `dict`, a nested pattr, or a loadbang recall. Keep
 EqStorage non-embedded while root-level pattrstorage persists each device
 instance.
-Analyzer publishes the summed response of all audible bank layers to
-`---spectrum.eqcurve.outlet`; Spectrum and Approximator are consumers of that
-shared absolute-dB curve.
+Analyzer publishes the total response to SpectrumView and the selected-bank
+response to Approximator. These are distinct absolute-dB curves.
 The source `.amxd` embeds only a clean EqStorage default with one generated
-bank, selected row 1, and no recovered `DeviceInit` flags. Runtime bank state
+bank and selected row 1. Runtime bank state
 belongs to the Live Set's per-instance pattrstorage value and must never be
 saved back as the device's `parameter_initial` template.
-A new bank sends
-`filter.reset` to every defined Filter; the resulting update messages populate
-the new bank with defaults. Restoring a bank sends its stored
-`filter.update`/`filter.bypass` values. Every create, select, update, rename,
+A new bank is populated directly from defaults carried by `filter.define`.
+Restoring a bank sends one `filter.restore` per defined Filter. Every create,
+select, update, rename,
 and removal publishes the envelope `eq.storage.bank.changed` with
 the action, bank index, bank name, and relevant filter data.
 Approximator consumes the selected `bankIndex` before fit. Fit results carry
-that same `bankIndex` through `filter.update`; EqStorage writes the result to
+that same `bankIndex` through `filter.apply` and `filter.changed`; EqStorage writes the result to
 that explicit row and republishes the complete EqChain snapshot.
 The user-facing list displays all banks in reverse order, while each row keeps
 its one-based bank ID. Adding a bank appends a new ordinary bank with a
@@ -283,8 +308,12 @@ stores its own `color` in `filters.<slot>`.
 consolidator.filter.js has no UI-control model. UI control IDs and their Max varnames
 belong exclusively to `consolidator.filter.controller.js`.
 
-Parameter values sent as filter commands are normalized to `0..1`. Contract
-ranges define how values are denormalized. Supported parameter scales are
+Interfeature parameter values and persisted bank values are always absolute:
+gain in dB, frequency/pivot in Hz, and Q as Q. Only direct UI control values
+between a Max control, Filter controller, and `consolidator.filter.js` use
+normalized `0..1`. Contract ranges define that private conversion. NLopt may
+use unit solver coordinates internally, but those coordinates never enter an
+envelope, snapshot, status, or persisted state. Supported parameter scales are
 `linear`, `logarithmic`, and `discrete`.
 
 For `tilt`, the frequency parameter is named `pivot` everywhere. Do not
@@ -310,9 +339,10 @@ contract parameter `freq` or `pivot`. Do not emit `freq` as a UI control ID.
 4. Preserve the dictionary contract across the dynamic filter flow. Do not
    serialize a dictionary to an ad-hoc string when a Max dictionary atom can be
    passed directly.
-5. Keep normalized control messages separate from absolute curve data. Filter
-   parameters use normalized values; spectrum and EQ curves use absolute dB
-   values. Filter colors are configuration data, not runtime `color` commands.
+5. Normalization is private to Filter's local UI boundary. Every interfeature
+   filter parameter, EqStorage value, optimizer result, graph edit, and DSP
+   specification is absolute. Spectrum and EQ curves are absolute dB values.
+   Filter colors are configuration data, not runtime `color` commands.
 6. Preserve standardized inlet and outlet ordering. When migrating a non-DSP
    external, its first inlet/outlet become the envelope bus and its second
    outlet becomes the direct status outlet. For Min `sample_operator` objects,
@@ -364,7 +394,7 @@ one from a clean state.
 
 The control protocol uses one envelope for every non-audio interfeature message:
 `type`, `source`, `target`, and `payload`. Protocol types are stable names such
-as `filter.update` and must not be tied to implementation class names.
+as `filter.changed` and must not be tied to implementation class names.
 `source` is always the feature that emitted the envelope. `target` is a feature
 address or the literal `broadcast`; it is never an entity ID. Entity IDs,
 including `filterId`, belong in `payload`. `MessageFactory` is the only factory
@@ -376,6 +406,32 @@ DSP buffers remain outside this protocol.
 Components ignore broadcast envelopes unless their documented command contract
 explicitly declares the broadcast type; a broadcast is never treated as a
 generic request for every feature.
+
+Stable flow contracts are:
+
+- `system.status` carries `feature`, `state`, and an optional entity ID;
+  `system.start` is the one startup broadcast.
+- `filter.define` carries `filterId`, `contractName`, absolute
+  `defaultValues`, and `defaultBypass`.
+- `filter.restore` carries `filterId`, absolute `values`, and `bypass`; Filter
+  applies it silently for bank recall.
+- `filter.apply` carries `filterId`, absolute `values`, and `bankIndex`; Filter
+  applies a fit and emits one complete `filter.changed`.
+- `filter.edit` carries absolute graph fields (`frequency` and `gain`, or
+  `parameter: q` and `value`).
+- `filter.changed` carries complete absolute `values`, `bypass`, and optional
+  `bankIndex`; EqStorage is its only consumer.
+- `eq.storage.snapshot` carries `snapshotName` and `selectedBankId`. The
+  referenced dictionary owns all bank/filter states and is the only state input for
+  EqChain and Analyzer.
+- `eq.storage.bank.changed` carries the selected `bankIndex` and metadata for
+  Approximator and UI consumers; EqChain never consumes it.
+
+Do not encode command-vs-event behavior as a boolean flag. Use the distinct
+`filter.restore`, `filter.apply`, and `filter.changed` types so every edge has
+one direction and one owner. When the persisted EqStorage schema changes, bump
+its schema version and create clean state; do not read or migrate the previous
+format.
 
 After `MessageFactory.fromMax`, JavaScript components use
 `message.payload.<field>` directly. Envelope serialization and deserialization

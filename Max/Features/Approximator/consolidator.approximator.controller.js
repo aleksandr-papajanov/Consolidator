@@ -108,6 +108,10 @@ setoutletassist(-1, outletassist);
 function loadbang() {
     controller.UpdateControls();
     outlet(3, "script", "sendbox", "listen_button", "outputvalue");
+    controller.EmitEnvelope("system.status", "bus.hub", {
+        feature: "approximator",
+        state: "ready"
+    });
 }
 
 function fit() {

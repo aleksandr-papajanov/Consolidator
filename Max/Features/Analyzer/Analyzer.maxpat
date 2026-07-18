@@ -94,8 +94,8 @@
 					"linecount" : 2,
 					"maxclass" : "newobj",
 					"numinlets" : 5,
-					"numoutlets" : 6,
-					"outlettype" : [ "", "", "", "", "", "" ],
+					"numoutlets" : 7,
+					"outlettype" : [ "", "", "", "", "", "", "" ],
 					"patching_rect" : [ 315.0, 330.0, 520.249999999999886, 36.0 ],
 					"text" : "consolidator.analyzer @fftsize 8096 @smoothing 0.4 @lowfreqsmoothing 1 @spectrumcalibrationdb 30 @spectrumtiltdb 24"
 				}
@@ -126,7 +126,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 0,
 					"patching_rect" : [ 735.0, 405.0, 180.0, 22.0 ],
-					"text" : "s ---spectrum.eqcurve.outlet"
+					"text" : "s ---approximator.eqcurve.inlet"
 				}
 
 			}
@@ -171,7 +171,7 @@
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "debug", 0 ],
-					"source" : [ "analyzer", 5 ]
+					"source" : [ "analyzer", 6 ]
 				}
 
 			}
@@ -179,7 +179,7 @@
 				"patchline" : 				{
 					"destination" : [ "eqCurveSend", 0 ],
 					"order" : 0,
-					"source" : [ "analyzer", 4 ]
+					"source" : [ "analyzer", 5 ]
 				}
 
 			}
@@ -280,7 +280,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 1 ],
-					"source" : [ "analyzer", 5 ]
+					"source" : [ "analyzer", 6 ]
 				}
 
 			}

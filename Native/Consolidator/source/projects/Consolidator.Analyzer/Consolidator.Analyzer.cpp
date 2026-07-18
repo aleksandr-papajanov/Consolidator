@@ -22,7 +22,7 @@ public:
     inlet<> current_r{ this, "(signal) current right", "signal" };
     inlet<> reference_l{ this, "(signal) reference left", "signal" };
     inlet<> reference_r{ this, "(signal) reference right", "signal" };
-    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.stats|filter.define|filter.update|filter.bypass|eq.storage.snapshot>" };
+    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.stats|filter.define|eq.storage.snapshot>" };
 
     outlet<> current_out{ this, "(list) current spectrum dB" };
     outlet<> reference_out{ this, "(list) reference spectrum dB" };
@@ -32,6 +32,7 @@ public:
         "(anything) messages: filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
     };
     outlet<> total_curve_out{ this, "(list) summed response curve for all EQ banks in dB" };
+    outlet<> selected_curve_out{ this, "(list) response curve for the selected EQ bank in dB" };
     outlet<> debug_out{ this, "(anything) diagnostics: error <code>" };
 
     queue<> curve_delivery{
@@ -103,8 +104,6 @@ public:
                 consolidator::protocol::AnalyzerDifferenceMessage,
                 consolidator::protocol::AnalyzerStatsMessage,
                 consolidator::protocol::FilterDefineMessage,
-                consolidator::protocol::FilterUpdateMessage,
-                consolidator::protocol::FilterBypassMessage,
                 consolidator::protocol::EqStorageSnapshotMessage>(*message, [this](const auto& command) {
                     handle_command(command);
                 });
@@ -120,8 +119,9 @@ public:
             if (!args.empty()) {
                 spectrum_engine.set_sample_rate(static_cast<double>(args[0]));
                 filter_visuals.SetSampleRate(static_cast<double>(args[0]));
-                filter_visuals.PublishAll(filter_out);
+                filter_visuals.PublishSelected(filter_out);
                 filter_visuals.PublishTotal(total_curve_out);
+                filter_visuals.PublishSelectedBank(selected_curve_out);
             }
 
             return {};
@@ -176,39 +176,32 @@ private:
             debug_out.send("error", "invalid_filter_visual_definition");
             return;
         }
-        filter_visuals.Publish(command.filterId, filter_out);
+        filter_visuals.PublishSelected(filter_out);
         filter_visuals.PublishTotal(total_curve_out);
-    }
-
-    void handle_command(const consolidator::protocol::FilterUpdateMessage& command) {
-        if (!filter_visuals.Update(command)) {
-            debug_out.send("error", "invalid_filter_visual_update");
-            return;
-        }
-        filter_visuals.Publish(command.filterId, filter_out);
-    }
-
-    void handle_command(const consolidator::protocol::FilterBypassMessage& command) {
-        if (!filter_visuals.SetBypass(command)) {
-            debug_out.send("error", "invalid_filter_visual_bypass");
-            return;
-        }
-        filter_visuals.Publish(command.filterId, filter_out);
+        filter_visuals.PublishSelectedBank(selected_curve_out);
     }
 
     void handle_command(const consolidator::protocol::EqStorageSnapshotMessage& command) {
         if (!filter_visuals.SetSnapshot(command)) {
-            debug_out.send("error", "invalid_eq_storage_snapshot");
+            debug_out.send(
+                "error", "invalid_eq_storage_snapshot", filter_visuals.SnapshotError());
             return;
         }
+        filter_visuals.PublishSelected(filter_out);
         filter_visuals.PublishTotal(total_curve_out);
+        filter_visuals.PublishSelectedBank(selected_curve_out);
     }
 
     void publish_curves() {
         if (!curves.has_pending()) {
             return;
         }
-        curves.send(current_out, reference_out, difference_out, difference_enabled_);
+        curves.send(
+            current_out,
+            reference_out,
+            difference_out,
+            difference_enabled_,
+            filter_visuals.SelectedPrefixCurve());
         curves.clear_pending();
     }
 
