@@ -21,6 +21,7 @@ set(SOURCE_FILES
     AnalyzerFrameBuffer.h
     AnalyzerStatistics.h
     AnalyzerCurveBatch.h
+    AnalyzerFilterVisuals.h
     AnalyzerSpectrumEngine.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../ThirdParty/KissFFT/kiss_fft.c
 )

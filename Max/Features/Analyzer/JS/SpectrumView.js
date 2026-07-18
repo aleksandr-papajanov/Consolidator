@@ -1,5 +1,5 @@
 autowatch = 1;
-inlets = 6;
+inlets = 5;
 outlets = 1;
 
 function SpectrumViewController() {
@@ -15,6 +15,26 @@ include('SpectrumViewCurves.js');
 include('SpectrumViewInput.js');
 
 var spectrumViewController = new SpectrumViewController();
+
+function inletassist(index) {
+    var descriptions = [
+        "Current signal spectrum in dB",
+        "Reference signal spectrum in dB",
+        "Difference spectrum in dB",
+        "Individual filter curves and handles",
+        "Total EQ response curve in dB"
+    ];
+    assist(descriptions[index] || "");
+}
+
+function outletassist(index) {
+    assist(index === 0
+        ? "Filter edit command for the message bus"
+        : "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
 
 function paint() {
     try {

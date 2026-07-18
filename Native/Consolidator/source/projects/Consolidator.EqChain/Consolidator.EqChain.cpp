@@ -34,7 +34,6 @@ public:
     outlet<> output_l{ this, "(signal) left output", "signal" };
     outlet<> output_r{ this, "(signal) right output", "signal" };
     outlet<> debug_out{ this, "(anything) diagnostics: error <code>" };
-    outlet<> response_curve_out{ this, "(list) summed response curve for all EQ banks in dB" };
 
     message<> dspsetup{
         this,
@@ -175,7 +174,6 @@ private:
         for (const auto& [bankId, bank] : banks_) {
             BuildBankChain(*next_runtime, bankId, bank);
         }
-        PublishResponseCurve(*next_runtime);
         runtime_state_.store(std::move(next_runtime), std::memory_order_release);
     }
 
@@ -198,24 +196,6 @@ private:
             chain.set_filter(slot, contract_to_spec(contract, filter.values));
             chain.set_filter_bypass(slot, filter.bypassed);
         }
-    }
-
-    void PublishResponseCurve(const RuntimeState& runtime) {
-        const auto frequencies = make_eq_curve_frequency_grid();
-        std::vector<double> total(frequencies.size(), 0.0);
-        for (const auto& bank : runtime.chains) {
-            const auto bankCurve = bank.second.response_curve(frequencies);
-            for (std::size_t index = 0; index < total.size(); ++index) {
-                total[index] += bankCurve[index];
-            }
-        }
-
-        atoms values;
-        values.reserve(total.size());
-        for (const auto value : total) {
-            values.push_back(value);
-        }
-        response_curve_out.send(values);
     }
 
     double sample_rate_ = EqCurveGrid::default_sample_rate;

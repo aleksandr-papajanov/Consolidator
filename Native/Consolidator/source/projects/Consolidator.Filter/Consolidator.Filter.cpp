@@ -9,8 +9,6 @@
 #include "TypedMessages.h"
 
 #include <algorithm>
-#include <array>
-#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -39,19 +37,9 @@ public:
         "(anything) status: status initializing|ready|values <normalized...> <bypass>, error <code>"
     };
 
-    outlet<> curve_out{
-        this,
-        "(list) filter response curve in dB"
-    };
-
     outlet<> debug_out{
         this,
         "(anything) diagnostics: error <code>"
-    };
-
-    outlet<> handle_out{
-        this,
-        "(anything) messages: filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>, handle <filterId> <frequencyHz> <gainDb> <type> <active> <q> <qMin> <qMax>"
     };
 
     attribute<int> slot_attr{
@@ -60,18 +48,6 @@ public:
         0,
         range { 0, 15 },
         description { "Filter slot index used by the chain." }
-    };
-
-    message<> dspsetup{
-        this,
-        "dspsetup",
-        MIN_FUNCTION {
-            if (!args.empty()) {
-                sample_rate_ = static_cast<double>(args[0]);
-                publish();
-            }
-            return {};
-        }
     };
 
     message<> envelope_message{
@@ -216,36 +192,15 @@ private:
         definition_dictionary_ = std::make_unique<dict>(
             symbol(definition_dictionary_name_.c_str()));
         *definition_dictionary_ = source;
-        read_filter_color(configuration);
-
         defined_ = true;
         bypassed_ = false;
         normalized_values_ = default_normalized_values(contract_);
         spec_ = contract_to_spec(contract_, normalized_values_);
 
         publish_definition();
-        publish_curve();
-        publish_handle(true);
-        publish_filter_curve(true);
         publish();
         publish_values_status();
         status_out.send("status", "ready");
-    }
-
-    void read_filter_color(const atom& configuration) {
-        color_ = { 1.0, 1.0, 1.0, 1.0 };
-        try {
-            dict root{ configuration };
-            dict filters{ static_cast<atom>(root.at("filters")) };
-            const auto selected = static_cast<int>(
-                static_cast<double>(static_cast<atom>(root.at("selected"))));
-            dict filter{ static_cast<atom>(filters.at(std::to_string(selected))) };
-            if (const auto color = parse_hex_color(static_cast<atom>(filter.at("color")))) {
-                color_ = *color;
-            }
-        }
-        catch (...) {
-        }
     }
 
     bool update_parameter(const std::string& control, const double value) {
@@ -274,9 +229,6 @@ private:
         if (!defined_ || bypassed_ == should_bypass) return;
 
         bypassed_ = should_bypass;
-        publish_curve();
-        publish_handle(!bypassed_);
-        publish_filter_curve(!bypassed_);
         publish_bypass_message(bypassed_ ? 1.0 : 0.0);
         publish_values_status();
     }
@@ -287,37 +239,6 @@ private:
         spec_ = contract_to_spec(contract_, normalized_values_);
         publish();
         publish_values_status();
-    }
-
-    std::optional<std::array<double, 4>> parse_hex_color(const atom& value) const {
-        std::string text;
-        try {
-            text = static_cast<std::string>(value);
-        }
-        catch (...) {
-            return std::nullopt;
-        }
-
-        if (!text.empty() && text.front() == '#') text.erase(text.begin());
-        if (text.size() != 6 && text.size() != 8) return std::nullopt;
-
-        for (const auto character : text) {
-            if (!std::isxdigit(static_cast<unsigned char>(character))) {
-                return std::nullopt;
-            }
-        }
-
-        auto component = [&text](const std::size_t offset) {
-            return static_cast<double>(
-                std::stoul(text.substr(offset, 2), nullptr, 16)) / 255.0;
-        };
-
-        return std::array<double, 4>{
-            component(0),
-            component(2),
-            component(4),
-            text.size() == 8 ? component(6) : 1.0
-        };
     }
 
     bool apply_graph_edit(
@@ -365,10 +286,6 @@ private:
     }
 
     void publish(std::optional<long> bankIndex = std::nullopt) {
-        publish_curve();
-        const bool active = defined_ && !bypassed_;
-        publish_handle(active);
-        publish_filter_curve(active);
         if (!defined_) return;
 
         const consolidator::protocol::FilterUpdateMessage typed_message{
@@ -376,6 +293,7 @@ private:
         };
         const auto message = typed_message.to_envelope();
         command_out.send("message", message.transport_atom());
+        publish_to_analyzer(message);
     }
 
     void publish_values_status() {
@@ -394,86 +312,7 @@ private:
         };
         const auto message = typed_message.to_envelope();
         command_out.send("message", message.transport_atom());
-    }
-
-    void publish_handle(const bool active) {
-        const double handle_frequency =
-            contract_.type == FilterType::tilt ? spec_.pivotHz : spec_.freqHz;
-
-        double q = 0.0;
-        double q_min = 0.0;
-        double q_max = 0.0;
-        for (const auto& parameter : contract_.parameters) {
-            if (parameter.name == "q") {
-                q = spec_.q;
-                q_min = parameter.range.min_value;
-                q_max = parameter.range.max_value;
-                break;
-            }
-        }
-
-        handle_out.send(
-            "handle",
-            contract_.slot,
-            handle_frequency,
-            spec_.gainDb,
-            filter_type_name(contract_.type),
-            active ? 1 : 0,
-            q,
-            q_min,
-            q_max
-        );
-    }
-
-    void publish_filter_curve(const bool active) {
-        const auto curve = active ? response_curve() :
-            std::vector<double>(make_eq_curve_frequency_grid().size(), 0.0);
-
-        atoms message;
-        message.reserve(13 + curve.size());
-        message.push_back("filter_curve");
-        message.push_back(contract_.slot);
-        message.push_back(active ? 1 : 0);
-        message.push_back(color_[0]);
-        message.push_back(color_[1]);
-        message.push_back(color_[2]);
-        message.push_back(color_[3]);
-        message.push_back(
-            contract_.type == FilterType::tilt ? spec_.pivotHz : spec_.freqHz);
-        message.push_back(spec_.gainDb);
-        message.push_back(filter_type_name(contract_.type));
-
-        double q = 0.0;
-        double q_min = 0.0;
-        double q_max = 0.0;
-        for (const auto& parameter : contract_.parameters) {
-            if (parameter.name == "q") {
-                q = spec_.q;
-                q_min = parameter.range.min_value;
-                q_max = parameter.range.max_value;
-                break;
-            }
-        }
-
-        message.push_back(q);
-        message.push_back(q_min);
-        message.push_back(q_max);
-        for (const double value : curve) message.push_back(value);
-        handle_out.send(message);
-    }
-
-    void publish_curve() {
-        if (!defined_ || bypassed_) {
-            const auto frequencies = make_eq_curve_frequency_grid();
-            curve_out.send(atoms(frequencies.size(), 0.0));
-            return;
-        }
-
-        const auto curve = response_curve();
-        atoms curve_atoms;
-        curve_atoms.reserve(curve.size());
-        for (const double value : curve) curve_atoms.push_back(value);
-        curve_out.send(curve_atoms);
+        publish_to_analyzer(message);
     }
 
     void publish_definition() {
@@ -487,25 +326,19 @@ private:
         };
         const auto message = typed_message.to_envelope();
         command_out.send("message", message.transport_atom());
+        publish_to_analyzer(message);
     }
 
-    std::vector<double> response_curve() const {
-        const auto frequencies = make_eq_curve_frequency_grid();
-        std::vector<double> result;
-        result.reserve(frequencies.size());
-        for (const double frequency_hz : frequencies) {
-            result.push_back(filter_response_db(spec_, frequency_hz, sample_rate_));
-        }
-        return result;
+    void publish_to_analyzer(consolidator::protocol::MessageEnvelope message) {
+        message.set_target("analyzer");
+        command_out.send("message", message.transport_atom());
     }
 
-    double sample_rate_ = EqCurveGrid::default_sample_rate;
     FilterSpec spec_{};
     FilterContract contract_ = make_default_contract(0, FilterType::peak);
     std::unique_ptr<dict> definition_dictionary_;
     std::string definition_dictionary_name_;
     std::vector<double> normalized_values_;
-    std::array<double, 4> color_{ 1.0, 1.0, 1.0, 1.0 };
     bool defined_ = false;
     bool bypassed_ = false;
 };

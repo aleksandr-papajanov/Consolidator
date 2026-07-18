@@ -27,17 +27,18 @@ The repository has two layers:
   message. Disabling `analyzer.difference` resets its difference smoothing;
   the Approximator feature also clears the retained fit curve and the
   Spectrum difference layer so stale data cannot remain ready or visible.
+  Analyzer also owns individual filter visualization: it receives targeted
+  `filter.define`, `filter.update`, and `filter.bypass` envelopes, then builds
+  `filter_curve` with the shared filter contract and EQ math.
 - `Consolidator.Filter` represents one dynamically defined filter. It owns
-  the filter contract and curve, accepts normalized parameter changes, and
-  publishes commands for the chain. `Filter.maxpat` must send its abstraction
+  the filter contract, accepts normalized parameter changes, and publishes
+  commands for the chain. It does not publish visual curves or handles.
+  `Filter.maxpat` must send its abstraction
   slot argument to the native object as `slot <id>` before it emits the filter
   definition; do not put a literal `#1` in a native attribute argument. Native
   message routing is strict and never infers a slot from initialization state.
 - `Consolidator.EqChain` owns the active filter chain and processes stereo
-  audio. After every definition or storage snapshot it publishes the summed
-  response of every bank for Approximator baseline correction. It does not own
-  filter visualization; individual graphics data is published by each
-  `Filter` instance.
+  audio. It does not calculate or publish visual curves.
 - `Consolidator.Approximator` stores the available filter contracts, receives
   the difference curve and current EQ curve, and fits normalized filter
   parameters.
@@ -54,7 +55,7 @@ The audio path is:
 
 The visual path is:
 
-`Analyzer / Filter -> SpectrumView or FilterCurveView`
+`Analyzer -> SpectrumView or FilterCurveView`
 
 ### Max feature domain
 
@@ -123,6 +124,15 @@ message bus remains internal to the feature. Native status is exposed as
 `status <state> [values]`; native output commands are published back to
 BusHub.
 
+`Max/Features/Analyzer/Analyzer.maxpat` is an isolated feature with four
+signal inlets and no outlets. It owns SpectrumView and connects to the common
+message bus internally. SpectrumView inputs are, in order: current spectrum,
+sidechain spectrum, difference curve, individual filter curves, and the total
+curve calculated by Analyzer from the full EqStorage snapshot. Analyzer sends
+that total curve to `---spectrum.eqcurve.outlet` for SpectrumView and
+Approximator. Spectrum edits are emitted to the bus as `filter.edit`.
+Do not connect this feature to the root device until it is verified alone.
+
 `BusHub` is transport and startup coordination, not domain logic. During one
 boot cycle each required feature publishes `system.status` with a ready state.
 When the static required-feature set is ready, BusHub broadcasts
@@ -146,16 +156,13 @@ textual `dictionary` prefix. `FilterFeatureController.dictionary()` accepts
 that dictionary name and opens it through `new DictionaryReader(name)`.
 Incoming parameter changes use `filter.control.update`; `Filter` publishes
 `filter.define`, `filter.update`, and `filter.bypass`
-envelopes through `BusHub` to EqStorage. EqStorage owns the routes to its internal
+envelopes through `BusHub` to both EqStorage and Analyzer. EqStorage owns the routes to its internal
 EqChain and to Approximator. `EqChain` only consumes filter definitions and
 audio commands; it has no bank or approximator command outlet. `Filter` also
 publishes direct status `status values <normalized...> <bypass>` for controller
-state synchronization and lifecycle status `status ready`.
-It also
-publishes `filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz>
-<gainDb> <type> <q> <qMin> <qMax> <curve...>` and
-draggable graph metadata as `handle <filterId> <frequencyHz> <gainDb> <type>
-<active> <q> <qMin> <qMax>`. `SpectrumView` stores the active filter curves, draws each curve
+state synchronization and lifecycle status `status ready`. `Analyzer` publishes
+`filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb>
+<type> <q> <qMin> <qMax> <curve...>`. `SpectrumView` stores active filter curves, draws each curve
 with its configured color, and computes the thick summed line itself. It emits
 `edit <filterId> <frequencyHz> <gainDb>` or `edit <filterId> q <normalizedValue>`;
 `Filter` converts graph values to normalized parameters. Holding Alt while
@@ -168,17 +175,17 @@ single normalized Q gesture. `filter.update` carries the complete normalized
 parameter vector used for bank recall and state persistence; do not merge the
 two message types or infer one from the other's payload.
 
-`Max/Features/Spectrum/JS/SpectrumView.js` is the `jsui` entry point. It is the
-Spectrum feature's `FeatureController`-equivalent boundary and keeps the
+`Max/Features/Analyzer/JS/SpectrumView.js` is the `jsui` entry point owned by
+the Analyzer feature. It keeps the
 standard `list` callback required by `jsui`. Its
 implementation is split into `SpectrumViewConfig.js` for shared state and
 visual constants, `SpectrumViewGeometry.js` for coordinate conversion,
 `SpectrumViewCurves.js` for curve aggregation and drawing, and
 `SpectrumViewInput.js` for Max messages and pointer interaction.
 
-Max JavaScript is organized by feature under `Max/Features/`: `Spectrum/`
-contains spectrum visualization, `Filter/` contains filter UI adapters and
-views, and `EqStorage/` contains bank storage. Shared envelope contracts live
+Max JavaScript is organized by feature under `Max/Features/`: `Analyzer/`
+contains analysis and spectrum visualization, `Filter/` contains filter UI
+adapters and views, and `EqStorage/` contains bank storage. Shared envelope contracts live
 under `Max/Features/Shared/JS/Messages/`. `Painters/` contains
 self-contained `jspainter` scripts;
 these scripts must not depend on `include` files because Max can execute a
@@ -207,10 +214,10 @@ Storage rows are ordinary EQ banks with one-based IDs. Bank 1 is the initial
 bank created at startup; new rows are appended at 2, 3, 4 and so on. The
 user-facing list and all storage and protocol messages use this same ID.
 `Filter` publishes `filter.define`, `filter.update`, and `filter.bypass`
-through `BusHub` to EqStorage. EqStorage saves each update in the
+through `BusHub` to EqStorage and Analyzer. EqStorage saves each update in the
 selected row immediately and forwards definitions to Approximator. It also
-publishes a complete `eq.storage.snapshot` to its internal EqChain after every
-bank mutation. All bank rows are active EQ layers; the
+publishes a complete `eq.storage.snapshot` to its internal EqChain and Analyzer
+after every bank mutation. All bank rows are active EQ layers; the
 selected row controls editing only and does not select the audible EQ. EqChain
 stores every bank layer and processes them in reverse row order. There is no request
 or capture phase.
@@ -229,9 +236,9 @@ sends `persistence_ready`; only then may EqStorage publish state commits. Do
 not use an embedded state `dict`, a nested pattr, or a loadbang recall. Keep
 EqStorage non-embedded while root-level pattrstorage persists each device
 instance.
-Its internal EqChain publishes the summed response of all audible bank layers
-to `---spectrum.eqcurve.outlet`; Spectrum and Approximator are consumers of
-that shared absolute-dB curve.
+Analyzer publishes the summed response of all audible bank layers to
+`---spectrum.eqcurve.outlet`; Spectrum and Approximator are consumers of that
+shared absolute-dB curve.
 The source `.amxd` embeds only a clean EqStorage default with one generated
 bank, selected row 1, and no recovered `DeviceInit` flags. Runtime bank state
 belongs to the Live Set's per-instance pattrstorage value and must never be
@@ -279,7 +286,9 @@ contract parameter `freq` or `pivot`. Do not emit `freq` as a UI control ID.
 1. Every command inlet and command outlet must explicitly document the full
    command list it accepts or produces. Keep the list in the Min inlet/outlet
    description and update it whenever a command is added, removed, renamed, or
-   changes its payload.
+   changes its payload. Every executable Max `js` or `jsui` entry script with
+   ports must register `setinletassist` and `setoutletassist` callbacks that
+   call `assist()` with the same contract.
 2. Keep command routing explicit. Do not infer command meaning from argument
    count, value ranges, outlet position, or undocumented fallback behavior.
 3. Keep shared EQ math in `Consolidator.EqCore`. Analyzer, Filter, EqChain, and

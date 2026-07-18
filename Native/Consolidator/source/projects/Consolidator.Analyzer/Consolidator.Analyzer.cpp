@@ -1,6 +1,7 @@
 #include "c74_min.h"
 
 #include "AnalyzerCurveBatch.h"
+#include "AnalyzerFilterVisuals.h"
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerSpectrumEngine.h"
 #include "AnalyzerStatistics.h"
@@ -11,7 +12,7 @@ using namespace c74::min;
 
 class ConsolidatorAnalyzer :
     public object<ConsolidatorAnalyzer>,
-    public sample_operator<4, 2> {
+    public sample_operator<4, 0> {
 public:
     MIN_DESCRIPTION{ "Consolidator audio analyzer." };
     MIN_TAGS{ "audio, analyzer, fft" };
@@ -21,14 +22,16 @@ public:
     inlet<> current_r{ this, "(signal) current right", "signal" };
     inlet<> reference_l{ this, "(signal) reference left", "signal" };
     inlet<> reference_r{ this, "(signal) reference right", "signal" };
-    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.stats>" };
-
-    outlet<> audio_l{ this, "(signal) passthrough left", "signal" };
-    outlet<> audio_r{ this, "(signal) passthrough right", "signal" };
+    inlet<> commands_in{ this, "(message) commands: message <dictionary type=analyzer.difference|analyzer.stats|filter.define|filter.update|filter.bypass|eq.storage.snapshot>" };
 
     outlet<> current_out{ this, "(list) current spectrum dB" };
     outlet<> reference_out{ this, "(list) reference spectrum dB" };
     outlet<> difference_out{ this, "(list) reference-current dB" };
+    outlet<> filter_out{
+        this,
+        "(anything) messages: filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
+    };
+    outlet<> total_curve_out{ this, "(list) summed response curve for all EQ banks in dB" };
     outlet<> debug_out{ this, "(anything) diagnostics: error <code>" };
 
     queue<> curve_delivery{
@@ -98,7 +101,11 @@ public:
             }
             const auto result = consolidator::protocol::dispatch<
                 consolidator::protocol::AnalyzerDifferenceMessage,
-                consolidator::protocol::AnalyzerStatsMessage>(*message, [this](const auto& command) {
+                consolidator::protocol::AnalyzerStatsMessage,
+                consolidator::protocol::FilterDefineMessage,
+                consolidator::protocol::FilterUpdateMessage,
+                consolidator::protocol::FilterBypassMessage,
+                consolidator::protocol::EqStorageSnapshotMessage>(*message, [this](const auto& command) {
                     handle_command(command);
                 });
             if (result == consolidator::protocol::MessageDispatchResult::invalid) {
@@ -112,13 +119,16 @@ public:
         MIN_FUNCTION {
             if (!args.empty()) {
                 spectrum_engine.set_sample_rate(static_cast<double>(args[0]));
+                filter_visuals.SetSampleRate(static_cast<double>(args[0]));
+                filter_visuals.PublishAll(filter_out);
+                filter_visuals.PublishTotal(total_curve_out);
             }
 
             return {};
         }
     };
 
-    samples<2> operator()(sample current_l_in, sample current_r_in, sample reference_l_in, sample reference_r_in) {
+    samples<0> operator()(sample current_l_in, sample current_r_in, sample reference_l_in, sample reference_r_in) {
         const int fft_size = spectrum_engine.sanitized_fft_size(fft_size_attr);
         const int bins_out = static_cast<int>(EqCurveGrid::point_count);
         const AnalyzerInputFrame frame{
@@ -144,7 +154,7 @@ public:
             capture.reset();
         }
 
-        return { current_l_in, current_r_in };
+        return {};
     }
 
 private:
@@ -160,6 +170,39 @@ private:
     }
 
     void handle_command(const consolidator::protocol::AnalyzerStatsMessage&) { publish_statistics(); }
+
+    void handle_command(const consolidator::protocol::FilterDefineMessage& command) {
+        if (!filter_visuals.Define(command)) {
+            debug_out.send("error", "invalid_filter_visual_definition");
+            return;
+        }
+        filter_visuals.Publish(command.filterId, filter_out);
+        filter_visuals.PublishTotal(total_curve_out);
+    }
+
+    void handle_command(const consolidator::protocol::FilterUpdateMessage& command) {
+        if (!filter_visuals.Update(command)) {
+            debug_out.send("error", "invalid_filter_visual_update");
+            return;
+        }
+        filter_visuals.Publish(command.filterId, filter_out);
+    }
+
+    void handle_command(const consolidator::protocol::FilterBypassMessage& command) {
+        if (!filter_visuals.SetBypass(command)) {
+            debug_out.send("error", "invalid_filter_visual_bypass");
+            return;
+        }
+        filter_visuals.Publish(command.filterId, filter_out);
+    }
+
+    void handle_command(const consolidator::protocol::EqStorageSnapshotMessage& command) {
+        if (!filter_visuals.SetSnapshot(command)) {
+            debug_out.send("error", "invalid_eq_storage_snapshot");
+            return;
+        }
+        filter_visuals.PublishTotal(total_curve_out);
+    }
 
     void publish_curves() {
         if (!curves.has_pending()) {
@@ -178,6 +221,7 @@ private:
     AnalyzerCurveBatch curves;
     AnalyzerStatistics input_stats;
     AnalyzerSpectrumEngine spectrum_engine;
+    AnalyzerFilterVisuals filter_visuals;
     bool difference_enabled_ = true;
 };
 

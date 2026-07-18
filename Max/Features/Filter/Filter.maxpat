@@ -38,17 +38,6 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "obj-14",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 420.0, 285.0, 144.0, 22.0 ],
-					"text" : "s ---spectrum.handle.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"activedialcolor" : [ 0.0, 0.635294117647059, 0.909803921568627, 1.0 ],
 					"id" : "obj-25",
 					"maxclass" : "live.dial",
@@ -401,8 +390,8 @@
 					"id" : "obj-20",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
-					"numoutlets" : 5,
-					"outlettype" : [ "", "", "", "", "" ],
+					"numoutlets" : 3,
+					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 210.0, 240.0, 229.0, 22.0 ],
 					"text" : "consolidator.filter"
 				}
@@ -457,15 +446,8 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-14", 0 ],
-					"source" : [ "obj-20", 4 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "obj-44", 0 ],
-					"source" : [ "obj-20", 3 ]
+					"source" : [ "obj-20", 2 ]
 				}
 
 			}

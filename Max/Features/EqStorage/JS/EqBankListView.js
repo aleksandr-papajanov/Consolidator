@@ -16,6 +16,19 @@ var selectedColor = [0.25, 0.25, 0.25, 1.0];
 var textColor = [0.82, 0.82, 0.82, 1.0];
 var selectedTextColor = [1.0, 1.0, 1.0, 1.0];
 
+function inletassist(index) {
+    assist(index === 0
+        ? "List commands: clear, append <name> <bankId>, setid <bankId>"
+        : "");
+}
+
+function outletassist(index) {
+    assist(index === 0 ? "Selected one-based bank ID" : "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
+
 function clear() {
     model.clear();
     itemIds = [];

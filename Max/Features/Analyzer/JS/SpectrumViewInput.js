@@ -4,7 +4,7 @@ include("../../Shared/JS/Messages/MessageEnvelope.js");
 SpectrumViewController.prototype.list = function() {
     var index = inlet;
 
-    if (index === 5) {
+    if (index === 3) {
         return;
     }
 
@@ -18,7 +18,7 @@ SpectrumViewController.prototype.list = function() {
 }
 
 SpectrumViewController.prototype.handle = function() {
-    if (inlet !== 5) {
+    if (inlet !== 3) {
         return;
     }
 
@@ -53,7 +53,7 @@ SpectrumViewController.prototype.handle = function() {
 }
 
 SpectrumViewController.prototype.filter_curve = function() {
-    if (inlet !== 5) {
+    if (inlet !== 3) {
         return;
     }
 

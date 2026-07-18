@@ -13,6 +13,7 @@ SpectrumViewController.prototype.paint = function() {
         this.drawCurve(spectrumState.curves[i], w, plotBottom, s);
     }
 
+    this.drawTotalEqResponse(w, plotBottom);
     this.drawIndividualFilterCurves(w, plotBottom);
     this.drawTotalFilterCurve(w, plotBottom);
     this.drawSelectedFilterCurve(w, plotBottom);
@@ -49,6 +50,28 @@ SpectrumViewController.prototype.drawSelectedFilterCurve = function(w, plotBotto
         spectrumState.visualSettings.selectedFilterLineWidth,
         spectrumState.visualSettings.selectedFilterLineAlpha
     );
+}
+
+SpectrumViewController.prototype.drawTotalEqResponse = function(w, plotBottom) {
+    var total = spectrumState.curves[4];
+    if (!total || total.length < 2) {
+        return;
+    }
+
+    var color = spectrumState.visualSettings.totalEqLineColor;
+
+    for (var segment = 1; segment < total.length; segment++) {
+        var x0 = this.binToX(segment - 1, total.length, w);
+        var y0 = this.dbToY(total[segment - 1], plotBottom);
+        var x1 = this.binToX(segment, total.length, w);
+        var y1 = this.dbToY(total[segment], plotBottom);
+
+        mgraphics.set_source_rgba(color.r, color.g, color.b, color.a);
+        mgraphics.set_line_width(spectrumState.visualSettings.totalEqLineWidth);
+        mgraphics.move_to(x0, y0);
+        mgraphics.line_to(x1, y1);
+        mgraphics.stroke();
+    }
 }
 
 SpectrumViewController.prototype.drawTotalFilterCurve = function(w, plotBottom) {
@@ -150,16 +173,15 @@ SpectrumViewController.prototype.totalColor = function(items, index, net) {
         1 - rawNetStrength,
         spectrumState.visualSettings.totalColorNetSensitivity
     );
-    var strength = netStrength;
     var base = {
         r: weighted.r / absolute,
         g: weighted.g / absolute,
         b: weighted.b / absolute
     };
     return {
-        r: spectrumState.visualSettings.totalBaseColor.r + strength * (base.r - spectrumState.visualSettings.totalBaseColor.r),
-        g: spectrumState.visualSettings.totalBaseColor.g + strength * (base.g - spectrumState.visualSettings.totalBaseColor.g),
-        b: spectrumState.visualSettings.totalBaseColor.b + strength * (base.b - spectrumState.visualSettings.totalBaseColor.b)
+        r: spectrumState.visualSettings.totalBaseColor.r + netStrength * (base.r - spectrumState.visualSettings.totalBaseColor.r),
+        g: spectrumState.visualSettings.totalBaseColor.g + netStrength * (base.g - spectrumState.visualSettings.totalBaseColor.g),
+        b: spectrumState.visualSettings.totalBaseColor.b + netStrength * (base.b - spectrumState.visualSettings.totalBaseColor.b)
     };
 }
 

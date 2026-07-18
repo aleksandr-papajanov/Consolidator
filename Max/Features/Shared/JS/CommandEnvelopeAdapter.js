@@ -17,6 +17,17 @@ var commandTypes = {
     }
 };
 
+function inletassist(index) {
+    assist(index === 0 ? "Supported local feature command" : "");
+}
+
+function outletassist(index) {
+    assist(index === 0 ? "message <envelope dictionary>" : "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
+
 function anything() {
     Emit(messagename, arrayfromargs(arguments));
 }

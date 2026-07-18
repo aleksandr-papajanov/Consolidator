@@ -13,6 +13,21 @@ BusHub.prototype.ForwardEnvelope = function(dictionaryName) {
 
 var busHub = new BusHub();
 
+function inletassist(index) {
+    assist(index === 0
+        ? "message <envelope dictionary> from a feature"
+        : "");
+}
+
+function outletassist(index) {
+    assist(index === 0
+        ? "message <envelope dictionary> to all features"
+        : "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
+
 function message() {
     var values = arrayfromargs(arguments);
     if (values.length === 1) {

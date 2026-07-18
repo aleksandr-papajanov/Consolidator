@@ -15,7 +15,7 @@ outlets = 7;
 // Outlet 2: error <code>, status <...>.
 // Outlet 3: message <dictionary type=filter.define|eq.storage.snapshot> to EqChain.
 // Outlet 4: message <dictionary type=filter.define> to Approximator.
-// Outlet 5: message <dictionary type=eq.storage.bank.changed>.
+// Outlet 5: message <dictionary type=eq.storage.bank.changed|eq.storage.snapshot> to BusHub.
 // Outlet 6: dictionary <name> with the complete persistent bank state.
 
 function EqStorage() {
@@ -43,7 +43,7 @@ EqStorage.prototype.initialize = function() {
     this.initializeStateModel();
     this.publishBankList();
     this.publishBankChanged("selected");
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
 };
 
 EqStorage.prototype.initializeStateModel = function() {
@@ -117,7 +117,7 @@ EqStorage.prototype.handleFilterMessage = function(dictionaryName) {
         this.rememberFilter(definedFilterId);
         this.forwardFilterDefinition(3, "eq.chain", message);
         this.forwardFilterDefinition(4, "approximator", message);
-        this.publishEqChainSnapshot();
+        this.publishSnapshot();
         return;
     }
 
@@ -177,7 +177,7 @@ EqStorage.prototype.addBank = function(label) {
 
     this.selectRow(index, false);
     this.resetAllFilters();
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.publishBankChanged("created", null, name, index);
     this.emitStatus("bank_created", index, name);
 };
@@ -193,7 +193,7 @@ EqStorage.prototype.selectRow = function(row, applyValues) {
     }
 
     this.publishBankChanged("selected");
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.emitStatus("selected", row, this.selectedBankName());
 };
 
@@ -258,7 +258,7 @@ EqStorage.prototype.deleteBank = function(row) {
     this.removeBankRowState(count);
     this.state.replace("bank_count", count - 1);
     this.selectRow(Math.min(index, count - 1));
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.publishBankChanged("removed", null, removedName, index);
 };
 
@@ -270,7 +270,7 @@ EqStorage.prototype.renameBank = function(row, name) {
     }
     this.state.replace(this.bankNameKey(index), name);
     this.publishBankList();
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.publishBankChanged("renamed", null, name, index);
 };
 
@@ -286,7 +286,7 @@ EqStorage.prototype.storeFilterValues = function(id, values, bankIndex) {
     var filter = this.loadStoredFilter(id) || new BankFilter(id, [], 0);
     filter.values = normalizeFilterValues(values);
     this.saveStoredFilter(filter);
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.publishBankChanged("updated", id, null, null, filter);
 };
 
@@ -300,7 +300,7 @@ EqStorage.prototype.storeFilterValuesAtBank = function(id, values, bankIndex) {
     var filter = this.loadStoredFilterAtBank(id, bankIndex) || new BankFilter(id, [], 0);
     filter.values = normalizeFilterValues(values);
     this.saveStoredFilterAtBank(filter, bankIndex);
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.publishBankChanged("updated", id, null, bankIndex, filter);
 };
 
@@ -311,7 +311,7 @@ EqStorage.prototype.storeFilterBypass = function(id, bypass) {
     var filter = this.loadStoredFilter(id) || new BankFilter(id, [], 0);
     filter.bypass = this.numberOrDefault(bypass, 0) === 1 ? 1 : 0;
     this.saveStoredFilter(filter);
-    this.publishEqChainSnapshot();
+    this.publishSnapshot();
     this.publishBankChanged("updated", id, null, null, filter);
 };
 
@@ -389,7 +389,7 @@ EqStorage.prototype.forwardFilterDefinition = function(outletIndex, target, mess
     ));
 };
 
-EqStorage.prototype.publishEqChainSnapshot = function() {
+EqStorage.prototype.publishSnapshot = function() {
     var name = "consolidator.eqstorage.snapshot." + (++this.snapshotSequence);
     var snapshot = new Dict(name);
     snapshot.clear();
@@ -416,6 +416,9 @@ EqStorage.prototype.publishEqChainSnapshot = function() {
 
     this.sendEnvelope(3, MessageEnvelope.create(
         "eq.storage.snapshot", "eq.chain", { snapshotName: name }, "eq.storage"
+    ));
+    this.sendEnvelope(5, MessageEnvelope.create(
+        "eq.storage.snapshot", "analyzer", { snapshotName: name }, "eq.storage"
     ));
     this.commitState();
 };
@@ -576,6 +579,31 @@ EqStorage.prototype.emitStatus = function() {
 EqStorage.prototype.emitError = function(code) { outlet(2, "error", code); };
 
 var eqStorage = new EqStorage();
+
+function inletassist(index) {
+    var descriptions = [
+        "Commands: initialize, bang, add, remove, select, rename, delete",
+        "message <filter envelope dictionary>",
+        "Persistence: dictionary <state> or persistence_ready"
+    ];
+    assist(descriptions[index] || "");
+}
+
+function outletassist(index) {
+    var descriptions = [
+        "message <filter envelope dictionary> to Filter instances",
+        "Bank list commands: clear, append, setid",
+        "Status and errors",
+        "message <filter definition or storage snapshot> to EqChain",
+        "message <filter definition> to Approximator",
+        "message <bank changed or storage snapshot> to the message bus",
+        "dictionary <complete persistent bank state>"
+    ];
+    assist(descriptions[index] || "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
 
 function loadbang() {
     eqStorage.initializeStateModel();

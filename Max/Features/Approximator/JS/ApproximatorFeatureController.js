@@ -84,6 +84,27 @@ ApproximatorFeatureController.prototype.UpdateControls = function() {
 
 var controller = new ApproximatorFeatureController();
 
+function inletassist(index) {
+    var descriptions = [
+        "Commands: fit, listen 0|1, clear",
+        "Native status: ready 0|1 or status <state>"
+    ];
+    assist(descriptions[index] || "");
+}
+
+function outletassist(index) {
+    var descriptions = [
+        "message <envelope dictionary> to the message bus",
+        "Feature status: status <state> [values]",
+        "clear_difference for SpectrumView",
+        "thispatcher commands for Fit and Listen controls"
+    ];
+    assist(descriptions[index] || "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
+
 function loadbang() {
     controller.UpdateControls();
     outlet(3, "script", "sendbox", "listen_button", "outputvalue");

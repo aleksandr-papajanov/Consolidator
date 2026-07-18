@@ -59,6 +59,8 @@ this.visualSettings = {
     totalLineWidth: 2.5,
     totalColorTransitionDb: 6.0,
     totalColorNetSensitivity: 3.0,
+    totalEqLineWidth: 1.0,
+    totalEqLineColor: { r: 0.7, g: 0.7, b: 0.7, a: 1.0 },
     totalBaseColor: { r: 0.1, g: 0.1, b: 0.1 },
     handleRadius: 6,
     handleInnerRadius: 1,

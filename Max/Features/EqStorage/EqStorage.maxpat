@@ -19,7 +19,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 51.0, 338.0, 145.0, 22.0 ],
+					"patching_rect" : [ 525.0, 255.0, 145.0, 22.0 ],
 					"text" : "s ---message.bus.in"
 				}
 
@@ -31,7 +31,7 @@
 					"numinlets" : 0,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 51.0, 154.0, 145.0, 22.0 ],
+					"patching_rect" : [ 375.0, 30.0, 145.0, 22.0 ],
 					"text" : "r ---message.bus.out"
 				}
 
@@ -96,21 +96,10 @@
 					"id" : "eqchain",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 4,
-					"outlettype" : [ "signal", "signal", "", "" ],
+					"numoutlets" : 3,
+					"outlettype" : [ "signal", "signal", "" ],
 					"patching_rect" : [ 270.0, 495.0, 139.0, 22.0 ],
 					"text" : "consolidator.eqchain"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "eqcurveSend",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 435.0, 495.0, 172.0, 22.0 ],
-					"text" : "s ---spectrum.eqcurve.outlet"
 				}
 
 			}
@@ -159,7 +148,7 @@
 					"numinlets" : 0,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 461.5, 373.0, 45.0, 22.0 ]
+					"patching_rect" : [ 480.0, 135.0, 30.0, 30.0 ]
 				}
 
 			}
@@ -172,7 +161,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 300.0, 240.0, 120.0, 110.0 ],
+					"patching_rect" : [ 300.0, 255.0, 120.0, 110.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 0.0, 0.0, 90.0, 110.0 ]
 				}
@@ -262,13 +251,6 @@
 			}
  ],
 		"lines" : [ 			{
-				"patchline" : 				{
-					"destination" : [ "eqcurveSend", 0 ],
-					"source" : [ "eqchain", 3 ]
-				}
-
-			}
-, 			{
 				"patchline" : 				{
 					"destination" : [ "storage", 0 ],
 					"source" : [ "add", 0 ]

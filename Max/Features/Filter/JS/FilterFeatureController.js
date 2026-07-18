@@ -287,6 +287,25 @@ FilterFeatureController.prototype.HandleNativeStatus = function(state, values) {
 
 var controller = new FilterFeatureController(jsarguments[1]);
 
+function inletassist(index) {
+    var descriptions = [
+        "Local commands: dictionary, update, instance_state, reset",
+        "Native status and normalized filter values"
+    ];
+    assist(descriptions[index] || "");
+}
+
+function outletassist(index) {
+    var descriptions = [
+        "message <envelope dictionary> to the message bus",
+        "thispatcher commands for filter controls"
+    ];
+    assist(descriptions[index] || "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
+
 function dictionary(name) {
     if (inlet === 0) controller.HandleLocalDictionary(name);
 }
