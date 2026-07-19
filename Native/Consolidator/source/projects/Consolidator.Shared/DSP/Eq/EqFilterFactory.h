@@ -7,6 +7,7 @@
 #include "Filters/BiquadLowShelfFilter.h"
 #include "Filters/GainFilter.h"
 #include "Filters/TiltFilter.h"
+#include "../../Settings/EqOptions.h"
 
 #include <memory>
 #include <string>
@@ -34,19 +35,19 @@ public:
                 return std::make_unique<GainFilter>(GainFilterSettings{ gain });
             case models::FilterType::Tilt:
                 return std::make_unique<TiltFilter>(TiltFilterSettings{
-                    definition.Value(values, "pivot", settings::GlobalSettings::DefaultFrequencyHz),
-                    definition.Value(values, "q", settings::GlobalSettings::DefaultFilterQ), gain, sampleRate });
+                    definition.Value(values, "pivot", settings::EqOptions::DefaultFrequencyHz),
+                    definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
             case models::FilterType::LowShelf:
                 return std::make_unique<BiquadLowShelfFilter>(LowShelfFilterSettings{
-                    definition.Value(values, "freq", settings::GlobalSettings::DefaultFrequencyHz),
-                    definition.Value(values, "q", settings::GlobalSettings::DefaultFilterQ), gain, sampleRate });
+                    definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
+                    definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
             case models::FilterType::HighShelf:
                 return std::make_unique<BiquadHighShelfFilter>(HighShelfFilterSettings{
-                    definition.Value(values, "freq", settings::GlobalSettings::DefaultFrequencyHz),
-                    definition.Value(values, "q", settings::GlobalSettings::DefaultFilterQ), gain, sampleRate });
+                    definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
+                    definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
             case models::FilterType::Peak:
                 return std::make_unique<BiquadBellFilter>(BellFilterSettings{
-                    definition.Value(values, "freq", settings::GlobalSettings::DefaultFrequencyHz),
+                    definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
                     definition.Value(values, "q", 1.0), gain, sampleRate });
         }
         return nullptr;

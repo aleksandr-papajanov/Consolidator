@@ -5,7 +5,8 @@
 #include "DSP/Eq/EqRuntime.h"
 #include "Models/EqSnapshot.h"
 #include "Models/FilterDefinition.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AudioOptions.h"
+#include "Settings/EqOptions.h"
 
 #include "c74_min.h"
 
@@ -16,14 +17,6 @@ class AnalyzerFilterVisuals {
 public:
     void SetSampleRate(double sampleRate) {
         this->sampleRate = sampleRate;
-    }
-
-    void Define(consolidator::models::FilterDefinition definition) {
-        eqRuntime.Define(std::move(definition));
-    }
-
-    void ClearDefinitions() {
-        eqRuntime.ClearDefinitions();
     }
 
     bool SetSnapshot(consolidator::models::EqSnapshot snapshot) {
@@ -74,7 +67,7 @@ private:
         const auto frequencyName = definition.type == consolidator::models::FilterType::Tilt
             ? "pivot" : "freq";
         const double frequency = definition.Value(values, frequencyName,
-            consolidator::settings::GlobalSettings::DefaultFrequencyHz);
+            consolidator::settings::EqOptions::DefaultFrequencyHz);
         const double gain = definition.Value(values, "gain", 0.0);
         const auto qParameter = definition.FindParameter("q");
         const double q = definition.Value(values, "q", 0.0);
@@ -82,11 +75,10 @@ private:
         const double qMaximum = qParameter ? qParameter->range.maximum : 0.0;
 
         c74::min::atoms output;
-        output.reserve(13 + curve.Values().size());
+        output.reserve(9 + curve.Values().size());
         output.push_back("filter_curve");
         output.push_back(definition.filterId);
         output.push_back(active ? 1 : 0);
-        for (const auto component : definition.color) output.push_back(component);
         output.push_back(frequency);
         output.push_back(gain);
         output.push_back(std::string{ consolidator::models::FilterTypeName(definition.type) });
@@ -147,7 +139,7 @@ private:
         outlet.send(output);
     }
 
-    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
     consolidator::dsp::EqRuntime eqRuntime;
     std::string snapshotError;
 };

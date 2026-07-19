@@ -1,19 +1,49 @@
 {
+  "audio": {
+    "defaultSampleRateHz": 48000
+  },
+  "analysis": {
+    "fftSize": 4096,
+    "maximumFftSize": 8192,
+    "curvePointCount": 128,
+    "smoothing": 0.4,
+    "lowFrequencySmoothing": 1.0,
+    "maximumCurveSmoothing": 0.9997,
+    "lowFrequencySmoothingExponent": 2.5,
+    "highFrequencyTiltExponent": 1.35,
+    "hannWindowCoefficient": 0.5,
+    "hannWindowCoherentGain": 0.5,
+    "singleSidedSpectrumScale": 0.5,
+    "magnitudeNoiseFloor": 1e-12,
+    "minimumMagnitude": 1e-20
+  },
+  "spectrum": {
+    "minimumFrequencyHz": 20,
+    "maximumFrequencyHz": 20000,
+    "calibrationDb": 30,
+    "tiltDb": 24,
+    "minimumDb": -120,
+    "maximumDb": 48,
+    "minimumDifferenceDb": -60,
+    "maximumDifferenceDb": 60
+  },
+  "eq": {
+    "defaultFrequencyHz": 1000,
+    "defaultQ": 0.707,
+    "minimumBiquadFrequencyHz": 0.000001,
+    "minimumBiquadQ": 0.000001,
+    "maximumBiquadFrequencyRatio": 0.499999,
+    "maximumFilterCount": 16
+  },
   "controls": {
-    "gain": {
-      "defaultPosition": [9, 18, 27, 28]
-    },
-    "frequency": {
-      "defaultPosition": [0, 50, 45, 15]
-    },
-    "q": {
-      "defaultPosition": [0, 65, 45, 15]
-    },
+    "gain": { "defaultPosition": [9, 18, 27, 28] },
+    "frequency": { "defaultPosition": [0, 50, 45, 15] },
+    "q": { "defaultPosition": [0, 65, 45, 15] },
     "bypass": {
       "defaultPosition": [0, 0, 21, 15],
       "defaultEnabled": 1,
       "outputValue": 1
-  },
+    },
     "reset": {
       "defaultPosition": [24, 0, 21, 15],
       "defaultEnabled": 1

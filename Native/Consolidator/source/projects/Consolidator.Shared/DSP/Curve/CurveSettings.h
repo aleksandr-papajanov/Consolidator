@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../../Settings/GlobalSettings.h"
+#include "../../Settings/AnalysisOptions.h"
+#include "../../Settings/SpectrumOptions.h"
 
 #include <cstddef>
 
@@ -12,9 +13,9 @@ enum class CurveScale {
 };
 
 struct CurveSettings {
-    std::size_t pointCount = settings::GlobalSettings::DefaultCurvePointCount;
-    double minimumInput = settings::GlobalSettings::MinimumFrequencyHz;
-    double maximumInput = settings::GlobalSettings::MaximumFrequencyHz;
+    std::size_t pointCount = settings::AnalysisOptions::DefaultCurvePointCount;
+    double minimumInput = settings::SpectrumOptions::MinimumFrequencyHz;
+    double maximumInput = settings::SpectrumOptions::MaximumFrequencyHz;
     CurveScale scale = CurveScale::Logarithmic;
 
     bool operator==(const CurveSettings&) const = default;

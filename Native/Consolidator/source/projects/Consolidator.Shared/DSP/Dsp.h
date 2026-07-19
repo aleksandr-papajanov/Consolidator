@@ -23,4 +23,3 @@
 #include "StereoDspChain.h"
 #include "Spectrum/FftEngine.h"
 #include "Spectrum/FftSettings.h"
-#include "../Settings/GlobalSettings.h"

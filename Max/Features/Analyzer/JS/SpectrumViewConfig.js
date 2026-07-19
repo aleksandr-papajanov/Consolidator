@@ -1,6 +1,9 @@
+include("../../Shared/JS/DictionaryReader.js");
+
 function SpectrumViewState() {
 this.curves = [[], [], [], [], []];
 this.filterCurves = {};
+this.filterColors = {};
 this.handles = [];
 this.draggedHandle = null;
 this.draggedHandleSlot = null;
@@ -127,4 +130,29 @@ SpectrumViewState.prototype.createCurveStyle = function(fillTop, fillBottom, out
 };
 
 var spectrumState = new SpectrumViewState();
+
+SpectrumViewState.prototype.LoadFilterColors = function() {
+    var dictionary = new Dict();
+    dictionary.import_json("Config/ConsolidatorSettings.json");
+    var configuration = JSON.parse(dictionary.stringify());
+    var filters = configuration.filters || {};
+    for (var filterId in filters) {
+        if (Object.prototype.hasOwnProperty.call(filters, filterId)) {
+            this.filterColors[filterId] = this.ParseColor(filters[filterId].color);
+        }
+    }
+};
+
+SpectrumViewState.prototype.ParseColor = function(value) {
+    var text = String(value || "").replace("#", "");
+    if (text.length !== 6) return { r: 1, g: 1, b: 1, a: 1 };
+    return {
+        r: parseInt(text.substr(0, 2), 16) / 255,
+        g: parseInt(text.substr(2, 2), 16) / 255,
+        b: parseInt(text.substr(4, 2), 16) / 255,
+        a: 1
+    };
+};
+
+spectrumState.LoadFilterColors();
 // Shared state, frequency display settings, visual constants, and curve styles.

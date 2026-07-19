@@ -28,7 +28,7 @@ public:
     outlet<> differenceOut{ this, "(list) reference-current dB" };
     outlet<> filterOut{
         this,
-        "(anything) messages: filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
+        "(anything) messages: filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
     };
     outlet<> totalCurveOut{ this, "(list) summed response curve for all EQ banks in dB" };
     outlet<> debugOut{ this, "(anything) diagnostics: error <code>" };
@@ -98,8 +98,6 @@ public:
     }
 
     void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
-        filterVisuals.ClearDefinitions();
-        for (const auto& definition : state.filterDefinitions) filterVisuals.Define(definition);
         if (!filterVisuals.SetSnapshot(state.snapshot)) {
             debugOut.send("error", "invalid_device_state", filterVisuals.SnapshotError());
             return;

@@ -12,6 +12,9 @@ set(CONSOLIDATOR_MAX_FEATURES_DIR
     "${CONSOLIDATOR_ROOT}/Max/Features"
 )
 
+set(CONSOLIDATOR_SETTINGS_JSON
+    "${CONSOLIDATOR_ROOT}/Max/Config/ConsolidatorSettings.json"
+)
 option(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX
     "Copy built Max externals into their owning Max feature after build."
     ON

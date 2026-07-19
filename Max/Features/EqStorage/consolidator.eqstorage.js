@@ -21,10 +21,10 @@ outlets = 7;
 
 function EqStorage() {
     this.store = new DeviceStateStore(this.HandleStoreCommit, this);
-    this.schemaVersion = 3;
+    this.schemaVersion = 4;
     this.initialized = false;
     this.filterOrder = [];
-    this.filterDefinitions = {};
+    this.filterCatalog = {};
     this.selectedRow = 1;
     this.isPersistingState = false;
     this.persistenceReady = false;
@@ -40,7 +40,7 @@ function EqStorage() {
     ];
 }
 
-EqStorage.ConfigurationPath = "Config/FilterConfig.json";
+EqStorage.ConfigurationPath = "Config/ConsolidatorSettings.json";
 
 EqStorage.prototype.initialize = function() {
     this.initializeStateModel();
@@ -49,7 +49,7 @@ EqStorage.prototype.initialize = function() {
 };
 
 EqStorage.prototype.initializeStateModel = function() {
-    if (!this.LoadFilterDefinitions()) return;
+    if (!this.LoadFilterCatalog()) return;
 
     if (this.numberOrDefault(this.store.Get("schema_version"), 0) !== this.schemaVersion) {
         this.store.Clear();
@@ -67,7 +67,6 @@ EqStorage.prototype.initializeStateModel = function() {
     }
 
     this.ensureBankNames();
-    this.WriteDefinitionsToStore();
     this.selectedRow = this.clampRow(this.store.Get("selected_row"));
     this.store.Replace("selected_row", this.selectedRow);
     this.initialized = true;
@@ -244,7 +243,7 @@ EqStorage.prototype.renameBank = function(row, name) {
 
 EqStorage.prototype.ApplyFilterControl = function(payload) {
     var id = String(payload.filterId);
-    var definition = this.filterDefinitions[id];
+    var definition = this.filterCatalog[id];
     var filter = this.loadStoredFilter(id);
     var control = String(payload.control || "");
     var normalized = Number(payload.value);
@@ -270,7 +269,7 @@ EqStorage.prototype.ApplyFilterControl = function(payload) {
 
 EqStorage.prototype.ApplyFilterSet = function(payload) {
     var id = String(payload.filterId);
-    var definition = this.filterDefinitions[id];
+    var definition = this.filterCatalog[id];
     var filter = this.loadStoredFilter(id);
     if (!definition || !definition.source || !filter) {
         this.emitError("invalid_filter_set");
@@ -299,7 +298,7 @@ EqStorage.prototype.ApplyFilterSet = function(payload) {
 EqStorage.prototype.ApplyFilterSetMany = function(payload) {
     var id = String(payload.filterId);
     var bankIndex = payload.bankIndex === undefined ? this.selectedRow : Math.floor(Number(payload.bankIndex));
-    var definition = this.filterDefinitions[id];
+    var definition = this.filterCatalog[id];
     var parameters = definition && definition.source ? this.ParameterEntries(definition.source) : [];
     var values = payload.values instanceof Array
         ? payload.values
@@ -321,7 +320,7 @@ EqStorage.prototype.ApplyFilterSetMany = function(payload) {
 
 EqStorage.prototype.ResetFilter = function(payload) {
     var id = String(payload.filterId);
-    var definition = this.filterDefinitions[id];
+    var definition = this.filterCatalog[id];
     if (!definition || !definition.source) return this.emitError("invalid_filter_reset");
     var filter = new BankFilter(id, definition.defaultValues, definition.defaultBypass);
     this.saveStoredFilter(filter);
@@ -330,7 +329,7 @@ EqStorage.prototype.ResetFilter = function(payload) {
 };
 
 EqStorage.prototype.PublishFilterState = function(id, bankIndex) {
-    var definition = this.filterDefinitions[String(id)];
+    var definition = this.filterCatalog[String(id)];
     var filter = this.loadStoredFilterAtBank(id, bankIndex);
     if (!definition || !definition.source || !filter) return;
     var parameters = this.ParameterEntries(definition.source);
@@ -383,7 +382,7 @@ EqStorage.prototype.saveStoredFilterAtBank = function(filter, bankIndex) {
     this.store.Replace(this.bypassPath(bankIndex, filter.id), filter.bypass);
 };
 
-EqStorage.prototype.LoadFilterDefinitions = function() {
+EqStorage.prototype.LoadFilterCatalog = function() {
     try {
         var configurationDictionary = new Dict();
         configurationDictionary.import_json(EqStorage.ConfigurationPath);
@@ -397,7 +396,7 @@ EqStorage.prototype.LoadFilterDefinitions = function() {
         if (ids.length === 0) throw new Error("missing_filter_definitions");
 
         this.filterOrder = ids;
-        this.filterDefinitions = {};
+        this.filterCatalog = {};
         for (var index = 0; index < ids.length; index++) {
             var id = ids[index];
             var source = filters[id];
@@ -406,7 +405,7 @@ EqStorage.prototype.LoadFilterDefinitions = function() {
             for (var parameterIndex = 0; parameterIndex < parameters.length; parameterIndex++) {
                 defaults.push(Number(source.parameters[parameters[parameterIndex].name]["default"]));
             }
-            this.filterDefinitions[id] = {
+            this.filterCatalog[id] = {
                 defaultValues: defaults,
                 defaultBypass: 0,
                 source: source
@@ -416,24 +415,9 @@ EqStorage.prototype.LoadFilterDefinitions = function() {
     }
     catch (error) {
         this.filterOrder = [];
-        this.filterDefinitions = {};
+        this.filterCatalog = {};
         this.emitError("invalid_filter_configuration_dictionary");
         return false;
-    }
-};
-
-EqStorage.prototype.WriteDefinitionsToStore = function() {
-    this.store.Replace("filter_order", this.filterOrder.map(Number));
-    this.store.SetParse("filters", "{}");
-    for (var index = 0; index < this.filterOrder.length; index++) {
-        var id = String(this.filterOrder[index]);
-        var definition = this.filterDefinitions[id];
-        if (!definition) continue;
-        this.store.Replace(
-            "filter_" + id + "_default_bypass",
-            this.numberOrDefault(definition.defaultBypass, 0)
-        );
-        this.store.SetParse("filters::" + id, JSON.stringify(definition.source));
     }
 };
 
@@ -504,7 +488,7 @@ EqStorage.prototype.FrequencyValue = function(parameters, values) {
 };
 
 EqStorage.prototype.ensureFilterInAllBanks = function(id) {
-    var definition = this.filterDefinitions[String(id)];
+    var definition = this.filterCatalog[String(id)];
     if (!definition || !(definition.defaultValues instanceof Array)) {
         return;
     }
@@ -528,7 +512,7 @@ EqStorage.prototype.EnsureAllDefinedFiltersInBanks = function() {
 EqStorage.prototype.initializeBankDefaults = function(row) {
     for (var index = 0; index < this.filterOrder.length; index++) {
         var id = this.filterOrder[index];
-        var definition = this.filterDefinitions[String(id)];
+        var definition = this.filterCatalog[String(id)];
         if (definition && definition.defaultValues instanceof Array) {
             this.saveStoredFilterAtBank(new BankFilter(
                 id,

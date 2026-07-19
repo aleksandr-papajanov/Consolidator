@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Settings/GlobalSettings.h"
+#include "../Settings/AnalysisOptions.h"
 
 #include <algorithm>
 #include <cmath>
@@ -71,7 +71,7 @@ public:
 
     static double MagnitudeToDecibels(
         double magnitude,
-        double noiseFloor = settings::GlobalSettings::MagnitudeNoiseFloor
+        double noiseFloor = settings::AnalysisOptions::MagnitudeNoiseFloor
     ) {
         return 20.0 * std::log10(std::max(0.0, magnitude) + std::max(0.0, noiseFloor));
     }
@@ -81,7 +81,7 @@ public:
     }
 
 private:
-    static constexpr double MinimumMagnitude = settings::GlobalSettings::MinimumMagnitude;
+    static constexpr double MinimumMagnitude = settings::AnalysisOptions::MinimumMagnitude;
 };
 
 } // namespace consolidator::helpers

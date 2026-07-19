@@ -23,7 +23,7 @@ function FilterFeatureController(slot) {
     this.filterReady = false;
 }
 
-FilterFeatureController.ConfigurationPath = "Config/FilterConfig.json";
+FilterFeatureController.ConfigurationPath = "Config/ConsolidatorSettings.json";
 
 FilterFeatureController.prototype.LoadConfiguration = function() {
     try {

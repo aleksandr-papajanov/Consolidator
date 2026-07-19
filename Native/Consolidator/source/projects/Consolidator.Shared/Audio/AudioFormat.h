@@ -1,13 +1,13 @@
 #pragma once
 
-#include "../Settings/GlobalSettings.h"
+#include "../Settings/AudioOptions.h"
 
 #include <cstddef>
 
 namespace consolidator::audio {
 
 struct AudioFormat {
-    double sampleRateHz = settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRateHz = settings::AudioOptions::DefaultSampleRateHz;
     std::size_t blockSize = 0;
 };
 

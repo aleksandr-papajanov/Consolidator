@@ -2,7 +2,7 @@
 
 #include "ComponentHost.h"
 #include "DSP/Eq/EqRuntime.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AudioOptions.h"
 
 #include <atomic>
 #include <memory>
@@ -61,8 +61,6 @@ public:
     }
 
     void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
-        eqRuntime.ClearDefinitions();
-        for (const auto& definition : state.filterDefinitions) eqRuntime.Define(definition);
         eqRuntime.SetSnapshot(state.snapshot);
         RebuildRuntime();
     }
@@ -78,7 +76,7 @@ private:
         runtimeState.store(std::move(runtime), std::memory_order_release);
     }
 
-    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
     consolidator::dsp::EqRuntime eqRuntime;
     consolidator::maxadapter::ComponentHost<ConsolidatorEqChain> component{
         *this, "eq.chain", nullptr, nullptr, &debugOut

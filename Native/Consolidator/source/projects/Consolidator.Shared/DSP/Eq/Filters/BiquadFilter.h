@@ -2,6 +2,8 @@
 
 #include "../IEqFilter.h"
 #include "../../../Helpers/NumericHelper.h"
+#include "../../../Settings/AnalysisOptions.h"
+#include "../../../Settings/EqOptions.h"
 
 #include <cmath>
 #include <complex>
@@ -51,10 +53,10 @@ protected:
         return {
             helpers::NumericHelper::ClampFinite(
                 frequencyHz,
-                settings::GlobalSettings::MinimumBiquadFrequencyHz,
-                rate * settings::GlobalSettings::MaximumBiquadFrequencyRatio,
-                settings::GlobalSettings::MinimumBiquadFrequencyHz),
-            helpers::NumericHelper::PositiveOr(q, settings::GlobalSettings::MinimumBiquadQ),
+                settings::EqOptions::MinimumBiquadFrequencyHz,
+                rate * settings::EqOptions::MaximumBiquadFrequencyRatio,
+                settings::EqOptions::MinimumBiquadFrequencyHz),
+            helpers::NumericHelper::PositiveOr(q, settings::EqOptions::MinimumBiquadQ),
             rate
         };
     }
@@ -66,7 +68,7 @@ protected:
     ) {
         return 20.0 * std::log10(helpers::NumericHelper::AtLeast(
             std::abs(Response(coefficients, frequencyHz, sampleRate)),
-            settings::GlobalSettings::MagnitudeNoiseFloor));
+            settings::AnalysisOptions::MagnitudeNoiseFloor));
     }
 
     static double GetPhase(

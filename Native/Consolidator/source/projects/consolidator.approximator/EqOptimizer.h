@@ -3,7 +3,7 @@
 #include "DSP/Curve/Curve.h"
 #include "DSP/Eq/EqFilterFactory.h"
 #include "Models/FilterDefinition.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AudioOptions.h"
 
 #include <nlopt.hpp>
 
@@ -24,7 +24,7 @@ public:
     FitResult Fit(
         const consolidator::dsp::Curve& curve,
         const Definitions& definitions,
-        double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz
+        double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz
     ) const {
         std::vector<double> initial;
         for (const auto& [filterId, definition] : definitions) {

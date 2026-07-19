@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../../../Settings/GlobalSettings.h"
+#include "../../../Settings/AudioOptions.h"
+#include "../../../Settings/EqOptions.h"
 
 namespace consolidator::dsp {
 
@@ -9,31 +10,31 @@ struct GainFilterSettings {
 };
 
 struct BellFilterSettings {
-    double frequencyHz = settings::GlobalSettings::DefaultFrequencyHz;
+    double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
     double q = 1.0;
     double gainDb = 0.0;
-    double sampleRate = settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 struct LowShelfFilterSettings {
-    double frequencyHz = settings::GlobalSettings::DefaultFrequencyHz;
-    double q = settings::GlobalSettings::DefaultFilterQ;
+    double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
+    double q = settings::EqOptions::DefaultFilterQ;
     double gainDb = 0.0;
-    double sampleRate = settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 struct HighShelfFilterSettings {
-    double frequencyHz = settings::GlobalSettings::DefaultFrequencyHz;
-    double q = settings::GlobalSettings::DefaultFilterQ;
+    double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
+    double q = settings::EqOptions::DefaultFilterQ;
     double gainDb = 0.0;
-    double sampleRate = settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 struct TiltFilterSettings {
-    double pivotHz = settings::GlobalSettings::DefaultFrequencyHz;
-    double q = settings::GlobalSettings::DefaultFilterQ;
+    double pivotHz = settings::EqOptions::DefaultFrequencyHz;
+    double q = settings::EqOptions::DefaultFilterQ;
     double gainDb = 0.0;
-    double sampleRate = settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 } // namespace consolidator::dsp

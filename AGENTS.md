@@ -39,8 +39,8 @@ The repository has two layers:
   state such as `FilterDefinition`, `FilterState`, `EqSnapshot`, and the
   complete `DeviceState` belongs in
   `Consolidator.Shared/Models/`; one-off command data stays in message fields.
-  `Consolidator.Shared/Settings/GlobalSettings.h` owns shared defaults and
-  global constants for this new foundation. Reusable numeric sanitization,
+  `Consolidator.Shared/Settings/` owns typed defaults for this new foundation.
+  Reusable numeric sanitization,
   clamping, range validation, and math utilities belong in
   `Consolidator.Shared/Helpers/`. Keep domain equations and algorithm steps in
   their owning DSP classes; extract only reusable mathematical operations.
@@ -50,14 +50,18 @@ The repository has two layers:
   build arbitrary ordered mono or stereo device chains without knowledge of
   EQ, Max, or concrete device contracts. Concrete adapters register factories
   for EQ filters, compressors, saturators, or future devices.
+- Native configuration is kept in typed option classes `AudioOptions`,
+  `AnalysisOptions`, `SpectrumOptions`, `EqOptions`, and `FilterOptions`,
+  Filter definitions are a static catalog
+  and never arrive through runtime messages or `DeviceState`.
+  `Max/Config/ConsolidatorSettings.json` is used by the Max UI layer only.
 - `Consolidator.MaxAdapter` is the only native layer that depends on Max
   dictionaries. `MaxDictionarySerializer` is the single transport boundary and
   exposes `Deserialize<T>`/`Serialize<T>` for registered types. It recursively
   converts Max dictionaries to the transport-neutral `MessageObject`; one
   `DictionaryCodec<T>` specialization maps that object to each model. Do not
   add model-specific Max adapters or repeat atom/dictionary parsing. The
-  registered codecs cover `MessageEnvelope` and the complete `DeviceState`,
-  including its filter definitions.
+  registered codecs cover `MessageEnvelope` and the complete `DeviceState`.
   `ComponentHost` is the common native component boundary. It deserializes and
   targets envelopes, loads newer `DeviceState` generations, invokes
   `OnDeviceStateChanged`, and delegates the component's declared message types
@@ -77,7 +81,7 @@ The repository has two layers:
   completed; do not poll Analyzer with `qmetro` or an `analyzer.publish`
   message. FFT size, spectrum smoothing, calibration, tilt, dB bounds, and
   related numeric analysis defaults come only from
-  `Consolidator.Shared/Settings/GlobalSettings.h`; Analyzer exposes no Max
+  `Consolidator.Shared/Settings/AnalysisOptions.h`; Analyzer exposes no Max
   attributes for them. Disabling `analyzer.difference` resets its difference smoothing;
   the Approximator feature also clears the retained fit curve and the
   Spectrum difference layer so stale data cannot remain ready or visible.
@@ -231,7 +235,7 @@ needs one.
 The barrier coordinates feature roots, not internal implementation objects:
 EqChain and SpectrumView do not publish separate startup states.
 EqStorage must synchronously load all filter definitions from
-`Max/Config/FilterConfig.json` and initialize at least bank 1 before publishing
+`Max/Config/ConsolidatorSettings.json` and initialize at least bank 1 before publishing
 state. Max does not guarantee that its
 `loadbang` runs before messages emitted by another abstraction's `loadbang`.
 After persistent state replaces the in-memory dictionary, EqStorage overwrites
@@ -241,12 +245,12 @@ When it receives `system.start`, EqStorage must publish the complete current
 state and every selected-bank `filter.state`. This gives every consumer a valid selected bank
 and definition set after the startup barrier.
 
-`Max/Config/FilterConfig.json` is the source of truth for filter contracts and
-startup UI configuration. `consolidator.filter.controller.js` loads that file
+`Max/Config/ConsolidatorSettings.json` is the source of truth for Max UI options,
+filter contracts, and startup UI configuration. `consolidator.filter.controller.js` loads that file
 directly through `Dict.import_json`, keeps the dictionary alive, selects its
   slot from the feature argument, and sends the argument-free local
   `configure` command after validation. EqStorage independently loads the same file and writes
-  all definitions into DeviceStateStore before publishing state. Do not introduce a configuration patcher or Max routing for
+  all definitions into its static catalog before publishing state. Do not introduce a configuration patcher or Max routing for
 file loading. Filter parameters are defined per slot under `filters`; layout
 overrides are defined once per filter type under `layouts`.
 `consolidator.filter.controller.js` owns all Max control behavior: it reads
@@ -266,9 +270,10 @@ to EqChain, Analyzer, and Approximator.
 `EqChain` has no bank-selection or approximator command outlet. Filter also
 publishes direct status `status values <normalized...> <bypass>` for controller
 state synchronization and lifecycle status `status ready`. `Analyzer` publishes
-`filter_curve <filterId> <active> <r> <g> <b> <a> <frequencyHz> <gainDb>
-<type> <q> <qMin> <qMax> <curve...>`. `SpectrumView` stores active filter curves, draws each curve
-with its configured color, and computes the thick summed line itself. It emits
+`filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin>
+<qMax> <curve...>`. `SpectrumView` loads colors from
+`ConsolidatorSettings.json`, stores active filter curves, draws each curve with
+its configured color, and computes the thick summed line itself. It emits
 `filter.set` with absolute frequency/gain or Q values; StateStore validates and
 clamps the values. Holding Alt while
 dragging a marker keeps its frequency and gain fixed and edits Q directly as a
@@ -321,8 +326,9 @@ user-facing list and all storage and protocol messages use this same ID.
 Filter publishes `filter.control` and `filter.reset` through BusHub to
 EqStorage. SpectrumView and Approximator publish `filter.set` and
 `filter.set_many`. EqStorage writes them into DeviceStateStore. DeviceStateStore
-contains filter definitions directly alongside every bank, absolute filter values, bypass
-state, selected bank, runtime generation, and persisted revision. It publishes
+contains only banks, absolute filter values, bypass state, selected bank,
+runtime generation, and persisted revision. Static filter definitions come from
+`ConsolidatorSettings.json`. It publishes
   only addressed `device.state.changed` notifications with `stateName` and
   `generation`; EqChain, Analyzer, and Approximator read the same dictionary.
   All bank rows are active EQ layers; the

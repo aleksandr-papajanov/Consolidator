@@ -3,7 +3,9 @@
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerCurveBatch.h"
 #include "DSP/Spectrum/FftEngine.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AnalysisOptions.h"
+#include "Settings/AudioOptions.h"
+#include "Settings/SpectrumOptions.h"
 
 #include <algorithm>
 #include <array>
@@ -21,8 +23,8 @@ public:
         const AnalyzerFrameBuffer& frame,
         AnalyzerCurveBatch& curves
     ) const {
-        const int fftSize = static_cast<int>(consolidator::settings::GlobalSettings::DefaultFftSize);
-        const int binsOut = static_cast<int>(consolidator::settings::GlobalSettings::DefaultCurvePointCount);
+        const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
+        const int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount);
         const auto referenceSpectrum = StereoMagnitudeDb(
             frame.ReferenceLeft(),
             frame.ReferenceRight(),
@@ -51,8 +53,8 @@ public:
 
 private:
     std::vector<double> StereoMagnitudeDb(
-        const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& left,
-        const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& right,
+        const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& left,
+        const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& right,
         int writeIndex,
         int fftSize
     ) const {
@@ -70,7 +72,7 @@ private:
     }
 
     std::vector<double> MakeWindowedCopy(
-        const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& source,
+        const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& source,
         int writeIndex,
         int fftSize
     ) const {
@@ -79,7 +81,7 @@ private:
 
         for (int i = 0; i < fftSize; ++i) {
             const int index = (start + i) % fftSize;
-            const double hann = consolidator::settings::GlobalSettings::HannWindowCoefficient * (1.0 - std::cos(
+            const double hann = consolidator::settings::AnalysisOptions::HannWindowCoefficient * (1.0 - std::cos(
                 (2.0 * std::numbers::pi * i) / (fftSize - 1)));
 
             output[i] = source[index] * hann;
@@ -94,9 +96,9 @@ private:
 
         const int fftSize = static_cast<int>(engine.Size());
         std::vector<double> decibels(fftSize / 2);
-        const double coherentGain = consolidator::settings::GlobalSettings::HannWindowCoherentGain;
+        const double coherentGain = consolidator::settings::AnalysisOptions::HannWindowCoherentGain;
         const double amplitudeScale = static_cast<double>(fftSize) * coherentGain *
-            consolidator::settings::GlobalSettings::SingleSidedSpectrumScale;
+            consolidator::settings::AnalysisOptions::SingleSidedSpectrumScale;
 
         for (int i = 0; i < fftSize / 2; ++i) {
             const double re = output[static_cast<std::size_t>(i)].real();
@@ -119,15 +121,15 @@ private:
         const int maxBin = (fftSize / 2) - 1;
         const double nyquist = sampleRate * 0.5;
         const double maximumFrequency = std::max(
-            consolidator::settings::GlobalSettings::MinimumFrequencyHz,
-            std::min(consolidator::settings::GlobalSettings::MaximumFrequencyHz, nyquist));
-        const double frequencyHz = consolidator::settings::GlobalSettings::MinimumFrequencyHz *
+            consolidator::settings::SpectrumOptions::MinimumFrequencyHz,
+            std::min(consolidator::settings::SpectrumOptions::MaximumFrequencyHz, nyquist));
+        const double frequencyHz = consolidator::settings::SpectrumOptions::MinimumFrequencyHz *
             std::pow(maximumFrequency /
-                consolidator::settings::GlobalSettings::MinimumFrequencyHz, normalized);
+                consolidator::settings::SpectrumOptions::MinimumFrequencyHz, normalized);
         const double mappedBin = frequencyHz * static_cast<double>(fftSize) / sampleRate;
 
         return std::clamp(static_cast<int>(std::round(mappedBin)), 1, maxBin);
     }
 
-    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
 };

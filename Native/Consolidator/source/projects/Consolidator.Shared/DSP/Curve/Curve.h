@@ -69,8 +69,8 @@ public:
     static double FrequencyDependentSmoothing(
         std::size_t index,
         std::size_t pointCount,
-        double smoothing = settings::GlobalSettings::DefaultSpectrumSmoothing,
-        double lowFrequencyAmount = settings::GlobalSettings::DefaultLowFrequencySmoothing
+        double smoothing = settings::AnalysisOptions::DefaultSpectrumSmoothing,
+        double lowFrequencyAmount = settings::AnalysisOptions::DefaultLowFrequencySmoothing
     ) {
         if (pointCount <= 1) {
             return smoothing;
@@ -80,8 +80,8 @@ public:
             static_cast<double>(pointCount - 1);
         const double lowFrequencyWeight = std::pow(
             std::max(0.0, 1.0 - normalized),
-            settings::GlobalSettings::LowFrequencySmoothingExponent);
-        constexpr double maximumSmoothing = settings::GlobalSettings::MaximumCurveSmoothing;
+            settings::AnalysisOptions::LowFrequencySmoothingExponent);
+        constexpr double maximumSmoothing = settings::AnalysisOptions::MaximumCurveSmoothing;
         const double boosted = smoothing +
             (maximumSmoothing - smoothing) * lowFrequencyAmount * lowFrequencyWeight;
 
@@ -91,7 +91,7 @@ public:
     static double HighFrequencyWeight(
         std::size_t index,
         std::size_t pointCount,
-        double exponent = settings::GlobalSettings::HighFrequencyTiltExponent
+        double exponent = settings::AnalysisOptions::HighFrequencyTiltExponent
     ) {
         if (pointCount <= 1) {
             return 0.0;

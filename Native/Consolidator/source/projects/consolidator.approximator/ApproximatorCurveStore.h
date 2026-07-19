@@ -2,7 +2,7 @@
 
 #include "c74_min.h"
 #include "DSP/Curve/Curve.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AnalysisOptions.h"
 
 #include <stdexcept>
 #include <utility>
@@ -44,7 +44,7 @@ public:
 
 private:
     static bool Assign(consolidator::dsp::Curve& curve, const c74::min::atoms& values) {
-        if (values.size() != consolidator::settings::GlobalSettings::DefaultCurvePointCount) {
+        if (values.size() != consolidator::settings::AnalysisOptions::DefaultCurvePointCount) {
             curve = consolidator::dsp::Curve{};
             return false;
         }

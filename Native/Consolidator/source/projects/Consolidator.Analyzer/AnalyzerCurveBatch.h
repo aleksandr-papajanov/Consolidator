@@ -2,13 +2,14 @@
 
 #include "c74_min.h"
 #include "DSP/Curve/Curve.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AnalysisOptions.h"
+#include "Settings/SpectrumOptions.h"
 
 #include <algorithm>
 
 class AnalyzerCurveBatch {
 public:
-    int Prepare(int binsOut = static_cast<int>(consolidator::settings::GlobalSettings::DefaultCurvePointCount)) {
+    int Prepare(int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount)) {
         if (lastPendingCount != binsOut) {
             ResetCurves(binsOut);
             smoothingInitialized = false;
@@ -27,24 +28,24 @@ public:
         int previousPendingCount,
         double rawCurrentDb,
         double rawReferenceDb,
-        double smoothing = consolidator::settings::GlobalSettings::DefaultSpectrumSmoothing,
-        double lowFrequencyAmount = consolidator::settings::GlobalSettings::DefaultLowFrequencySmoothing,
-        double spectrumCalibrationDb = consolidator::settings::GlobalSettings::DefaultSpectrumCalibrationDb,
-        double spectrumTiltDb = consolidator::settings::GlobalSettings::DefaultSpectrumTiltDb
+        double smoothing = consolidator::settings::AnalysisOptions::DefaultSpectrumSmoothing,
+        double lowFrequencyAmount = consolidator::settings::AnalysisOptions::DefaultLowFrequencySmoothing,
+        double spectrumCalibrationDb = consolidator::settings::SpectrumOptions::DefaultSpectrumCalibrationDb,
+        double spectrumTiltDb = consolidator::settings::SpectrumOptions::DefaultSpectrumTiltDb
     ) {
         const double tiltWeight = consolidator::dsp::Curve::HighFrequencyWeight(
             static_cast<std::size_t>(outputIndex),
             static_cast<std::size_t>(pendingCount));
         const double tiltOffset = spectrumTiltDb * tiltWeight;
         const double currentDb = std::clamp(rawCurrentDb + spectrumCalibrationDb + tiltOffset,
-            consolidator::settings::GlobalSettings::MinimumSpectrumDb,
-            consolidator::settings::GlobalSettings::MaximumSpectrumDb);
+            consolidator::settings::SpectrumOptions::MinimumSpectrumDb,
+            consolidator::settings::SpectrumOptions::MaximumSpectrumDb);
         const double referenceDb = std::clamp(rawReferenceDb + spectrumCalibrationDb + tiltOffset,
-            consolidator::settings::GlobalSettings::MinimumSpectrumDb,
-            consolidator::settings::GlobalSettings::MaximumSpectrumDb);
+            consolidator::settings::SpectrumOptions::MinimumSpectrumDb,
+            consolidator::settings::SpectrumOptions::MaximumSpectrumDb);
         const double differenceDb = std::clamp(rawReferenceDb - rawCurrentDb,
-            consolidator::settings::GlobalSettings::MinimumDifferenceDb,
-            consolidator::settings::GlobalSettings::MaximumDifferenceDb);
+            consolidator::settings::SpectrumOptions::MinimumDifferenceDb,
+            consolidator::settings::SpectrumOptions::MaximumDifferenceDb);
         const double adaptiveSmoothing = consolidator::dsp::Curve::FrequencyDependentSmoothing(
             static_cast<std::size_t>(outputIndex),
             static_cast<std::size_t>(pendingCount),
@@ -127,7 +128,7 @@ public:
 
 private:
     static consolidator::dsp::Curve MakeCurve(
-        int pointCount = static_cast<int>(consolidator::settings::GlobalSettings::DefaultCurvePointCount)
+        int pointCount = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount)
     ) {
         auto settings = consolidator::dsp::CurveSettings{};
         settings.pointCount = static_cast<std::size_t>(pointCount);

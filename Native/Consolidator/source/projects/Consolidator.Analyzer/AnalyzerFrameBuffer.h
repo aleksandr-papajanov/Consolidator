@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Audio/AnalyzerInputFrame.h"
-#include "Settings/GlobalSettings.h"
+#include "Settings/AnalysisOptions.h"
 
 #include <array>
 
@@ -14,7 +14,7 @@ public:
         referenceRight[writeIndex] = frame.reference.right;
     }
 
-    bool Advance(int fftSize = static_cast<int>(consolidator::settings::GlobalSettings::DefaultFftSize)) {
+    bool Advance(int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize)) {
         ++writeIndex;
         return writeIndex >= fftSize;
     }
@@ -27,26 +27,26 @@ public:
         return writeIndex;
     }
 
-    const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& CurrentLeft() const {
+    const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& CurrentLeft() const {
         return currentLeft;
     }
 
-    const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& CurrentRight() const {
+    const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& CurrentRight() const {
         return currentRight;
     }
 
-    const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& ReferenceLeft() const {
+    const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& ReferenceLeft() const {
         return referenceLeft;
     }
 
-    const std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize>& ReferenceRight() const {
+    const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& ReferenceRight() const {
         return referenceRight;
     }
 
 private:
-    std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize> currentLeft{};
-    std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize> currentRight{};
-    std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize> referenceLeft{};
-    std::array<double, consolidator::settings::GlobalSettings::MaximumFftSize> referenceRight{};
+    std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> currentLeft{};
+    std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> currentRight{};
+    std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> referenceLeft{};
+    std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> referenceRight{};
     int writeIndex = 0;
 };

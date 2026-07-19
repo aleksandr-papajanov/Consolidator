@@ -3,7 +3,6 @@
 #include "FilterType.h"
 #include "ParameterRange.h"
 
-#include <array>
 #include <optional>
 #include <string>
 #include <vector>
@@ -21,7 +20,6 @@ struct FilterDefinition {
     FilterType type = FilterType::Peak;
     std::vector<FilterParameterDefinition> parameters;
     bool defaultBypass = false;
-    std::array<double, 4> color{ 1.0, 1.0, 1.0, 1.0 };
 
     std::vector<double> DefaultValues() const {
         std::vector<double> values;

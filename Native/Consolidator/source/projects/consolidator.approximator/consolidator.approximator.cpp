@@ -7,6 +7,7 @@
 #include "EqOptimizer.h"
 #include "Messaging/Messages/ApproximatorClearMessage.h"
 #include "Messaging/Messages/ApproximatorFitMessage.h"
+#include "Settings/AudioOptions.h"
 
 #include <atomic>
 #include <map>
@@ -83,12 +84,7 @@ public:
     }
 
     void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
-        definitions.clear();
-        eqRuntime.ClearDefinitions();
-        for (const auto& definition : state.filterDefinitions) {
-            definitions[definition.filterId] = definition;
-            eqRuntime.Define(definition);
-        }
+        definitions = eqRuntime.Definitions();
         fitBankIndex = state.snapshot.selectedBankId;
         eqRuntime.SetSnapshot(state.snapshot);
         curveStore.SetCurrentEq(eqRuntime.BuildBankCurve(fitBankIndex, sampleRate));
@@ -206,7 +202,7 @@ private:
     Definitions definitions;
     EqOptimizer optimizer;
     consolidator::dsp::EqRuntime eqRuntime;
-    double sampleRate = consolidator::settings::GlobalSettings::DefaultSampleRateHz;
+    double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
     consolidator::maxadapter::ComponentHost<
         ConsolidatorApproximator,
         consolidator::messaging::ApproximatorClearMessage,

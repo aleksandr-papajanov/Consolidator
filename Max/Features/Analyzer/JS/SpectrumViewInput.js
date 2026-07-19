@@ -58,30 +58,25 @@ SpectrumViewController.prototype.filter_curve = function() {
     }
 
     var values = arrayfromargs(arguments);
-    if (values.length < 13) {
+    if (values.length < 9) {
         return;
     }
 
     var filterId = Number(values[0]);
     var active = Number(values[1]) !== 0;
     var item = {
-        color: {
-            r: Number(values[2]),
-            g: Number(values[3]),
-            b: Number(values[4]),
-            a: Number(values[5])
-        },
-        curve: values.slice(12).map(Number)
+        color: spectrumState.filterColors[String(filterId)] || spectrumState.visualSettings.handleFallbackColor,
+        curve: values.slice(8).map(Number)
     };
     var marker = {
         slot: filterId,
-        frequency: Number(values[6]),
-        gain: Number(values[7]),
-        type: String(values[8]),
+        frequency: Number(values[2]),
+        gain: Number(values[3]),
+        type: String(values[4]),
         active: active,
-        q: Number(values[9]),
-        qMin: Number(values[10]),
-        qMax: Number(values[11])
+        q: Number(values[5]),
+        qMin: Number(values[6]),
+        qMax: Number(values[7])
     };
     var existingHandle = this.findHandle(filterId);
     if (existingHandle >= 0) {
