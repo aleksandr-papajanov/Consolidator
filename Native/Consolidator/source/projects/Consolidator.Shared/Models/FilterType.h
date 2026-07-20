@@ -20,7 +20,7 @@ inline std::string_view FilterTypeName(FilterType type) {
         case FilterType::LowShelf: return "lowshelf";
         case FilterType::HighShelf: return "highshelf";
     }
-    return "peak";
+    return {};
 }
 
 } // namespace consolidator::models

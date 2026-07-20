@@ -5,25 +5,25 @@ function BankListModel() {
     this.padding = 5;
 }
 
-BankListModel.prototype.clear = function() {
+BankListModel.prototype.Clear = function() {
     this.items = [];
     this.selectedIndex = -1;
 };
 
-BankListModel.prototype.append = function(name) {
+BankListModel.prototype.Append = function(name) {
     this.items.push(name);
 };
 
-BankListModel.prototype.select = function(index) {
-    this.selectedIndex = this.clampIndex(index);
+BankListModel.prototype.Select = function(index) {
+    this.selectedIndex = this.ClampIndex(index);
 };
 
-BankListModel.prototype.indexAt = function(y) {
+BankListModel.prototype.IndexAt = function(y) {
     var index = Math.floor((y - this.padding) / this.rowHeight);
     return index >= 0 && index < this.items.length ? index : -1;
 };
 
-BankListModel.prototype.clampIndex = function(index) {
+BankListModel.prototype.ClampIndex = function(index) {
     index = Math.floor(Number(index));
     if (!isFinite(index) || this.items.length < 1) {
         return -1;

@@ -94,8 +94,8 @@
 					"linecount" : 2,
 					"maxclass" : "newobj",
 					"numinlets" : 5,
-					"numoutlets" : 6,
-					"outlettype" : [ "", "", "", "", "", "" ],
+					"numoutlets" : 7,
+					"outlettype" : [ "", "", "", "", "", "", "" ],
 					"patching_rect" : [ 315.0, 330.0, 520.249999999999886, 36.0 ],
 					"text" : "consolidator.analyzer"
 				}
@@ -160,7 +160,7 @@
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "debug", 0 ],
-					"source" : [ "analyzer", 5 ]
+					"source" : [ "analyzer", 6 ]
 				}
 
 			}

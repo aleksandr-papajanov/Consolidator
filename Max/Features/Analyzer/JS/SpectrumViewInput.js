@@ -1,7 +1,4 @@
-include("../../Shared/JS/DictionaryReader.js");
-include("../../Shared/JS/Messages/MessageEnvelope.js");
-
-SpectrumViewController.prototype.list = function() {
+SpectrumViewController.prototype.List = function() {
     var index = inlet;
 
     if (index === 3) {
@@ -12,47 +9,14 @@ SpectrumViewController.prototype.list = function() {
         return;
     }
 
-    spectrumState.curves[index] = arrayfromargs(arguments);
-
-    mgraphics.redraw();
-}
-
-SpectrumViewController.prototype.handle = function() {
-    if (inlet !== 3) {
-        return;
-    }
-
     var values = arrayfromargs(arguments);
-    if (values.length !== 8) {
-        return;
-    }
-
-    var item = {
-        slot: Number(values[0]),
-        frequency: Number(values[1]),
-        gain: Number(values[2]),
-        type: String(values[3]),
-        active: Number(values[4]) !== 0,
-        q: Number(values[5]),
-        qMin: Number(values[6]),
-        qMax: Number(values[7])
-    };
-    var existing = this.findHandle(item.slot);
-    if (existing >= 0) {
-        spectrumState.handles[existing] = item;
-    }
-    else {
-        spectrumState.handles.push(item);
-    }
-
-    if (this.sameHandle(spectrumState.draggedHandle, item)) {
-        spectrumState.draggedHandle = item;
-    }
+    if (spectrumState.curvePointCount > 0 && values.length !== spectrumState.curvePointCount) return;
+    spectrumState.curves[index] = values;
 
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.filter_curve = function() {
+SpectrumViewController.prototype.FilterCurve = function() {
     if (inlet !== 3) {
         return;
     }
@@ -68,6 +32,7 @@ SpectrumViewController.prototype.filter_curve = function() {
         color: spectrumState.filterColors[String(filterId)] || spectrumState.visualSettings.handleFallbackColor,
         curve: values.slice(8).map(Number)
     };
+    if (spectrumState.curvePointCount > 0 && item.curve.length !== spectrumState.curvePointCount) return;
     var marker = {
         slot: filterId,
         frequency: Number(values[2]),
@@ -78,14 +43,14 @@ SpectrumViewController.prototype.filter_curve = function() {
         qMin: Number(values[6]),
         qMax: Number(values[7])
     };
-    var existingHandle = this.findHandle(filterId);
+    var existingHandle = this.FindHandle(filterId);
     if (existingHandle >= 0) {
         spectrumState.handles[existingHandle] = marker;
     }
     else {
         spectrumState.handles.push(marker);
     }
-    if (this.sameHandle(spectrumState.draggedHandle, marker)) {
+    if (this.SameHandle(spectrumState.draggedHandle, marker)) {
         spectrumState.draggedHandle = marker;
     }
 
@@ -94,7 +59,7 @@ SpectrumViewController.prototype.filter_curve = function() {
     }
     else {
         delete spectrumState.filterCurves[filterId];
-        var handleIndex = this.findHandle(filterId);
+        var handleIndex = this.FindHandle(filterId);
         if (handleIndex >= 0) {
             spectrumState.handles[handleIndex].active = false;
         }
@@ -103,10 +68,22 @@ SpectrumViewController.prototype.filter_curve = function() {
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.onclick = function(x, y, button, cmd, shift, capslock, option) {
-    var point = this.toLocalPoint(x, y);
-    var nearbyCandidates = this.findHandlesAt(point.x, point.y);
-    var selectedIndex = this.findCandidateIndex(nearbyCandidates, spectrumState.selectedHandleSlot);
+SpectrumViewController.prototype.CurveSettings = function(minimumHz, maximumHz, pointCount) {
+    var minimum = Number(minimumHz);
+    var maximum = Number(maximumHz);
+    var count = Number(pointCount);
+    if (!isFinite(minimum) || !isFinite(maximum) || !isFinite(count) ||
+        minimum <= 0 || maximum <= minimum || count < 2 || Math.floor(count) !== count) return;
+    spectrumState.curveMinFrequency = minimum;
+    spectrumState.curveMaxFrequency = maximum;
+    spectrumState.curvePointCount = count;
+    mgraphics.redraw();
+}
+
+SpectrumViewController.prototype.OnClick = function(x, y, button, cmd, shift, capslock, option) {
+    var point = this.ToLocalPoint(x, y);
+    var nearbyCandidates = this.FindHandlesAt(point.x, point.y);
+    var selectedIndex = this.FindCandidateIndex(nearbyCandidates, spectrumState.selectedHandleSlot);
     var sameSelection = selectedIndex >= 0 &&
         Math.abs(point.x - spectrumState.selectionX) <= spectrumState.visualSettings.handleCycleDistance &&
         Math.abs(point.y - spectrumState.selectionY) <= spectrumState.visualSettings.handleCycleDistance;
@@ -114,14 +91,14 @@ SpectrumViewController.prototype.onclick = function(x, y, button, cmd, shift, ca
     var candidates;
     if (sameSelection && spectrumState.selectionCandidates.length > 0) {
         candidates = spectrumState.selectionCandidates;
-        selectedIndex = this.findCandidateIndex(candidates, spectrumState.selectedHandleSlot);
+        selectedIndex = this.FindCandidateIndex(candidates, spectrumState.selectedHandleSlot);
     }
     else {
         candidates = nearbyCandidates;
         spectrumState.selectionCandidates = candidates;
         spectrumState.selectionX = point.x;
         spectrumState.selectionY = point.y;
-        selectedIndex = this.findCandidateIndex(candidates, spectrumState.selectedHandleSlot);
+        selectedIndex = this.FindCandidateIndex(candidates, spectrumState.selectedHandleSlot);
     }
 
     spectrumState.selectionIndex = sameSelection ? selectedIndex : (candidates.length > 0 ? 0 : -1);
@@ -132,14 +109,14 @@ SpectrumViewController.prototype.onclick = function(x, y, button, cmd, shift, ca
     spectrumState.clickWasRepeat = sameSelection;
     spectrumState.clickMoved = false;
     if (spectrumState.draggedHandle) {
-        spectrumState.draggingWithAlt = this.isAltModifierDown(option) && spectrumState.draggedHandle.qMax > spectrumState.draggedHandle.qMin;
-        this.setDragAnchor(point, spectrumState.draggingWithAlt);
+        spectrumState.draggingWithAlt = this.IsAltModifierDown(option) && spectrumState.draggedHandle.qMax > spectrumState.draggedHandle.qMin;
+        this.SetDragAnchor(point, spectrumState.draggingWithAlt);
     }
 }
 
-SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, capslock, option) {
+SpectrumViewController.prototype.OnDrag = function(x, y, button, cmd, shift, capslock, option) {
     if (button === 0) {
-        this.finishClick();
+        this.FinishClick();
         return;
     }
 
@@ -147,122 +124,101 @@ SpectrumViewController.prototype.ondrag = function(x, y, button, cmd, shift, cap
         return;
     }
 
-    spectrumState.draggedHandle = this.getHandleBySlot(spectrumState.draggedHandleSlot);
+    spectrumState.draggedHandle = this.GetHandleBySlot(spectrumState.draggedHandleSlot);
     if (!spectrumState.draggedHandle || !spectrumState.draggedHandle.active) {
         return;
     }
 
     spectrumState.clickMoved = true;
 
-    var point = this.toLocalPoint(x, y);
+    var point = this.ToLocalPoint(x, y);
     var size = mgraphics.size;
     var w = size[0];
-    var plotBottom = this.getPlotBottom(size[1]);
-    var nextAltMode = this.isAltModifierDown(option, arguments[6]) &&
+    var plotBottom = this.GetPlotBottom(size[1]);
+    var nextAltMode = this.IsAltModifierDown(option, arguments[6]) &&
         spectrumState.draggedHandle.qMax > spectrumState.draggedHandle.qMin;
     if (nextAltMode !== spectrumState.draggingWithAlt) {
         spectrumState.draggingWithAlt = nextAltMode;
-        this.setDragAnchor(point, spectrumState.draggingWithAlt);
+        this.SetDragAnchor(point, spectrumState.draggingWithAlt);
     }
 
     if (spectrumState.draggingWithAlt) {
-        var qNormalized = this.clamp(
+        var qNormalized = this.Clamp(
             spectrumState.dragStartQNormalized - (point.y - spectrumState.dragStartY) / plotBottom * spectrumState.qSensitivity,
             0,
             1
         );
-        var q = this.denormalizeQ(qNormalized, spectrumState.draggedHandle.qMin, spectrumState.draggedHandle.qMax);
-        this.sendEditMessage(MessageEnvelope.create("filter.set", "eq.storage", {
-            filterId: spectrumState.draggedHandle.slot,
-            parameter: "q",
-            value: q
-        }, "spectrum"));
+        var q = this.DenormalizeQ(qNormalized, spectrumState.draggedHandle.qMin, spectrumState.draggedHandle.qMax);
+        this.SendEditCommand(spectrumState.draggedHandle.slot, "q", q);
         return;
     }
 
-    var frequency = this.clamp(
+    var frequency = this.Clamp(
         spectrumState.dragStartFrequency * Math.pow(spectrumState.displayMaxFrequency / spectrumState.displayMinFrequency, (point.x - spectrumState.dragStartX) / w),
         spectrumState.displayMinFrequency,
         spectrumState.displayMaxFrequency
     );
-    var gain = this.clamp(
+    var gain = this.Clamp(
         spectrumState.dragStartGain - (point.y - spectrumState.dragStartY) / plotBottom * (spectrumState.maxDb - spectrumState.minDb),
         spectrumState.minDb,
         spectrumState.maxDb
     );
-    this.sendEditMessage(MessageEnvelope.create("filter.set", "eq.storage", {
-        filterId: spectrumState.draggedHandle.slot,
-        frequency: frequency,
-        gain: gain
-    }, "spectrum"));
+    var parameter = spectrumState.draggedHandle.type === "tilt" ? "pivot" : "freq";
+    this.SendEditCommand(spectrumState.draggedHandle.slot, parameter, frequency);
+    this.SendEditCommand(spectrumState.draggedHandle.slot, "gain", gain);
 }
 
-SpectrumViewController.prototype.sendEditMessage = function(message) {
-    if (!message) {
-        return;
-    }
-    var dictionary = message.toMaxDictionary();
-    outlet(0, "message", dictionary.name);
+SpectrumViewController.prototype.SendEditCommand = function(filterId, parameter, value) {
+    spectrumState.requestId += 1;
+    outlet(0, "command", 1, "spectrum", spectrumState.requestId, "eq.set_parameter",
+        spectrumState.selectedBankId, filterId, parameter, value);
 }
 
-SpectrumViewController.prototype.HandleBusMessage = function(dictionaryName) {
-    var message = MessageEnvelope.fromMaxDictionary(dictionaryName);
-    if (!message) return;
-    if (message.target === "analyzer" && message.type === "analyzer.difference") {
-        if (Number(message.payload.value) === 0) this.clear_difference();
-        return;
-    }
-    if (message.target !== "spectrum" || message.type !== "filter.state") return;
-    var payload = message.payload || {};
-    var index = this.findHandle(Number(payload.filterId));
-    if (index < 0) return;
-    spectrumState.handles[index].frequency = Number(payload.frequency);
-    spectrumState.handles[index].gain = Number(payload.gain);
-    spectrumState.handles[index].q = Number(payload.q);
-    if (this.sameHandle(spectrumState.draggedHandle, spectrumState.handles[index])) {
-        spectrumState.draggedHandle = spectrumState.handles[index];
-    }
-    mgraphics.redraw();
+SpectrumViewController.prototype.HandleBusMessage = function(values) {
+    if (!values || values.length < 7 || String(values[0]) !== "snapshot" ||
+        Number(values[1]) !== 1 || String(values[2]) !== "host" || String(values[3]) !== "eq") return;
+    var selectedBank = Number(values[5]);
+    if (isFinite(selectedBank) && selectedBank >= 1) spectrumState.selectedBankId = selectedBank;
 };
 
-SpectrumViewController.prototype.setDragAnchor = function(point, qMode) {
+SpectrumViewController.prototype.SetDragAnchor = function(point, qMode) {
     spectrumState.dragStartX = point.x;
     spectrumState.dragStartY = point.y;
     spectrumState.dragStartFrequency = spectrumState.draggedHandle.frequency;
     spectrumState.dragStartGain = spectrumState.draggedHandle.gain;
     spectrumState.dragStartQNormalized = qMode
-        ? this.normalizeQ(spectrumState.draggedHandle.q, spectrumState.draggedHandle.qMin, spectrumState.draggedHandle.qMax)
+        ? this.NormalizeQ(spectrumState.draggedHandle.q, spectrumState.draggedHandle.qMin, spectrumState.draggedHandle.qMax)
         : 0;
 }
 
-SpectrumViewController.prototype.normalizeQ = function(value, minValue, maxValue) {
+SpectrumViewController.prototype.NormalizeQ = function(value, minValue, maxValue) {
     if (minValue <= 0 || maxValue <= minValue) {
         return 0;
     }
-    return this.clamp(
-        Math.log(this.clamp(value, minValue, maxValue) / minValue) /
+    return this.Clamp(
+        Math.log(this.Clamp(value, minValue, maxValue) / minValue) /
             Math.log(maxValue / minValue),
         0,
         1
     );
 }
 
-SpectrumViewController.prototype.denormalizeQ = function(value, minValue, maxValue) {
+SpectrumViewController.prototype.DenormalizeQ = function(value, minValue, maxValue) {
     if (minValue <= 0 || maxValue <= minValue) {
         return minValue;
     }
-    return minValue * Math.pow(maxValue / minValue, this.clamp(value, 0, 1));
+    return minValue * Math.pow(maxValue / minValue, this.Clamp(value, 0, 1));
 }
 
-SpectrumViewController.prototype.isAltModifierDown = function(option, argumentOption) {
+SpectrumViewController.prototype.IsAltModifierDown = function(option, argumentOption) {
     return Boolean(option) || Boolean(argumentOption);
 }
 
-SpectrumViewController.prototype.onmouseup = function() {
-    this.finishClick();
+SpectrumViewController.prototype.OnMouseUp = function() {
+    this.FinishClick();
 }
 
-SpectrumViewController.prototype.finishClick = function() {
+SpectrumViewController.prototype.FinishClick = function() {
     if (spectrumState.clickWasRepeat && !spectrumState.clickMoved && spectrumState.selectionCandidates.length > 1) {
         spectrumState.selectionIndex = (spectrumState.selectionIndex + 1) % spectrumState.selectionCandidates.length;
         spectrumState.selectedHandleSlot = spectrumState.selectionCandidates[spectrumState.selectionIndex].slot;
@@ -276,14 +232,14 @@ SpectrumViewController.prototype.finishClick = function() {
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.sameHandle = function(left, right) {
+SpectrumViewController.prototype.SameHandle = function(left, right) {
     if (!left || !right) {
         return left === right;
     }
     return left.slot === right.slot;
 }
 
-SpectrumViewController.prototype.findHandlesAt = function(x, y) {
+SpectrumViewController.prototype.FindHandlesAt = function(x, y) {
     var size = mgraphics.size;
     var candidates = [];
 
@@ -292,8 +248,8 @@ SpectrumViewController.prototype.findHandlesAt = function(x, y) {
             continue;
         }
 
-        var handleX = this.frequencyToX(spectrumState.handles[i].frequency, size[0]);
-        var handleY = this.dbToY(spectrumState.handles[i].gain, this.getPlotBottom(size[1]));
+        var handleX = this.FrequencyToX(spectrumState.handles[i].frequency, size[0]);
+        var handleY = this.DbToY(spectrumState.handles[i].gain, this.GetPlotBottom(size[1]));
         var distance = Math.sqrt(
             Math.pow(x - handleX, 2) + Math.pow(y - handleY, 2)
         );
@@ -319,7 +275,7 @@ SpectrumViewController.prototype.findHandlesAt = function(x, y) {
     });
 }
 
-SpectrumViewController.prototype.findCandidateIndex = function(candidates, slot) {
+SpectrumViewController.prototype.FindCandidateIndex = function(candidates, slot) {
     if (slot === null || slot === undefined) {
         return -1;
     }
@@ -331,16 +287,16 @@ SpectrumViewController.prototype.findCandidateIndex = function(candidates, slot)
     return -1;
 }
 
-SpectrumViewController.prototype.smooth = function(value) {
-    spectrumState.smoothing = this.clamp(Number(value), 0, 0.98);
+SpectrumViewController.prototype.Smooth = function(value) {
+    spectrumState.smoothing = this.Clamp(Number(value), 0, 0.98);
 }
 
-SpectrumViewController.prototype.q_sensitivity = function(value) {
+SpectrumViewController.prototype.QSensitivity = function(value) {
     // The inlet value is normalized; around 0.63 matches the default response.
-    spectrumState.qSensitivity = 0.25 + this.clamp(Number(value), 0, 1) * 1.75;
+    spectrumState.qSensitivity = 0.25 + this.Clamp(Number(value), 0, 1) * 1.75;
 }
 
-SpectrumViewController.prototype.clear = function() {
+SpectrumViewController.prototype.Clear = function() {
     for (var i = 0; i < spectrumState.curves.length; i++) {
         spectrumState.curves[i] = [];
     }
@@ -358,29 +314,27 @@ SpectrumViewController.prototype.clear = function() {
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.clear_difference = function() {
+SpectrumViewController.prototype.ClearDifference = function() {
     spectrumState.curves[2] = [];
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.target_size = function(size) {};
-
-SpectrumViewController.prototype.range = function(minValue, maxValue) {
+SpectrumViewController.prototype.Range = function(minValue, maxValue) {
     spectrumState.minDb = Number(minValue);
     spectrumState.maxDb = Number(maxValue);
     spectrumState.dbRangeIndex = -1;
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.range_mode = function(value) {
-    this.setDbRangeMode(Number(value));
+SpectrumViewController.prototype.RangeMode = function(value) {
+    this.SetDbRangeMode(Number(value));
 }
 
-SpectrumViewController.prototype.toggle_range = function() {
-    this.setDbRangeMode(spectrumState.dbRangeIndex === 0 ? 1 : 0);
+SpectrumViewController.prototype.ToggleRange = function() {
+    this.SetDbRangeMode(spectrumState.dbRangeIndex === 0 ? 1 : 0);
 }
 
-SpectrumViewController.prototype.setDbRangeMode = function(index) {
+SpectrumViewController.prototype.SetDbRangeMode = function(index) {
     if (index < 0 || index >= spectrumState.dbRangePresets.length) {
         return;
     }
@@ -391,7 +345,7 @@ SpectrumViewController.prototype.setDbRangeMode = function(index) {
     mgraphics.redraw();
 }
 
-SpectrumViewController.prototype.findHandle = function(slot) {
+SpectrumViewController.prototype.FindHandle = function(slot) {
     for (var i = 0; i < spectrumState.handles.length; i++) {
         if (spectrumState.handles[i].slot === slot) {
             return i;
@@ -401,37 +355,12 @@ SpectrumViewController.prototype.findHandle = function(slot) {
     return -1;
 }
 
-SpectrumViewController.prototype.getHandleBySlot = function(slot) {
-    var index = this.findHandle(slot);
+SpectrumViewController.prototype.GetHandleBySlot = function(slot) {
+    var index = this.FindHandle(slot);
     return index >= 0 ? spectrumState.handles[index] : null;
 }
 
-SpectrumViewController.prototype.findHandleAt = function(x, y) {
-    var point = this.toLocalPoint(x, y);
-    var size = mgraphics.size;
-    var w = size[0];
-    var plotBottom = this.getPlotBottom(size[1]);
-    var closest = null;
-    var closestDistance = 12;
-
-    for (var i = 0; i < spectrumState.handles.length; i++) {
-        if (!spectrumState.handles[i].active) {
-            continue;
-        }
-
-        var handleX = this.frequencyToX(spectrumState.handles[i].frequency, w);
-        var handleY = this.dbToY(spectrumState.handles[i].gain, plotBottom);
-        var distance = Math.sqrt(Math.pow(point.x - handleX, 2) + Math.pow(point.y - handleY, 2));
-        if (distance < closestDistance) {
-            closest = spectrumState.handles[i];
-            closestDistance = distance;
-        }
-    }
-
-    return closest;
-}
-
-SpectrumViewController.prototype.toLocalPoint = function(x, y) {
+SpectrumViewController.prototype.ToLocalPoint = function(x, y) {
     var rect = box.rect;
     var size = mgraphics.size;
     if (x > size[0] && x >= rect[0]) {
@@ -442,8 +371,8 @@ SpectrumViewController.prototype.toLocalPoint = function(x, y) {
     }
 
     return {
-        x: this.clamp(x, 0, size[0]),
-        y: this.clamp(y, 0, size[1])
+        x: this.Clamp(x, 0, size[0]),
+        y: this.Clamp(y, 0, size[1])
     };
 }
 // Max messages, selection state, and pointer interaction.

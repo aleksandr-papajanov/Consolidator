@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
+
+if (POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif ()
+
 project(Min-Starter)
 
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
@@ -12,9 +17,6 @@ set(CONSOLIDATOR_MAX_FEATURES_DIR
     "${CONSOLIDATOR_ROOT}/Max/Features"
 )
 
-set(CONSOLIDATOR_SETTINGS_JSON
-    "${CONSOLIDATOR_ROOT}/Max/Config/ConsolidatorSettings.json"
-)
 option(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX
     "Copy built Max externals into their owning Max feature after build."
     ON
@@ -58,8 +60,13 @@ endif ()
 # Misc setup and subroutines
 include(${CMAKE_CURRENT_SOURCE_DIR}/Source/min-api/script/min-package.cmake)
 
-# Shared native foundation and Max transport adapters used by multiple projects.
+# Native foundation layers are declared before Max adapters and externals.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.Shared)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.Domain)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.Messaging)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.DspCore)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.Persistence)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.DeviceHost)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects/Consolidator.MaxAdapter)
 
 # Add the Lib, if it exists
@@ -71,6 +78,11 @@ endif ()
 SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/Source/Projects)
 foreach (project_dir ${PROJECT_DIRS})
     if (project_dir STREQUAL "Consolidator.Shared" OR
+        project_dir STREQUAL "Consolidator.Domain" OR
+        project_dir STREQUAL "Consolidator.Messaging" OR
+        project_dir STREQUAL "Consolidator.DspCore" OR
+        project_dir STREQUAL "Consolidator.Persistence" OR
+        project_dir STREQUAL "Consolidator.DeviceHost" OR
         project_dir STREQUAL "Consolidator.MaxAdapter")
         continue()
     endif ()

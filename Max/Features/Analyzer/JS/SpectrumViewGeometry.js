@@ -1,4 +1,4 @@
-SpectrumViewController.prototype.formatDbLabel = function(db) {
+SpectrumViewController.prototype.FormatDbLabel = function(db) {
     if (db === 0) {
         return "0";
     }
@@ -6,7 +6,7 @@ SpectrumViewController.prototype.formatDbLabel = function(db) {
     return (db > 0 ? "+" : "") + String(db);
 }
 
-SpectrumViewController.prototype.isMajorFrequency = function(freq) {
+SpectrumViewController.prototype.IsMajorFrequency = function(freq) {
     for (var i = 0; i < spectrumState.majorFrequencies.length; i++) {
         if (spectrumState.majorFrequencies[i] === freq) {
             return true;
@@ -16,12 +16,12 @@ SpectrumViewController.prototype.isMajorFrequency = function(freq) {
     return false;
 }
 
-SpectrumViewController.prototype.getDbGridStep = function() {
+SpectrumViewController.prototype.GetDbGridStep = function() {
     return spectrumState.dbRangeIndex === 0 ? 6 : 12;
 }
 
-SpectrumViewController.prototype.frequencyToX = function(freq, w) {
-    freq = this.clamp(freq, spectrumState.displayMinFrequency, spectrumState.displayMaxFrequency);
+SpectrumViewController.prototype.FrequencyToX = function(freq, w) {
+    freq = this.Clamp(freq, spectrumState.displayMinFrequency, spectrumState.displayMaxFrequency);
 
     var x = 0;
 
@@ -30,7 +30,7 @@ SpectrumViewController.prototype.frequencyToX = function(freq, w) {
         var bandWidth = w * band.width;
 
         if (freq <= band.max || i === spectrumState.frequencyBands.length - 1) {
-            var t = this.normalizedLog(freq, band.min, band.max);
+            var t = this.NormalizedLog(freq, band.min, band.max);
             return x + t * bandWidth;
         }
 
@@ -40,42 +40,25 @@ SpectrumViewController.prototype.frequencyToX = function(freq, w) {
     return w;
 }
 
-SpectrumViewController.prototype.xToFrequency = function(x, w) {
-    x = this.clamp(x, 0, w);
-    var offset = 0;
-
-    for (var i = 0; i < spectrumState.frequencyBands.length; i++) {
-        var band = spectrumState.frequencyBands[i];
-        var bandWidth = w * band.width;
-        if (x <= offset + bandWidth || i === spectrumState.frequencyBands.length - 1) {
-            var t = this.clamp((x - offset) / bandWidth, 0, 1);
-            return band.min * Math.pow(band.max / band.min, t);
-        }
-
-        offset += bandWidth;
-    }
-
-    return spectrumState.displayMaxFrequency;
-}
-
-SpectrumViewController.prototype.binToX = function(index, total, w) {
+SpectrumViewController.prototype.BinToX = function(index, total, w) {
     if (total <= 1) {
         return 0;
     }
 
     var t = index / (total - 1);
-    var freq = spectrumState.curveMinFrequency * Math.pow(spectrumState.displayMaxFrequency / spectrumState.curveMinFrequency, t);
-    return this.frequencyToX(freq, w);
+    var freq = spectrumState.curveMinFrequency * Math.pow(
+        spectrumState.curveMaxFrequency / spectrumState.curveMinFrequency, t);
+    return this.FrequencyToX(freq, w);
 }
 
-SpectrumViewController.prototype.normalizedLog = function(value, minValue, maxValue) {
-    value = this.clamp(value, minValue, maxValue);
+SpectrumViewController.prototype.NormalizedLog = function(value, minValue, maxValue) {
+    value = this.Clamp(value, minValue, maxValue);
     var logMin = Math.log(minValue);
     var logMax = Math.log(maxValue);
     return (Math.log(value) - logMin) / (logMax - logMin);
 }
 
-SpectrumViewController.prototype.formatFrequencyLabel = function(freq) {
+SpectrumViewController.prototype.FormatFrequencyLabel = function(freq) {
     if (freq >= 1000) {
         return String(freq / 1000) + "k";
     }
@@ -83,26 +66,21 @@ SpectrumViewController.prototype.formatFrequencyLabel = function(freq) {
     return String(freq);
 }
 
-SpectrumViewController.prototype.estimateLabelWidth = function(label) {
+SpectrumViewController.prototype.EstimateLabelWidth = function(label) {
     return label.length * 4.6;
 }
 
-SpectrumViewController.prototype.getPlotBottom = function(h) {
+SpectrumViewController.prototype.GetPlotBottom = function(h) {
     return h - 18;
 }
 
-SpectrumViewController.prototype.dbToY = function(db, plotBottom) {
-    db = this.clamp(db, spectrumState.minDb, spectrumState.maxDb);
+SpectrumViewController.prototype.DbToY = function(db, plotBottom) {
+    db = this.Clamp(db, spectrumState.minDb, spectrumState.maxDb);
     var norm = (db - spectrumState.minDb) / (spectrumState.maxDb - spectrumState.minDb);
     return plotBottom - norm * plotBottom;
 }
 
-SpectrumViewController.prototype.yToDb = function(y, plotBottom) {
-    var norm = 1 - this.clamp(y / plotBottom, 0, 1);
-    return spectrumState.minDb + norm * (spectrumState.maxDb - spectrumState.minDb);
-}
-
-SpectrumViewController.prototype.clamp = function(v, min, max) {
+SpectrumViewController.prototype.Clamp = function(v, min, max) {
     return Math.max(min, Math.min(max, v));
 }
 // Frequency and screen-coordinate conversion helpers.

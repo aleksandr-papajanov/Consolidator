@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <map>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -65,7 +66,10 @@ public:
     std::optional<long> ReadLong(const std::string& key) const {
         const auto value = Find(key);
         if (!value || !value->As<std::int64_t>()) return std::nullopt;
-        return static_cast<long>(*value->As<std::int64_t>());
+        const auto integer = *value->As<std::int64_t>();
+        if (integer < std::numeric_limits<long>::min() ||
+            integer > std::numeric_limits<long>::max()) return std::nullopt;
+        return static_cast<long>(integer);
     }
 
     std::optional<double> ReadDouble(const std::string& key) const {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "DeviceStateDictionaryCodec.h"
-#include "MessageEnvelopeDictionaryCodec.h"
+#include "DictionaryCodec.h"
+#include "MessageObjectDictionaryCodec.h"
 
 #include "c74_min.h"
 
@@ -137,7 +137,6 @@ private:
             reinterpret_cast<c74::max::t_dictionary*>(object),
             c74::max::gensym(key.c_str()), static_cast<long>(atoms.size()),
             atoms.empty() ? nullptr : &atoms[0]);
-        c74::max::object_release(object);
     }
 
     static void AppendDictionary(
@@ -149,7 +148,6 @@ private:
         const auto error = c74::max::dictionary_appenddictionary(
             reinterpret_cast<c74::max::t_dictionary*>(destinationObject),
             c74::max::gensym(key.c_str()), reinterpret_cast<c74::max::t_object*>(value));
-        c74::max::object_release(destinationObject);
         if (error != c74::max::MAX_ERR_NONE) {
             c74::max::object_free(value);
             throw std::runtime_error("Could not append nested Max dictionary");

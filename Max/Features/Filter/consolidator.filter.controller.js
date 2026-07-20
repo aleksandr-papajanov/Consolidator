@@ -63,29 +63,9 @@ FilterFeatureController.prototype.Configure = function(dictionaryName) {
         this.filterReady = false;
         this.configurationName = String(dictionaryName);
         this.configuration = new DictionaryReader(this.configurationName);
-        var selected = this.Number(this.configuration.selected, this.slot);
-        this.selectedFilter = this.configuration.filters[selected];
+        this.selectedFilter = this.configuration.filters[this.slot];
         if (!this.selectedFilter) throw new Error("missing_filter_configuration");
-        this.filterType = String(this.selectedFilter.type || "");
-
         this.parameters = [];
-        var parameterNames = this.ParameterNames();
-        for (var i = 0; i < parameterNames.length; i++) {
-            var name = parameterNames[i];
-            var parameter = this.selectedFilter.parameters[name];
-            var definition = {
-                name: name,
-                control: String(parameter.control || ""),
-                scale: String(parameter.scale || "linear"),
-                min: this.Number(parameter.min, 0),
-                max: this.Number(parameter.max, 1),
-                defaultValue: this.Number(parameter["default"], 0)
-            };
-            this.parameters.push(definition);
-        }
-
-        this.BuildControls();
-        this.ApplyLayout();
         this.SendFilterCommand("configure");
     }
     catch (error) {
@@ -93,19 +73,32 @@ FilterFeatureController.prototype.Configure = function(dictionaryName) {
     }
 };
 
-FilterFeatureController.prototype.ParameterNames = function() {
-    var names = [];
-    var parameters = this.selectedFilter.parameters || {};
-    for (var key in parameters) {
-        if (Object.prototype.hasOwnProperty.call(parameters, key)) {
-            names.push(String(key));
-        }
-    }
+FilterFeatureController.prototype.ControlForParameter = function(name) {
+    if (name === "freq" || name === "pivot") return "frequency";
+    return name;
+};
 
-    if (names.length > 0) return names;
-    if (this.filterType === "gain") return ["gain"];
-    if (this.filterType === "tilt") return ["gain", "pivot"];
-    return ["gain", "freq", "q"];
+FilterFeatureController.prototype.ApplyDefinition = function(values) {
+    if (!this.configuration || values.length < 3) return;
+    this.filterType = String(values[0]);
+    this.bypassed = Number(values[1]) !== 0;
+    var parameterCount = Number(values[2]);
+    if (!isFinite(parameterCount) || parameterCount < 1 || values.length !== 3 + parameterCount * 5) return;
+    this.parameters = [];
+    var position = 3;
+    for (var index = 0; index < parameterCount; index++) {
+        var name = String(values[position++]);
+        this.parameters.push({
+            name: name,
+            control: this.ControlForParameter(name),
+            min: this.Number(values[position++], 0),
+            max: this.Number(values[position++], 1),
+            scale: String(values[position++]),
+            defaultValue: this.Number(values[position++], 0)
+        });
+    }
+    this.BuildControls();
+    this.ApplyLayout();
 };
 
 FilterFeatureController.prototype.BuildControls = function() {
@@ -167,21 +160,47 @@ FilterFeatureController.prototype.ApplyEnabledState = function() {
         var id = ids[i];
         var state = this.controls[id];
         if (!state) continue;
-        var enabled = state.alwaysEnabled || (!this.bypassed && state.enabled);
+        var enabled = this.filterReady &&
+            (state.alwaysEnabled || (!this.bypassed && state.enabled));
         this.SendControl(id, enabled ? "enable" : "disable");
     }
 };
 
 FilterFeatureController.prototype.ApplyValues = function(values) {
-    if (!this.controls || values.length < this.parameters.length + 1) return;
+    if (!this.controls || values.length !== this.parameters.length + 1) return;
 
     for (var i = 0; i < this.parameters.length; i++) {
         var control = this.parameters[i].control;
-        if (control) this.SendControl(control, "set", [values[i]]);
+        if (control) this.SendControl(control, "set", [this.ToNormalized(this.parameters[i], values[i])]);
     }
 
     this.bypassed = this.Number(values[this.parameters.length], 0) === 1;
     this.ApplyEnabledState();
+};
+
+FilterFeatureController.prototype.ParameterForControl = function(control) {
+    for (var i = 0; i < this.parameters.length; i++) {
+        if (this.parameters[i].control === control) return this.parameters[i];
+    }
+    return null;
+};
+
+FilterFeatureController.prototype.ToAbsolute = function(definition, value) {
+    var normalized = Math.max(0, Math.min(1, this.Number(value, 0)));
+    if (definition.scale === "logarithmic" && definition.min > 0 && definition.max > 0) {
+        return definition.min * Math.pow(definition.max / definition.min, normalized);
+    }
+    return definition.min + (definition.max - definition.min) * normalized;
+};
+
+FilterFeatureController.prototype.ToNormalized = function(definition, value) {
+    var absolute = this.Number(value, definition.defaultValue);
+    if (definition.scale === "logarithmic" && definition.min > 0 && definition.max > 0) {
+        absolute = Math.max(definition.min, Math.min(definition.max, absolute));
+        return Math.log(absolute / definition.min) / Math.log(definition.max / definition.min);
+    }
+    if (definition.max === definition.min) return 0;
+    return Math.max(0, Math.min(1, (absolute - definition.min) / (definition.max - definition.min)));
 };
 
 FilterFeatureController.prototype.SendControl = function(controlId, action, values) {
@@ -230,7 +249,13 @@ FilterFeatureController.prototype.ParseColor = function(value) {
 FilterFeatureController.prototype.HandleLocalCommand = function(command, values) {
     if (command === "update" && values.length === 2) {
         if (!this.configuration || !this.filterReady) return;
-        this.SendFilterCommand("update", String(values[0]), Number(values[1]));
+        if (String(values[0]) === "bypass") {
+            this.SendFilterCommand("update", "bypass", Number(values[1]));
+            return;
+        }
+        var definition = this.ParameterForControl(String(values[0]));
+        if (!definition) return;
+        this.SendFilterCommand("update", definition.name, this.ToAbsolute(definition, values[1]));
     }
     else if (command === "reset" && values.length === 0) {
         this.SendFilterCommand("reset");
@@ -238,8 +263,12 @@ FilterFeatureController.prototype.HandleLocalCommand = function(command, values)
 };
 
 FilterFeatureController.prototype.HandleFilterStatus = function(state, values) {
-    if (state === "ready") {
+    if (state === "definition") {
+        this.ApplyDefinition(values);
+    }
+    else if (state === "ready") {
         this.filterReady = true;
+        this.ApplyEnabledState();
     }
     else if (state === "values") {
         this.ApplyValues(values);
@@ -251,14 +280,14 @@ var controller = new FilterFeatureController(jsarguments[1]);
 function inletassist(index) {
     var descriptions = [
         "Local UI commands: update <control> <0..1>, reset",
-        "Filter status and normalized filter values"
+        "Filter status: definition, ready, and absolute values"
     ];
     assist(descriptions[index] || "");
 }
 
 function outletassist(index) {
     var descriptions = [
-        "Local consolidator.filter.js commands: configure, update <control> <0..1>, reset",
+        "Local consolidator.filter.js commands: configure, update <parameter> <absolute>, reset",
         "thispatcher commands for filter controls"
     ];
     assist(descriptions[index] || "");
@@ -280,12 +309,6 @@ function reset() {
 function status(state) {
     if (inlet === 1) {
         controller.HandleFilterStatus(state, arrayfromargs(arguments).slice(1));
-    }
-}
-
-function message() {
-    if (inlet === 1) {
-        controller.HandleFilterStatus(messagename, arrayfromargs(arguments));
     }
 }
 

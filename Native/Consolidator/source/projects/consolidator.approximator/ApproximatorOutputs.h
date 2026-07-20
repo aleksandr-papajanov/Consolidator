@@ -1,52 +1,70 @@
 #pragma once
 
 #include "c74_min.h"
-#include "ComponentOutputs.h"
-#include "Messaging/Messages/FilterSetManyMessage.h"
 #include "Models/FilterDefinition.h"
-#include "Models/FilterState.h"
 
 #include <map>
+#include <string>
 #include <vector>
 
-class ApproximatorOutputs {
+class ApproximatorOutputs final {
 public:
     using Definitions = std::map<long, consolidator::models::FilterDefinition>;
 
-    explicit ApproximatorOutputs(consolidator::maxadapter::ComponentOutputs& outputs)
-        : outputs(outputs) {}
+    ApproximatorOutputs(
+        c74::min::outlet<>& events,
+        c74::min::outlet<>& status,
+        c74::min::outlet<>& debug
+    ) : events(events), status(status), debug(debug) {}
 
-    void Ready(bool value) const { outputs.Ready(value); }
-    void Loss(double value) const { outputs.Debug("loss", value); }
-    void Error(const char* value) const { outputs.Error(value); }
-    void FitStarted() const { outputs.Debug("fit_started"); }
-    void FitFinished() const { outputs.Debug("fit_finished"); }
+    void Ready(bool value) const {
+        status.send("status", value ? "ready" : "idle");
+    }
 
-    void SendFilterCommands(
+    void Loss(double value) const { debug.send("loss", value); }
+    void Error(const char* value) const {
+        status.send("status", "error", value);
+        debug.send("error", value);
+    }
+    void FitStarted() const { status.send("status", "processing"); }
+
+    void SendFitResult(
         const Definitions& definitions,
         const std::vector<double>& solverValues,
-        long bankIndex
+        long sessionId,
+        long bankId,
+        double loss
     ) const {
+        c74::min::atoms output{
+            "command", 1L, "approximator", sessionId, "fit.complete",
+            sessionId, bankId, loss, static_cast<long>(definitions.size())
+        };
         std::size_t offset = 0;
         for (const auto& [filterId, definition] : definitions) {
-            consolidator::models::FilterState state;
-            state.filterId = filterId;
-            state.bankIndex = bankIndex;
-            state.bypass = false;
-            state.values.reserve(definition.parameters.size());
+            output.push_back(filterId);
+            output.push_back(0L);
+            output.push_back(static_cast<long>(definition.parameters.size()));
             for (const auto& parameter : definition.parameters) {
                 if (offset >= solverValues.size()) {
-                    Error("fit_result_size_mismatch");
+                    SendFitFailure(sessionId, "fit_result_size_mismatch");
                     return;
                 }
-                state.values.push_back(parameter.range.Denormalize(solverValues[offset++]));
+                output.push_back(parameter.range.Denormalize(solverValues[offset++]));
             }
-            outputs.Send<consolidator::messaging::FilterSetManyMessage>(
-                "approximator", "eq.storage", std::move(state));
         }
-        if (offset != solverValues.size()) Error("fit_result_size_mismatch");
+        if (offset != solverValues.size()) {
+            SendFitFailure(sessionId, "fit_result_size_mismatch");
+            return;
+        }
+        events.send(output);
+    }
+
+    void SendFitFailure(long sessionId, const char* error) const {
+        events.send("command", 1L, "approximator", sessionId, "fit.fail", sessionId, error);
     }
 
 private:
-    consolidator::maxadapter::ComponentOutputs& outputs;
+    c74::min::outlet<>& events;
+    c74::min::outlet<>& status;
+    c74::min::outlet<>& debug;
 };

@@ -18,19 +18,19 @@ var spectrumViewController = new SpectrumViewController();
 
 function inletassist(index) {
     var descriptions = [
-        "Current signal spectrum in dB",
+        "Current signal spectrum in dB; view commands: clear, range <min> <max>, range_mode <index>, toggle_range, smooth <0..1>, q_sensitivity <0..1>",
         "Reference signal spectrum in dB",
-        "Difference spectrum in dB",
-        "Individual filter curves and handles",
+        "Difference spectrum in dB; clear_difference",
+        "curve_settings <minHz> <maxHz> <pointCount>; filter_curve <fields...>",
         "Total EQ response curve in dB",
-        "message <dictionary type=filter.state|analyzer.difference>"
+        "snapshot 1 host eq ... from DeviceHost"
     ];
     assist(descriptions[index] || "");
 }
 
 function outletassist(index) {
     assist(index === 0
-        ? "message <dictionary type=filter.set> for EqStorage"
+        ? "command 1 spectrum <requestId> eq.set_parameter ... for DeviceHost"
         : "");
 }
 
@@ -39,28 +39,29 @@ setoutletassist(-1, outletassist);
 
 function paint() {
     try {
-        spectrumViewController.paint();
+        spectrumViewController.Paint();
     } catch (error) {
         post("SpectrumView paint error: " + error + "\n");
     }
 }
-function list() { spectrumViewController.list.apply(spectrumViewController, arguments); }
-function handle() { spectrumViewController.handle.apply(spectrumViewController, arguments); }
-function filter_curve() { spectrumViewController.filter_curve.apply(spectrumViewController, arguments); }
-function onclick() { spectrumViewController.onclick.apply(spectrumViewController, arguments); }
-function ondrag() { spectrumViewController.ondrag.apply(spectrumViewController, arguments); }
-function onmouseup() { spectrumViewController.onmouseup.apply(spectrumViewController, arguments); }
-function clear() { spectrumViewController.clear(); }
-function clear_difference() { spectrumViewController.clear_difference(); }
-function target_size() { spectrumViewController.target_size.apply(spectrumViewController, arguments); }
-function range() { spectrumViewController.range.apply(spectrumViewController, arguments); }
-function range_mode() { spectrumViewController.range_mode.apply(spectrumViewController, arguments); }
-function toggle_range() { spectrumViewController.toggle_range(); }
-function smooth() { spectrumViewController.smooth.apply(spectrumViewController, arguments); }
-function q_sensitivity() { spectrumViewController.q_sensitivity.apply(spectrumViewController, arguments); }
-function message(dictionaryName) {
-    if (inlet === 5) spectrumViewController.HandleBusMessage(dictionaryName);
+function list() {
+    if (inlet === 5) spectrumViewController.HandleBusMessage(arrayfromargs(arguments));
+    else spectrumViewController.List.apply(spectrumViewController, arguments);
 }
+function filter_curve() { spectrumViewController.FilterCurve.apply(spectrumViewController, arguments); }
+function curve_settings() { spectrumViewController.CurveSettings.apply(spectrumViewController, arguments); }
+function onclick() { spectrumViewController.OnClick.apply(spectrumViewController, arguments); }
+function ondrag() { spectrumViewController.OnDrag.apply(spectrumViewController, arguments); }
+function onmouseup() { spectrumViewController.OnMouseUp.apply(spectrumViewController, arguments); }
+function clear() { spectrumViewController.Clear(); }
+function clear_difference() { spectrumViewController.ClearDifference(); }
+function range() { spectrumViewController.Range.apply(spectrumViewController, arguments); }
+function range_mode() { spectrumViewController.RangeMode.apply(spectrumViewController, arguments); }
+function toggle_range() { spectrumViewController.ToggleRange(); }
+function smooth() { spectrumViewController.Smooth.apply(spectrumViewController, arguments); }
+function q_sensitivity() { spectrumViewController.QSensitivity.apply(spectrumViewController, arguments); }
 function anything() {
-    if (inlet === 5) spectrumViewController.HandleBusMessage(messagename);
+    if (inlet === 5 && messagename === "snapshot") {
+        spectrumViewController.HandleBusMessage(["snapshot"].concat(arrayfromargs(arguments)));
+    }
 }

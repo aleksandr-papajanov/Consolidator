@@ -5,8 +5,8 @@
 namespace consolidator::models {
 
 enum class ParameterScale {
-    Linear,
-    Logarithmic
+    Linear = 0,
+    Logarithmic = 1
 };
 
 struct ParameterRange {

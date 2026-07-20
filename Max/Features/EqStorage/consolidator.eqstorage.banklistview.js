@@ -30,7 +30,7 @@ setinletassist(-1, inletassist);
 setoutletassist(-1, outletassist);
 
 function clear() {
-    model.clear();
+    model.Clear();
     itemIds = [];
     scrollOffset = 0;
     refresh();
@@ -39,7 +39,7 @@ function clear() {
 function append() {
     var values = arrayfromargs(arguments);
     if (values.length !== 2) return;
-    model.append(String(values[0]));
+    model.Append(String(values[0]));
     itemIds.push(Number(values[1]));
     clampScrollOffset();
     refresh();
@@ -50,22 +50,22 @@ function setid(bankId) {
     for (var index = 0; index < itemIds.length; index++) {
         if (itemIds[index] === id) {
             ensureVisible(index);
-            model.select(index - scrollOffset);
+            model.Select(index - scrollOffset);
             refresh();
             return;
         }
     }
-    model.select(-1);
+    model.Select(-1);
     refresh();
 }
 
 function onclick(x, y) {
-    var localIndex = model.indexAt(y);
+    var localIndex = model.IndexAt(y);
     if (localIndex < 0) {
         return;
     }
     var index = localIndex + scrollOffset;
-    model.select(index - scrollOffset);
+    model.Select(index - scrollOffset);
     outlet(0, itemIds[index]);
     refresh();
 }

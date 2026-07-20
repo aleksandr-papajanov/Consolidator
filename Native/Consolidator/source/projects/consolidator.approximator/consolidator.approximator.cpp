@@ -2,11 +2,12 @@
 
 #include "ApproximatorCurveStore.h"
 #include "ApproximatorOutputs.h"
-#include "ComponentHost.h"
+#include "AtomAdapter.h"
+#include "AtomMessage.h"
 #include "DSP/Eq/EqRuntime.h"
 #include "EqOptimizer.h"
-#include "Messaging/Messages/ApproximatorClearMessage.h"
-#include "Messaging/Messages/ApproximatorFitMessage.h"
+#include "EventCodec.h"
+#include "SnapshotCodec.h"
 #include "Settings/AudioOptions.h"
 
 #include <atomic>
@@ -15,8 +16,10 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <variant>
 
 using namespace c74::min;
+using namespace consolidator;
 
 class ConsolidatorApproximator : public object<ConsolidatorApproximator> {
 public:
@@ -26,16 +29,16 @@ public:
 
     inlet<> commands{
         this,
-        "(message) commands: message <dictionary type=device.state.changed|approximator.clear|approximator.fit>"
+        "(message) commands: snapshot 1 host eq <revision> <selectedBank> <bankCount> <banks...>; event 1 host <eventId> operation.changed fit ..."
     };
-    inlet<> inputCurve{ this, "(list) target difference curve in dB" };
+    inlet<> inputCurve{ this, "(message) target difference curve: list <dB...>; clear_difference" };
 
     outlet<> commandsOut{
         this,
-        "(message) commands: message <dictionary type=filter.set_many payload=filterId,values,bankIndex>"
+        "(anything) commands: command 1 approximator <requestId> fit.complete <sessionId> <bankId> <loss> <filters...>; command 1 approximator <requestId> fit.fail <sessionId> <error>"
     };
-    outlet<> statusOut{ this, "(anything) status: ready 0/1" };
-    outlet<> debugOut{ this, "(anything) diagnostics: fit_started, fit_finished, error <code>, loss <value>" };
+    outlet<> statusOut{ this, "(anything) status: status initialized|idle|ready|processing|error <code>" };
+    outlet<> debugOut{ this, "(anything) diagnostics: error <code>, loss <value>" };
 
     queue<> fitDelivery{
         this,
@@ -50,8 +53,27 @@ public:
         "list",
         "Receive analysis curves",
         MIN_FUNCTION {
+            if (inlet == 0) {
+                const auto atoms = maxadapter::AtomAdapter::Read(args);
+                if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq")) ApplySnapshot(atoms);
+                else if (messaging::AtomMessage::HasCategory(atoms, "event")) ApplyEvent(atoms);
+                return {};
+            }
             if (inlet == 1) curveStore.SetTarget(args);
             UpdateReady();
+            return {};
+        }
+    };
+
+    message<> eventMessage{
+        this,
+        "event",
+        "Apply a Host operation event",
+        MIN_FUNCTION {
+            if (inlet != 0) return {};
+            auto atoms = maxadapter::AtomAdapter::Read(args);
+            if (atoms) atoms->insert(atoms->begin(), "event");
+            ApplyEvent(atoms);
             return {};
         }
     };
@@ -65,16 +87,30 @@ public:
         }
     };
 
-    message<> envelopeMessage{
+    message<> clearDifference{
         this,
-        "message",
-        "Receive a structured approximator control envelope",
+        "clear_difference",
+        "Clear the live difference curve",
         MIN_FUNCTION {
-            if (inlet != 0 || args.size() != 1) {
-                debugOut.send("error", "invalid_message_envelope");
+            if (inlet != 1) return {};
+            curveStore.ClearTarget();
+            UpdateReady();
+            return {};
+        }
+    };
+
+    message<> snapshotMessage{
+        this,
+        "snapshot",
+        "Apply a complete EQ snapshot",
+        MIN_FUNCTION {
+            if (inlet != 0) {
+                debugOut.send("error", "invalid_snapshot_inlet");
                 return {};
             }
-            component.Receive(args);
+            auto atoms = maxadapter::AtomAdapter::Read(args);
+            if (atoms) atoms->insert(atoms->begin(), "snapshot");
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq")) ApplySnapshot(atoms);
             return {};
         }
     };
@@ -83,52 +119,82 @@ public:
         if (fitWorker.joinable()) fitWorker.join();
     }
 
-    void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
+private:
+    using Definitions = EqOptimizer::Definitions;
+
+    void ApplyEvent(const std::optional<messaging::AtomList>& atoms) {
+        if (!atoms) return;
+        const auto decoded = messaging::EventCodec::Decode(*atoms);
+        if (!decoded.Succeeded()) return;
+        if (std::holds_alternative<domain::HostInitializedEvent>(decoded.event)) {
+            MarkHostInitialized();
+            return;
+        }
+        const auto* operation = std::get_if<domain::OperationChangedEvent>(&decoded.event);
+        if (!operation || operation->operation != "fit") return;
+        if (operation->status == domain::OperationStatus::Starting) {
+            activeFitSessionId = static_cast<long>(operation->sessionId.value);
+            StartFit();
+        }
+        else if (operation->status == domain::OperationStatus::Completed) {
+            fitRunning = false;
+            activeFitSessionId = 0;
+            SetReady(false, true);
+        }
+        else if (operation->status == domain::OperationStatus::Failed) {
+            fitRunning = false;
+            activeFitSessionId = 0;
+            if (!operation->error.empty()) {
+                ApproximatorOutputs{ commandsOut, statusOut, debugOut }.Error(operation->error.c_str());
+            }
+        }
+        else if (operation->status == domain::OperationStatus::Idle ||
+                 operation->status == domain::OperationStatus::Cancelled) {
+            activeFitSessionId = 0;
+            curveStore.ClearTarget();
+            SetReady(false, true);
+        }
+    }
+
+    void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
+        const auto snapshot = atoms ? messaging::SnapshotCodec::DecodeEq(*atoms) : std::nullopt;
+        if (!snapshot || !snapshot->FindBank(snapshot->selectedBankId)) {
+            debugOut.send("error", "invalid_eq_snapshot");
+            return;
+        }
+        MarkHostInitialized();
         definitions = eqRuntime.Definitions();
-        fitBankIndex = state.snapshot.selectedBankId;
-        eqRuntime.SetSnapshot(state.snapshot);
+        fitBankIndex = snapshot->selectedBankId;
+        eqRuntime.SetSnapshot(*snapshot);
         curveStore.SetCurrentEq(eqRuntime.BuildBankCurve(fitBankIndex, sampleRate));
         curveStore.ClearTarget();
         UpdateReady();
     }
 
-    void OnMessage(const consolidator::messaging::ApproximatorClearMessage&) {
-        curveStore.ClearTarget();
-        UpdateReady();
-    }
-
-    void OnMessage(const consolidator::messaging::ApproximatorFitMessage&) {
-        StartFit();
-    }
-
-private:
-    using Definitions = EqOptimizer::Definitions;
-
     void StartFit() {
-        ApproximatorOutputs outputs{ component.Outputs() };
+        ApproximatorOutputs outputs{ commandsOut, statusOut, debugOut };
+        if (fitRunning.load()) {
+            RejectFit("fit_worker_busy");
+            return;
+        }
         if (fitBankIndex < 1) {
-            outputs.Error("no_selected_bank");
-            SetReady(false);
+            RejectFit("no_selected_bank");
             return;
         }
         if (definitions.empty()) {
-            outputs.Error("no_defined_filters");
-            SetReady(false);
+            RejectFit("no_defined_filters");
             return;
         }
         if (!curveStore.HasTarget()) {
-            outputs.Error("no_difference_curve");
-            SetReady(false);
+            RejectFit("no_difference_curve");
             return;
         }
         if (!curveStore.HasCurrentEq()) {
-            outputs.Error("no_current_eq_curve");
-            SetReady(false);
+            RejectFit("no_current_eq_curve");
             return;
         }
         if (!curveStore.HasCompatibleCurves()) {
-            outputs.Error("curve_size_mismatch");
-            SetReady(false);
+            RejectFit("curve_size_mismatch");
             return;
         }
 
@@ -136,10 +202,6 @@ private:
         const auto fitDefinitions = definitions;
         {
             std::lock_guard<std::mutex> lock(fitMutex);
-            if (fitRunning) {
-                outputs.Error("fit_in_progress");
-                return;
-            }
             fitRunning = true;
             activeFitBankIndex = fitBankIndex;
             pendingError.clear();
@@ -173,16 +235,31 @@ private:
             pendingError.clear();
         }
         if (fitWorker.joinable()) fitWorker.join();
-        fitRunning = false;
-
-        ApproximatorOutputs outputs{ component.Outputs() };
-        if (!error.empty()) outputs.Error(error.c_str());
+        ApproximatorOutputs outputs{ commandsOut, statusOut, debugOut };
+        if (!error.empty()) {
+            const auto sessionId = activeFitSessionId.load();
+            if (sessionId > 0) outputs.SendFitFailure(sessionId, error.c_str());
+        }
         else if (result) {
             outputs.Loss(result->loss);
-            outputs.SendFilterCommands(definitions, result->solverValues, activeFitBankIndex);
+            const auto sessionId = activeFitSessionId.load();
+            if (sessionId > 0) {
+                outputs.SendFitResult(
+                    definitions, result->solverValues, sessionId, activeFitBankIndex, result->loss);
+            }
         }
-        outputs.FitFinished();
-        UpdateReady();
+        if (activeFitSessionId.load() <= 0) {
+            fitRunning = false;
+            UpdateReady();
+        }
+    }
+
+    void RejectFit(const char* error) {
+        ApproximatorOutputs outputs{ commandsOut, statusOut, debugOut };
+        const auto sessionId = activeFitSessionId.load();
+        if (sessionId > 0) outputs.SendFitFailure(sessionId, error);
+        else outputs.Error(error);
+        readyAvailable = false;
     }
 
     void UpdateReady() {
@@ -195,7 +272,13 @@ private:
         if (!force && fitRunning) available = false;
         if (!force && readyAvailable == available) return;
         readyAvailable = available;
-        ApproximatorOutputs{ component.Outputs() }.Ready(available);
+        ApproximatorOutputs{ commandsOut, statusOut, debugOut }.Ready(available);
+    }
+
+    void MarkHostInitialized() {
+        if (hostInitialized) return;
+        hostInitialized = true;
+        statusOut.send("status", "initialized");
     }
 
     ApproximatorCurveStore curveStore;
@@ -203,17 +286,14 @@ private:
     EqOptimizer optimizer;
     consolidator::dsp::EqRuntime eqRuntime;
     double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
-    consolidator::maxadapter::ComponentHost<
-        ConsolidatorApproximator,
-        consolidator::messaging::ApproximatorClearMessage,
-        consolidator::messaging::ApproximatorFitMessage
-    > component{ *this, "approximator", &commandsOut, &statusOut, &debugOut };
     std::mutex fitMutex;
     std::thread fitWorker;
     std::atomic<bool> fitRunning = false;
+    std::atomic<long> activeFitSessionId = 0;
     std::optional<EqOptimizer::FitResult> pendingResult;
     std::string pendingError;
     bool readyAvailable = false;
+    bool hostInitialized = false;
     long fitBankIndex = 0;
     long activeFitBankIndex = 0;
 };

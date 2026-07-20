@@ -4,7 +4,7 @@ function SliderRenderer() {
     this.markerInnerSize = 4;
 }
 
-SliderRenderer.prototype.styleColor = function(styleName, fallback) {
+SliderRenderer.prototype.StyleColor = function(styleName, fallback) {
     try {
         var attributeName = box.attrname_forstylemap(styleName);
         var color = box.getattr(attributeName);
@@ -16,7 +16,7 @@ SliderRenderer.prototype.styleColor = function(styleName, fallback) {
     return fallback;
 };
 
-SliderRenderer.prototype.objectColor = function(attributeName, fallback) {
+SliderRenderer.prototype.ObjectColor = function(attributeName, fallback) {
     try {
         var color = box.getattr(attributeName);
         if (color && color.length >= 4) {
@@ -27,7 +27,7 @@ SliderRenderer.prototype.objectColor = function(attributeName, fallback) {
     return fallback;
 };
 
-SliderRenderer.prototype.isEnabled = function() {
+SliderRenderer.prototype.IsEnabled = function() {
     try {
         return box.getattr("active") !== 0;
     } catch (error) {
@@ -35,7 +35,7 @@ SliderRenderer.prototype.isEnabled = function() {
     }
 };
 
-SliderRenderer.prototype.fillRoundedRect = function(x, y, width, height, radius) {
+SliderRenderer.prototype.FillRoundedRect = function(x, y, width, height, radius) {
     if (width <= 0 || height <= 0) {
         return;
     }
@@ -55,16 +55,16 @@ SliderRenderer.prototype.fillRoundedRect = function(x, y, width, height, radius)
     mgraphics.fill();
 };
 
-SliderRenderer.prototype.paint = function() {
+SliderRenderer.prototype.Paint = function() {
     var size = mgraphics.size;
     var width = size[0];
     var height = size[1];
     var value = Math.max(0, Math.min(1, box.getvalueof()[0]));
-    var enabled = this.isEnabled();
-    var track = this.styleColor("bordercolor", [0.18, 0.18, 0.18, 1.0]);
+    var enabled = this.IsEnabled();
+    var track = this.StyleColor("bordercolor", [0.18, 0.18, 0.18, 1.0]);
     var active = enabled
-        ? this.objectColor("activeslidercolor", this.objectColor("activedialcolor", [0.447, 0.035, 0.718, 1.0]))
-        : this.objectColor("inactivelcdcolor", this.objectColor("inactivecolor", [0.18, 0.18, 0.18, 1.0]));
+        ? this.ObjectColor("activeslidercolor", this.ObjectColor("activedialcolor", [0.447, 0.035, 0.718, 1.0]))
+        : this.ObjectColor("inactivelcdcolor", this.ObjectColor("inactivecolor", [0.18, 0.18, 0.18, 1.0]));
     var left = 4;
     var right = width - 4;
     var trackY = Math.floor(height * 0.5) - this.trackThickness * 0.5;
@@ -72,16 +72,16 @@ SliderRenderer.prototype.paint = function() {
     var handleX = left + value * trackWidth;
 
     mgraphics.set_source_rgba(active);
-    this.fillRoundedRect(left, trackY, Math.max(0, handleX - left), this.trackThickness, this.trackThickness * 0.5);
+    this.FillRoundedRect(left, trackY, Math.max(0, handleX - left), this.trackThickness, this.trackThickness * 0.5);
     mgraphics.set_source_rgba(track);
-    this.fillRoundedRect(handleX, trackY, Math.max(0, right - handleX), this.trackThickness, this.trackThickness * 0.5);
-    this.fillRoundedRect(handleX - this.markerSize * 0.5, trackY + this.trackThickness * 0.5 - this.markerSize * 0.5, this.markerSize, this.markerSize, 2);
+    this.FillRoundedRect(handleX, trackY, Math.max(0, right - handleX), this.trackThickness, this.trackThickness * 0.5);
+    this.FillRoundedRect(handleX - this.markerSize * 0.5, trackY + this.trackThickness * 0.5 - this.markerSize * 0.5, this.markerSize, this.markerSize, 2);
     mgraphics.set_source_rgba(active);
-    this.fillRoundedRect(handleX - this.markerInnerSize * 0.5, trackY + this.trackThickness * 0.5 - this.markerInnerSize * 0.5, this.markerInnerSize, this.markerInnerSize, 1);
+    this.FillRoundedRect(handleX - this.markerInnerSize * 0.5, trackY + this.trackThickness * 0.5 - this.markerInnerSize * 0.5, this.markerInnerSize, this.markerInnerSize, 1);
 };
 
 var sliderRenderer = new SliderRenderer();
 
 function paint() {
-    sliderRenderer.paint();
+    sliderRenderer.Paint();
 }

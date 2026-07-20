@@ -4,10 +4,17 @@
 #include "AnalyzerFilterVisuals.h"
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerSpectrumEngine.h"
-#include "ComponentHost.h"
-#include "Messaging/Messages/AnalyzerDifferenceMessage.h"
+#include "AtomAdapter.h"
+#include "AtomMessage.h"
+#include "EventCodec.h"
+#include "SnapshotCodec.h"
+#include "Settings/AnalysisOptions.h"
+#include "Settings/SpectrumOptions.h"
+
+#include <optional>
 
 using namespace c74::min;
+using namespace consolidator;
 
 class ConsolidatorAnalyzer :
     public object<ConsolidatorAnalyzer>,
@@ -21,16 +28,17 @@ public:
     inlet<> currentRight{ this, "(signal) current right", "signal" };
     inlet<> referenceLeft{ this, "(signal) reference left", "signal" };
     inlet<> referenceRight{ this, "(signal) reference right", "signal" };
-    inlet<> commandsIn{ this, "(message) commands: message <dictionary type=analyzer.difference|device.state.changed>" };
+    inlet<> commandsIn{ this, "(message) inputs: snapshot 1 host eq <revision> <selectedBank> <bankCount> <banks...>; event 1 host <eventId> operation.changed analyzer ..." };
 
     outlet<> currentOut{ this, "(list) current spectrum dB" };
     outlet<> referenceOut{ this, "(list) reference spectrum dB" };
     outlet<> differenceOut{ this, "(list) reference-current dB" };
     outlet<> filterOut{
         this,
-        "(anything) messages: filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
+        "(anything) messages: curve_settings <minimumHz> <maximumHz> <pointCount>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
     };
     outlet<> totalCurveOut{ this, "(list) summed response curve for all EQ banks in dB" };
+    outlet<> statusOut{ this, "(anything) status: status initializing|ready|processing|error <code>" };
     outlet<> debugOut{ this, "(anything) diagnostics: error <code>" };
 
     queue<> curveDelivery{
@@ -41,16 +49,44 @@ public:
         }
     };
 
-    message<> envelopeMessage{
+    message<> snapshotMessage{
         this,
-        "message",
-        "Apply a structured analyzer control envelope",
+        "snapshot",
+        "Apply a complete EQ snapshot",
         MIN_FUNCTION {
-            if (inlet != 4 || args.size() != 1) {
-                debugOut.send("error", "invalid_message_envelope");
+            if (inlet != 4) {
+                debugOut.send("error", "invalid_snapshot_inlet");
                 return {};
             }
-            component.Receive(args);
+            auto atoms = maxadapter::AtomAdapter::Read(args);
+            if (atoms) atoms->insert(atoms->begin(), "snapshot");
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq")) ApplySnapshot(atoms);
+            return {};
+        }
+    };
+
+    message<> list{
+        this,
+        "list",
+        "Receive a complete EQ snapshot atom list",
+        MIN_FUNCTION {
+            if (inlet != 4) return {};
+            const auto atoms = maxadapter::AtomAdapter::Read(args);
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq")) ApplySnapshot(atoms);
+            else if (messaging::AtomMessage::HasCategory(atoms, "event")) ApplyEvent(atoms);
+            return {};
+        }
+    };
+
+    message<> eventMessage{
+        this,
+        "event",
+        "Apply a Host operation event",
+        MIN_FUNCTION {
+            if (inlet != 4) return {};
+            auto atoms = maxadapter::AtomAdapter::Read(args);
+            if (atoms) atoms->insert(atoms->begin(), "event");
+            ApplyEvent(atoms);
             return {};
         }
     };
@@ -60,8 +96,10 @@ public:
             if (!args.empty()) {
                 spectrumEngine.SetSampleRate(static_cast<double>(args[0]));
                 filterVisuals.SetSampleRate(static_cast<double>(args[0]));
+                PublishCurveSettings();
                 filterVisuals.PublishSelected(filterOut);
                 filterVisuals.PublishTotal(totalCurveOut);
+                statusOut.send("status", "ready");
             }
 
             return {};
@@ -86,27 +124,44 @@ public:
         return {};
     }
 
-    void OnMessage(const consolidator::messaging::AnalyzerDifferenceMessage& command) {
-        const bool stateChanged = differenceEnabled != command.enabled;
-        differenceEnabled = command.enabled;
-        if (!differenceEnabled) {
-            curves.ClearPending();
-        }
-        if (stateChanged) {
-            curves.ResetDifference();
-        }
+private:
+    void PublishCurveSettings() {
+        filterOut.send(
+            "curve_settings",
+            consolidator::settings::SpectrumOptions::MinimumFrequencyHz,
+            consolidator::settings::SpectrumOptions::MaximumFrequencyHz,
+            static_cast<long>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount));
     }
 
-    void OnDeviceStateChanged(const consolidator::models::DeviceState& state) {
-        if (!filterVisuals.SetSnapshot(state.snapshot)) {
-            debugOut.send("error", "invalid_device_state", filterVisuals.SnapshotError());
+    void SetListenEnabled(bool enabled) {
+        if (differenceEnabled == enabled) return;
+        differenceEnabled = enabled;
+        if (!differenceEnabled) {
+            curves.ClearPending();
+            differenceOut.send("clear_difference");
+        }
+        curves.ResetDifference();
+    }
+
+    void ApplyEvent(const std::optional<messaging::AtomList>& atoms) {
+        if (!atoms) return;
+        const auto decoded = messaging::EventCodec::Decode(*atoms);
+        if (!decoded.Succeeded()) return;
+        const auto* operation = std::get_if<domain::OperationChangedEvent>(&decoded.event);
+        if (!operation || operation->operation != "analyzer") return;
+        SetListenEnabled(operation->status == domain::OperationStatus::Capturing);
+    }
+
+    void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
+        const auto snapshot = atoms ? messaging::SnapshotCodec::DecodeEq(*atoms) : std::nullopt;
+        if (!snapshot || !filterVisuals.SetSnapshot(*snapshot)) {
+            debugOut.send("error", "invalid_eq_snapshot");
             return;
         }
         filterVisuals.PublishSelected(filterOut);
         filterVisuals.PublishTotal(totalCurveOut);
     }
 
-private:
     void PublishCurves() {
         if (!curves.HasPending()) {
             return;
@@ -124,10 +179,6 @@ private:
     AnalyzerCurveBatch curves;
     AnalyzerSpectrumEngine spectrumEngine;
     AnalyzerFilterVisuals filterVisuals;
-    consolidator::maxadapter::ComponentHost<
-        ConsolidatorAnalyzer,
-        consolidator::messaging::AnalyzerDifferenceMessage
-    > component{ *this, "analyzer", nullptr, nullptr, &debugOut };
     bool differenceEnabled = false;
 };
 

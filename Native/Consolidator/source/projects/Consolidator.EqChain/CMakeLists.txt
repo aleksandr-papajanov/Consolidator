@@ -21,7 +21,8 @@ add_library(
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        Consolidator.Shared
+        Consolidator.Messaging
+        Consolidator.DspCore
         Consolidator.MaxAdapter
 )
 

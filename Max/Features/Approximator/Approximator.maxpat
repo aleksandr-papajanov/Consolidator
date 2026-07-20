@@ -323,14 +323,6 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-local-command", 1 ],
-					"order" : 1,
-					"source" : [ "obj-native", 2 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-local-command", 1 ],
 					"source" : [ "obj-native", 1 ]
 				}
 

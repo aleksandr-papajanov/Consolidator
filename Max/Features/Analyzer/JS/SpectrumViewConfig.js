@@ -3,6 +3,8 @@ include("../../Shared/JS/DictionaryReader.js");
 function SpectrumViewState() {
 this.curves = [[], [], [], [], []];
 this.filterCurves = {};
+this.selectedBankId = 1;
+this.requestId = 0;
 this.filterColors = {};
 this.handles = [];
 this.draggedHandle = null;
@@ -31,7 +33,9 @@ this.dbRangePresets = [
 this.dbRangeIndex = 1;
 this.displayMinFrequency = 10;
 this.displayMaxFrequency = 20000;
-this.curveMinFrequency = 20;
+this.curveMinFrequency = this.displayMinFrequency;
+this.curveMaxFrequency = this.displayMaxFrequency;
+this.curvePointCount = 0;
 
 this.frequencyBands = [
     { min: 10, max: 100, width: 0.31 },
@@ -89,28 +93,28 @@ this.visualSettings = {
 this.smoothing = 0.75;
 
 this.styles = [
-        this.createCurveStyle(
+        this.CreateCurveStyle(
         this.visualSettings.reference,
         { r: 1.00, g: 1.00, b: 1.00, a: 0.1 },
         null
     ),
-    this.createCurveStyle(
+    this.CreateCurveStyle(
         this.visualSettings.target,
         { r: 1.00, g: 0.88, b: 0.25, a: 0.1 },
         null
     ),
-    this.createCurveStyle(
+    this.CreateCurveStyle(
         { r: 1.00, g: 1.00, b: 1.00, a: 0.00 },
         { r: 1.00, g: 1.00, b: 1.00, a: 0.00 },
         { r: this.visualSettings.difference.r, g: this.visualSettings.difference.g, b: this.visualSettings.difference.b,
             a: this.visualSettings.difference.a, width: this.visualSettings.totalLineWidth }
     ),
-    this.createCurveStyle(
+    this.CreateCurveStyle(
         { r: 0.75, g: 1.00, b: 0.35, a: 0.16 },
         { r: 0.75, g: 1.00, b: 0.35, a: 0.04 },
         { r: 0.75, g: 1.00, b: 0.35, a: 0.90, width: 1.5 }
     ),
-    this.createCurveStyle(
+    this.CreateCurveStyle(
         { r: 0.90, g: 0.45, b: 1.00, a: 0.16 },
         { r: 0.90, g: 0.45, b: 1.00, a: 0.04 },
         { r: 0.90, g: 0.45, b: 1.00, a: 0.90, width: 1.5 }
@@ -119,7 +123,7 @@ this.styles = [
 
 }
 
-SpectrumViewState.prototype.createCurveStyle = function(fillTop, fillBottom, outline) {
+SpectrumViewState.prototype.CreateCurveStyle = function(fillTop, fillBottom, outline) {
     return {
         fill: {
             top: fillTop,

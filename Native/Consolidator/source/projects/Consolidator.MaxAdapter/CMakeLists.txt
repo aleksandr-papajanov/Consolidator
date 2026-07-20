@@ -7,5 +7,8 @@ target_include_directories(Consolidator.MaxAdapter
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(Consolidator.MaxAdapter INTERFACE Consolidator.Shared)
+target_link_libraries(Consolidator.MaxAdapter INTERFACE
+    Consolidator.Shared
+    Consolidator.Messaging
+)
 target_compile_features(Consolidator.MaxAdapter INTERFACE cxx_std_20)

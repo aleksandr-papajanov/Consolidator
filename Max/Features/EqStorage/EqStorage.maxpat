@@ -38,6 +38,65 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "persistenceSend",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 525.0, 135.0, 170.0, 22.0 ],
+					"text" : "s ---device.persistence.in"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "persistenceReceive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 525.0, 465.0, 175.0, 22.0 ],
+					"text" : "r ---device.persistence.out"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "persistenceRoute",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 3,
+					"outlettype" : [ "bang", "", "" ],
+					"patching_rect" : [ 480.0, 180.0, 190.0, 22.0 ],
+					"text" : "route persistence_ready dictionary"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "persistenceReady",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 480.0, 215.0, 110.0, 22.0 ],
+					"text" : "persistence_ready"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "persistenceRestore",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 600.0, 215.0, 95.0, 22.0 ],
+					"text" : "prepend restore"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "obj-1",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -51,9 +110,9 @@
 				"box" : 				{
 					"id" : "storage",
 					"maxclass" : "newobj",
-					"numinlets" : 3,
-					"numoutlets" : 7,
-					"outlettype" : [ "", "", "", "", "", "", "" ],
+					"numinlets" : 2,
+					"numoutlets" : 3,
+					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 255.0, 195.0, 148.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "consolidator.eqstorage.js",
@@ -114,8 +173,8 @@
 					"id" : "eqchain",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 3,
-					"outlettype" : [ "signal", "signal", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "signal", "signal", "", "" ],
 					"patching_rect" : [ 270.0, 495.0, 139.0, 22.0 ],
 					"text" : "consolidator.eqchain"
 				}
@@ -285,7 +344,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-1", 0 ],
-					"source" : [ "eqchain", 2 ]
+					"source" : [ "eqchain", 3 ]
 				}
 
 			}
@@ -334,7 +393,7 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "storage", 2 ],
+					"destination" : [ "persistenceRoute", 0 ],
 					"source" : [ "persistenceInput", 0 ]
 				}
 
@@ -355,6 +414,34 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "persistenceReady", 0 ],
+					"source" : [ "persistenceRoute", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "persistenceRestore", 0 ],
+					"source" : [ "persistenceRoute", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "persistenceSend", 0 ],
+					"source" : [ "persistenceReady", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "persistenceSend", 0 ],
+					"source" : [ "persistenceRestore", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "storage", 0 ],
 					"source" : [ "controller", 0 ]
 				}
@@ -363,21 +450,21 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 1 ],
-					"source" : [ "storage", 2 ]
+					"source" : [ "storage", 1 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "eqchain", 2 ],
-					"source" : [ "storage", 3 ]
+					"source" : [ "obj-message-bus-receive-9", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 2 ],
-					"source" : [ "storage", 1 ]
+					"source" : [ "storage", 0 ]
 				}
 
 			}
@@ -391,28 +478,14 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-message-bus-send-9", 0 ],
-					"source" : [ "storage", 5 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-message-bus-send-9", 0 ],
-					"source" : [ "storage", 4 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-message-bus-send-9", 0 ],
-					"source" : [ "storage", 0 ]
+					"source" : [ "storage", 2 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "persistenceOutput", 0 ],
-					"source" : [ "storage", 6 ]
+					"source" : [ "persistenceReceive", 0 ]
 				}
 
 			}
