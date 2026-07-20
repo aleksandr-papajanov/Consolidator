@@ -1,6 +1,8 @@
 #pragma once
 
 #include "EqStore.h"
+#include "Workflows/AnalyzerWorkflow.h"
+#include "Workflows/FitWorkflow.h"
 #include "Events/Events.h"
 #include "Commands/Commands.h"
 #include <cstdint>
@@ -25,21 +27,14 @@ public:
 private:
     void HandleComponent(const domain::AttachComponentCommand& command);
     void HandleComponent(const domain::DetachComponentCommand& command);
-    void HandleAnalyzer(const domain::ListenAnalyzerCommand& command);
-    void HandleFit(const domain::StartFitCommand& command);
-    void HandleFit(const domain::CancelFitCommand& command);
-    void HandleFit(const domain::ClearFitCommand& command);
-    void HandleFit(const domain::CompleteFitCommand& command);
-    void HandleFit(const domain::FailFitCommand& command);
     void PublishResult(const UpdateResult& result, domain::RequestId requestId);
     void Publish(domain::Event event);
     void Dispatch(const std::vector<domain::Event>& events) const;
 
     mutable std::mutex mutex;
     EqStore eqStore;
-    domain::AnalyzerState analyzerState;
-    domain::ApproximatorState approximatorState;
-    domain::BankId activeFitBankId{};
+    AnalyzerWorkflow analyzerWorkflow;
+    FitWorkflow fitWorkflow;
     EventHandler eventHandler;
     std::map<std::int64_t, std::string> components;
     std::vector<domain::Event>* activeEvents = nullptr;

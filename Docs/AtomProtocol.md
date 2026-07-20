@@ -53,4 +53,16 @@ Persistence is the only Dictionary boundary. `MaxDictionarySerializer` converts
 the persisted typed state to and from a Max Dictionary while the device owns
 the dictionary lifetime. The Max transport message is `dictionary <name>` and
 must reach `pattrstorage` synchronously; only state preparation may be
-debounced, never the temporary dictionary name.
+debounced, never the temporary dictionary name. Host store events are emitted
+immediately, repeated EQ snapshots are coalesced to the latest revision on the
+Max main thread, and persistence serialization runs after a restartable 100 ms
+debounce.
+
+## Streaming Boundary
+
+FFT frames are not protocol messages and do not pass through Host. Analyzer's
+audio thread publishes immutable curve frames through a preallocated
+single-producer/single-consumer triple buffer. When the consumer is behind, a
+new frame replaces the previous unconsumed frame. A single coalesced Max queue
+callback forwards only the latest complete frame to SpectrumView and the
+Approximator difference input.

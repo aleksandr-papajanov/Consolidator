@@ -20,6 +20,7 @@ set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
     AnalyzerFrameBuffer.h
     AnalyzerCurveBatch.h
+    AnalyzerCurveFrame.h
     AnalyzerFilterVisuals.h
     AnalyzerSpectrumEngine.h
 )

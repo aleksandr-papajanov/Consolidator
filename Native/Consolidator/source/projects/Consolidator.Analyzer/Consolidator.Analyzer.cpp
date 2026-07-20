@@ -1,6 +1,7 @@
 #include "c74_min.h"
 
 #include "AnalyzerCurveBatch.h"
+#include "AnalyzerCurveFrame.h"
 #include "AnalyzerFilterVisuals.h"
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerSpectrumEngine.h"
@@ -10,7 +11,10 @@
 #include "SnapshotCodec.h"
 #include "Settings/AnalysisOptions.h"
 #include "Settings/SpectrumOptions.h"
+#include "LatestValueTripleBuffer.h"
 
+#include <atomic>
+#include <cstdint>
 #include <optional>
 
 using namespace c74::min;
@@ -115,8 +119,14 @@ public:
         capture.Write(frame);
 
         if (capture.Advance()) {
+            const auto frameDifferenceGeneration = differenceGeneration.load(std::memory_order_acquire);
+            if (differenceResetRequested.exchange(false, std::memory_order_acq_rel)) {
+                curves.ResetDifference();
+            }
             spectrumEngine.Analyze(capture, curves);
-            curveDelivery.set();
+            curves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
+            curveFrames.Publish();
+            ScheduleCurveDelivery();
 
             capture.Reset();
         }
@@ -136,11 +146,12 @@ private:
     void SetListenEnabled(bool enabled) {
         if (differenceEnabled == enabled) return;
         differenceEnabled = enabled;
+        differenceGeneration.fetch_add(1, std::memory_order_acq_rel);
+        differenceResetRequested.store(true, std::memory_order_release);
+        curveFrames.DiscardLatest();
         if (!differenceEnabled) {
-            curves.ClearPending();
             differenceOut.send("clear_difference");
         }
-        curves.ResetDifference();
     }
 
     void ApplyEvent(const std::optional<messaging::AtomList>& atoms) {
@@ -163,22 +174,34 @@ private:
     }
 
     void PublishCurves() {
-        if (!curves.HasPending()) {
-            return;
+        curveFrames.ConsumeLatest([this](const AnalyzerCurveFrame& frame) {
+            frame.Send(
+                currentOut,
+                referenceOut,
+                differenceOut,
+                differenceEnabled &&
+                    frame.DifferenceGeneration() == differenceGeneration.load(std::memory_order_acquire),
+                filterVisuals.SelectedPrefixCurve());
+        });
+
+        curveDeliveryScheduled.store(false, std::memory_order_release);
+        if (curveFrames.HasPending()) ScheduleCurveDelivery();
+    }
+
+    void ScheduleCurveDelivery() {
+        if (!curveDeliveryScheduled.exchange(true, std::memory_order_acq_rel)) {
+            curveDelivery.set();
         }
-        curves.Send(
-            currentOut,
-            referenceOut,
-            differenceOut,
-            differenceEnabled,
-            filterVisuals.SelectedPrefixCurve());
-        curves.ClearPending();
     }
 
     AnalyzerFrameBuffer capture;
     AnalyzerCurveBatch curves;
+    dspcore::LatestValueTripleBuffer<AnalyzerCurveFrame> curveFrames;
     AnalyzerSpectrumEngine spectrumEngine;
     AnalyzerFilterVisuals filterVisuals;
+    std::atomic<bool> curveDeliveryScheduled{ false };
+    std::atomic<bool> differenceResetRequested{ false };
+    std::atomic<std::uint64_t> differenceGeneration{ 0 };
     bool differenceEnabled = false;
 };
 

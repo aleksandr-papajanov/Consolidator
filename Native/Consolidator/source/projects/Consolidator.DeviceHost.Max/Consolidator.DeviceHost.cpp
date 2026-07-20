@@ -48,6 +48,29 @@ public:
         "(dictionary) persistence state dictionary"
     };
 
+    queue<> stateDelivery{
+        this,
+        MIN_FUNCTION {
+            stateDeliveryScheduled = false;
+            if (ready && stateDeliveryDirty) {
+                stateDeliveryDirty = false;
+                PublishSnapshot();
+            }
+            return {};
+        }
+    };
+
+    timer<timer_options::defer_delivery> persistenceDelivery{
+        this,
+        MIN_FUNCTION {
+            if (ready && persistenceDirty) {
+                persistenceDirty = false;
+                PublishPersistence();
+            }
+            return {};
+        }
+    };
+
     message<> command{
         this,
         "command",
@@ -86,6 +109,7 @@ public:
                 return {};
             }
             PublishDefinitions();
+            stateDeliveryDirty = false;
             PublishSnapshot();
             return {};
         }
@@ -99,6 +123,7 @@ public:
             if (inlet != 1) debugOut.send("error", "invalid_persistence_inlet");
             else {
                 PublishReadyState();
+                stateDeliveryDirty = false;
                 PublishSnapshot();
             }
             return {};
@@ -124,7 +149,10 @@ public:
                     return {};
                 }
             }
-            if (ready) PublishSnapshot();
+            if (ready) {
+                stateDeliveryDirty = false;
+                PublishSnapshot();
+            }
             return {};
         }
     };
@@ -142,9 +170,8 @@ public:
                 PublishSnapshot();
             }
             else if (std::holds_alternative<domain::StoreUpdatedEvent>(event)) {
-                PublishSnapshot();
+                ScheduleStatePublication();
             }
-            if (ready && std::holds_alternative<domain::StoreUpdatedEvent>(event)) PublishPersistence();
         }) {
         statusOut.send("status", "initializing");
     }
@@ -208,9 +235,26 @@ private:
             });
     }
 
+    void ScheduleStatePublication() {
+        if (!ready) return;
+
+        stateDeliveryDirty = true;
+        if (!stateDeliveryScheduled) {
+            stateDeliveryScheduled = true;
+            stateDelivery.set();
+        }
+
+        persistenceDirty = true;
+        persistenceDelivery.delay(PersistenceDebounceMilliseconds);
+    }
+
     consolidator::host::DeviceHost host;
+    static constexpr double PersistenceDebounceMilliseconds = 100.0;
     long nextEventId = 1;
     bool ready = false;
+    bool stateDeliveryDirty = false;
+    bool stateDeliveryScheduled = false;
+    bool persistenceDirty = false;
 };
 
 MIN_EXTERNAL_CUSTOM(ConsolidatorDeviceHost, consolidator.devicehost);

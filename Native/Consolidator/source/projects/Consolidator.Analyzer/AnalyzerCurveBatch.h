@@ -1,6 +1,6 @@
 #pragma once
 
-#include "c74_min.h"
+#include "AnalyzerCurveFrame.h"
 #include "DSP/Curve/Curve.h"
 #include "Settings/AnalysisOptions.h"
 #include "Settings/SpectrumOptions.h"
@@ -76,54 +76,19 @@ public:
     void FinalizeFrame() {
         smoothingInitialized = true;
         differenceSmoothingInitialized = true;
-        hasPending = true;
     }
 
     void ResetDifference() {
         differenceSmoothingInitialized = false;
     }
 
-    void ClearPending() {
-        hasPending = false;
-    }
-
-    bool HasPending() const {
-        return hasPending;
-    }
-
-    int PendingCount() const {
-        return pendingCount;
-    }
-
-    void Send(
-        c74::min::outlet<>& currentOut,
-        c74::min::outlet<>& referenceOut,
-        c74::min::outlet<>& differenceOut,
-        bool sendDifference,
-        const consolidator::dsp::Curve& selectedPrefixCurve
-    ) const {
-        c74::min::atoms currentAtoms;
-        c74::min::atoms referenceAtoms;
-        c74::min::atoms differenceAtoms;
-        const auto& current = pendingCurrent.Values();
-        const auto& reference = pendingReference.Values();
-        const auto& difference = pendingDifference.Values();
-        const auto& eqCurve = selectedPrefixCurve.Values();
-
-        for (int i = 0; i < pendingCount; ++i) {
-            const auto eqOffset = i < static_cast<int>(eqCurve.size())
-                ? eqCurve[static_cast<std::size_t>(i)]
-                : 0.0;
-            currentAtoms.push_back(current[static_cast<std::size_t>(i)] + eqOffset);
-            referenceAtoms.push_back(reference[static_cast<std::size_t>(i)]);
-            differenceAtoms.push_back(difference[static_cast<std::size_t>(i)] - eqOffset);
-        }
-
-        currentOut.send(currentAtoms);
-        referenceOut.send(referenceAtoms);
-        if (sendDifference) {
-            differenceOut.send(differenceAtoms);
-        }
+    void WriteFrame(AnalyzerCurveFrame& frame, std::uint64_t differenceGeneration) const {
+        frame.Assign(
+            pendingCurrent,
+            pendingReference,
+            pendingDifference,
+            pendingCount,
+            differenceGeneration);
     }
 
 private:
@@ -153,7 +118,6 @@ private:
 
     int pendingCount = 0;
     int lastPendingCount = 0;
-    bool hasPending = false;
     bool smoothingInitialized = false;
     bool differenceSmoothingInitialized = false;
 };

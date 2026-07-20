@@ -47,7 +47,10 @@ routing, and envelope payload objects are not part of the architecture.
 - `Consolidator.Messaging` contains `AtomValue`, readers/writers, message framing,
   and typed command/event/snapshot codecs. It has no Max dependency.
 - `Consolidator.DeviceHost` contains `DeviceHost`, transactional stores, and
-  workflow coordination. It has no Max dependency.
+  workflow coordination. `AnalyzerWorkflow` owns analyzer listen sessions and
+  `FitWorkflow` owns fit transitions, the captured target bank, result
+  validation, and the single atomic EQ apply. `DeviceHost` only routes typed
+  commands, serializes access, and dispatches events. It has no Max dependency.
 - `Consolidator.Persistence` contains the typed persistence schema and codec.
 - `Consolidator.DspCore` contains snapshot builders and reusable DSP-facing
   projections.
@@ -121,7 +124,9 @@ a contract changes.
 
 `consolidator.devicehost` receives typed commands, publishes Host events, EQ and
 definition snapshots, and owns the private persistence Dictionary boundary.
-It must not perform DSP or UI work.
+Store events are immediate. Repeated store commits coalesce into the latest EQ
+snapshot on the Max main thread, and persistence preparation uses a restartable
+100 ms debounce before serialization. It must not perform DSP or UI work.
 
 `consolidator.filter.js` is a stateless endpoint for one filter slot. It sends
 absolute Host commands and projects selected-bank snapshots to direct local
@@ -136,17 +141,22 @@ Analyzer, or Approximator.
 `consolidator.analyzer` receives pre-EQ current stereo and reference stereo.
 It publishes current, reference, difference, selected-bank filter curves, and
 the total EQ response. It derives selected-prefix and total responses from the
-same EQ snapshot used by EqChain. FFT delivery uses a Min `queue<>`; do not poll
-Analyzer with `qmetro`. Analyzer sends `curve_settings <minimumHz> <maximumHz>
-<pointCount>` on its visual outlet; SpectrumView must use that metadata instead
-of duplicating the native curve grid.
+same EQ snapshot used by EqChain. The audio thread owns smoothing state and
+publishes immutable `AnalyzerCurveFrame` values through a preallocated
+single-producer/single-consumer triple buffer. Its overflow policy is
+latest-wins and replaced frames are counted. One coalesced Min `queue<>` handoff
+delivers the newest frame on Max's main thread; do not poll Analyzer with
+`qmetro`. Analyzer sends `curve_settings <minimumHz> <maximumHz> <pointCount>`
+on its visual outlet; SpectrumView must use that metadata instead of
+duplicating the native curve grid.
 
 `consolidator.approximator` receives EQ snapshots and the live difference
 stream directly from Analyzer through the scoped Max connection. The stream
 does not pass through Host. Host starts a fit with an operation event.
 Approximator returns `fit.complete` or `fit.fail`; only Host may commit the
-result. A native bounded/SPSC transport is still a future optimization and
-must not be assumed by current code.
+result. Analyzer's audio-to-main-thread boundary is bounded and latest-value;
+the final direct Max delivery to Approximator remains synchronous and carries
+only that newest published difference frame.
 
 SpectrumView receives, in order: current spectrum, reference spectrum,
 difference, selected-bank filter curves, total EQ response, and Host snapshots.
@@ -199,7 +209,8 @@ DeviceHost. Never create a persistence write-to-restore feedback loop.
 DeviceHost publishes persistence only after `persistence_ready`. The temporary
 Dictionary must travel synchronously through EqStorage's private third outlet
 to the root `pattrstorage`; never delay a Dictionary name after its owner has
-gone out of scope. Debounce, if introduced, must happen before serialization.
+gone out of scope. Persistence debounce happens before serialization; the
+timer callback creates and sends the temporary Dictionary synchronously.
 Never release a parent Max Dictionary after appending atoms or a nested
 dictionary. A nested dictionary transfers ownership to its parent after a
 successful append.

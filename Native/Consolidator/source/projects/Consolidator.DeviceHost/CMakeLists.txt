@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 add_library(Consolidator.DeviceHost STATIC
     EqStore.cpp
     DeviceHost.cpp
+    Workflows/AnalyzerWorkflow.cpp
+    Workflows/FitWorkflow.cpp
 )
 
 target_include_directories(Consolidator.DeviceHost
