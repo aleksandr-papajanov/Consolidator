@@ -315,8 +315,44 @@
 				}
 
 			}
+, 			{
+				"box" : 				{
+					"id" : "fitCurrentLeft",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 30.0, 495.0, 145.0, 22.0 ],
+					"text" : "send~ ---fit.current.left"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "fitCurrentRight",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 30.0, 525.0, 150.0, 22.0 ],
+					"text" : "send~ ---fit.current.right"
+				}
+
+			}
  ],
 		"lines" : [ 			{
+				"patchline" : 				{
+					"destination" : [ "fitCurrentLeft", 0 ],
+					"source" : [ "inputL", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "fitCurrentRight", 0 ],
+					"source" : [ "inputR", 0 ]
+				}
+
+			}
+, 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 0 ],
 					"source" : [ "add", 0 ]

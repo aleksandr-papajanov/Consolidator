@@ -144,17 +144,6 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "obj-65",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 540.0, 405.0, 180.0, 22.0 ],
-					"text" : "s ---approximator.difference.inlet"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"comment" : "",
 					"id" : "obj-4",
 					"index" : 4,
@@ -318,8 +307,44 @@
 				}
 
 			}
+, 			{
+				"box" : 				{
+					"id" : "fitReferenceLeft",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 565.0, 195.0, 155.0, 22.0 ],
+					"text" : "send~ ---fit.reference.left"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "fitReferenceRight",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 735.0, 195.0, 160.0, 22.0 ],
+					"text" : "send~ ---fit.reference.right"
+				}
+
+			}
  ],
 		"lines" : [ 			{
+				"patchline" : 				{
+					"destination" : [ "fitReferenceLeft", 0 ],
+					"source" : [ "obj-3", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "fitReferenceRight", 0 ],
+					"source" : [ "obj-4", 0 ]
+				}
+
+			}
+, 			{
 				"patchline" : 				{
 					"destination" : [ "analysis", 0 ],
 					"source" : [ "analyzer", 7 ]
@@ -337,14 +362,6 @@
 				"patchline" : 				{
 					"destination" : [ "debug", 0 ],
 					"source" : [ "analyzer", 6 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-65", 0 ],
-					"order" : 1,
-					"source" : [ "analyzer", 2 ]
 				}
 
 			}

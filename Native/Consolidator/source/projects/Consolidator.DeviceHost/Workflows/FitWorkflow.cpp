@@ -5,8 +5,16 @@
 
 namespace consolidator::host {
 
-FitWorkflow::FitWorkflow(EqStore& eqStore, EventHandler eventHandler)
-    : eqStore(eqStore), eventHandler(std::move(eventHandler)) {}
+FitWorkflow::FitWorkflow(
+    EqStore& eqStore,
+    GainStore& inputGainStore,
+    CompressorStore& compressorStore,
+    SaturatorStore& saturatorStore,
+    GainStore& outputGainStore,
+    EventHandler eventHandler
+) : eqStore(eqStore), inputGainStore(inputGainStore), compressorStore(compressorStore),
+    saturatorStore(saturatorStore), outputGainStore(outputGainStore),
+    eventHandler(std::move(eventHandler)) {}
 
 void FitWorkflow::Handle(const domain::StartFitCommand& command) {
     if (state.status == domain::ApproximatorState::Status::Processing) {
@@ -61,10 +69,30 @@ void FitWorkflow::Handle(const domain::CompleteFitCommand& command) {
         Fail(command.requestId, "invalid_fit_result", true);
         return;
     }
+    if (!inputGainStore.CanApplyFit(command.result.processor.inputGain) ||
+        !compressorStore.CanApplyFit(command.result.processor.compressor) ||
+        !saturatorStore.CanApplyFit(command.result.processor.saturator) ||
+        !outputGainStore.CanApplyFit(command.result.processor.outputGain)) {
+        Fail(command.requestId, "invalid_fit_processor_state", true);
+        return;
+    }
 
     const auto result = eqStore.ApplyFitResult(command);
     if (!result.Accepted()) {
         Fail(command.requestId, result.error, true);
+        return;
+    }
+    const auto inputGainResult = inputGainStore.ApplyFit(
+        command.result.processor.inputGain, command.requestId);
+    const auto compressorResult = compressorStore.ApplyFit(
+        command.result.processor.compressor, command.requestId);
+    const auto saturatorResult = saturatorStore.ApplyFit(
+        command.result.processor.saturator, command.requestId);
+    const auto outputGainResult = outputGainStore.ApplyFit(
+        command.result.processor.outputGain, command.requestId);
+    if (!inputGainResult.Accepted() || !compressorResult.Accepted() ||
+        !saturatorResult.Accepted() || !outputGainResult.Accepted()) {
+        Fail(command.requestId, "invalid_fit_processor_state", true);
         return;
     }
 

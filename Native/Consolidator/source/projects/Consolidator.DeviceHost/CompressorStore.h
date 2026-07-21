@@ -20,6 +20,8 @@ public:
     UpdateResult SetBypass(const domain::SetCompressorBypassCommand& command);
     UpdateResult Reset(const domain::ResetCompressorCommand& command);
     UpdateResult Replace(domain::CompressorState state, domain::StoreRevision revision);
+    bool CanApplyFit(const domain::CompressorState& state) const noexcept;
+    UpdateResult ApplyFit(domain::CompressorState state, domain::RequestId requestId);
 
 private:
     UpdateResult Commit(domain::RequestId requestId);

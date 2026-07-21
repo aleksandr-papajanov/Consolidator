@@ -34,6 +34,21 @@ UpdateResult GainStore::Replace(domain::GainState nextState, domain::StoreRevisi
     return { UpdateStatus::Changed, {} };
 }
 
+bool GainStore::CanApplyFit(const domain::GainState& nextState) const noexcept {
+    return std::isfinite(nextState.gainDb) &&
+        nextState.gainDb >= settings::GainOptions::MinimumGainDb &&
+        nextState.gainDb <= settings::GainOptions::MaximumGainDb;
+}
+
+UpdateResult GainStore::ApplyFit(domain::GainState nextState, domain::RequestId requestId) {
+    if (!CanApplyFit(nextState)) {
+        return Reject("invalid_fit_gain_state");
+    }
+    if (state.gainDb == nextState.gainDb) return { UpdateStatus::Unchanged, {} };
+    state = nextState;
+    return Commit(requestId);
+}
+
 UpdateResult GainStore::Commit(domain::RequestId requestId) {
     ++revision;
     if (commitHandler) commitHandler(revision, requestId);

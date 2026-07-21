@@ -11,6 +11,10 @@ class AnalysisFeatureFrame final {
 public:
     static constexpr std::size_t MetricCount = 8;
     static constexpr std::size_t BandCount = FrequencyBands::Count;
+    static constexpr std::array<std::string_view, MetricCount> MetricNames{
+        "rms_db", "peak_db", "crest_db", "centroid_hz",
+        "flatness", "flux", "transient_db", "spectral_similarity"
+    };
     struct SignalStatistics final {
         std::array<double, MetricCount> metricMeans{};
         std::array<double, MetricCount> metricDeviations{};
@@ -28,10 +32,6 @@ public:
     double historySeconds = 0.0;
 
 private:
-    static constexpr std::array<std::string_view, MetricCount> MetricNames{
-        "rms_db", "peak_db", "crest_db", "centroid_hz",
-        "flatness", "flux", "transient_db", "spectral_similarity"
-    };
     void SendFeatures(c74::min::outlet<>& outlet) const {
         c74::min::atoms output;
         output.reserve(6 + MetricCount * 6 + BandCount * (2 + MetricCount * 4));

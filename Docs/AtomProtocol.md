@@ -17,7 +17,9 @@ The current commands are `eq.set_parameter`, `eq.set_bypass`, `eq.reset_filter`,
 `saturator.set_parameter`, `saturator.set_bypass`, `saturator.reset`, `fit.start`, `fit.cancel`,
 `fit.clear`, `fit.complete`, and `fit.fail`. All processor and EQ
 values are absolute. `fit.complete` frames its filters and values with explicit
-counts and is committed atomically by Host. `eq.add_bank` accepts an optional
+counts, then appends input gain, compressor bypass/attack/release/threshold,
+saturator bypass/amount, and output gain. Host commits the complete result as
+one fit transaction. `eq.add_bank` accepts an optional
 single name atom; when omitted, Host generates the deterministic bank name.
 
 ## Events
@@ -64,8 +66,9 @@ snapshot 1 host dsp <revision> <EQ snapshot body...>
     <outputGainDb>
 ```
 
-Analyzer, SpectrumView, Filter UI, and Approximator continue to consume the
-EQ-only snapshot. Only `consolidator.dspprocessor` consumes `dsp`.
+Analyzer, SpectrumView, and Filter UI consume the EQ-only snapshot.
+`consolidator.dspprocessor` and `consolidator.approximator` consume the complete
+`dsp` snapshot so every fitted processor parameter has the same initial state.
 
 ## Persistence
 
@@ -84,5 +87,7 @@ FFT frames are not protocol messages and do not pass through Host. Analyzer's
 audio thread publishes immutable curve frames through a preallocated
 single-producer/single-consumer triple buffer. When the consumer is behind, a
 new frame replaces the previous unconsumed frame. A single coalesced Max queue
-callback forwards only the latest complete frame to SpectrumView and the
-Approximator difference input.
+callback forwards only the latest complete frame to SpectrumView. Approximator
+captures pre-DSP current and reference audio through scoped signal connections,
+then evaluates candidates offline; captured audio and candidates never pass
+through Host.

@@ -3,6 +3,9 @@
 #include "AtomReader.h"
 #include "AtomWriter.h"
 #include "Commands/Commands.h"
+#include "Settings/CompressorOptions.h"
+#include "Settings/GainOptions.h"
+#include "Settings/SaturatorOptions.h"
 
 #include <optional>
 #include <limits>
@@ -189,6 +192,36 @@ public:
                 }
                 result.filters.push_back(std::move(filter));
             }
+            const auto inputGain = reader.ReadDouble();
+            const auto compressorBypass = reader.ReadBool();
+            const auto attack = reader.ReadDouble();
+            const auto release = reader.ReadDouble();
+            const auto threshold = reader.ReadDouble();
+            const auto saturatorBypass = reader.ReadBool();
+            const auto saturation = reader.ReadDouble();
+            const auto outputGain = reader.ReadDouble();
+            if (!inputGain || !compressorBypass || !attack || !release || !threshold ||
+                !saturatorBypass || !saturation || !outputGain) {
+                return Invalid("invalid_fit_complete", reader.Index());
+            }
+            if (*inputGain < settings::GainOptions::MinimumGainDb ||
+                *inputGain > settings::GainOptions::MaximumGainDb ||
+                *outputGain < settings::GainOptions::MinimumGainDb ||
+                *outputGain > settings::GainOptions::MaximumGainDb ||
+                *attack < settings::CompressorOptions::MinimumAttackMs ||
+                *attack > settings::CompressorOptions::MaximumAttackMs ||
+                *release < settings::CompressorOptions::MinimumReleaseMs ||
+                *release > settings::CompressorOptions::MaximumReleaseMs ||
+                *threshold < settings::CompressorOptions::MinimumThresholdDb ||
+                *threshold > settings::CompressorOptions::MaximumThresholdDb ||
+                *saturation < settings::SaturatorOptions::MinimumSaturation ||
+                *saturation > settings::SaturatorOptions::MaximumSaturation) {
+                return Invalid("invalid_fit_complete", reader.Index());
+            }
+            result.processor.inputGain = { *inputGain };
+            result.processor.compressor = { *attack, *release, *threshold, *compressorBypass };
+            result.processor.saturator = { *saturation, *saturatorBypass };
+            result.processor.outputGain = { *outputGain };
             if (!reader.RequireEnd()) return Invalid("invalid_fit_complete", reader.Index());
             return Success(domain::CompleteFitCommand{ { *requestId }, std::move(result) });
         }

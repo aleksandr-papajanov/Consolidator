@@ -2,6 +2,9 @@
 
 #include "Commands/Commands.h"
 #include "EqStore.h"
+#include "GainStore.h"
+#include "CompressorStore.h"
+#include "SaturatorStore.h"
 #include "Events/Events.h"
 #include "States/States.h"
 
@@ -14,7 +17,13 @@ class FitWorkflow final {
 public:
     using EventHandler = std::function<void(domain::Event)>;
 
-    FitWorkflow(EqStore& eqStore, EventHandler eventHandler = {});
+    FitWorkflow(
+        EqStore& eqStore,
+        GainStore& inputGainStore,
+        CompressorStore& compressorStore,
+        SaturatorStore& saturatorStore,
+        GainStore& outputGainStore,
+        EventHandler eventHandler = {});
 
     void Handle(const domain::StartFitCommand& command);
     void Handle(const domain::CancelFitCommand& command);
@@ -29,6 +38,10 @@ private:
     void Publish(domain::Event event) const;
 
     EqStore& eqStore;
+    GainStore& inputGainStore;
+    CompressorStore& compressorStore;
+    SaturatorStore& saturatorStore;
+    GainStore& outputGainStore;
     domain::ApproximatorState state;
     domain::BankId activeBankId{};
     EventHandler eventHandler;

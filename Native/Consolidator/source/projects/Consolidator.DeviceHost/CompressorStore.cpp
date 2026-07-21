@@ -60,6 +60,33 @@ UpdateResult CompressorStore::Replace(domain::CompressorState nextState, domain:
     return { UpdateStatus::Changed, {} };
 }
 
+bool CompressorStore::CanApplyFit(const domain::CompressorState& nextState) const noexcept {
+    return std::isfinite(nextState.attackMs) &&
+        nextState.attackMs >= settings::CompressorOptions::MinimumAttackMs &&
+        nextState.attackMs <= settings::CompressorOptions::MaximumAttackMs &&
+        std::isfinite(nextState.releaseMs) &&
+        nextState.releaseMs >= settings::CompressorOptions::MinimumReleaseMs &&
+        nextState.releaseMs <= settings::CompressorOptions::MaximumReleaseMs &&
+        std::isfinite(nextState.thresholdDb) &&
+        nextState.thresholdDb >= settings::CompressorOptions::MinimumThresholdDb &&
+        nextState.thresholdDb <= settings::CompressorOptions::MaximumThresholdDb;
+}
+
+UpdateResult CompressorStore::ApplyFit(
+    domain::CompressorState nextState,
+    domain::RequestId requestId
+) {
+    if (!CanApplyFit(nextState)) {
+        return Reject("invalid_fit_compressor_state");
+    }
+    if (state.attackMs == nextState.attackMs && state.releaseMs == nextState.releaseMs &&
+        state.thresholdDb == nextState.thresholdDb && state.bypass == nextState.bypass) {
+        return { UpdateStatus::Unchanged, {} };
+    }
+    state = nextState;
+    return Commit(requestId);
+}
+
 UpdateResult CompressorStore::Commit(domain::RequestId requestId) {
     ++revision;
     if (commitHandler) commitHandler(revision, requestId);

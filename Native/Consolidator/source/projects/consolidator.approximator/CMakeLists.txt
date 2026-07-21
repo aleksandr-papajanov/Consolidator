@@ -5,15 +5,18 @@ include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 
 include_directories(
     "${C74_INCLUDES}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../Consolidator.Analyzer"
 )
 
 find_package(NLopt CONFIG REQUIRED)
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    ApproximatorCurveStore.h
     ApproximatorOutputs.h
-    EqOptimizer.h
+    AnalysisMetricSnapshot.h
+    DeviceOptimizer.h
+    FitAudioBuffer.h
+    OfflineFitEvaluator.h
 )
 
 set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.approximator" CACHE STRING "The name to give to the external output file/directory" FORCE)

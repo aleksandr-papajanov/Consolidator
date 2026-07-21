@@ -17,6 +17,7 @@ struct FitResult {
     SessionId sessionId{};
     BankId bankId{};
     std::vector<FilterState> filters;
+    ProcessorState processor;
     double loss = 0.0;
 };
 

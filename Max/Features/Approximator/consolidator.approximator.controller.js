@@ -3,7 +3,7 @@ inlets = 2;
 outlets = 3;
 
 // Inlet 0: local commands fit, listen 0|1, clear.
-// Inlet 1: native status status initialized|idle|ready|processing|error <code>.
+// Inlet 1: native status status initialized|idle|ready|capturing|processing|error <code>.
 // Outlet 0: Host atom commands: analyzer.listen, fit.start, fit.clear.
 // Outlet 1: status forwarded to the local patch.
 // Outlet 2: thispatcher commands for Fit and Listen controls.
@@ -24,7 +24,7 @@ ApproximatorFeatureController.prototype.SendCommand = function(name, values) {
 
 ApproximatorFeatureController.prototype.HandleLocalCommand = function(command, values) {
     if (command === "fit") {
-        if (!this.listenEnabled || this.fitting) return;
+        if (!this.ready || this.fitting) return;
         outlet(2, "script", "sendbox", "fit_button", "set", 0);
         this.SendCommand("fit.start", []);
         return;
@@ -35,10 +35,8 @@ ApproximatorFeatureController.prototype.HandleLocalCommand = function(command, v
     }
     if (command === "listen" && values.length === 1) {
         this.listenEnabled = Number(values[0]) !== 0;
-        if (!this.listenEnabled) this.fitting = false;
         if (this.hostReady) {
             this.SendCommand("analyzer.listen", [this.listenEnabled ? 1 : 0]);
-            if (!this.listenEnabled) this.SendCommand("fit.clear", []);
         }
         this.UpdateControls();
     }
@@ -53,7 +51,7 @@ ApproximatorFeatureController.prototype.HandleNativeStatus = function(state, val
         this.ready = true;
         this.fitting = false;
     }
-    else if (state === "processing") {
+    else if (state === "capturing" || state === "processing") {
         this.ready = false;
         this.fitting = true;
     }
@@ -67,7 +65,7 @@ ApproximatorFeatureController.prototype.HandleNativeStatus = function(state, val
 
 ApproximatorFeatureController.prototype.UpdateControls = function() {
     outlet(2, "script", "sendbox", "fit_button", "active",
-        this.listenEnabled && this.ready && !this.fitting ? 1 : 0);
+        this.ready && !this.fitting ? 1 : 0);
     outlet(2, "script", "sendbox", "listen_button", "active",
         this.fitting ? 0 : 1);
 };
@@ -77,7 +75,7 @@ var controller = new ApproximatorFeatureController();
 function inletassist(index) {
     assist(index === 0
         ? "Commands: fit, listen 0|1, clear"
-        : "Native status: status initialized|idle|ready|processing|error <code>");
+        : "Native status: status initialized|idle|ready|capturing|processing|error <code>");
 }
 
 function outletassist(index) {

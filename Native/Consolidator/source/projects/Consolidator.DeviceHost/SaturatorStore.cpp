@@ -46,6 +46,26 @@ UpdateResult SaturatorStore::Replace(domain::SaturatorState nextState, domain::S
     return { UpdateStatus::Changed, {} };
 }
 
+bool SaturatorStore::CanApplyFit(const domain::SaturatorState& nextState) const noexcept {
+    return std::isfinite(nextState.saturation) &&
+        nextState.saturation >= settings::SaturatorOptions::MinimumSaturation &&
+        nextState.saturation <= settings::SaturatorOptions::MaximumSaturation;
+}
+
+UpdateResult SaturatorStore::ApplyFit(
+    domain::SaturatorState nextState,
+    domain::RequestId requestId
+) {
+    if (!CanApplyFit(nextState)) {
+        return Reject("invalid_fit_saturator_state");
+    }
+    if (state.saturation == nextState.saturation && state.bypass == nextState.bypass) {
+        return { UpdateStatus::Unchanged, {} };
+    }
+    state = nextState;
+    return Commit(requestId);
+}
+
 UpdateResult SaturatorStore::Commit(domain::RequestId requestId) {
     ++revision;
     if (commitHandler) commitHandler(revision, requestId);

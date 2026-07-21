@@ -23,7 +23,9 @@ DeviceHost::DeviceHost(EventHandler eventHandler)
         Publish(domain::StoreUpdatedEvent{ "output_gain", Revision(), requestId });
       }),
       analyzerWorkflow([this](domain::Event event) { Publish(std::move(event)); }),
-      fitWorkflow(eqStore, [this](domain::Event event) { Publish(std::move(event)); }),
+      fitWorkflow(
+          eqStore, inputGainStore, compressorStore, saturatorStore, outputGainStore,
+          [this](domain::Event event) { Publish(std::move(event)); }),
       eventHandler(std::move(eventHandler)) {}
 
 void DeviceHost::Handle(const domain::Command& command) {

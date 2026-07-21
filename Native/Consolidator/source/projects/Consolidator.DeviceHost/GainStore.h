@@ -18,6 +18,8 @@ public:
     domain::StoreRevision Revision() const noexcept;
     UpdateResult SetParameter(const domain::SetGainParameterCommand& command);
     UpdateResult Replace(domain::GainState state, domain::StoreRevision revision);
+    bool CanApplyFit(const domain::GainState& state) const noexcept;
+    UpdateResult ApplyFit(domain::GainState state, domain::RequestId requestId);
 
 private:
     UpdateResult Commit(domain::RequestId requestId);

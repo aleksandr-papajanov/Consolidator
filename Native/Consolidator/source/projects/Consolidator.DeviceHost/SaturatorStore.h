@@ -19,6 +19,8 @@ public:
     UpdateResult SetBypass(const domain::SetSaturatorBypassCommand& command);
     UpdateResult Reset(const domain::ResetSaturatorCommand& command);
     UpdateResult Replace(domain::SaturatorState state, domain::StoreRevision revision);
+    bool CanApplyFit(const domain::SaturatorState& state) const noexcept;
+    UpdateResult ApplyFit(domain::SaturatorState state, domain::RequestId requestId);
 
 private:
     UpdateResult Commit(domain::RequestId requestId);

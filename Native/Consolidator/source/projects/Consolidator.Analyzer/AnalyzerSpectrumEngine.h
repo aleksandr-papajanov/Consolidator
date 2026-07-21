@@ -26,39 +26,51 @@ public:
         const AnalyzerFrameBuffer& frame,
         AnalyzerCurveBatch& curves
     ) {
+        AnalyzerSpectrumResult result;
+        AnalyzeInto(frame, curves, result);
+        return result;
+    }
+
+    void AnalyzeInto(
+        const AnalyzerFrameBuffer& frame,
+        AnalyzerCurveBatch& curves,
+        AnalyzerSpectrumResult& result
+    ) {
         const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
         const int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount);
-        auto referenceSpectrum = StereoSpectrum(
+        StereoSpectrumInto(
             frame.ReferenceLeft(),
             frame.ReferenceRight(),
             frame.WriteIndex(),
-            fftSize);
+            fftSize,
+            result.reference);
 
-        auto currentSpectrum = StereoSpectrum(
+        StereoSpectrumInto(
             frame.CurrentLeft(),
             frame.CurrentRight(),
             frame.WriteIndex(),
-            fftSize);
+            fftSize,
+            result.current);
         const int previousPendingCount = curves.Prepare();
 
         for (int i = 0; i < binsOut; ++i) {
             curves.StoreBin(
                 i,
                 previousPendingCount,
-                SampleSpectrumDb(currentSpectrum.decibels, i, binsOut, fftSize),
-                SampleSpectrumDb(referenceSpectrum.decibels, i, binsOut, fftSize));
+                SampleSpectrumDb(result.current.decibels, i, binsOut, fftSize),
+                SampleSpectrumDb(result.reference.decibels, i, binsOut, fftSize));
         }
 
         curves.FinalizeFrame();
-        return { std::move(currentSpectrum), std::move(referenceSpectrum) };
     }
 
 private:
-    AnalyzerSignalSpectrum StereoSpectrum(
+    void StereoSpectrumInto(
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& left,
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& right,
         int writeIndex,
-        int fftSize
+        int fftSize,
+        AnalyzerSignalSpectrum& result
     ) {
         MakeWindowedCopy(left, writeIndex, fftSize, windowedSamples);
         Magnitudes(
@@ -69,7 +81,6 @@ private:
         Magnitudes(
             std::span{ windowedSamples.data(), static_cast<std::size_t>(fftSize) },
             std::span{ rightMagnitudes.data(), static_cast<std::size_t>(fftSize / 2) });
-        AnalyzerSignalSpectrum result;
         result.pointCount = static_cast<std::size_t>(fftSize / 2);
 
         for (int i = 0; i < fftSize / 2; ++i) {
@@ -81,7 +92,6 @@ private:
             result.crossPowers[i] = std::real(leftFft[i] * std::conj(fftOutput[i]));
         }
 
-        return result;
     }
 
     void MakeWindowedCopy(

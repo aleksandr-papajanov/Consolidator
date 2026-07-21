@@ -36,7 +36,7 @@ The audio and analysis flows are:
 ```text
 audio -> DspProcessor -> audio and Analyzer candidate input
 post-DSP candidate + reference -> Analyzer -> SpectrumView
-Analyzer difference stream -> Approximator -> fit.complete -> DeviceHost
+Fit capture (pre-DSP current + reference) -> offline Approximator -> fit.complete -> DeviceHost
 ```
 
 Runtime Dictionaries, shared mutable state dictionaries, generations, target
@@ -51,7 +51,7 @@ routing, and envelope payload objects are not part of the architecture.
 - `Consolidator.DeviceHost` contains `DeviceHost`, transactional stores, and
   workflow coordination. `AnalyzerWorkflow` owns analyzer listen sessions and
   `FitWorkflow` owns fit transitions, the captured target bank, result
-  validation, and the single atomic EQ apply. `DeviceHost` only routes typed
+  validation, and the single complete-chain fit apply. `DeviceHost` only routes typed
   commands, serializes access, and dispatches events. It has no Max dependency.
 - `Consolidator.Persistence` contains the typed persistence schema and codec.
 - `Consolidator.DspCore` contains snapshot builders and reusable DSP-facing
@@ -112,7 +112,7 @@ Supported commands are:
 - `saturator.reset`
 - `analyzer.listen <0|1>`
 - `fit.start`, `fit.cancel <sessionId>`, and `fit.clear`
-- `fit.complete <sessionId> <bankId> <loss> <filterCount> ...`
+- `fit.complete <sessionId> <bankId> <loss> <filterCount> <filters...> <inputGain> <compressorBypass> <attack> <release> <threshold> <saturatorBypass> <saturation> <outputGain>`
 - `fit.fail <sessionId> <error>`
 
 Every command inlet and outlet must document its complete accepted or produced
@@ -174,13 +174,18 @@ delivers the newest frame on Max's main thread; do not poll Analyzer with
 on its visual outlet; SpectrumView must use that metadata instead of
 duplicating the native curve grid.
 
-`consolidator.approximator` receives EQ snapshots and the live difference
-stream directly from Analyzer through the scoped Max connection. The stream
-does not pass through Host. Host starts a fit with an operation event.
-Approximator returns `fit.complete` or `fit.fail`; only Host may commit the
-result. Analyzer's audio-to-main-thread boundary is bounded and latest-value;
-the final direct Max delivery to Approximator remains synchronous and carries
-only that newest published difference frame.
+`consolidator.approximator` receives complete DSP snapshots plus scoped pre-DSP
+current and reference signals. `fit.start` captures one fixed four-second stereo
+fragment into a preallocated buffer. A worker evaluates every candidate against
+that immutable fragment with the same DSP chain and feature pipeline used by the
+runtime components. The first half-second is processed as deterministic device
+warm-up and excluded from loss. NLopt minimizes that loss over normalized,
+bounded coordinates which are converted back into absolute snapshot values.
+Do not replace NLopt with a hand-written parameter sweep. Optimization covers every parameter of
+non-bypassed selected-bank filters, both gains, and every parameter of
+non-bypassed compressor and saturator devices. Candidates never touch live DSP,
+Host, persistence, or UI. Approximator returns one complete `fit.complete` or
+`fit.fail`; only Host commits the final EQ and processor state.
 
 Analyzer visualization is split into independent responsive JSUI components.
 `consolidator.analyzer.spectrum.js` receives current spectrum, reference spectrum,

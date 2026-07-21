@@ -11,10 +11,9 @@ void AnalyzerWorkflow::Handle(const domain::ListenAnalyzerCommand& command) {
     const auto nextStatus = command.enabled
         ? domain::AnalyzerState::Status::Listening
         : domain::AnalyzerState::Status::Idle;
-    if (state.status == nextStatus) return;
-
+    const auto changed = state.status != nextStatus;
     state.status = nextStatus;
-    if (command.enabled) ++state.sessionId.value;
+    if (command.enabled && changed) ++state.sessionId.value;
     Publish(domain::OperationChangedEvent{
         "analyzer",
         state.sessionId,
