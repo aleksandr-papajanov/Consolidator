@@ -71,7 +71,11 @@ SpectrumViewController.prototype.EstimateLabelWidth = function(label) {
 }
 
 SpectrumViewController.prototype.GetPlotBottom = function(h) {
-    return h - 18;
+    return Math.max(1, h - 18);
+}
+
+SpectrumViewController.prototype.GetSpectrumPlotWidth = function(w) {
+    return w;
 }
 
 SpectrumViewController.prototype.DbToY = function(db, plotBottom) {

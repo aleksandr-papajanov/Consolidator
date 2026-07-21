@@ -12,7 +12,7 @@
 		"classnamespace" : "box",
 		"rect" : [ 127.0, 85.0, 1212.0, 875.0 ],
 		"openinpresentation" : 1,
-		"gridsize" : [ 15.0, 15.0 ],
+		"gridsize" : [ 10.0, 10.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
 					"id" : "obj-fit-trigger",

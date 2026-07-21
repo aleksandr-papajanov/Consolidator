@@ -12,7 +12,7 @@
 		"classnamespace" : "box",
 		"rect" : [ 382.0, 143.0, 600.0, 780.0 ],
 		"openinpresentation" : 1,
-		"gridsize" : [ 15.0, 15.0 ],
+		"gridsize" : [ 10.0, 10.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
 					"id" : "obj-20",
@@ -32,7 +32,7 @@
 ,
 						"classnamespace" : "box",
 						"rect" : [ 276.0, 297.0, 1000.0, 780.0 ],
-						"gridsize" : [ 15.0, 15.0 ],
+						"gridsize" : [ 10.0, 10.0 ],
 						"boxes" : [ 							{
 								"box" : 								{
 									"comment" : "",
@@ -150,7 +150,7 @@
 ,
 										"classnamespace" : "box",
 										"rect" : [ 64.0, 146.0, 1372.0, 776.0 ],
-										"gridsize" : [ 15.0, 15.0 ],
+										"gridsize" : [ 10.0, 10.0 ],
 										"boxes" : [ 											{
 												"box" : 												{
 													"id" : "obj-3",
@@ -195,7 +195,7 @@
 ,
 														"classnamespace" : "box",
 														"rect" : [ 64.0, 146.0, 972.0, 776.0 ],
-														"gridsize" : [ 15.0, 15.0 ],
+														"gridsize" : [ 10.0, 10.0 ],
 														"boxes" : [ 															{
 																"box" : 																{
 																	"id" : "obj-11",
@@ -627,7 +627,7 @@
 ,
 										"classnamespace" : "box",
 										"rect" : [ 64.0, 146.0, 1372.0, 776.0 ],
-										"gridsize" : [ 15.0, 15.0 ],
+										"gridsize" : [ 10.0, 10.0 ],
 										"boxes" : [ 											{
 												"box" : 												{
 													"id" : "obj-3",
@@ -672,7 +672,7 @@
 ,
 														"classnamespace" : "box",
 														"rect" : [ 64.0, 146.0, 972.0, 776.0 ],
-														"gridsize" : [ 15.0, 15.0 ],
+														"gridsize" : [ 10.0, 10.0 ],
 														"boxes" : [ 															{
 																"box" : 																{
 																	"id" : "obj-11",

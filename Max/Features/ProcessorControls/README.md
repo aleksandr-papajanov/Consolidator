@@ -58,16 +58,9 @@ Connect the controller's second outlet to `thispatcher`. The `set` message
 updates the corresponding control without feeding its value back into the
 command inlet.
 
-The controller's fourth and fifth outlets publish confirmed processor state
-for the compact compressor and saturator JSUI response views respectively:
-
-```text
-compressor_state <bypass> <attackMs> <releaseMs> <thresholdDb>
-saturator_state <bypass> <saturation>
-```
-
-Both views show static transfer characteristics from the Host-confirmed DSP
-snapshot. They do not synthesize gain-reduction or waveform activity.
+Compressor and saturator activity is measured from processed audio by
+DspProcessor and displayed in SpectrumView. ProcessorControls does not render
+transfer functions or publish visual state.
 
 Suggested stable varnames are `filter.<id>.<parameter>`,
 `filter.<id>.bypass`, `filter.<id>.reset`, `preeq.bypass`, `preeq.reset`,

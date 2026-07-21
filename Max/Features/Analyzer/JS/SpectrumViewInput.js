@@ -133,7 +133,7 @@ SpectrumViewController.prototype.OnDrag = function(x, y, button, cmd, shift, cap
 
     var point = this.ToLocalPoint(x, y);
     var size = mgraphics.size;
-    var w = size[0];
+    var w = this.GetSpectrumPlotWidth(size[0]);
     var plotBottom = this.GetPlotBottom(size[1]);
     var nextAltMode = this.IsAltModifierDown(option, arguments[6]) &&
         spectrumState.draggedHandle.qMax > spectrumState.draggedHandle.qMin;
@@ -241,6 +241,7 @@ SpectrumViewController.prototype.SameHandle = function(left, right) {
 
 SpectrumViewController.prototype.FindHandlesAt = function(x, y) {
     var size = mgraphics.size;
+    var plotWidth = this.GetSpectrumPlotWidth(size[0]);
     var candidates = [];
 
     for (var i = 0; i < spectrumState.handles.length; i++) {
@@ -248,7 +249,7 @@ SpectrumViewController.prototype.FindHandlesAt = function(x, y) {
             continue;
         }
 
-        var handleX = this.FrequencyToX(spectrumState.handles[i].frequency, size[0]);
+        var handleX = this.FrequencyToX(spectrumState.handles[i].frequency, plotWidth);
         var handleY = this.DbToY(spectrumState.handles[i].gain, this.GetPlotBottom(size[1]));
         var distance = Math.sqrt(
             Math.pow(x - handleX, 2) + Math.pow(y - handleY, 2)
@@ -310,7 +311,6 @@ SpectrumViewController.prototype.Clear = function() {
     spectrumState.clickMoved = false;
     spectrumState.selectionCandidates = [];
     spectrumState.selectionIndex = -1;
-
     mgraphics.redraw();
 }
 

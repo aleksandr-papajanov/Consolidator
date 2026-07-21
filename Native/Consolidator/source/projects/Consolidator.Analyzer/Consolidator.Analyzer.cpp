@@ -5,6 +5,7 @@
 #include "AnalyzerFilterVisuals.h"
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerSpectrumEngine.h"
+#include "Analysis/AnalyzerFeaturePipeline.h"
 #include "AtomAdapter.h"
 #include "AtomMessage.h"
 #include "EventCodec.h"
@@ -44,6 +45,10 @@ public:
     outlet<> totalCurveOut{ this, "(list) summed response curve for all EQ banks in dB" };
     outlet<> statusOut{ this, "(anything) status: status initializing|ready|processing|error <code>" };
     outlet<> debugOut{ this, "(anything) diagnostics: error <code>" };
+    outlet<> analysisOut{
+        this,
+        "(anything) visual analysis: feature_vector <windowCount> <historySeconds> <globalMetrics...> <bandMetrics...>"
+    };
 
     queue<> curveDelivery{
         this,
@@ -99,6 +104,7 @@ public:
         MIN_FUNCTION {
             if (!args.empty()) {
                 spectrumEngine.SetSampleRate(static_cast<double>(args[0]));
+                featurePipeline.SetSampleRate(static_cast<double>(args[0]));
                 filterVisuals.SetSampleRate(static_cast<double>(args[0]));
                 PublishCurveSettings();
                 filterVisuals.PublishSelected(filterOut);
@@ -123,8 +129,10 @@ public:
             if (differenceResetRequested.exchange(false, std::memory_order_acq_rel)) {
                 curves.ResetDifference();
             }
-            spectrumEngine.Analyze(capture, curves);
+            const auto spectra = spectrumEngine.Analyze(capture, curves);
+            auto featureFrame = featurePipeline.Process(capture, spectra);
             curves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
+            curveFrames.ProducerValue().SetFeatures(std::move(featureFrame));
             curveFrames.Publish();
             ScheduleCurveDelivery();
 
@@ -181,7 +189,7 @@ private:
                 differenceOut,
                 differenceEnabled &&
                     frame.DifferenceGeneration() == differenceGeneration.load(std::memory_order_acquire),
-                filterVisuals.SelectedPrefixCurve());
+                analysisOut);
         });
 
         curveDeliveryScheduled.store(false, std::memory_order_release);
@@ -198,6 +206,7 @@ private:
     AnalyzerCurveBatch curves;
     dspcore::LatestValueTripleBuffer<AnalyzerCurveFrame> curveFrames;
     AnalyzerSpectrumEngine spectrumEngine;
+    AnalyzerFeaturePipeline featurePipeline;
     AnalyzerFilterVisuals filterVisuals;
     std::atomic<bool> curveDeliveryScheduled{ false };
     std::atomic<bool> differenceResetRequested{ false };

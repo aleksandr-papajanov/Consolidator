@@ -28,8 +28,12 @@ public:
         const auto value = saturation.Next().value;
         if (value <= 0.0) return input;
         const auto drive = 1.0 + value * (settings::SaturatorOptions::MaximumDrive - 1.0);
-        const auto shaped = std::tanh(input * drive) / std::tanh(drive);
-        return input + value * (shaped - input);
+        const auto driveNormalization = std::tanh(drive);
+        const auto shaped = std::tanh(input * drive) / driveNormalization;
+        const auto mixed = input + value * (shaped - input);
+        const auto wetLinearGain = drive / driveNormalization;
+        const auto mixedLinearGain = 1.0 + value * (wetLinearGain - 1.0);
+        return mixed / mixedLinearGain;
     }
 
     void Reset() override {}

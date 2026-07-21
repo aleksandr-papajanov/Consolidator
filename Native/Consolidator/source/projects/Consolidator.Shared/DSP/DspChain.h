@@ -26,10 +26,18 @@ public:
     }
 
     double ProcessSample(double input) override {
+        return ProcessSampleObserved(input, [](std::size_t, double, double) {});
+    }
+
+    template <typename Observer>
+    double ProcessSampleObserved(double input, Observer&& observer) {
+        std::size_t index = 0;
         for (const auto& slot : devices) {
+            const auto deviceInput = input;
             const auto processed = slot->device->ProcessSample(input);
             const auto bypass = slot->bypass.Next().value;
             input = processed + (input - processed) * bypass;
+            observer(index++, deviceInput, input);
         }
         return input;
     }

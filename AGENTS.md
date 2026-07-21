@@ -34,8 +34,8 @@ external outlet callback may run while a Host store mutex is held.
 The audio and analysis flows are:
 
 ```text
-audio -> DspProcessor -> audio
-pre-EQ current + reference -> Analyzer -> SpectrumView
+audio -> DspProcessor -> audio and Analyzer candidate input
+post-DSP candidate + reference -> Analyzer -> SpectrumView
 Analyzer difference stream -> Approximator -> fit.complete -> DeviceHost
 ```
 
@@ -156,12 +156,16 @@ Host publish definitions, EQ, and DSP snapshots exactly once.
 chain in this fixed order: input gain, PreEq filters from every bank in ascending
 ID order, compressor, saturator, PostEq filters from every bank in ascending ID
 order, then output gain. It knows nothing about selection, UI, persistence, Analyzer,
-or Approximator.
+or Approximator. It publishes bounded latest-value processor telemetry directly
+to Analyzer's processor meters over the scoped `---processor.telemetry` transport. Telemetry
+contains measured compressor gain reduction, saturator nonlinear residual, and
+saturator level delta; it never enters Host or the runtime atom bus.
 
-`consolidator.analyzer` receives pre-EQ current stereo and reference stereo.
-It publishes current, reference, difference, selected-bank filter curves, and
-the total EQ response. It derives selected-prefix and total responses from the
-same EQ snapshot used by DspProcessor. The audio thread owns smoothing state and
+`consolidator.analyzer` receives the real post-DSP candidate stereo and the
+unprocessed reference stereo. It publishes measured current, reference and
+difference curves, selected-bank filter curves, the total EQ response, and a
+rolling feature vector with global and standard-band metrics. It never adds a
+calculated EQ response to the measured candidate. The audio thread owns smoothing state and
 publishes immutable `AnalyzerCurveFrame` values through a preallocated
 single-producer/single-consumer triple buffer. Its overflow policy is
 latest-wins and replaced frames are counted. One coalesced Min `queue<>` handoff
@@ -178,9 +182,14 @@ result. Analyzer's audio-to-main-thread boundary is bounded and latest-value;
 the final direct Max delivery to Approximator remains synchronous and carries
 only that newest published difference frame.
 
-SpectrumView receives, in order: current spectrum, reference spectrum,
-difference, selected-bank filter curves, total EQ response, and Host snapshots.
-Marker drag emits absolute `eq.set_parameter` commands. Holding Alt changes Q.
+Analyzer visualization is split into independent responsive JSUI components.
+`consolidator.analyzer.spectrum.js` receives current spectrum, reference spectrum,
+difference, selected-bank filter curves, total EQ response, and Host snapshots;
+marker drag emits absolute `eq.set_parameter` commands and Alt changes Q.
+`consolidator.analyzer.analysis.js` receives feature vectors only.
+`consolidator.analyzer.processormeters.js` receives processor telemetry only.
+The three boxes must remain independently resizable and composable in Max
+presentation; no component derives its drawing area from a sibling box.
 
 `Max/Features/ProcessorControls/ProcessorControls.maxpat` is the single control
 surface for all EQ filters, compressor, and saturator. Max controls are created

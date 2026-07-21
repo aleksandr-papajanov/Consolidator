@@ -2,25 +2,26 @@ SpectrumViewController.prototype.Paint = function() {
     var size = mgraphics.size;
     var w = size[0];
     var h = size[1];
+    var plotWidth = this.GetSpectrumPlotWidth(w);
     var plotBottom = this.GetPlotBottom(h);
 
     this.DrawBackground(w, h);
-    this.DrawFrequencyGrid(w, plotBottom);
-    this.DrawZeroLine(w, plotBottom);
+    this.DrawFrequencyGrid(plotWidth, plotBottom);
+    this.DrawZeroLine(plotWidth, plotBottom);
 
     for (var i = 0; i < 3; i++) {
         var s = spectrumState.styles[i];
-        this.DrawCurve(spectrumState.curves[i], w, plotBottom, s);
+        this.DrawCurve(spectrumState.curves[i], plotWidth, plotBottom, s);
     }
 
-    this.DrawTotalEqResponse(w, plotBottom);
-    this.DrawIndividualFilterCurves(w, plotBottom);
-    this.DrawTotalFilterCurve(w, plotBottom);
-    this.DrawSelectedFilterCurve(w, plotBottom);
+    this.DrawTotalEqResponse(plotWidth, plotBottom);
+    this.DrawIndividualFilterCurves(plotWidth, plotBottom);
+    this.DrawTotalFilterCurve(plotWidth, plotBottom);
+    this.DrawSelectedFilterCurve(plotWidth, plotBottom);
 
-    this.DrawHandles(w, plotBottom);
-    this.DrawFrequencyLabels(w, h);
-    this.DrawDbRangeLabel(w, h);
+    this.DrawHandles(plotWidth, plotBottom);
+    this.DrawFrequencyLabels(plotWidth, h);
+    this.DrawDbRangeLabel(plotWidth, h);
 }
 
 SpectrumViewController.prototype.DrawIndividualFilterCurves = function(w, plotBottom) {

@@ -23,6 +23,14 @@ set(SOURCE_FILES
     AnalyzerCurveFrame.h
     AnalyzerFilterVisuals.h
     AnalyzerSpectrumEngine.h
+    AnalyzerSpectrumResult.h
+    Analysis/AnalysisFeatureFrame.h
+    Analysis/AnalyzerFeaturePipeline.h
+    Analysis/FeatureExtractors.h
+    Analysis/FrequencyBands.h
+    Analysis/IFeatureExtractor.h
+    Analysis/RollingStatistics.h
+    Analysis/SignalAnalysisWindow.h
 )
 
 set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.analyzer" CACHE STRING "The name to give to the external output file/directory" FORCE)

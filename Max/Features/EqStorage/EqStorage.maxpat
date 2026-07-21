@@ -12,7 +12,7 @@
 		"classnamespace" : "box",
 		"rect" : [ 718.0, 143.0, 900.0, 600.0 ],
 		"openinpresentation" : 1,
-		"gridsize" : [ 15.0, 15.0 ],
+		"gridsize" : [ 10.0, 10.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
 					"id" : "obj-message-bus-send-9",

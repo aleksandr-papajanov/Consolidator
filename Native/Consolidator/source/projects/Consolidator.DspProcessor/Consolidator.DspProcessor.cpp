@@ -6,9 +6,14 @@
 #include "SnapshotCodec.h"
 #include "Settings/AudioOptions.h"
 #include "RealtimeSnapshotSwap.h"
+#include "LatestValueTripleBuffer.h"
+#include "ProcessorTelemetry.h"
 
+#include <atomic>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 using namespace c74::min;
 using namespace consolidator;
@@ -32,6 +37,18 @@ public:
     outlet<> outputRight{ this, "(signal) right output", "signal" };
     outlet<> statusOut{ this, "(anything) status: status ready|error <code>" };
     outlet<> debugOut{ this, "(anything) diagnostics: error <code>" };
+    outlet<> telemetryOut{
+        this,
+        "(anything) processor_telemetry <compressorReductionDb> <saturationNonlinearRatio> <saturationLevelDeltaDb>"
+    };
+
+    queue<> telemetryDelivery{
+        this,
+        MIN_FUNCTION {
+            PublishTelemetry();
+            return {};
+        }
+    };
 
     message<> dspSetup{
         this,
@@ -84,9 +101,18 @@ public:
     };
 
     samples<2> operator()(sample left, sample right) {
-        const auto output = runtimeState.Read([left, right](RuntimeState& runtime) {
-            return runtime.chain.ProcessSample({ left, right });
+        const auto output = runtimeState.Read([this, left, right](RuntimeState& runtime) {
+            const auto observer = [this, &runtime](std::size_t index, double input, double output) {
+                if (index == runtime.compressorIndex) telemetry.ObserveCompressor(input, output);
+                else if (index == runtime.saturatorIndex) telemetry.ObserveSaturator(input, output);
+            };
+            return runtime.chain.ProcessSampleObserved({ left, right }, observer);
         });
+        if (telemetry.Advance()) {
+            telemetryFrames.ProducerValue() = telemetry.Finish();
+            telemetryFrames.Publish();
+            ScheduleTelemetryDelivery();
+        }
         return { output.left, output.right };
     }
 
@@ -105,7 +131,21 @@ private:
 
     struct RuntimeState {
         consolidator::dsp::StereoDspChain chain;
+        std::size_t compressorIndex = InvalidDeviceIndex;
+        std::size_t saturatorIndex = InvalidDeviceIndex;
     };
+
+    static constexpr std::size_t InvalidDeviceIndex = std::numeric_limits<std::size_t>::max();
+
+    static std::size_t FindDeviceIndex(
+        const std::vector<dsp::DspDeviceRegistration>& registrations,
+        std::string_view deviceId
+    ) {
+        for (std::size_t index = 0; index < registrations.size(); ++index) {
+            if (registrations[index].deviceId == deviceId) return index;
+        }
+        return InvalidDeviceIndex;
+    }
 
     void ApplyRuntimeUpdate() {
         const auto registrations = dspRuntime.BuildRegistrations(sampleRate);
@@ -127,13 +167,36 @@ private:
         builder.SetDevices(registrations);
         auto runtime = std::make_unique<RuntimeState>();
         runtime->chain = builder.BuildStereo();
+        runtime->compressorIndex = FindDeviceIndex(registrations, "compressor");
+        runtime->saturatorIndex = FindDeviceIndex(registrations, "saturator");
         runtimeState.Replace(std::move(runtime));
         hasRuntime = true;
+    }
+
+    void PublishTelemetry() {
+        telemetryFrames.ConsumeLatest([this](const ProcessorTelemetryFrame& frame) {
+            telemetryOut.send(
+                "processor_telemetry",
+                frame.compressorReductionDb,
+                frame.saturationNonlinearRatio,
+                frame.saturationLevelDeltaDb);
+        });
+        telemetryDeliveryScheduled.store(false, std::memory_order_release);
+        if (telemetryFrames.HasPending()) ScheduleTelemetryDelivery();
+    }
+
+    void ScheduleTelemetryDelivery() {
+        if (!telemetryDeliveryScheduled.exchange(true, std::memory_order_acq_rel)) {
+            telemetryDelivery.set();
+        }
     }
 
     double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
     consolidator::dspcore::DeviceDspRuntime dspRuntime;
     consolidator::dspcore::RealtimeSnapshotSwap<RuntimeState> runtimeState;
+    consolidator::dspcore::LatestValueTripleBuffer<ProcessorTelemetryFrame> telemetryFrames;
+    ProcessorTelemetryAccumulator telemetry;
+    std::atomic<bool> telemetryDeliveryScheduled{ false };
     bool hasSnapshot = false;
     bool hasRuntime = false;
 };

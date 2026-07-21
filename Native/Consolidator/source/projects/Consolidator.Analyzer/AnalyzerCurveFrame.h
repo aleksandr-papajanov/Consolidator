@@ -1,6 +1,7 @@
 #pragma once
 
 #include "c74_min.h"
+#include "Analysis/AnalysisFeatureFrame.h"
 #include "DSP/Curve/Curve.h"
 #include "Settings/AnalysisOptions.h"
 
@@ -30,7 +31,7 @@ public:
         c74::min::outlet<>& referenceOut,
         c74::min::outlet<>& differenceOut,
         bool sendDifference,
-        const consolidator::dsp::Curve& selectedPrefixCurve
+        c74::min::outlet<>& analysisOut
     ) const {
         c74::min::atoms currentAtoms;
         c74::min::atoms referenceAtoms;
@@ -38,20 +39,21 @@ public:
         const auto& currentValues = current.Values();
         const auto& referenceValues = reference.Values();
         const auto& differenceValues = difference.Values();
-        const auto& eqCurve = selectedPrefixCurve.Values();
 
         for (int index = 0; index < pointCount; ++index) {
-            const auto offset = index < static_cast<int>(eqCurve.size())
-                ? eqCurve[static_cast<std::size_t>(index)]
-                : 0.0;
-            currentAtoms.push_back(currentValues[static_cast<std::size_t>(index)] + offset);
+            currentAtoms.push_back(currentValues[static_cast<std::size_t>(index)]);
             referenceAtoms.push_back(referenceValues[static_cast<std::size_t>(index)]);
-            differenceAtoms.push_back(differenceValues[static_cast<std::size_t>(index)] - offset);
+            differenceAtoms.push_back(differenceValues[static_cast<std::size_t>(index)]);
         }
 
         currentOut.send(currentAtoms);
         referenceOut.send(referenceAtoms);
         if (sendDifference) differenceOut.send(differenceAtoms);
+        features.Send(analysisOut);
+    }
+
+    void SetFeatures(AnalysisFeatureFrame value) {
+        features = std::move(value);
     }
 
     std::uint64_t DifferenceGeneration() const noexcept {
@@ -70,4 +72,5 @@ private:
     consolidator::dsp::Curve difference;
     int pointCount = 0;
     std::uint64_t differenceGeneration = 0;
+    AnalysisFeatureFrame features;
 };

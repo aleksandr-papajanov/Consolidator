@@ -2,6 +2,7 @@
 
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerCurveBatch.h"
+#include "AnalyzerSpectrumResult.h"
 #include "DSP/Spectrum/FftEngine.h"
 #include "Settings/AnalysisOptions.h"
 #include "Settings/AudioOptions.h"
@@ -10,8 +11,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <complex>
 #include <numbers>
-#include <vector>
+#include <span>
+#include <utility>
 
 class AnalyzerSpectrumEngine {
 public:
@@ -19,19 +22,19 @@ public:
         this->sampleRate = sampleRate;
     }
 
-    void Analyze(
+    AnalyzerSpectrumResult Analyze(
         const AnalyzerFrameBuffer& frame,
         AnalyzerCurveBatch& curves
-    ) const {
+    ) {
         const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
         const int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount);
-        const auto referenceSpectrum = StereoMagnitudeDb(
+        auto referenceSpectrum = StereoSpectrum(
             frame.ReferenceLeft(),
             frame.ReferenceRight(),
             frame.WriteIndex(),
             fftSize);
 
-        const auto currentSpectrum = StereoMagnitudeDb(
+        auto currentSpectrum = StereoSpectrum(
             frame.CurrentLeft(),
             frame.CurrentRight(),
             frame.WriteIndex(),
@@ -39,44 +42,54 @@ public:
         const int previousPendingCount = curves.Prepare();
 
         for (int i = 0; i < binsOut; ++i) {
-            const int sourceIndex = MapOutputBinToFftBin(i, binsOut, fftSize);
-
             curves.StoreBin(
                 i,
                 previousPendingCount,
-                currentSpectrum[sourceIndex],
-                referenceSpectrum[sourceIndex]);
+                SampleSpectrumDb(currentSpectrum.decibels, i, binsOut, fftSize),
+                SampleSpectrumDb(referenceSpectrum.decibels, i, binsOut, fftSize));
         }
 
         curves.FinalizeFrame();
+        return { std::move(currentSpectrum), std::move(referenceSpectrum) };
     }
 
 private:
-    std::vector<double> StereoMagnitudeDb(
+    AnalyzerSignalSpectrum StereoSpectrum(
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& left,
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& right,
         int writeIndex,
         int fftSize
-    ) const {
-        const auto leftDb = MagnitudeDb(MakeWindowedCopy(left, writeIndex, fftSize));
-        const auto rightDb = MagnitudeDb(MakeWindowedCopy(right, writeIndex, fftSize));
-
-        std::vector<double> stereoDb(fftSize / 2);
+    ) {
+        MakeWindowedCopy(left, writeIndex, fftSize, windowedSamples);
+        Magnitudes(
+            std::span{ windowedSamples.data(), static_cast<std::size_t>(fftSize) },
+            std::span{ leftMagnitudes.data(), static_cast<std::size_t>(fftSize / 2) });
+        std::copy_n(fftOutput.begin(), fftSize / 2, leftFft.begin());
+        MakeWindowedCopy(right, writeIndex, fftSize, windowedSamples);
+        Magnitudes(
+            std::span{ windowedSamples.data(), static_cast<std::size_t>(fftSize) },
+            std::span{ rightMagnitudes.data(), static_cast<std::size_t>(fftSize / 2) });
+        AnalyzerSignalSpectrum result;
+        result.pointCount = static_cast<std::size_t>(fftSize / 2);
 
         for (int i = 0; i < fftSize / 2; ++i) {
-            stereoDb[i] = consolidator::audio::StereoSample::FromDecibels(
-                leftDb[i], rightDb[i]).MagnitudeDb();
+            result.magnitudes[i] = (leftMagnitudes[i] + rightMagnitudes[i]) * 0.5;
+            result.decibels[i] = consolidator::helpers::NumericHelper::MagnitudeToDecibels(
+                result.magnitudes[i]);
+            result.leftPowers[i] = std::norm(leftFft[i]);
+            result.rightPowers[i] = std::norm(fftOutput[i]);
+            result.crossPowers[i] = std::real(leftFft[i] * std::conj(fftOutput[i]));
         }
 
-        return stereoDb;
+        return result;
     }
 
-    std::vector<double> MakeWindowedCopy(
+    void MakeWindowedCopy(
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& source,
         int writeIndex,
-        int fftSize
+        int fftSize,
+        std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& output
     ) const {
-        std::vector<double> output(fftSize);
         const int start = writeIndex;
 
         for (int i = 0; i < fftSize; ++i) {
@@ -87,34 +100,25 @@ private:
             output[i] = source[index] * hann;
         }
 
-        return output;
     }
 
-    std::vector<double> MagnitudeDb(const std::vector<double>& input) const {
-        const consolidator::dsp::FftEngine engine;
-        const auto output = engine.Forward(input);
-
+    void Magnitudes(std::span<const double> input, std::span<double> magnitudes) {
+        engine.Forward(input, std::span{ fftOutput.data(), input.size() });
         const int fftSize = static_cast<int>(engine.Size());
-        std::vector<double> decibels(fftSize / 2);
         const double coherentGain = consolidator::settings::AnalysisOptions::HannWindowCoherentGain;
         const double amplitudeScale = static_cast<double>(fftSize) * coherentGain *
             consolidator::settings::AnalysisOptions::SingleSidedSpectrumScale;
 
         for (int i = 0; i < fftSize / 2; ++i) {
-            const double re = output[static_cast<std::size_t>(i)].real();
-            const double im = output[static_cast<std::size_t>(i)].imag();
-            const double magnitude = std::sqrt(re * re + im * im);
-
-            decibels[i] = consolidator::helpers::NumericHelper::MagnitudeToDecibels(
-                magnitude / amplitudeScale);
+            const double re = fftOutput[static_cast<std::size_t>(i)].real();
+            const double im = fftOutput[static_cast<std::size_t>(i)].imag();
+            magnitudes[i] = std::sqrt(re * re + im * im) / amplitudeScale;
         }
-
-        return decibels;
     }
 
-    int MapOutputBinToFftBin(int index, int binsOut, int fftSize) const {
+    double MapOutputBinToFftBin(int index, int binsOut, int fftSize) const {
         if (binsOut <= 1) {
-            return 0;
+            return 0.0;
         }
 
         const double normalized = static_cast<double>(index) / static_cast<double>(binsOut - 1);
@@ -128,8 +132,27 @@ private:
                 consolidator::settings::SpectrumOptions::MinimumFrequencyHz, normalized);
         const double mappedBin = frequencyHz * static_cast<double>(fftSize) / sampleRate;
 
-        return std::clamp(static_cast<int>(std::round(mappedBin)), 1, maxBin);
+        return std::clamp(mappedBin, 1.0, static_cast<double>(maxBin));
+    }
+
+    double SampleSpectrumDb(
+        const std::array<double, AnalyzerSignalSpectrum::MaximumBinCount>& values,
+        int index,
+        int binsOut,
+        int fftSize
+    ) const {
+        const auto mappedBin = MapOutputBinToFftBin(index, binsOut, fftSize);
+        const auto lower = static_cast<std::size_t>(std::floor(mappedBin));
+        const auto upper = std::min(lower + 1, static_cast<std::size_t>(fftSize / 2 - 1));
+        const auto fraction = mappedBin - static_cast<double>(lower);
+        return values[lower] + (values[upper] - values[lower]) * fraction;
     }
 
     double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
+    consolidator::dsp::FftEngine engine;
+    std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> windowedSamples{};
+    std::array<double, AnalyzerSignalSpectrum::MaximumBinCount> leftMagnitudes{};
+    std::array<double, AnalyzerSignalSpectrum::MaximumBinCount> rightMagnitudes{};
+    std::array<std::complex<double>, consolidator::settings::AnalysisOptions::MaximumFftSize> fftOutput{};
+    std::array<std::complex<double>, AnalyzerSignalSpectrum::MaximumBinCount> leftFft{};
 };

@@ -1,6 +1,6 @@
 autowatch = 1;
 inlets = 2;
-outlets = 5;
+outlets = 3;
 
 function ProcessorControlsController() {
     this.requestId = 0;
@@ -242,13 +242,6 @@ ProcessorControlsController.prototype.HandleDspSnapshot = function(values) {
     var compressor = this.processorDefinitions.compressor;
     var saturator = this.processorDefinitions.saturator;
     var outputGain = this.processorDefinitions.output_gain;
-    outlet(3, "compressor_state", [
-        Number(values[count - 7]),
-        Number(values[count - 6]),
-        Number(values[count - 5]),
-        Number(values[count - 4])
-    ]);
-    outlet(4, "saturator_state", [Number(values[count - 3]), Number(values[count - 2])]);
     this.SendValue(["input_gain", "gain", this.ToNormalized(this.FindParameter(inputGain, "gain"), values[count - 8])]);
     this.SendValue(["compressor", "bypass", Number(values[count - 7])]);
     this.SendValue(["compressor", "attack", this.ToNormalized(this.FindParameter(compressor, "attack"), values[count - 6])]);
@@ -281,9 +274,7 @@ function outletassist(index) {
     assist([
         "Host commands: eq.*, gain.set_parameter, compressor.*, saturator.*",
         "thispatcher commands: script sendbox <stable-varname> set <normalized-value>",
-        "Diagnostics: error <code>",
-        "Compressor visual state: compressor_state <bypass> <attackMs> <releaseMs> <thresholdDb>",
-        "Saturator visual state: saturator_state <bypass> <saturation>"
+        "Diagnostics: error <code>"
     ][index] || "");
 }
 

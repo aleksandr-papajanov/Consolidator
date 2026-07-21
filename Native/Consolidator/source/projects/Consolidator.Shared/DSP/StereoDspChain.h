@@ -23,6 +23,14 @@ public:
         };
     }
 
+    template <typename Observer>
+    audio::StereoSample ProcessSampleObserved(audio::StereoSample input, Observer&& observer) {
+        return {
+            left.ProcessSampleObserved(input.left, observer),
+            right.ProcessSampleObserved(input.right, observer)
+        };
+    }
+
     void Process(audio::StereoBufferView buffer) {
         left.Process(buffer.Left());
         right.Process(buffer.Right());

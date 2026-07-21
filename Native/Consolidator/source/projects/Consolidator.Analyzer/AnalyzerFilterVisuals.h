@@ -46,11 +46,7 @@ public:
     }
 
     void PublishTotal(c74::min::outlet<>& outlet) const {
-        SendCurve(SumBanks(false), outlet);
-    }
-
-    consolidator::dsp::Curve SelectedPrefixCurve() const {
-        return SumBanks(true);
+        SendCurve(SumBanks(), outlet);
     }
 
 private:
@@ -93,10 +89,9 @@ private:
         outlet.send(output);
     }
 
-    consolidator::dsp::Curve SumBanks(bool stopAtSelected) const {
+    consolidator::dsp::Curve SumBanks() const {
         consolidator::dsp::Curve result;
         for (const auto& bank : eqRuntime.Snapshot().banks) {
-            if (stopAtSelected && bank.bankId > eqRuntime.Snapshot().selectedBankId) break;
             AddBank(bank, result);
         }
         return result;

@@ -41,7 +41,7 @@ function paint() {
     try {
         spectrumViewController.Paint();
     } catch (error) {
-        post("SpectrumView paint error: " + error + "\n");
+        post("Spectrum paint error: " + error + "\n");
     }
 }
 function list() {
