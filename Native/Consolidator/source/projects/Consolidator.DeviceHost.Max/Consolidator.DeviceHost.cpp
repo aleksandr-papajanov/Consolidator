@@ -24,7 +24,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; component.attach, component.detach, eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.add_bank, eq.remove_bank, eq.rename_bank, eq.select_bank, analyzer.listen, fit.start, fit.cancel, fit.clear, fit.complete, fit.fail; bang publishes definitions and EQ snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_section_bypass, eq.reset_section, eq.add_bank, eq.remove_bank, eq.rename_bank, eq.select_bank, gain.set_parameter, compressor.set_parameter, compressor.set_bypass, compressor.reset, saturator.set_parameter, saturator.set_bypass, saturator.reset, analyzer.listen, fit.start, fit.cancel, fit.clear, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
@@ -52,9 +52,11 @@ public:
         this,
         MIN_FUNCTION {
             stateDeliveryScheduled = false;
-            if (ready && stateDeliveryDirty) {
-                stateDeliveryDirty = false;
-                PublishSnapshot();
+            if (ready && (eqSnapshotDirty || dspSnapshotDirty)) {
+                if (eqSnapshotDirty) PublishEqSnapshot();
+                if (dspSnapshotDirty) PublishDspSnapshot();
+                eqSnapshotDirty = false;
+                dspSnapshotDirty = false;
             }
             return {};
         }
@@ -109,8 +111,7 @@ public:
                 return {};
             }
             PublishDefinitions();
-            stateDeliveryDirty = false;
-            PublishSnapshot();
+            PublishAllSnapshots();
             return {};
         }
     };
@@ -123,8 +124,7 @@ public:
             if (inlet != 1) debugOut.send("error", "invalid_persistence_inlet");
             else {
                 PublishReadyState();
-                stateDeliveryDirty = false;
-                PublishSnapshot();
+                PublishAllSnapshots();
             }
             return {};
         }
@@ -142,16 +142,15 @@ public:
             const auto object = maxadapter::MaxDictionarySerializer::Deserialize<messaging::MessageObject>(args[0]);
             const auto persisted = object ? persistence::PersistenceCodec::Deserialize(*object) : std::nullopt;
             auto state = persisted.value_or(persistence::PersistenceCodec::Defaults());
-            if (!host.RestoreEq(std::move(state.eq), 0)) {
+            if (!host.Restore(std::move(state.eq), state.processor, 0)) {
                 auto defaults = persistence::PersistenceCodec::Defaults();
-                if (!host.RestoreEq(std::move(defaults.eq), 0)) {
+                if (!host.Restore(std::move(defaults.eq), defaults.processor, 0)) {
                     debugOut.send("error", "persistence_defaults_failed");
                     return {};
                 }
             }
             if (ready) {
-                stateDeliveryDirty = false;
-                PublishSnapshot();
+                PublishAllSnapshots();
             }
             return {};
         }
@@ -165,12 +164,8 @@ public:
             messaging::EventCodec::Send(event, { nextEventId++ }, [this](const messaging::AtomList& atoms) {
                 eventOut.send(maxadapter::AtomAdapter::Write(atoms));
             });
-            if (ready && std::holds_alternative<domain::ComponentAttachedEvent>(event)) {
-                PublishDefinitions();
-                PublishSnapshot();
-            }
-            else if (std::holds_alternative<domain::StoreUpdatedEvent>(event)) {
-                ScheduleStatePublication();
+            if (const auto* updated = std::get_if<domain::StoreUpdatedEvent>(&event)) {
+                ScheduleStatePublication(updated->storeName);
             }
         }) {
         statusOut.send("status", "initializing");
@@ -187,10 +182,7 @@ private:
             debugOut.send("error", decoded.error.code);
             return;
         }
-        const auto lifecycleCommand =
-            std::holds_alternative<domain::AttachComponentCommand>(decoded.command) ||
-            std::holds_alternative<domain::DetachComponentCommand>(decoded.command);
-        if (!ready && !lifecycleCommand) {
+        if (!ready) {
             debugOut.send("error", "host_not_ready");
             return;
         }
@@ -216,18 +208,42 @@ private:
         }
     }
 
-    void PublishSnapshot() {
+    void PublishAllSnapshots() {
+        PublishEqSnapshot();
+        PublishDspSnapshot();
+        eqSnapshotDirty = false;
+        dspSnapshotDirty = false;
+    }
+
+    void PublishEqSnapshot() {
         eventOut.send(maxadapter::AtomAdapter::Write(
             messaging::SnapshotCodec::EncodeEq(host.Eq().State(), host.Revision())));
+    }
+
+    void PublishDspSnapshot() {
+        eventOut.send(maxadapter::AtomAdapter::Write(
+            messaging::SnapshotCodec::EncodeDsp({
+                host.Revision(), host.Eq().State(), {
+                    host.InputGain().State(), host.Compressor().State(),
+                    host.Saturator().State(), host.OutputGain().State()
+                }
+            })));
     }
 
     void PublishDefinitions() {
         eventOut.send(maxadapter::AtomAdapter::Write(
             messaging::SnapshotCodec::EncodeDefinitions(domain::FilterDefinitions())));
+        eventOut.send(maxadapter::AtomAdapter::Write(
+            messaging::SnapshotCodec::EncodeProcessorDefinitions()));
     }
 
     void PublishPersistence() {
-        persistence::PersistedDeviceState persisted{ persistence::PersistenceCodec::SchemaVersion, host.Eq().State() };
+        persistence::PersistedDeviceState persisted{
+            persistence::PersistenceCodec::SchemaVersion,
+            host.Eq().State(),
+            { host.InputGain().State(), host.Compressor().State(),
+                host.Saturator().State(), host.OutputGain().State() }
+        };
         maxadapter::MaxDictionarySerializer::Serialize(
             persistence::PersistenceCodec::Serialize(persisted),
             [this](const c74::min::atom& dictionary) {
@@ -235,10 +251,11 @@ private:
             });
     }
 
-    void ScheduleStatePublication() {
+    void ScheduleStatePublication(const std::string& storeName) {
         if (!ready) return;
 
-        stateDeliveryDirty = true;
+        if (storeName == "eq") eqSnapshotDirty = true;
+        dspSnapshotDirty = true;
         if (!stateDeliveryScheduled) {
             stateDeliveryScheduled = true;
             stateDelivery.set();
@@ -252,8 +269,9 @@ private:
     static constexpr double PersistenceDebounceMilliseconds = 100.0;
     long nextEventId = 1;
     bool ready = false;
-    bool stateDeliveryDirty = false;
     bool stateDeliveryScheduled = false;
+    bool eqSnapshotDirty = false;
+    bool dspSnapshotDirty = false;
     bool persistenceDirty = false;
 };
 

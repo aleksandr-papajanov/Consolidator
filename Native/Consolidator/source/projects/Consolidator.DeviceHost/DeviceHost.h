@@ -1,13 +1,15 @@
 #pragma once
 
 #include "EqStore.h"
+#include "GainStore.h"
+#include "CompressorStore.h"
+#include "SaturatorStore.h"
 #include "Workflows/AnalyzerWorkflow.h"
 #include "Workflows/FitWorkflow.h"
 #include "Events/Events.h"
 #include "Commands/Commands.h"
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <mutex>
 #include <vector>
 
@@ -21,22 +23,27 @@ public:
 
     void Handle(const domain::Command& command);
     const EqStore& Eq() const noexcept;
+    const GainStore& InputGain() const noexcept;
+    const GainStore& OutputGain() const noexcept;
+    const CompressorStore& Compressor() const noexcept;
+    const SaturatorStore& Saturator() const noexcept;
     domain::StoreRevision Revision() const noexcept;
-    bool RestoreEq(domain::EqState state, domain::StoreRevision revision);
+    bool Restore(domain::EqState eq, domain::ProcessorState processor, domain::StoreRevision revision);
 
 private:
-    void HandleComponent(const domain::AttachComponentCommand& command);
-    void HandleComponent(const domain::DetachComponentCommand& command);
     void PublishResult(const UpdateResult& result, domain::RequestId requestId);
     void Publish(domain::Event event);
     void Dispatch(const std::vector<domain::Event>& events) const;
 
     mutable std::mutex mutex;
     EqStore eqStore;
+    GainStore inputGainStore;
+    CompressorStore compressorStore;
+    SaturatorStore saturatorStore;
+    GainStore outputGainStore;
     AnalyzerWorkflow analyzerWorkflow;
     FitWorkflow fitWorkflow;
     EventHandler eventHandler;
-    std::map<std::int64_t, std::string> components;
     std::vector<domain::Event>* activeEvents = nullptr;
 };
 

@@ -97,17 +97,6 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "obj-1",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 390.0, 540.0, 32.0, 22.0 ],
-					"text" : "print"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "storage",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
@@ -170,13 +159,13 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "eqchain",
+					"id" : "dspProcessor",
 					"maxclass" : "newobj",
-					"numinlets" : 3,
-					"numoutlets" : 4,
-					"outlettype" : [ "signal", "signal", "", "" ],
+					"numinlets" : 2,
+					"numoutlets" : 2,
+					"outlettype" : [ "signal", "signal" ],
 					"patching_rect" : [ 270.0, 495.0, 139.0, 22.0 ],
-					"text" : "consolidator.eqchain"
+					"text" : "DspProcessor"
 				}
 
 			}
@@ -343,35 +332,28 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-1", 0 ],
-					"source" : [ "eqchain", 3 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "outputL", 0 ],
-					"source" : [ "eqchain", 0 ]
+					"source" : [ "dspProcessor", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "outputR", 0 ],
-					"source" : [ "eqchain", 1 ]
+					"source" : [ "dspProcessor", 1 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "eqchain", 0 ],
+					"destination" : [ "dspProcessor", 0 ],
 					"source" : [ "inputL", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "eqchain", 1 ],
+					"destination" : [ "dspProcessor", 1 ],
 					"source" : [ "inputR", 0 ]
 				}
 
@@ -451,13 +433,6 @@
 				"patchline" : 				{
 					"destination" : [ "controller", 1 ],
 					"source" : [ "storage", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "eqchain", 2 ],
-					"source" : [ "obj-message-bus-receive-9", 0 ]
 				}
 
 			}

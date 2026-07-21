@@ -2,10 +2,10 @@ autowatch = 1;
 inlets = 3;
 outlets = 2;
 
-// Inlet 0: local UI commands: initialize, bang, add, remove, select, rename.
+// Inlet 0: local UI commands: add, remove, select, rename.
 // Inlet 1: direct EqStorage status: status <state> or error <code>.
 // Inlet 2: bank list commands: clear, append <name> <bankId>, setid <bankId>.
-// Outlet 0: local EqStorage commands: initialize, bang, add, remove, select, rename.
+// Outlet 0: local EqStorage commands: add, remove, select, rename.
 // Outlet 1: bank list commands: clear, append, setid.
 
 function EqStorageFeatureController() {
@@ -39,7 +39,7 @@ var controller = new EqStorageFeatureController();
 
 function inletassist(index) {
     assist(index === 0
-        ? "Local UI commands: initialize, bang, add, remove, select, rename"
+        ? "Local UI commands: add, remove, select, rename"
         : index === 1
             ? "Direct EqStorage status: status <state> or error <code>"
             : "Bank list commands: clear, append <name> <bankId>, setid <bankId>");
@@ -47,7 +47,7 @@ function inletassist(index) {
 
 function outletassist(index) {
     assist(index === 0
-        ? "Local EqStorage commands: initialize, bang, add, remove, select, rename"
+        ? "Local EqStorage commands: add, remove, select, rename"
         : "Bank list commands: clear, append <name> <bankId>, setid <bankId>");
 }
 

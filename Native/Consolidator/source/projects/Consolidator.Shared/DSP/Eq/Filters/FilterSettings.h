@@ -5,10 +5,6 @@
 
 namespace consolidator::dsp {
 
-struct GainFilterSettings {
-    double gainDb = 0.0;
-};
-
 struct BellFilterSettings {
     double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
     double q = 1.0;

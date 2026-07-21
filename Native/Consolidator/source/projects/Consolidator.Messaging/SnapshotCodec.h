@@ -4,6 +4,10 @@
 #include "AtomReader.h"
 #include "Definitions/Definitions.h"
 #include "States/States.h"
+#include "Snapshots/Snapshots.h"
+#include "Settings/CompressorOptions.h"
+#include "Settings/GainOptions.h"
+#include "Settings/SaturatorOptions.h"
 
 #include <cmath>
 #include <cstdint>
@@ -24,6 +28,7 @@ public:
             .Write(static_cast<std::int64_t>(definitions.size()));
         for (const auto& [filterId, definition] : definitions) {
             writer.Write(static_cast<std::int64_t>(filterId))
+                .Write(std::string{ models::EqSectionName(definition.section) })
                 .Write(std::string{ models::FilterTypeName(definition.type) })
                 .Write(definition.defaultBypass)
                 .Write(static_cast<std::int64_t>(definition.parameters.size()));
@@ -38,6 +43,25 @@ public:
         return std::move(writer).Finish();
     }
 
+    static AtomList EncodeProcessorDefinitions() {
+        AtomWriter writer;
+        writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
+            .Write(std::string{ "host" }).Write(std::string{ "processor_definitions" })
+            .Write(static_cast<std::int64_t>(1))
+            .Write(static_cast<std::int64_t>(4))
+            .Write(std::string{ "input_gain" }).Write(static_cast<std::int64_t>(1))
+            .Write(std::string{ "gain" }).Write(settings::GainOptions::MinimumGainDb).Write(settings::GainOptions::MaximumGainDb).Write(static_cast<std::int64_t>(0)).Write(settings::GainOptions::DefaultGainDb)
+            .Write(std::string{ "compressor" }).Write(static_cast<std::int64_t>(3))
+            .Write(std::string{ "attack" }).Write(settings::CompressorOptions::MinimumAttackMs).Write(settings::CompressorOptions::MaximumAttackMs).Write(static_cast<std::int64_t>(1)).Write(settings::CompressorOptions::DefaultAttackMs)
+            .Write(std::string{ "release" }).Write(settings::CompressorOptions::MinimumReleaseMs).Write(settings::CompressorOptions::MaximumReleaseMs).Write(static_cast<std::int64_t>(1)).Write(settings::CompressorOptions::DefaultReleaseMs)
+            .Write(std::string{ "threshold" }).Write(settings::CompressorOptions::MinimumThresholdDb).Write(settings::CompressorOptions::MaximumThresholdDb).Write(static_cast<std::int64_t>(0)).Write(settings::CompressorOptions::DefaultThresholdDb)
+            .Write(std::string{ "saturator" }).Write(static_cast<std::int64_t>(1))
+            .Write(std::string{ "saturation" }).Write(settings::SaturatorOptions::MinimumSaturation).Write(settings::SaturatorOptions::MaximumSaturation).Write(static_cast<std::int64_t>(0)).Write(settings::SaturatorOptions::DefaultSaturation)
+            .Write(std::string{ "output_gain" }).Write(static_cast<std::int64_t>(1))
+            .Write(std::string{ "gain" }).Write(settings::GainOptions::MinimumGainDb).Write(settings::GainOptions::MaximumGainDb).Write(static_cast<std::int64_t>(0)).Write(settings::GainOptions::DefaultGainDb);
+        return std::move(writer).Finish();
+    }
+
     static AtomList EncodeEq(const domain::EqState& state, domain::StoreRevision revision) {
         AtomWriter writer;
         writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
@@ -47,6 +71,7 @@ public:
             .Write(static_cast<std::int64_t>(state.banks.size()));
         for (const auto& bank : state.banks) {
             writer.Write(static_cast<std::int64_t>(bank.bankId)).Write(bank.name)
+                .Write(bank.preBypass).Write(bank.postBypass)
                 .Write(static_cast<std::int64_t>(bank.filters.size()));
             for (const auto& filter : bank.filters) {
                 writer.Write(static_cast<std::int64_t>(filter.filterId))
@@ -80,14 +105,18 @@ public:
         for (long bankIndex = 0; bankIndex < *bankCount; ++bankIndex) {
             const auto bankId = reader.ReadInt();
             const auto name = reader.ReadString();
+            const auto preBypass = reader.ReadBool();
+            const auto postBypass = reader.ReadBool();
             const auto filterCount = reader.ReadInt();
-            if (!bankId || !name || !filterCount || *bankId <= previousBankId ||
+            if (!bankId || !name || !preBypass || !postBypass || !filterCount || *bankId <= previousBankId ||
                 *bankId > std::numeric_limits<long>::max() ||
                 name->empty() || *filterCount < 0) return std::nullopt;
             previousBankId = *bankId;
             models::EqBank bank;
             bank.bankId = static_cast<long>(*bankId);
             bank.name = *name;
+            bank.preBypass = *preBypass;
+            bank.postBypass = *postBypass;
             std::int64_t previousFilterId = 0;
             for (long filterIndex = 0; filterIndex < *filterCount; ++filterIndex) {
                 const auto filterId = reader.ReadInt();
@@ -112,6 +141,55 @@ public:
         return reader.RequireEnd() && result.FindBank(result.selectedBankId)
             ? std::optional<domain::EqState>{ std::move(result) }
             : std::nullopt;
+    }
+
+    static AtomList EncodeDsp(const domain::DspSnapshot& snapshot) {
+        auto atoms = EncodeEq(snapshot.eq, snapshot.revision);
+        atoms[3] = std::string{ "dsp" };
+        atoms.emplace_back(snapshot.processor.inputGain.gainDb);
+        atoms.emplace_back(snapshot.processor.compressor.bypass);
+        atoms.emplace_back(snapshot.processor.compressor.attackMs);
+        atoms.emplace_back(snapshot.processor.compressor.releaseMs);
+        atoms.emplace_back(snapshot.processor.compressor.thresholdDb);
+        atoms.emplace_back(snapshot.processor.saturator.bypass);
+        atoms.emplace_back(snapshot.processor.saturator.saturation);
+        atoms.emplace_back(snapshot.processor.outputGain.gainDb);
+        return atoms;
+    }
+
+    static std::optional<domain::DspSnapshot> DecodeDsp(const AtomList& atoms) {
+        constexpr std::size_t processorFieldCount = 8;
+        if (atoms.size() <= processorFieldCount ||
+            !std::holds_alternative<std::string>(atoms[3]) ||
+            std::get<std::string>(atoms[3]) != "dsp") return std::nullopt;
+
+        AtomList eqAtoms(atoms.begin(), atoms.end() - processorFieldCount);
+        eqAtoms[3] = std::string{ "eq" };
+        auto eq = DecodeEq(eqAtoms);
+        if (!eq) return std::nullopt;
+
+        AtomList processorAtoms(atoms.end() - processorFieldCount, atoms.end());
+        AtomReader reader(processorAtoms);
+        const auto inputGain = reader.ReadDouble();
+        const auto compressorBypass = reader.ReadBool();
+        const auto attack = reader.ReadDouble();
+        const auto release = reader.ReadDouble();
+        const auto threshold = reader.ReadDouble();
+        const auto saturatorBypass = reader.ReadBool();
+        const auto saturation = reader.ReadDouble();
+        const auto outputGain = reader.ReadDouble();
+        if (!inputGain || !compressorBypass || !attack || !release || !threshold ||
+            !saturatorBypass || !saturation || !outputGain || !reader.RequireEnd()) return std::nullopt;
+
+        domain::DspSnapshot result;
+        result.eq = std::move(*eq);
+        result.processor.inputGain = { *inputGain };
+        result.processor.compressor = { *attack, *release, *threshold, *compressorBypass };
+        result.processor.saturator = { *saturation, *saturatorBypass };
+        result.processor.outputGain = { *outputGain };
+        if (const auto revision = std::get_if<std::int64_t>(&atoms[4])) result.revision = *revision;
+        else return std::nullopt;
+        return result;
     }
 };
 

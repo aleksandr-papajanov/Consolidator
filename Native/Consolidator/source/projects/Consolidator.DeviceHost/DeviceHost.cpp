@@ -7,9 +7,21 @@
 namespace consolidator::host {
 
 DeviceHost::DeviceHost(EventHandler eventHandler)
-    : eqStore([this](domain::StoreRevision revision, domain::RequestId requestId) {
-        Publish(domain::StoreUpdatedEvent{ "eq", revision, requestId });
+    : eqStore([this](domain::StoreRevision, domain::RequestId requestId) {
+        Publish(domain::StoreUpdatedEvent{ "eq", Revision(), requestId });
     }),
+      inputGainStore([this](domain::StoreRevision, domain::RequestId requestId) {
+        Publish(domain::StoreUpdatedEvent{ "input_gain", Revision(), requestId });
+      }),
+      compressorStore([this](domain::StoreRevision, domain::RequestId requestId) {
+        Publish(domain::StoreUpdatedEvent{ "compressor", Revision(), requestId });
+      }),
+      saturatorStore([this](domain::StoreRevision, domain::RequestId requestId) {
+        Publish(domain::StoreUpdatedEvent{ "saturator", Revision(), requestId });
+      }),
+      outputGainStore([this](domain::StoreRevision, domain::RequestId requestId) {
+        Publish(domain::StoreUpdatedEvent{ "output_gain", Revision(), requestId });
+      }),
       analyzerWorkflow([this](domain::Event event) { Publish(std::move(event)); }),
       fitWorkflow(eqStore, [this](domain::Event event) { Publish(std::move(event)); }),
       eventHandler(std::move(eventHandler)) {}
@@ -28,17 +40,25 @@ void DeviceHost::Handle(const domain::Command& command) {
         } eventBatch{ activeEvents, events };
         std::visit([this](const auto& value) {
             using Command = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<Command, domain::AttachComponentCommand> ||
-                          std::is_same_v<Command, domain::DetachComponentCommand>) {
-                HandleComponent(value);
-            }
-            else if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) PublishResult(eqStore.SetParameter(value), value.requestId);
+            if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) PublishResult(eqStore.SetParameter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetEqBypassCommand>) PublishResult(eqStore.SetBypass(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetEqFilterCommand>) PublishResult(eqStore.ResetFilter(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetEqSectionBypassCommand>) PublishResult(eqStore.SetSectionBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::ResetEqSectionCommand>) PublishResult(eqStore.ResetSection(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::AddEqBankCommand>) PublishResult(eqStore.AddBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::RemoveEqBankCommand>) PublishResult(eqStore.RemoveBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::RenameEqBankCommand>) PublishResult(eqStore.RenameBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SelectEqBankCommand>) PublishResult(eqStore.SelectBank(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
+                auto& store = value.stage == domain::GainStage::Input ? inputGainStore : outputGainStore;
+                PublishResult(store.SetParameter(value), value.requestId);
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) PublishResult(compressorStore.SetParameter(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorBypassCommand>) PublishResult(compressorStore.SetBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::ResetCompressorCommand>) PublishResult(compressorStore.Reset(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorParameterCommand>) PublishResult(saturatorStore.SetParameter(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorBypassCommand>) PublishResult(saturatorStore.SetBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::ResetSaturatorCommand>) PublishResult(saturatorStore.Reset(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ListenAnalyzerCommand>) analyzerWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::StartFitCommand> ||
                                std::is_same_v<Command, domain::CancelFitCommand> ||
@@ -54,34 +74,26 @@ const EqStore& DeviceHost::Eq() const noexcept {
     return eqStore;
 }
 
+const GainStore& DeviceHost::InputGain() const noexcept { return inputGainStore; }
+const GainStore& DeviceHost::OutputGain() const noexcept { return outputGainStore; }
+
+const CompressorStore& DeviceHost::Compressor() const noexcept { return compressorStore; }
+const SaturatorStore& DeviceHost::Saturator() const noexcept { return saturatorStore; }
+
 domain::StoreRevision DeviceHost::Revision() const noexcept {
-    return eqStore.Revision();
+    return eqStore.Revision() + inputGainStore.Revision() + compressorStore.Revision() +
+        saturatorStore.Revision() + outputGainStore.Revision();
 }
 
-bool DeviceHost::RestoreEq(domain::EqState state, domain::StoreRevision revision) {
+bool DeviceHost::Restore(domain::EqState eq, domain::ProcessorState processor, domain::StoreRevision revision) {
     std::lock_guard<std::mutex> lock(mutex);
-    const auto result = eqStore.Replace(std::move(state), revision);
-    return result.Accepted();
-}
-
-void DeviceHost::HandleComponent(const domain::AttachComponentCommand& command) {
-    const auto existing = components.find(command.componentId.value);
-    if (existing != components.end() && existing->second == command.type) {
-        Publish(domain::ComponentAttachedEvent{ command.componentId, command.type });
-        return;
-    }
-    if (existing != components.end()) {
-        Publish(domain::CommandRejectedEvent{ command.requestId, "component_id_conflict" });
-        return;
-    }
-    components[command.componentId.value] = command.type;
-    Publish(domain::ComponentAttachedEvent{ command.componentId, command.type });
-}
-
-void DeviceHost::HandleComponent(const domain::DetachComponentCommand& command) {
-    if (components.erase(command.componentId.value) == 0) {
-        Publish(domain::CommandRejectedEvent{ command.requestId, "component_not_attached" });
-    }
+    const auto eqResult = eqStore.Replace(std::move(eq), revision);
+    const auto inputGainResult = inputGainStore.Replace(processor.inputGain, 0);
+    const auto compressorResult = compressorStore.Replace(processor.compressor, 0);
+    const auto saturatorResult = saturatorStore.Replace(processor.saturator, 0);
+    const auto outputGainResult = outputGainStore.Replace(processor.outputGain, 0);
+    return eqResult.Accepted() && inputGainResult.Accepted() && compressorResult.Accepted() &&
+        saturatorResult.Accepted() && outputGainResult.Accepted();
 }
 
 void DeviceHost::Publish(domain::Event event) {

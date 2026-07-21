@@ -32,19 +32,6 @@ public:
             return Invalid("invalid_command_header", reader.Index());
         }
 
-        if (*name == "component.attach") {
-            const auto componentId = reader.ReadInt();
-            const auto type = reader.ReadString();
-            if (!componentId || !type || *componentId < 1 || type->empty() || !reader.RequireEnd()) return Invalid("invalid_component_attach", reader.Index());
-            return Success(domain::AttachComponentCommand{
-                { *requestId }, { *componentId }, *type, 1
-            });
-        }
-        if (*name == "component.detach") {
-            const auto componentId = reader.ReadInt();
-            if (!componentId || *componentId < 1 || !reader.RequireEnd()) return Invalid("invalid_component_detach", reader.Index());
-            return Success(domain::DetachComponentCommand{ { *requestId }, { *componentId } });
-        }
         if (*name == "eq.set_parameter") {
             const auto bankId = reader.ReadInt();
             const auto filterId = reader.ReadInt();
@@ -72,6 +59,27 @@ public:
                 { *requestId }, { *bankId }, { *filterId }, *bypass
             });
         }
+        if (*name == "eq.set_section_bypass") {
+            const auto bankId = reader.ReadInt();
+            const auto sectionName = reader.ReadString();
+            const auto bypass = reader.ReadBool();
+            if (!bankId || !sectionName || !bypass || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_set_section_bypass", reader.Index());
+            const auto section = *sectionName == "pre" ? models::EqSection::Pre
+                : *sectionName == "post" ? models::EqSection::Post
+                : models::EqSection::Pre;
+            if (*sectionName != "pre" && *sectionName != "post") return Invalid("invalid_eq_section", reader.Index());
+            return Success(domain::SetEqSectionBypassCommand{ { *requestId }, { *bankId }, section, *bypass });
+        }
+        if (*name == "eq.reset_section") {
+            const auto bankId = reader.ReadInt();
+            const auto sectionName = reader.ReadString();
+            if (!bankId || !sectionName || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_reset_section", reader.Index());
+            const auto section = *sectionName == "pre" ? models::EqSection::Pre
+                : *sectionName == "post" ? models::EqSection::Post
+                : models::EqSection::Pre;
+            if (*sectionName != "pre" && *sectionName != "post") return Invalid("invalid_eq_section", reader.Index());
+            return Success(domain::ResetEqSectionCommand{ { *requestId }, { *bankId }, section });
+        }
         if (*name == "eq.add_bank") {
             if (reader.RequireEnd()) {
                 return Success(domain::AddEqBankCommand{ { *requestId }, {} });
@@ -96,6 +104,45 @@ public:
             if (!bankId || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_select_bank", reader.Index());
             return Success(domain::SelectEqBankCommand{ { *requestId }, { *bankId } });
         }
+        if (*name == "gain.set_parameter") {
+            const auto stage = reader.ReadString();
+            const auto gainDb = reader.ReadDouble();
+            if (!stage || !gainDb || !reader.RequireEnd()) {
+                return Invalid("invalid_gain_set_parameter", reader.Index());
+            }
+            domain::GainStage gainStage;
+            if (*stage == "input") gainStage = domain::GainStage::Input;
+            else if (*stage == "output") gainStage = domain::GainStage::Output;
+            else return Invalid("invalid_gain_stage", reader.Index());
+            return Success(domain::SetGainParameterCommand{ { *requestId }, gainStage, *gainDb });
+        }
+        if (*name == "compressor.set_parameter") {
+            const auto parameter = reader.ReadString();
+            const auto value = reader.ReadDouble();
+            if (!parameter || !value || parameter->empty() || !reader.RequireEnd()) return Invalid("invalid_compressor_set_parameter", reader.Index());
+            return Success(domain::SetCompressorParameterCommand{ { *requestId }, *parameter, *value });
+        }
+        if (*name == "compressor.set_bypass") {
+            const auto bypass = reader.ReadBool();
+            if (!bypass || !reader.RequireEnd()) return Invalid("invalid_compressor_set_bypass", reader.Index());
+            return Success(domain::SetCompressorBypassCommand{ { *requestId }, *bypass });
+        }
+        if (*name == "compressor.reset") return reader.RequireEnd()
+            ? Success(domain::ResetCompressorCommand{ { *requestId } })
+            : Invalid("invalid_compressor_reset", reader.Index());
+        if (*name == "saturator.set_parameter") {
+            const auto value = reader.ReadDouble();
+            if (!value || !reader.RequireEnd()) return Invalid("invalid_saturator_set_parameter", reader.Index());
+            return Success(domain::SetSaturatorParameterCommand{ { *requestId }, *value });
+        }
+        if (*name == "saturator.set_bypass") {
+            const auto bypass = reader.ReadBool();
+            if (!bypass || !reader.RequireEnd()) return Invalid("invalid_saturator_set_bypass", reader.Index());
+            return Success(domain::SetSaturatorBypassCommand{ { *requestId }, *bypass });
+        }
+        if (*name == "saturator.reset") return reader.RequireEnd()
+            ? Success(domain::ResetSaturatorCommand{ { *requestId } })
+            : Invalid("invalid_saturator_reset", reader.Index());
         if (*name == "analyzer.listen") {
             const auto enabled = reader.ReadBool();
             if (!enabled || !reader.RequireEnd()) return Invalid("invalid_analyzer_listen", reader.Index());

@@ -1,7 +1,7 @@
 #pragma once
 
+#include "DspDeviceRegistration.h"
 #include "DspChain.h"
-#include "IDspDeviceFactory.h"
 #include "StereoDspChain.h"
 
 #include <algorithm>
@@ -12,16 +12,11 @@
 
 namespace consolidator::dsp {
 
-struct DspDeviceRegistration {
-    std::string deviceId;
-    std::shared_ptr<const IDspDeviceFactory> factory;
-    bool bypassed = false;
-};
-
 class DspChainBuilder final {
 public:
     void SetDevices(std::vector<DspDeviceRegistration> devices) {
         this->devices = std::move(devices);
+        SortDevices();
     }
 
     void UpsertDevice(DspDeviceRegistration device) {
@@ -32,6 +27,7 @@ public:
         else {
             *existing = std::move(device);
         }
+        SortDevices();
     }
 
     void RemoveDevice(const std::string& deviceId) {
@@ -61,6 +57,10 @@ public:
         return devices.size();
     }
 
+    std::vector<DspDeviceRegistration> TakeDevices() {
+        return std::move(devices);
+    }
+
 private:
     using Iterator = std::vector<DspDeviceRegistration>::iterator;
 
@@ -71,10 +71,13 @@ private:
 
     void AddDevices(DspChain& chain) const {
         for (const auto& device : devices) {
-            if (!device.bypassed && device.factory) {
-                chain.AddDevice(device.factory->Create());
-            }
+            chain.AddDevice(device);
         }
+    }
+
+    void SortDevices() {
+        std::stable_sort(devices.begin(), devices.end(),
+            [](const auto& left, const auto& right) { return left.order < right.order; });
     }
 
     std::vector<DspDeviceRegistration> devices;

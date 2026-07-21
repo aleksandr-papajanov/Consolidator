@@ -39,6 +39,12 @@ public:
         return std::invoke(std::forward<Reader>(reader), *snapshot);
     }
 
+    template <typename Writer>
+    std::invoke_result_t<Writer, Snapshot&> UpdateCurrent(Writer&& writer) {
+        return std::invoke(std::forward<Writer>(writer),
+            *current.load(std::memory_order_acquire));
+    }
+
     void Replace(std::unique_ptr<Snapshot> replacement) {
         if (!replacement) throw std::invalid_argument("Replacement snapshot must not be null");
         auto* previous = current.exchange(replacement.release(), std::memory_order_acq_rel);

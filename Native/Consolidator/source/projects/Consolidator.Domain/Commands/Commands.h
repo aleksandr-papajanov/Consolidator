@@ -1,24 +1,14 @@
 #pragma once
 
 #include "Ids/DomainIds.h"
+#include "Models/EqSection.h"
+#include "Models/ProcessorState.h"
 #include "Results/FitResult.h"
 
 #include <string>
 #include <variant>
 
 namespace consolidator::domain {
-
-struct AttachComponentCommand {
-    RequestId requestId{};
-    ComponentId componentId{};
-    std::string type;
-    ProtocolVersion protocolVersion = 1;
-};
-
-struct DetachComponentCommand {
-    RequestId requestId{};
-    ComponentId componentId{};
-};
 
 struct SetEqParameterCommand {
     RequestId requestId{};
@@ -41,6 +31,19 @@ struct SetEqBypassCommand {
     bool bypass = false;
 };
 
+struct SetEqSectionBypassCommand {
+    RequestId requestId{};
+    BankId bankId{};
+    models::EqSection section = models::EqSection::Pre;
+    bool bypass = false;
+};
+
+struct ResetEqSectionCommand {
+    RequestId requestId{};
+    BankId bankId{};
+    models::EqSection section = models::EqSection::Pre;
+};
+
 struct AddEqBankCommand {
     RequestId requestId{};
     std::string name;
@@ -60,6 +63,41 @@ struct RenameEqBankCommand {
 struct SelectEqBankCommand {
     RequestId requestId{};
     BankId bankId{};
+};
+
+struct SetGainParameterCommand {
+    RequestId requestId{};
+    GainStage stage = GainStage::Input;
+    double gainDb = 0.0;
+};
+
+struct SetCompressorParameterCommand {
+    RequestId requestId{};
+    std::string parameter;
+    double value = 0.0;
+};
+
+struct SetCompressorBypassCommand {
+    RequestId requestId{};
+    bool bypass = false;
+};
+
+struct ResetCompressorCommand {
+    RequestId requestId{};
+};
+
+struct SetSaturatorParameterCommand {
+    RequestId requestId{};
+    double saturation = 0.0;
+};
+
+struct SetSaturatorBypassCommand {
+    RequestId requestId{};
+    bool bypass = false;
+};
+
+struct ResetSaturatorCommand {
+    RequestId requestId{};
 };
 
 struct ListenAnalyzerCommand {
@@ -92,15 +130,22 @@ struct FailFitCommand {
 };
 
 using Command = std::variant<
-    AttachComponentCommand,
-    DetachComponentCommand,
     SetEqParameterCommand,
     SetEqBypassCommand,
     ResetEqFilterCommand,
+    SetEqSectionBypassCommand,
+    ResetEqSectionCommand,
     AddEqBankCommand,
     RemoveEqBankCommand,
     RenameEqBankCommand,
     SelectEqBankCommand,
+    SetGainParameterCommand,
+    SetCompressorParameterCommand,
+    SetCompressorBypassCommand,
+    ResetCompressorCommand,
+    SetSaturatorParameterCommand,
+    SetSaturatorBypassCommand,
+    ResetSaturatorCommand,
     ListenAnalyzerCommand,
     StartFitCommand,
     CancelFitCommand,

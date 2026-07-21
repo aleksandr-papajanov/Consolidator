@@ -11,7 +11,7 @@ set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
 )
 
-set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.eqchain" CACHE STRING "The name to give to the external output file/directory" FORCE)
+set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.dspprocessor" CACHE STRING "The name to give to the external output file/directory" FORCE)
 
 add_library(
     ${PROJECT_NAME}
@@ -30,4 +30,4 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
 
-consolidator_copy_external_to_feature(${PROJECT_NAME} "EqStorage")
+consolidator_copy_external_to_feature(${PROJECT_NAME} "DspProcessor")

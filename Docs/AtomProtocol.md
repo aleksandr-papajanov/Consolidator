@@ -9,10 +9,13 @@ persistence and are never used for component commands or snapshots.
 command <version> <source> <requestId> <name> <fields...>
 ```
 
-The current commands are `component.attach`, `component.detach`,
-`eq.set_parameter`, `eq.set_bypass`, `eq.reset_filter`, `eq.add_bank`,
+The current commands are `eq.set_parameter`, `eq.set_bypass`, `eq.reset_filter`,
+`eq.set_section_bypass`, `eq.reset_section`, `eq.add_bank`,
 `eq.remove_bank`, `eq.rename_bank`, `eq.select_bank`, `analyzer.listen`,
-`fit.start`, `fit.cancel`, `fit.clear`, `fit.complete`, and `fit.fail`. All EQ
+`gain.set_parameter`,
+`compressor.set_parameter`, `compressor.set_bypass`, `compressor.reset`,
+`saturator.set_parameter`, `saturator.set_bypass`, `saturator.reset`, `fit.start`, `fit.cancel`,
+`fit.clear`, `fit.complete`, and `fit.fail`. All processor and EQ
 values are absolute. `fit.complete` frames its filters and values with explicit
 counts and is committed atomically by Host. `eq.add_bank` accepts an optional
 single name atom; when omitted, Host generates the deterministic bank name.
@@ -23,14 +26,14 @@ single name atom; when omitted, Host generates the deterministic bank name.
 event <version> host <eventId> <name> <fields...>
 ```
 
-Events include `host.initialized`, `component.attached`, `store.updated`,
+Events include `host.initialized`, `store.updated`,
 `command.rejected`, and `operation.changed`.
 
 ## EQ Snapshot
 
 ```text
 snapshot <version> host eq <revision> <selectedBank> <bankCount>
-    <bankId> <bankName> <filterCount>
+    <bankId> <bankName> <preBypass> <postBypass> <filterCount>
         <filterId> <bypass> <valueCount> <absoluteValue...>
 ```
 
@@ -43,9 +46,26 @@ Filter definitions use a second snapshot family:
 
 ```text
 snapshot <version> host definitions <revision> <filterCount>
-    <filterId> <type> <defaultBypass> <parameterCount>
+    <filterId> <pre|post> <type> <defaultBypass> <parameterCount>
         <name> <minimum> <maximum> <scale> <defaultValue>
 ```
+
+Processor definitions use `snapshot 1 host processor_definitions ...` and
+contain the absolute range, scale, and default for input gain, compressor
+attack/release/threshold, saturator saturation, and output gain.
+
+The audio endpoint receives the complete processing state:
+
+```text
+snapshot 1 host dsp <revision> <EQ snapshot body...>
+    <inputGainDb>
+    <compressorBypass> <attackMs> <releaseMs> <thresholdDb>
+    <saturatorBypass> <saturation>
+    <outputGainDb>
+```
+
+Analyzer, SpectrumView, Filter UI, and Approximator continue to consume the
+EQ-only snapshot. Only `consolidator.dspprocessor` consumes `dsp`.
 
 ## Persistence
 

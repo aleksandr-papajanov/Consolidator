@@ -73,7 +73,7 @@
 | `MessageEnvelope`/`MessageFactory` | Dictionary runtime protocol | typed Atom Codec |
 | `ComponentHost` | target routing и чтение общего Dictionary | typed atom endpoint/snapshot receiver |
 | `DeviceStateDictionaryCodec` | Dictionary как runtime state API | persistence codec only |
-| `EqChain` | читает полный DeviceState | получает только `DspSnapshot` |
+| `DspProcessor` | читает полный DeviceState | получает только `DspSnapshot` |
 | `Analyzer` | читает полный DeviceState | получает `AnalyzerSnapshot` |
 | `Approximator` | читает DeviceState и отправляет filter mutations | получает `FitInputSnapshot`, возвращает `FitResult` Host |
 | Filter endpoint JS | пересылает envelopes | controller отправляет typed Host commands |
@@ -166,7 +166,7 @@ foundation, не меняя работающий Max runtime.
 
 - [ ] Создать target и перенести из Shared DSP/Audio/Curve/Eq/Spectrum код.
 - [ ] Сохранить раздельные left/right instances для stateful stereo devices.
-- [ ] Обновить Analyzer, Approximator и EqChain includes без forwarding headers
+- [ ] Обновить Analyzer, Approximator и DspProcessor includes без forwarding headers
   и alias targets.
 - [ ] Оставить Shared только для действительно общей инфраструктуры либо
   удалить его после последнего пользователя.
@@ -361,7 +361,7 @@ Dictionary envelopes на Host/atoms. После этапа старого runti
 ## 4.5. Native endpoints
 
 - [ ] Заменить старый `ComponentHost` на atom endpoint/snapshot receiver.
-- [ ] EqChain временно получает только `DspSnapshot` atoms.
+- [ ] DspProcessor получает только `DspSnapshot` atoms.
 - [ ] Analyzer получает `AnalyzerSnapshot` и operation commands.
 - [ ] Approximator получает `FitInputSnapshot`/operation commands.
 - [ ] Ни один consumer не открывает runtime Dictionary.
@@ -400,7 +400,7 @@ runtime path удален, persistence сохранено через единс�
 
 ## 5.1. Unified DSP external
 
-- [ ] Переименовать EqChain в `Consolidator.DspExternal`, если topology уже
+- [x] Переименовать EqChain в `Consolidator.DspProcessor`, так как topology уже
   шире EQ; alias external не оставлять.
 - [ ] DSP external принимает stereo audio и только `DspSnapshot` updates.
 - [ ] Chain строится на message thread вне audio callback.

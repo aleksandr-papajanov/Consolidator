@@ -3,6 +3,7 @@
 #include "../Audio/StereoBufferView.h"
 #include "../Audio/StereoSample.h"
 #include "DspChain.h"
+#include "DspDeviceRegistration.h"
 
 #include <utility>
 
@@ -34,6 +35,11 @@ public:
 
     std::size_t DeviceCount() const {
         return left.DeviceCount();
+    }
+
+    bool Update(const std::vector<DspDeviceRegistration>& registrations) {
+        if (!left.CanUpdate(registrations) || !right.CanUpdate(registrations)) return false;
+        return left.Update(registrations) && right.Update(registrations);
     }
 
 private:

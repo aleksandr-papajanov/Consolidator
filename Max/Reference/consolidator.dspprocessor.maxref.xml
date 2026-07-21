@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes'?>
+<c74object name='consolidator.dspprocessor' category='audio, dsp, processor'>
+    <digest>Processes the complete Consolidator DSP chain</digest>
+    <description>Applies all EQ banks, compressor, and saturator from a complete Host DSP snapshot.</description>
+    <metadatalist>
+        <metadata name='author'>Oleksandr Papaianov</metadata>
+        <metadata name='tag'>audio</metadata>
+        <metadata name='tag'>dsp</metadata>
+        <metadata name='tag'>processor</metadata>
+    </metadatalist>
+    <objarglist></objarglist>
+    <methodlist>
+        <method name='snapshot'>
+            <digest>Apply a complete DSP snapshot</digest>
+            <description>Rebuilds the immutable processing chain outside the audio callback.</description>
+        </method>
+    </methodlist>
+    <attributelist></attributelist>
+    <seealsolist></seealsolist>
+</c74object>

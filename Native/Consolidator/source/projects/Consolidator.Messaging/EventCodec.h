@@ -32,10 +32,6 @@ public:
             if constexpr (std::is_same_v<Event, domain::HostInitializedEvent>) {
                 writer.Write(std::string{ "host.initialized" }).Write(static_cast<std::int64_t>(value.revision));
             }
-            else if constexpr (std::is_same_v<Event, domain::ComponentAttachedEvent>) {
-                writer.Write(std::string{ "component.attached" })
-                    .Write(static_cast<std::int64_t>(value.componentId.value)).Write(value.type);
-            }
             else if constexpr (std::is_same_v<Event, domain::StoreUpdatedEvent>) {
                 writer.Write(std::string{ "store.updated" }).Write(value.storeName)
                     .Write(static_cast<std::int64_t>(value.revision))
@@ -71,12 +67,6 @@ public:
             const auto revision = reader.ReadInt();
             if (!revision || *revision < 0 || !reader.RequireEnd()) return Invalid("invalid_host_initialized", reader.Index());
             return Success(domain::HostInitializedEvent{ static_cast<domain::StoreRevision>(*revision) }, *eventId);
-        }
-        if (*name == "component.attached") {
-            const auto componentId = reader.ReadInt();
-            const auto type = reader.ReadString();
-            if (!componentId || !type || *componentId < 1 || type->empty() || !reader.RequireEnd()) return Invalid("invalid_component_attached", reader.Index());
-            return Success(domain::ComponentAttachedEvent{ { *componentId }, *type }, *eventId);
         }
         if (*name == "store.updated") {
             const auto storeName = reader.ReadString();

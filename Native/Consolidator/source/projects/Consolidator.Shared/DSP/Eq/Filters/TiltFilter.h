@@ -10,8 +10,7 @@ namespace consolidator::dsp {
 class TiltFilter final : public IEqFilter {
 public:
     explicit TiltFilter(TiltFilterSettings settings)
-        : settings(settings),
-          lowShelf({ settings.pivotHz, settings.q, -settings.gainDb, settings.sampleRate }),
+        : lowShelf({ settings.pivotHz, settings.q, -settings.gainDb, settings.sampleRate }),
           highShelf({ settings.pivotHz, settings.q, settings.gainDb, settings.sampleRate }) {}
 
     double ProcessSample(double input) override {
@@ -31,8 +30,12 @@ public:
         highShelf.Reset();
     }
 
+    void UpdateSettings(const TiltFilterSettings& settings) {
+        lowShelf.UpdateSettings({ settings.pivotHz, settings.q, -settings.gainDb, settings.sampleRate });
+        highShelf.UpdateSettings({ settings.pivotHz, settings.q, settings.gainDb, settings.sampleRate });
+    }
+
 private:
-    TiltFilterSettings settings;
     BiquadLowShelfFilter lowShelf;
     BiquadHighShelfFilter highShelf;
 };

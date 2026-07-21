@@ -86,7 +86,7 @@ UI, DSP, Analyzer и Approximator могут иметь локальные ке�
 
 ```text
 Analyzer → Approximator
-Approximator → EqChain
+Approximator → DspProcessor
 UI → Analyzer
 EqManager → DSP
 ```
@@ -732,77 +732,14 @@ DSP, Analyzer, Approximator и UI не должны иметь API для чте
 
 # 10. Инициализация
 
-Сложный глобальный handshake:
+Все runtime features устройства статические, поэтому component registry и
+startup handshake не нужны. Корневой patch после `deferlow` восстанавливает
+persistence и один раз отправляет `persistence_ready`. Host после этого
+публикует `host.initialized`, definitions, EQ snapshot и DSP snapshot.
 
-```text
-каждый component отправляет ready
-Host ждёт всех
-Host отправляет start
-```
-
-следует удалить или значительно упростить.
-
-Целевая последовательность:
-
-```text
-1. Создаётся DeviceHost.
-2. Host читает сохранённый Dictionary.
-3. PersistenceService проверяет schema version.
-4. При необходимости выполняются migrations.
-5. Host создаёт typed stores.
-6. Host переходит в initialized.
-7. Components подключаются по мере готовности.
-8. Каждый component получает необходимые snapshots.
-```
-
-Компонент может подключиться позже и всё равно получить актуальное состояние.
-
-Пример:
-
-```text
-component.attach dsp
-```
-
-Ответ:
-
-```text
-component.attached dsp
-store.snapshot eq 42 ...
-store.snapshot compressor 18 ...
-store.snapshot saturator 9 ...
-```
-
----
-
-## 10.1. Component registry
-
-Host ведёт registry:
-
-```cpp
-struct ComponentInfo {
-    ComponentId id;
-    ComponentType type;
-    ProtocolVersion protocolVersion;
-    ComponentCapabilities capabilities;
-};
-```
-
-Registry позволяет:
-
-- проверять совместимость;
-- видеть отсутствующие компоненты;
-- отправлять адресные ответы;
-- диагностировать повторное подключение;
-- поддерживать optional components.
-
-Пример:
-
-```text
-DSP          required
-UI           required
-Analyzer     optional
-Approximator optional
-```
+Feature-контроллеры ничего не публикуют из `loadbang`. Для ручной диагностики
+Host сохраняет `bang`, который повторно публикует текущее состояние, но этот
+маршрут не участвует в обычной загрузке устройства.
 
 ---
 
@@ -1537,7 +1474,7 @@ candidate/reference display.
 9. PersistenceService сохраняет банк и его параметры.
 ```
 
-Не нужно отправлять десятки независимых сообщений между EqStore, EqChain и controls.
+Не нужно отправлять десятки независимых сообщений между stores, DspProcessor и controls.
 
 ---
 

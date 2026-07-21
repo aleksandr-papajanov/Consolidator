@@ -11,6 +11,7 @@ namespace consolidator::domain {
 struct DspSnapshot {
     StoreRevision revision = 0;
     EqState eq;
+    ProcessorState processor;
 };
 
 struct AnalyzerSnapshot {

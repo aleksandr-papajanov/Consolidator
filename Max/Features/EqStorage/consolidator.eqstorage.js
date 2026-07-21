@@ -2,8 +2,7 @@ autowatch = 1;
 inlets = 2;
 outlets = 3;
 
-// Inlet 0: UI commands initialize, bang, add [name], remove, select <bankId>,
-// rename <bankId> <name>.
+// Inlet 0: UI commands add [name], remove, select <bankId>, rename <bankId> <name>.
 // Inlet 1: Host EQ snapshots: snapshot 1 host eq ... .
 // Outlet 0: bank list commands clear, append <name> <bankId>, setid <bankId>.
 // Outlet 1: status/error diagnostics.
@@ -21,10 +20,7 @@ EqStoragePresentation.prototype.SendCommand = function(name, values) {
 };
 
 EqStoragePresentation.prototype.HandleUiCommand = function(command, values) {
-    if (command === "initialize" || command === "bang") {
-        this.SendCommand("component.attach", [20, "eq.storage"]);
-    }
-    else if (command === "add") this.SendCommand("eq.add_bank", values.length ? [String(values[0])] : []);
+    if (command === "add") this.SendCommand("eq.add_bank", values.length ? [String(values[0])] : []);
     else if (command === "remove") this.SendCommand("eq.remove_bank", [this.selectedBankId]);
     else if (command === "select" && values.length === 1) this.SendCommand("eq.select_bank", [Number(values[0])]);
     else if (command === "rename" && values.length >= 2) this.SendCommand("eq.rename_bank", [Number(values[0]), String(values[1])]);
@@ -48,9 +44,10 @@ EqStoragePresentation.prototype.HandleSnapshot = function(values) {
     var banks = [];
     var selectedFound = false;
     for (var bankIndex = 0; bankIndex < bankCount; bankIndex++) {
-        if (position + 2 >= values.length) return outlet(1, "error", "invalid_eq_snapshot");
+        if (position + 4 >= values.length) return outlet(1, "error", "invalid_eq_snapshot");
         var bankId = Number(values[position++]);
         var name = String(values[position++]);
+        position += 2;
         var filterCount = Number(values[position++]);
         if (!isFinite(bankId) || bankId < 1 || !isFinite(filterCount) || filterCount < 0 ||
             Math.floor(filterCount) !== filterCount) return outlet(1, "error", "invalid_eq_snapshot");
@@ -79,7 +76,7 @@ var storage = new EqStoragePresentation();
 
 function inletassist(index) {
     var descriptions = [
-        "UI: initialize, bang, add, remove, select <id>, rename <id> <name>",
+        "UI: add, remove, select <id>, rename <id> <name>",
         "Host snapshots: snapshot 1 host eq ..."
     ];
     assist(descriptions[index] || "");
@@ -89,7 +86,7 @@ function outletassist(index) {
     var descriptions = [
         "Bank list: clear, append <name> <id>, setid <id>",
         "status ready or error <code>",
-        "Host commands: component.attach, eq.add_bank, eq.remove_bank, eq.select_bank, eq.rename_bank"
+        "Host commands: eq.add_bank, eq.remove_bank, eq.select_bank, eq.rename_bank"
     ];
     assist(descriptions[index] || "");
 }
@@ -97,9 +94,6 @@ function outletassist(index) {
 setinletassist(-1, inletassist);
 setoutletassist(-1, outletassist);
 
-function initialize() { if (inlet === 0) storage.HandleUiCommand("initialize", []); }
-function loadbang() { storage.HandleUiCommand("initialize", []); }
-function bang() { if (inlet === 0) storage.HandleUiCommand("bang", []); }
 function add() { if (inlet === 0) storage.HandleUiCommand("add", arrayfromargs(arguments)); }
 function remove() { if (inlet === 0) storage.HandleUiCommand("remove", []); }
 function select(value) { if (inlet === 0) storage.HandleUiCommand("select", [value]); }

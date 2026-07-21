@@ -1,46 +1,5 @@
 {
-  "controls": {
-    "gain": { "defaultPosition": [9, 18, 27, 28] },
-    "frequency": { "defaultPosition": [0, 50, 45, 15] },
-    "q": { "defaultPosition": [0, 65, 45, 15] },
-    "bypass": {
-      "defaultPosition": [0, 0, 21, 15],
-      "defaultEnabled": 1
-    },
-    "reset": {
-      "defaultPosition": [24, 0, 21, 15],
-      "defaultEnabled": 1
-    }
-  },
-  "layouts": {
-    "gain": {
-      "gain": {},
-      "frequency": { "visible": 0, "enabled": 0 },
-      "q": { "visible": 0, "enabled": 0 }
-    },
-    "tilt": {
-      "gain": {},
-      "frequency": {},
-      "q": { "visible": 0, "enabled": 0 }
-    },
-    "lowshelf": {
-      "gain": {},
-      "frequency": {},
-      "q": {}
-    },
-    "highshelf": {
-      "gain": {},
-      "frequency": {},
-      "q": {}
-    },
-    "peak": {
-      "gain": {},
-      "frequency": {},
-      "q": {}
-    }
-  },
   "filters": {
-    "1": { "color": "#7F7F7F" },
     "2": { "color": "#A349A4" },
     "3": { "color": "#00A2E8" },
     "4": { "color": "#EA3680" },

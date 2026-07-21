@@ -1,6 +1,6 @@
 #include "c74_min.h"
 
-#include "DSP/Eq/EqRuntime.h"
+#include "DeviceDspRuntime.h"
 #include "AtomAdapter.h"
 #include "AtomMessage.h"
 #include "SnapshotCodec.h"
@@ -13,19 +13,19 @@
 using namespace c74::min;
 using namespace consolidator;
 
-class ConsolidatorEqChain :
-    public object<ConsolidatorEqChain>,
+class ConsolidatorDspProcessor :
+    public object<ConsolidatorDspProcessor>,
     public sample_operator<2, 2> {
 public:
-    MIN_DESCRIPTION{ "Consolidator EQ chain audio processor." };
-    MIN_TAGS{ "audio, eq, chain" };
+    MIN_DESCRIPTION{ "Consolidator complete audio processing chain." };
+    MIN_TAGS{ "audio, dsp, processor" };
     MIN_AUTHOR{ "Oleksandr Papaianov" };
 
     inlet<> inputLeft{ this, "(signal) left input", "signal" };
     inlet<> inputRight{ this, "(signal) right input", "signal" };
     inlet<> commandsIn{
         this,
-        "(message) Host bus: snapshot 1 host eq <revision> <selectedBank> <bankCount> <banks...>; event 1 host ... is ignored"
+        "(message) Host bus: snapshot 1 host dsp <revision> <EQ fields...> <input gain> <compressor fields> <saturator fields> <output gain>; event 1 host ... is ignored"
     };
 
     outlet<> outputLeft{ this, "(signal) left output", "signal" };
@@ -39,7 +39,7 @@ public:
         MIN_FUNCTION {
             if (!args.empty()) {
                 sampleRate = static_cast<double>(args[0]);
-                RebuildRuntime();
+                RebuildTopology();
                 statusOut.send("status", "ready");
             }
             return {};
@@ -49,7 +49,7 @@ public:
     message<> snapshotMessage{
         this,
         "snapshot",
-        "Apply a complete EQ snapshot",
+        "Apply a complete DSP snapshot",
         MIN_FUNCTION {
             if (inlet != 2) {
                 debugOut.send("error", "invalid_snapshot_inlet");
@@ -57,7 +57,7 @@ public:
             }
             auto atoms = maxadapter::AtomAdapter::Read(args);
             if (atoms) atoms->insert(atoms->begin(), "snapshot");
-            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq")) ApplySnapshot(atoms);
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "dsp")) ApplySnapshot(atoms);
             return {};
         }
     };
@@ -65,11 +65,11 @@ public:
     message<> list{
         this,
         "list",
-        "Receive a complete EQ snapshot atom list",
+        "Receive a complete DSP snapshot atom list",
         MIN_FUNCTION {
             if (inlet != 2) return {};
             const auto atoms = maxadapter::AtomAdapter::Read(args);
-            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq")) ApplySnapshot(atoms);
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "dsp")) ApplySnapshot(atoms);
             return {};
         }
     };
@@ -92,13 +92,14 @@ public:
 
 private:
     void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
-        const auto snapshot = atoms ? messaging::SnapshotCodec::DecodeEq(*atoms) : std::nullopt;
+        const auto snapshot = atoms ? messaging::SnapshotCodec::DecodeDsp(*atoms) : std::nullopt;
         if (!snapshot) {
-            debugOut.send("error", "invalid_eq_snapshot");
+            debugOut.send("error", "invalid_dsp_snapshot");
             return;
         }
-        eqRuntime.SetSnapshot(*snapshot);
-        RebuildRuntime();
+        dspRuntime.SetSnapshot(*snapshot);
+        hasSnapshot = true;
+        ApplyRuntimeUpdate();
         statusOut.send("status", "ready");
     }
 
@@ -106,15 +107,35 @@ private:
         consolidator::dsp::StereoDspChain chain;
     };
 
-    void RebuildRuntime() {
+    void ApplyRuntimeUpdate() {
+        const auto registrations = dspRuntime.BuildRegistrations(sampleRate);
+        const auto updated = hasRuntime && runtimeState.UpdateCurrent(
+            [&registrations](RuntimeState& runtime) {
+                return runtime.chain.Update(registrations);
+            });
+        if (updated) return;
+        RebuildTopology(registrations);
+    }
+
+    void RebuildTopology() {
+        if (!hasSnapshot) return;
+        RebuildTopology(dspRuntime.BuildRegistrations(sampleRate));
+    }
+
+    void RebuildTopology(const std::vector<dsp::DspDeviceRegistration>& registrations) {
+        dsp::DspChainBuilder builder;
+        builder.SetDevices(registrations);
         auto runtime = std::make_unique<RuntimeState>();
-        runtime->chain = eqRuntime.BuildAllBanks(sampleRate).BuildStereo();
+        runtime->chain = builder.BuildStereo();
         runtimeState.Replace(std::move(runtime));
+        hasRuntime = true;
     }
 
     double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
-    consolidator::dsp::EqRuntime eqRuntime;
+    consolidator::dspcore::DeviceDspRuntime dspRuntime;
     consolidator::dspcore::RealtimeSnapshotSwap<RuntimeState> runtimeState;
+    bool hasSnapshot = false;
+    bool hasRuntime = false;
 };
 
-MIN_EXTERNAL_CUSTOM(ConsolidatorEqChain, consolidator.eqchain);
+MIN_EXTERNAL_CUSTOM(ConsolidatorDspProcessor, consolidator.dspprocessor);

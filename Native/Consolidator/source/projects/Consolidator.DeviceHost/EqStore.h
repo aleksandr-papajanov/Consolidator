@@ -21,6 +21,8 @@ public:
     UpdateResult SetParameter(const domain::SetEqParameterCommand& command);
     UpdateResult SetBypass(const domain::SetEqBypassCommand& command);
     UpdateResult ResetFilter(const domain::ResetEqFilterCommand& command);
+    UpdateResult SetSectionBypass(const domain::SetEqSectionBypassCommand& command);
+    UpdateResult ResetSection(const domain::ResetEqSectionCommand& command);
     UpdateResult AddBank(const domain::AddEqBankCommand& command);
     UpdateResult RemoveBank(const domain::RemoveEqBankCommand& command);
     UpdateResult RenameBank(const domain::RenameEqBankCommand& command);

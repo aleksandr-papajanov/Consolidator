@@ -23,7 +23,7 @@ std::optional<long> ToLegacyId(std::int64_t value) {
 EqStore::EqStore(CommitHandler commitHandler)
     : definitions(domain::FilterDefinitions()), commitHandler(std::move(commitHandler)) {
     state.selectedBankId = 1;
-    state.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), {} });
+    state.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), false, false, {} });
     auto& bank = state.banks.back();
     for (const auto& [filterId, definition] : definitions) {
         bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
@@ -90,10 +90,43 @@ UpdateResult EqStore::ResetFilter(const domain::ResetEqFilterCommand& command) {
     return Commit(command.requestId);
 }
 
+UpdateResult EqStore::SetSectionBypass(const domain::SetEqSectionBypassCommand& command) {
+    const auto bankId = ToLegacyId(command.bankId.value);
+    auto* bank = bankId ? state.FindBank(*bankId) : nullptr;
+    if (!bank) return Reject("invalid_bank");
+    auto& bypass = command.section == models::EqSection::Pre
+        ? bank->preBypass : bank->postBypass;
+    if (bypass == command.bypass) return { UpdateStatus::Unchanged, {} };
+    bypass = command.bypass;
+    return Commit(command.requestId);
+}
+
+UpdateResult EqStore::ResetSection(const domain::ResetEqSectionCommand& command) {
+    const auto bankId = ToLegacyId(command.bankId.value);
+    auto* bank = bankId ? state.FindBank(*bankId) : nullptr;
+    if (!bank) return Reject("invalid_bank");
+
+    auto& bypass = command.section == models::EqSection::Pre
+        ? bank->preBypass : bank->postBypass;
+    auto changed = bypass;
+    bypass = false;
+    for (auto& filter : bank->filters) {
+        const auto definition = definitions.find(filter.filterId);
+        if (definition == definitions.end()) return Reject("invalid_filter");
+        if (definition->second.section != command.section) continue;
+        const auto values = definition->second.DefaultValues();
+        changed = changed || filter.values != values ||
+            filter.bypass != definition->second.defaultBypass;
+        filter.values = values;
+        filter.bypass = definition->second.defaultBypass;
+    }
+    return changed ? Commit(command.requestId) : UpdateResult{ UpdateStatus::Unchanged, {} };
+}
+
 UpdateResult EqStore::AddBank(const domain::AddEqBankCommand& command) {
     const auto nextId = nextBankId++;
     const auto name = command.name.empty() ? domain::BankNameGenerator::Generate(nextId) : command.name;
-    state.banks.push_back({ nextId, name, {} });
+    state.banks.push_back({ nextId, name, false, false, {} });
     auto& bank = state.banks.back();
     for (const auto& [filterId, definition] : definitions) {
         bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });

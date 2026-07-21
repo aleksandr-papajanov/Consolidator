@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../Audio/AudioBlockView.h"
+#include "DspDeviceRegistration.h"
 #include "IDspDevice.h"
+#include "SmoothedParameter.h"
 
 #include <cstddef>
 #include <memory>
@@ -12,10 +14,11 @@ namespace consolidator::dsp {
 
 class DspChain final : public IDspDevice {
 public:
-    void AddDevice(std::unique_ptr<IDspDevice> device) {
-        if (device) {
-            devices.push_back(std::move(device));
-        }
+    void AddDevice(const DspDeviceRegistration& registration) {
+        if (!registration.factory) return;
+        auto device = registration.factory->Create();
+        if (!device) return;
+        devices.push_back(std::make_unique<DeviceSlot>(registration, std::move(device)));
     }
 
     void Clear() {
@@ -23,16 +26,16 @@ public:
     }
 
     double ProcessSample(double input) override {
-        for (const auto& device : devices) {
-            input = device->ProcessSample(input);
+        for (const auto& slot : devices) {
+            const auto processed = slot->device->ProcessSample(input);
+            const auto bypass = slot->bypass.Next().value;
+            input = processed + (input - processed) * bypass;
         }
         return input;
     }
 
     void ProcessBlock(std::span<double> samples) override {
-        for (const auto& device : devices) {
-            device->ProcessBlock(samples);
-        }
+        IDspDevice::ProcessBlock(samples);
     }
 
     void Process(audio::AudioBlockView block) {
@@ -40,8 +43,8 @@ public:
     }
 
     void Reset() override {
-        for (const auto& device : devices) {
-            device->Reset();
+        for (const auto& slot : devices) {
+            slot->device->Reset();
         }
     }
 
@@ -49,8 +52,44 @@ public:
         return devices.size();
     }
 
+    bool CanUpdate(const std::vector<DspDeviceRegistration>& registrations) const {
+        if (registrations.size() != devices.size()) return false;
+        for (std::size_t index = 0; index < devices.size(); ++index) {
+            const auto& registration = registrations[index];
+            const auto& slot = *devices[index];
+            if (slot.deviceId != registration.deviceId || slot.order != registration.order ||
+                !registration.factory || !registration.factory->CanUpdate(*slot.device)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool Update(const std::vector<DspDeviceRegistration>& registrations) {
+        if (!CanUpdate(registrations)) return false;
+        for (std::size_t index = 0; index < devices.size(); ++index) {
+            const auto& registration = registrations[index];
+            auto& slot = *devices[index];
+            registration.factory->Update(*slot.device);
+            slot.bypass.SetTarget(registration.bypassed ? 1.0 : 0.0);
+        }
+        return true;
+    }
+
 private:
-    std::vector<std::unique_ptr<IDspDevice>> devices;
+    struct DeviceSlot {
+        DeviceSlot(const DspDeviceRegistration& registration, std::unique_ptr<IDspDevice> device)
+            : deviceId(registration.deviceId), order(registration.order),
+              device(std::move(device)),
+              bypass(registration.bypassed ? 1.0 : 0.0, registration.smoothingSamples) {}
+
+        std::string deviceId;
+        long order;
+        std::unique_ptr<IDspDevice> device;
+        SmoothedParameter bypass;
+    };
+
+    std::vector<std::unique_ptr<DeviceSlot>> devices;
 };
 
 } // namespace consolidator::dsp

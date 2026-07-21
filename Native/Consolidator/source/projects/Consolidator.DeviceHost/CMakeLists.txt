@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.10)
 
 add_library(Consolidator.DeviceHost STATIC
     EqStore.cpp
+    GainStore.cpp
+    CompressorStore.cpp
+    SaturatorStore.cpp
     DeviceHost.cpp
     Workflows/AnalyzerWorkflow.cpp
     Workflows/FitWorkflow.cpp

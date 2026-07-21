@@ -11,6 +11,8 @@ namespace consolidator::models {
 struct EqBank {
     long bankId = 0;
     std::string name;
+    bool preBypass = false;
+    bool postBypass = false;
     std::vector<FilterState> filters;
 
     FilterState* FindFilter(long filterId) {

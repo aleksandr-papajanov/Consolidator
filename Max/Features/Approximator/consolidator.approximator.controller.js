@@ -4,7 +4,7 @@ outlets = 3;
 
 // Inlet 0: local commands fit, listen 0|1, clear.
 // Inlet 1: native status status initialized|idle|ready|processing|error <code>.
-// Outlet 0: Host atom commands: component.attach, analyzer.listen, fit.start, fit.clear.
+// Outlet 0: Host atom commands: analyzer.listen, fit.start, fit.clear.
 // Outlet 1: status forwarded to the local patch.
 // Outlet 2: thispatcher commands for Fit and Listen controls.
 
@@ -82,7 +82,7 @@ function inletassist(index) {
 
 function outletassist(index) {
     var descriptions = [
-        "Host commands: component.attach, analyzer.listen, fit.start, fit.clear",
+        "Host commands: analyzer.listen, fit.start, fit.clear",
         "Local status: status <state>",
         "thispatcher commands for Fit and Listen controls"
     ];
@@ -94,7 +94,6 @@ setoutletassist(-1, outletassist);
 
 function loadbang() {
     controller.UpdateControls();
-    controller.SendCommand("component.attach", [11, "approximator"]);
     outlet(2, "script", "sendbox", "listen_button", "outputvalue");
 }
 

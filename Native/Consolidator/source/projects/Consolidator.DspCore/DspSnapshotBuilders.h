@@ -10,8 +10,12 @@ namespace consolidator::dspcore {
 
 class DspSnapshotBuilder final {
 public:
-    domain::DspSnapshot Build(const domain::EqState& state, domain::StoreRevision revision) const {
-        return { revision, state };
+    domain::DspSnapshot Build(
+        const domain::EqState& eq,
+        const domain::ProcessorState& processor,
+        domain::StoreRevision revision
+    ) const {
+        return { revision, eq, processor };
     }
 };
 

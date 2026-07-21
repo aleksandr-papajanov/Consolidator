@@ -3,6 +3,7 @@
 #include "Messaging/MessagePayload.h"
 #include "Definitions/BankNameGenerator.h"
 #include "Models/EqSnapshot.h"
+#include "Models/ProcessorState.h"
 #include "Settings/FilterOptions.h"
 
 #include <cstdint>
@@ -13,18 +14,19 @@
 namespace consolidator::persistence {
 
 struct PersistedDeviceState {
-    long schemaVersion = 2;
+    long schemaVersion = 6;
     models::EqSnapshot eq;
+    models::ProcessorState processor;
 };
 
 class PersistenceCodec final {
 public:
-    static constexpr long SchemaVersion = 2;
+    static constexpr long SchemaVersion = 6;
 
     static PersistedDeviceState Defaults() {
-        PersistedDeviceState result{ SchemaVersion, {} };
+        PersistedDeviceState result{ SchemaVersion, {}, {} };
         result.eq.selectedBankId = 1;
-        result.eq.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), {} });
+        result.eq.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), false, false, {} });
         for (const auto& [filterId, definition] : settings::FilterOptions::Definitions()) {
             result.eq.banks.front().filters.push_back({
                 filterId, definition.DefaultValues(), definition.defaultBypass
@@ -41,11 +43,21 @@ public:
         messaging::MessageObject result{
             { "schema_version", static_cast<std::int64_t>(state.schemaVersion) },
             { "selected_bank", static_cast<std::int64_t>(state.eq.selectedBankId) },
-            { "bank_ids", std::move(bankIds) }
+            { "bank_ids", std::move(bankIds) },
+            { "input_gain.gain", state.processor.inputGain.gainDb },
+            { "compressor.attack", state.processor.compressor.attackMs },
+            { "compressor.release", state.processor.compressor.releaseMs },
+            { "compressor.threshold", state.processor.compressor.thresholdDb },
+            { "compressor.bypass", state.processor.compressor.bypass },
+            { "saturator.saturation", state.processor.saturator.saturation },
+            { "saturator.bypass", state.processor.saturator.bypass },
+            { "output_gain.gain", state.processor.outputGain.gainDb }
         };
         for (const auto& bank : state.eq.banks) {
             const auto prefix = "bank." + std::to_string(bank.bankId) + ".";
             result[prefix + "name"] = bank.name;
+            result[prefix + "pre_bypass"] = bank.preBypass;
+            result[prefix + "post_bypass"] = bank.postBypass;
             messaging::MessageArray filterIds;
             for (const auto& filter : bank.filters) {
                 filterIds.emplace_back(static_cast<std::int64_t>(filter.filterId));
@@ -72,6 +84,22 @@ public:
         PersistedDeviceState result;
         result.schemaVersion = *schema;
         result.eq.selectedBankId = *selectedBank;
+        const auto inputGain = root.ReadDouble("input_gain.gain");
+        const auto attack = root.ReadDouble("compressor.attack");
+        const auto release = root.ReadDouble("compressor.release");
+        const auto threshold = root.ReadDouble("compressor.threshold");
+        const auto compressorBypass = root.ReadBool("compressor.bypass");
+        const auto saturation = root.ReadDouble("saturator.saturation");
+        const auto saturatorBypass = root.ReadBool("saturator.bypass");
+        const auto outputGain = root.ReadDouble("output_gain.gain");
+        if (!inputGain || !attack || !release || !threshold || !compressorBypass ||
+            !saturation || !saturatorBypass || !outputGain) {
+            return std::nullopt;
+        }
+        result.processor.inputGain = { *inputGain };
+        result.processor.compressor = { *attack, *release, *threshold, *compressorBypass };
+        result.processor.saturator = { *saturation, *saturatorBypass };
+        result.processor.outputGain = { *outputGain };
         for (const auto& bankIdValue : *bankIds) {
             const auto decodedBankId = bankIdValue.As<std::int64_t>();
             if (!decodedBankId || *decodedBankId < 1 ||
@@ -79,8 +107,10 @@ public:
             const auto bankId = static_cast<long>(*decodedBankId);
             const auto prefix = "bank." + std::to_string(bankId) + ".";
             const auto name = root.ReadString(prefix + "name");
-            if (!name) return std::nullopt;
-            models::EqBank bank{ bankId, *name, {} };
+            const auto preBypass = root.ReadBool(prefix + "pre_bypass");
+            const auto postBypass = root.ReadBool(prefix + "post_bypass");
+            if (!name || !preBypass || !postBypass) return std::nullopt;
+            models::EqBank bank{ bankId, *name, *preBypass, *postBypass, {} };
             const auto filterIds = root.ReadArray(prefix + "filter_ids");
             if (!filterIds) return std::nullopt;
             for (const auto& filterIdValue : *filterIds) {

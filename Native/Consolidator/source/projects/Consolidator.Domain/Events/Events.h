@@ -12,11 +12,6 @@ struct HostInitializedEvent {
     StoreRevision revision = 0;
 };
 
-struct ComponentAttachedEvent {
-    ComponentId componentId{};
-    std::string type;
-};
-
 struct StoreUpdatedEvent {
     std::string storeName;
     StoreRevision revision = 0;
@@ -38,7 +33,6 @@ struct OperationChangedEvent {
 
 using Event = std::variant<
     HostInitializedEvent,
-    ComponentAttachedEvent,
     StoreUpdatedEvent,
     CommandRejectedEvent,
     OperationChangedEvent

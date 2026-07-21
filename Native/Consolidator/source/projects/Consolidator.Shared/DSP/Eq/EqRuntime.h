@@ -31,23 +31,44 @@ public:
 
     DspChainBuilder BuildAllBanks(double sampleRate) const {
         DspChainBuilder builder;
-        for (const auto& bank : snapshot.banks) AddBank(builder, bank, sampleRate);
+        auto order = AddAllBanksSection(builder, sampleRate, 0, models::EqSection::Pre);
+        AddAllBanksSection(builder, sampleRate, order, models::EqSection::Post);
         return builder;
+    }
+
+    long AddAllBanks(DspChainBuilder& builder, double sampleRate, long firstOrder) const {
+        auto order = AddAllBanksSection(builder, sampleRate, firstOrder, models::EqSection::Pre);
+        return AddAllBanksSection(builder, sampleRate, order, models::EqSection::Post);
+    }
+
+    long AddAllBanksSection(
+        DspChainBuilder& builder,
+        double sampleRate,
+        long firstOrder,
+        models::EqSection section
+    ) const {
+        auto order = firstOrder;
+        for (const auto& bank : snapshot.banks) AddBankSection(builder, bank, sampleRate, order, section);
+        return order;
     }
 
     DspChainBuilder BuildBank(long bankId, double sampleRate) const {
         DspChainBuilder builder;
         if (const auto bank = snapshot.FindBank(bankId)) {
-            AddBank(builder, *bank, sampleRate);
+            auto order = 0L;
+            AddBankSection(builder, *bank, sampleRate, order, models::EqSection::Pre);
+            AddBankSection(builder, *bank, sampleRate, order, models::EqSection::Post);
         }
         return builder;
     }
 
     DspChainBuilder BuildThroughBank(long bankId, double sampleRate) const {
         DspChainBuilder builder;
+        auto order = 0L;
         for (const auto& bank : snapshot.banks) {
             if (bank.bankId > bankId) break;
-            AddBank(builder, bank, sampleRate);
+            AddBankSection(builder, bank, sampleRate, order, models::EqSection::Pre);
+            AddBankSection(builder, bank, sampleRate, order, models::EqSection::Post);
         }
         return builder;
     }
@@ -61,6 +82,7 @@ public:
             if (filter.bypass) continue;
             const auto definition = definitions.find(filter.filterId);
             if (definition == definitions.end()) continue;
+            if (SectionBypassed(*bank, definition->second.section)) continue;
             EqFilterFactory factory{ definition->second, filter.values, sampleRate };
             const auto processor = factory.CreateFilter();
             if (!processor) continue;
@@ -92,6 +114,7 @@ private:
             if (filter.bypass) continue;
             const auto definition = definitions.find(filter.filterId);
             if (definition == definitions.end()) continue;
+            if (SectionBypassed(bank, definition->second.section)) continue;
             EqFilterFactory factory{ definition->second, filter.values, sampleRate };
             const auto processor = factory.CreateFilter();
             if (!processor) continue;
@@ -101,16 +124,28 @@ private:
         }
     }
 
-    void AddBank(DspChainBuilder& builder, const models::EqBank& bank, double sampleRate) const {
+    void AddBankSection(
+        DspChainBuilder& builder,
+        const models::EqBank& bank,
+        double sampleRate,
+        long& order,
+        models::EqSection section
+    ) const {
         for (const auto& filter : bank.filters) {
             const auto definition = definitions.find(filter.filterId);
-            if (definition == definitions.end()) continue;
+            if (definition == definitions.end() || definition->second.section != section) continue;
             builder.UpsertDevice({
                 std::to_string(bank.bankId) + ":" + std::to_string(filter.filterId),
                 std::make_shared<EqFilterFactory>(definition->second, filter.values, sampleRate),
-                filter.bypass
+                SectionBypassed(bank, section) || filter.bypass,
+                order++,
+                settings::AudioOptions::ParameterSmoothingSamples(sampleRate)
             });
         }
+    }
+
+    static bool SectionBypassed(const models::EqBank& bank, models::EqSection section) {
+        return section == models::EqSection::Pre ? bank.preBypass : bank.postBypass;
     }
 
     std::map<long, models::FilterDefinition> definitions;

@@ -15,8 +15,10 @@ banks.
 ## Ownership
 
 `DeviceHost` is the sole owner of official runtime state. `EqStore` owns EQ
-banks, selected bank, absolute filter values, bypass state, stable IDs, and the
-store revision. Components never mutate each other directly.
+banks and filters, `CompressorStore` owns compressor state, and
+`SaturatorStore` owns saturator state. Each store has one domain responsibility;
+do not combine unrelated devices into a generic processor store. Components
+never mutate each other directly.
 
 The normal control flow is:
 
@@ -32,7 +34,7 @@ external outlet callback may run while a Host store mutex is held.
 The audio and analysis flows are:
 
 ```text
-audio -> EqChain -> audio
+audio -> DspProcessor -> audio
 pre-EQ current + reference -> Analyzer -> SpectrumView
 Analyzer difference stream -> Approximator -> fit.complete -> DeviceHost
 ```
@@ -60,12 +62,20 @@ routing, and envelope payload objects are not part of the architecture.
   Min atoms to `AtomList` and Max Dictionaries to persistence objects.
 
 Shared stateful DSP devices must have separate left and right instances.
-EqChain builds a replacement stereo chain off the audio thread and swaps it
-through `DspCore/RealtimeSnapshotSwap`. The single audio reader uses a hazard
-pointer; reference counting, allocation, destruction, locks, and Dictionary
-work are forbidden in the sample callback. Analyzer, EqChain, Approximator,
+DspProcessor builds a stereo chain off the audio thread and keeps it alive while
+its topology is unchanged. Snapshot updates with the same device ID, type, and
+order update only atomic parameter targets on the existing left/right devices;
+device state is preserved and each device smooths its own parameters using
+`AudioOptions`. `DspCore/RealtimeSnapshotSwap` is used only when topology or
+sample rate changes. Allocation, destruction, locks, reference counting, and
+Dictionary work are forbidden in the sample callback. Analyzer, DspProcessor, Approximator,
 and visual curves use the same
 filter formulas, frequency grid, sample-rate defaults, and typed definitions.
+Every `DspDeviceRegistration` has an explicit `order`; `DspChainBuilder` sorts
+registrations by it before building either channel. Runtime assembly assigns
+input gain first, EQ filters in bank/filter order, compressor, saturator, and
+output gain. Execution order is topology metadata and is not persisted in EQ
+state.
 
 ## Atom Protocol
 
@@ -84,15 +94,22 @@ is the same protocol message, not a fallback format.
 
 Supported commands are:
 
-- `component.attach <componentId> <type>`
-- `component.detach <componentId>`
 - `eq.set_parameter <bankId> <filterId> <parameter> <absoluteValue>`
 - `eq.set_bypass <bankId> <filterId> <0|1>`
 - `eq.reset_filter <bankId> <filterId>`
+- `eq.set_section_bypass <bankId> <pre|post> <0|1>`
+- `eq.reset_section <bankId> <pre|post>`
 - `eq.add_bank [name]`
 - `eq.remove_bank <bankId>`
 - `eq.rename_bank <bankId> <name>`
 - `eq.select_bank <bankId>`
+- `gain.set_parameter <input|output> <absoluteGainDb>`
+- `compressor.set_parameter <attack|release|threshold> <absoluteValue>`
+- `compressor.set_bypass <0|1>`
+- `compressor.reset`
+- `saturator.set_parameter <absoluteSaturation>`
+- `saturator.set_bypass <0|1>`
+- `saturator.reset`
 - `analyzer.listen <0|1>`
 - `fit.start`, `fit.cancel <sessionId>`, and `fit.clear`
 - `fit.complete <sessionId> <bankId> <loss> <filterCount> ...`
@@ -115,10 +132,14 @@ a contract changes.
 - Runtime state, snapshots, persistence, graph edits, and DSP use absolute
   values. Normalized `0..1` values exist only between Max controls and the
   Filter UI controller.
-- `FilterOptions` is the only source of filter types, parameter names, ranges,
-  scales, defaults, and bypass defaults.
-- `Max/Config/ConsolidatorSettings.json` contains presentation only: control
-  positions, type layouts, visibility/enabled state, and per-slot colors.
+- `FilterOptions` is the only source of filter types, PreEq/PostEq placement,
+  parameter names, ranges, scales, defaults, and bypass defaults. PreEq contains
+  tilt 2 and bells 4-5. PostEq contains shelves 3 and 6 and bells 7-9.
+- `CompressorOptions` and `SaturatorOptions` are the only sources of processor
+  ranges and defaults. `GainOptions` owns input/output gain range and default.
+  Compressor ratio is fixed in `CompressorOptions`.
+- `Max/Config/ConsolidatorSettings.json` contains presentation-only per-filter
+  colors. Runtime parameter definitions and ranges never come from JSON.
 
 ## Component Responsibilities
 
@@ -127,21 +148,20 @@ definition snapshots, and owns the private persistence Dictionary boundary.
 Store events are immediate. Repeated store commits coalesce into the latest EQ
 snapshot on the Max main thread, and persistence preparation uses a restartable
 100 ms debounce before serialization. It must not perform DSP or UI work.
+Static features do not register or perform startup handshakes. After the root
+device's deferred persistence restore, one `persistence_ready` message makes
+Host publish definitions, EQ, and DSP snapshots exactly once.
 
-`consolidator.filter.js` is a stateless endpoint for one filter slot. It sends
-absolute Host commands and projects selected-bank snapshots to direct local
-status. `consolidator.filter.controller.js` owns configuration loading, layout,
-normalization, and Max control updates. Controls update only from endpoint
-status, using `set` to avoid feedback.
-
-`consolidator.eqchain` receives complete EQ snapshots and processes every bank
-in ascending ID order. It knows nothing about selection, UI, persistence,
-Analyzer, or Approximator.
+`consolidator.dspprocessor` receives complete DSP snapshots and builds the full
+chain in this fixed order: input gain, PreEq filters from every bank in ascending
+ID order, compressor, saturator, PostEq filters from every bank in ascending ID
+order, then output gain. It knows nothing about selection, UI, persistence, Analyzer,
+or Approximator.
 
 `consolidator.analyzer` receives pre-EQ current stereo and reference stereo.
 It publishes current, reference, difference, selected-bank filter curves, and
 the total EQ response. It derives selected-prefix and total responses from the
-same EQ snapshot used by EqChain. The audio thread owns smoothing state and
+same EQ snapshot used by DspProcessor. The audio thread owns smoothing state and
 publishes immutable `AnalyzerCurveFrame` values through a preallocated
 single-producer/single-consumer triple buffer. Its overflow policy is
 latest-wins and replaced frames are counted. One coalesced Min `queue<>` handoff
@@ -161,6 +181,16 @@ only that newest published difference frame.
 SpectrumView receives, in order: current spectrum, reference spectrum,
 difference, selected-bank filter curves, total EQ response, and Host snapshots.
 Marker drag emits absolute `eq.set_parameter` commands. Holding Alt changes Q.
+
+`Max/Features/ProcessorControls/ProcessorControls.maxpat` is the single control
+surface for all EQ filters, compressor, and saturator. Max controls are created
+and laid out explicitly in the patcher; the controller must never script or
+create UI objects. Controls send the normalized messages documented in the
+feature README to the controller's local inlet. The controller converts them
+to absolute Host commands and returns confirmed normalized values as
+`script sendbox <varname> set <value>` commands directly to `thispatcher`.
+It owns no official state. Do not recreate per-filter
+feature instances or a separate compressor/saturator controller layer.
 
 ## Max Feature Layout
 
@@ -195,7 +225,8 @@ unrelated global functions.
 
 ## Persistence
 
-Persistence is the only Max Dictionary use in native runtime. The root device's
+Persistence is the only Max Dictionary use in native runtime. Schema 6 stores
+EQ, input/output gain, compressor, and saturator state. The root device's
 `pattrstorage` sends recalled dictionaries through EqStorage's private third
 port to `---device.persistence.in`. DeviceHost validates the schema and complete
 EQ invariants before replacing state. Incompatible schemas reset to typed

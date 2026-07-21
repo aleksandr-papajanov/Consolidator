@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EqSection.h"
 #include "FilterType.h"
 #include "ParameterRange.h"
 
@@ -17,6 +18,7 @@ struct FilterParameterDefinition {
 
 struct FilterDefinition {
     long filterId = 0;
+    EqSection section = EqSection::Pre;
     FilterType type = FilterType::Peak;
     std::vector<FilterParameterDefinition> parameters;
     bool defaultBypass = false;

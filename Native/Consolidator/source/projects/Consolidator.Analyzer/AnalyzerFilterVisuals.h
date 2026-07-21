@@ -38,7 +38,10 @@ public:
         const auto selected = snapshot.SelectedBank();
         for (const auto& [filterId, definition] : eqRuntime.Definitions()) {
             const auto filter = selected ? selected->FindFilter(filterId) : nullptr;
-            PublishFilter(definition, filter, outlet);
+            const auto sectionBypassed = selected &&
+                (definition.section == consolidator::models::EqSection::Pre
+                    ? selected->preBypass : selected->postBypass);
+            PublishFilter(definition, filter, selected && !sectionBypassed, outlet);
         }
     }
 
@@ -58,9 +61,10 @@ private:
     void PublishFilter(
         const FilterDefinition& definition,
         const FilterState* state,
+        bool bankActive,
         c74::min::outlet<>& outlet
     ) const {
-        const bool active = state && !state->bypass;
+        const bool active = bankActive && state && !state->bypass;
         const auto values = state ? state->values : definition.DefaultValues();
         auto curve = BuildFilterCurve(definition, values, active);
 
@@ -106,6 +110,9 @@ private:
             if (filter.bypass) continue;
             const auto definition = eqRuntime.Definitions().find(filter.filterId);
             if (definition == eqRuntime.Definitions().end()) continue;
+            const auto sectionBypassed = definition->second.section == consolidator::models::EqSection::Pre
+                ? bank.preBypass : bank.postBypass;
+            if (sectionBypassed) continue;
             consolidator::dsp::EqFilterFactory factory{
                 definition->second, filter.values, sampleRate };
             const auto processor = factory.CreateFilter();
