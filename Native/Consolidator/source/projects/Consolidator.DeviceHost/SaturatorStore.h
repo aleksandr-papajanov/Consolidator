@@ -17,6 +17,9 @@ public:
     domain::StoreRevision Revision() const noexcept;
     UpdateResult SetParameter(const domain::SetSaturatorParameterCommand& command);
     UpdateResult SetBypass(const domain::SetSaturatorBypassCommand& command);
+    UpdateResult SetMode(const domain::SetSaturatorModeCommand& command);
+    UpdateResult SetDetectorParameter(const domain::SetSaturatorDetectorParameterCommand& command);
+    UpdateResult SetDetectorListen(const domain::SetSaturatorDetectorListenCommand& command);
     UpdateResult Reset(const domain::ResetSaturatorCommand& command);
     UpdateResult Replace(domain::SaturatorState state, domain::StoreRevision revision);
     bool CanApplyFit(const domain::SaturatorState& state) const noexcept;

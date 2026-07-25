@@ -9,14 +9,30 @@
 
 class AnalyzerCurveBatch {
 public:
-    int Prepare(int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount)) {
+    void Reset(
+        int pointCount = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount)
+    ) {
+        ResetCurves(pointCount);
+        pendingCount = 0;
+        lastPendingCount = 0;
+        smoothingInitialized = false;
+        differenceSmoothingInitialized = false;
+        differenceFrameCount = 0;
+    }
+
+    int Prepare(
+        int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount),
+        bool accumulateDifference = false
+    ) {
         if (lastPendingCount != binsOut) {
             ResetCurves(binsOut);
             smoothingInitialized = false;
             differenceSmoothingInitialized = false;
+            differenceFrameCount = 0;
             lastPendingCount = binsOut;
         }
 
+        this->accumulateDifference = accumulateDifference;
         const int previousPendingCount = pendingCount;
         pendingCount = binsOut;
 
@@ -70,16 +86,38 @@ public:
 
         pendingCurrent.SetValue(outputIndex, smoothedCurrent.Values().at(outputIndex));
         pendingReference.SetValue(outputIndex, smoothedReference.Values().at(outputIndex));
-        pendingDifference.SetValue(outputIndex, smoothedDifference.Values().at(outputIndex));
+        if (accumulateDifference) {
+            const auto smoothedValue = smoothedDifference.Values().at(outputIndex);
+            if (differenceFrameCount == 0) {
+                accumulatedDifference.SetValue(outputIndex, smoothedValue);
+            }
+            else {
+                const auto previous = accumulatedDifference.Values().at(outputIndex);
+                const auto count = static_cast<double>(differenceFrameCount + 1);
+                accumulatedDifference.SetValue(
+                    outputIndex,
+                    previous + (smoothedValue - previous) / count);
+            }
+            pendingDifference.SetValue(
+                outputIndex,
+                accumulatedDifference.Values().at(outputIndex));
+        }
+        else {
+            pendingDifference.SetValue(outputIndex, smoothedDifference.Values().at(outputIndex));
+        }
     }
 
     void FinalizeFrame() {
         smoothingInitialized = true;
         differenceSmoothingInitialized = true;
+        if (accumulateDifference) ++differenceFrameCount;
     }
 
     void ResetDifference() {
         differenceSmoothingInitialized = false;
+        differenceFrameCount = 0;
+        accumulatedDifference.Clear();
+        pendingDifference.Clear();
     }
 
     void WriteFrame(AnalyzerCurveFrame& frame, std::uint64_t differenceGeneration) const {
@@ -107,6 +145,7 @@ private:
         smoothedCurrent = MakeCurve(pointCount);
         smoothedReference = MakeCurve(pointCount);
         smoothedDifference = MakeCurve(pointCount);
+        accumulatedDifference = MakeCurve(pointCount);
     }
 
     consolidator::dsp::Curve pendingCurrent;
@@ -115,9 +154,12 @@ private:
     consolidator::dsp::Curve smoothedCurrent;
     consolidator::dsp::Curve smoothedReference;
     consolidator::dsp::Curve smoothedDifference;
+    consolidator::dsp::Curve accumulatedDifference;
 
     int pendingCount = 0;
     int lastPendingCount = 0;
     bool smoothingInitialized = false;
     bool differenceSmoothingInitialized = false;
+    bool accumulateDifference = false;
+    std::size_t differenceFrameCount = 0;
 };

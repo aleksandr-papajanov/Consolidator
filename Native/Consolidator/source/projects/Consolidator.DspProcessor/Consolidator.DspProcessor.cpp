@@ -20,7 +20,7 @@ using namespace consolidator;
 
 class ConsolidatorDspProcessor :
     public object<ConsolidatorDspProcessor>,
-    public sample_operator<2, 2> {
+    public sample_operator<2, 4> {
 public:
     MIN_DESCRIPTION{ "Consolidator complete audio processing chain." };
     MIN_TAGS{ "audio, dsp, processor" };
@@ -35,11 +35,13 @@ public:
 
     outlet<> outputLeft{ this, "(signal) left output", "signal" };
     outlet<> outputRight{ this, "(signal) right output", "signal" };
+    outlet<> eqInputLeft{ this, "(signal) left signal at the EQ input", "signal" };
+    outlet<> eqInputRight{ this, "(signal) right signal at the EQ input", "signal" };
     outlet<> statusOut{ this, "(anything) status: status ready|error <code>" };
     outlet<> debugOut{ this, "(anything) diagnostics: error <code>" };
     outlet<> telemetryOut{
         this,
-        "(anything) processor_telemetry <compressorReductionDb> <saturationNonlinearRatio> <saturationLevelDeltaDb>"
+        "(anything) processor_telemetry <compressorReductionDb> <saturationNonlinearRatio> <saturationLevelDeltaDb> <inputPreDb> <inputPostDb> <outputPreDb> <outputPostDb> <compressorOutputDb> <saturatorOutputDb>"
     };
 
     queue<> telemetryDelivery{
@@ -100,20 +102,33 @@ public:
         }
     };
 
-    samples<2> operator()(sample left, sample right) {
-        const auto output = runtimeState.Read([this, left, right](RuntimeState& runtime) {
-            const auto observer = [this, &runtime](std::size_t index, double input, double output) {
-                if (index == runtime.compressorIndex) telemetry.ObserveCompressor(input, output);
+    samples<4> operator()(sample left, sample right) {
+        audio::StereoSample eqInput{ left, right };
+        const auto output = runtimeState.Read([this, left, right, &eqInput](RuntimeState& runtime) {
+            const auto observer = [this, &runtime, &eqInput](
+                int channel,
+                std::size_t index,
+                double input,
+                double output,
+                const dsp::DspDeviceTelemetry& deviceTelemetry
+            ) {
+                if (index == runtime.inputGainIndex) telemetry.ObserveInputGain(input, output);
                 else if (index == runtime.saturatorIndex) telemetry.ObserveSaturator(input, output);
+                else if (index == runtime.compressorIndex) {
+                    telemetry.ObserveCompressor(output, deviceTelemetry.gainReductionDb);
+                    if (channel == 0) eqInput.left = output;
+                    else eqInput.right = output;
+                }
+                else if (index == runtime.outputGainIndex) telemetry.ObserveOutputGain(input, output);
             };
-            return runtime.chain.ProcessSampleObserved({ left, right }, observer);
+            return runtime.chain.ProcessSampleObservedStereo({ left, right }, observer);
         });
         if (telemetry.Advance()) {
             telemetryFrames.ProducerValue() = telemetry.Finish();
             telemetryFrames.Publish();
             ScheduleTelemetryDelivery();
         }
-        return { output.left, output.right };
+        return { output.left, output.right, eqInput.left, eqInput.right };
     }
 
 private:
@@ -133,6 +148,8 @@ private:
         consolidator::dsp::StereoDspChain chain;
         std::size_t compressorIndex = InvalidDeviceIndex;
         std::size_t saturatorIndex = InvalidDeviceIndex;
+        std::size_t inputGainIndex = InvalidDeviceIndex;
+        std::size_t outputGainIndex = InvalidDeviceIndex;
     };
 
     static constexpr std::size_t InvalidDeviceIndex = std::numeric_limits<std::size_t>::max();
@@ -169,6 +186,8 @@ private:
         runtime->chain = builder.BuildStereo();
         runtime->compressorIndex = FindDeviceIndex(registrations, "compressor");
         runtime->saturatorIndex = FindDeviceIndex(registrations, "saturator");
+        runtime->inputGainIndex = FindDeviceIndex(registrations, "input_gain");
+        runtime->outputGainIndex = FindDeviceIndex(registrations, "output_gain");
         runtimeState.Replace(std::move(runtime));
         hasRuntime = true;
     }
@@ -179,7 +198,13 @@ private:
                 "processor_telemetry",
                 frame.compressorReductionDb,
                 frame.saturationNonlinearRatio,
-                frame.saturationLevelDeltaDb);
+                frame.saturationLevelDeltaDb,
+                frame.inputPreDb,
+                frame.inputPostDb,
+                frame.outputPreDb,
+                frame.outputPostDb,
+                frame.compressorOutputDb,
+                frame.saturatorOutputDb);
         });
         telemetryDeliveryScheduled.store(false, std::memory_order_release);
         if (telemetryFrames.HasPending()) ScheduleTelemetryDelivery();

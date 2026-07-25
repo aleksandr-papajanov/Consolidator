@@ -18,6 +18,9 @@ public:
     domain::StoreRevision Revision() const noexcept;
     UpdateResult SetParameter(const domain::SetCompressorParameterCommand& command);
     UpdateResult SetBypass(const domain::SetCompressorBypassCommand& command);
+    UpdateResult SetMode(const domain::SetCompressorModeCommand& command);
+    UpdateResult SetDetectorParameter(const domain::SetCompressorDetectorParameterCommand& command);
+    UpdateResult SetDetectorListen(const domain::SetCompressorDetectorListenCommand& command);
     UpdateResult Reset(const domain::ResetCompressorCommand& command);
     UpdateResult Replace(domain::CompressorState state, domain::StoreRevision revision);
     bool CanApplyFit(const domain::CompressorState& state) const noexcept;

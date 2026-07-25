@@ -752,10 +752,9 @@ Host сохраняет `bang`, который повторно публикуе
 ```text
 Input
 → Input Gain
-→ Pre EQ
-→ Saturation
 → Compressor
-→ Post EQ
+→ Saturation
+→ EQ
 → Output Gain
 → Output
 ```
@@ -789,10 +788,9 @@ Host или отдельный builder формирует компактное �
 ```cpp
 struct DspSnapshot {
     InputGainState inputGain;
-    EqDspState preEq;
-    SaturatorDspState saturator;
     CompressorDspState compressor;
-    EqDspState postEq;
+    SaturatorDspState saturator;
+    EqDspState eq;
     OutputGainState outputGain;
 };
 ```

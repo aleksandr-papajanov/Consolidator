@@ -15,7 +15,7 @@ using ParameterScale = models::ParameterScale;
 using FilterDefinitionCatalog = std::map<long, FilterDefinition>;
 
 inline const FilterDefinitionCatalog& FilterDefinitions() {
-    return settings::FilterOptions::Definitions();
+    return settings::FilterOptions::EqDefinitions();
 }
 
 } // namespace consolidator::domain

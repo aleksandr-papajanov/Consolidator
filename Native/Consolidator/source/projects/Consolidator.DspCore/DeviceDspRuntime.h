@@ -35,8 +35,23 @@ public:
             smoothingSamples
         });
 
-        order = eqRuntime.AddAllBanksSection(
-            builder, sampleRate, order, models::EqSection::Pre);
+        const auto saturator = snapshot.processor.saturator;
+        builder.UpsertDevice({
+            "saturator",
+            std::make_shared<dsp::TypedDspDeviceFactory<dsp::Saturator, dsp::SaturatorSettings>>(
+                dsp::SaturatorSettings{
+                    saturator.inputDb,
+                    saturator.outputDb,
+                    saturator.mix,
+                    saturator.mode,
+                    saturator.detectorFilters,
+                    saturator.detectorListen,
+                    sampleRate
+                }),
+            saturator.bypass,
+            order++,
+            smoothingSamples
+        });
 
         const auto compressor = snapshot.processor.compressor;
         builder.UpsertDevice({
@@ -45,8 +60,12 @@ public:
                 dsp::CompressorSettings{
                     compressor.attackMs,
                     compressor.releaseMs,
-                    compressor.thresholdDb,
-                    settings::CompressorOptions::FixedRatio,
+                    compressor.inputDb,
+                    compressor.outputDb,
+                    compressor.mix,
+                    compressor.mode,
+                    compressor.detectorFilters,
+                    compressor.detectorListen,
                     sampleRate
                 }),
             compressor.bypass,
@@ -54,18 +73,7 @@ public:
             smoothingSamples
         });
 
-        const auto saturator = snapshot.processor.saturator;
-        builder.UpsertDevice({
-            "saturator",
-            std::make_shared<dsp::TypedDspDeviceFactory<dsp::Saturator, dsp::SaturatorSettings>>(
-                dsp::SaturatorSettings{ saturator.saturation, sampleRate }),
-            saturator.bypass,
-            order++,
-            smoothingSamples
-        });
-
-        order = eqRuntime.AddAllBanksSection(
-            builder, sampleRate, order, models::EqSection::Post);
+        order = eqRuntime.AddAllBanks(builder, sampleRate, order);
 
         const auto outputGain = snapshot.processor.outputGain;
         builder.UpsertDevice({

@@ -41,6 +41,13 @@ public:
                 writer.Write(std::string{ "command.rejected" })
                     .Write(static_cast<std::int64_t>(value.requestId.value)).Write(value.code);
             }
+            else if constexpr (std::is_same_v<Event, domain::FitRequestedEvent>) {
+                writer.Write(std::string{ "fit.requested" })
+                    .Write(static_cast<std::int64_t>(value.sessionId.value))
+                    .Write(static_cast<std::int64_t>(value.bankId.value))
+                    .Write(static_cast<std::int64_t>(value.curveDb.size()));
+                for (const auto valueDb : value.curveDb) writer.Write(valueDb);
+            }
             else if constexpr (std::is_same_v<Event, domain::OperationChangedEvent>) {
                 writer.Write(std::string{ "operation.changed" }).Write(value.operation)
                     .Write(static_cast<std::int64_t>(value.sessionId.value))
@@ -83,6 +90,26 @@ public:
             const auto code = reader.ReadString();
             if (!requestId || !code || *requestId < 1 || code->empty() || !reader.RequireEnd()) return Invalid("invalid_command_rejected", reader.Index());
             return Success(domain::CommandRejectedEvent{ { *requestId }, *code }, *eventId);
+        }
+        if (*name == "fit.requested") {
+            const auto sessionId = reader.ReadInt();
+            const auto bankId = reader.ReadInt();
+            const auto pointCount = reader.ReadInt();
+            if (!sessionId || !bankId || !pointCount || *sessionId < 1 || *bankId < 1 ||
+                *pointCount < 2 || *pointCount > 4096) {
+                return Invalid("invalid_fit_requested", reader.Index());
+            }
+            std::vector<double> curveDb;
+            curveDb.reserve(static_cast<std::size_t>(*pointCount));
+            for (long index = 0; index < *pointCount; ++index) {
+                const auto value = reader.ReadDouble();
+                if (!value) return Invalid("invalid_fit_requested", reader.Index());
+                curveDb.push_back(*value);
+            }
+            if (!reader.RequireEnd()) return Invalid("invalid_fit_requested", reader.Index());
+            return Success(domain::FitRequestedEvent{
+                { *sessionId }, { *bankId }, std::move(curveDb)
+            }, *eventId);
         }
         if (*name == "operation.changed") {
             const auto operation = reader.ReadString();

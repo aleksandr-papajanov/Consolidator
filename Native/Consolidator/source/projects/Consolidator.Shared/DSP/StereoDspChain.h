@@ -31,6 +31,20 @@ public:
         };
     }
 
+    template <typename Observer>
+    audio::StereoSample ProcessSampleObservedStereo(audio::StereoSample input, Observer&& observer) {
+        return {
+            left.ProcessSampleObserved(input.left,
+                [&observer](std::size_t index, double deviceInput, double output, const DspDeviceTelemetry& telemetry) {
+                    observer(0, index, deviceInput, output, telemetry);
+                }),
+            right.ProcessSampleObserved(input.right,
+                [&observer](std::size_t index, double deviceInput, double output, const DspDeviceTelemetry& telemetry) {
+                    observer(1, index, deviceInput, output, telemetry);
+                })
+        };
+    }
+
     void Process(audio::StereoBufferView buffer) {
         left.Process(buffer.Left());
         right.Process(buffer.Right());

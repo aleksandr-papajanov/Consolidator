@@ -34,10 +34,14 @@ public:
     inlet<> referenceLeft{ this, "(signal) reference left", "signal" };
     inlet<> referenceRight{ this, "(signal) reference right", "signal" };
     inlet<> commandsIn{ this, "(message) inputs: snapshot 1 host eq <revision> <selectedBank> <bankCount> <banks...>; event 1 host <eventId> operation.changed analyzer ..." };
+    inlet<> telemetryIn{
+        this,
+        "(anything) processor_telemetry <compressorReductionDb> <saturationNonlinearRatio> <saturationLevelDeltaDb> <inputPreDb> <inputPostDb> <outputPreDb> <outputPostDb>"
+    };
 
     outlet<> currentOut{ this, "(list) current spectrum dB" };
     outlet<> referenceOut{ this, "(list) reference spectrum dB" };
-    outlet<> differenceOut{ this, "(list) reference-current dB" };
+    outlet<> differenceOut{ this, "(anything) difference <dB...>; fit_curve <dB...>; clear_fit_curve" };
     outlet<> filterOut{
         this,
         "(anything) messages: curve_settings <minimumHz> <maximumHz> <pointCount>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <curve...>"
@@ -48,6 +52,10 @@ public:
     outlet<> analysisOut{
         this,
         "(anything) visual analysis: feature_vector <windowCount> <historySeconds> <globalMetrics...> <bandMetrics...>"
+    };
+    outlet<> levelsOut{
+        this,
+        "(anything) gain_levels <inputPreDb> <inputPostDb> <outputPreDb> <outputPostDb> <referenceDb>"
     };
 
     queue<> curveDelivery{
@@ -100,6 +108,27 @@ public:
         }
     };
 
+    message<> statusMessage{
+        this,
+        "status",
+        "Ignore feature status messages on the shared command inlet",
+        MIN_FUNCTION { return {}; }
+    };
+
+    message<> processorTelemetry{
+        this,
+        "processor_telemetry",
+        "Store DSP gain-stage telemetry",
+        MIN_FUNCTION {
+            if (inlet != 5 || args.size() != 7) return {};
+            inputPreDb.store(static_cast<double>(args[3]), std::memory_order_release);
+            inputPostDb.store(static_cast<double>(args[4]), std::memory_order_release);
+            outputPreDb.store(static_cast<double>(args[5]), std::memory_order_release);
+            outputPostDb.store(static_cast<double>(args[6]), std::memory_order_release);
+            return {};
+        }
+    };
+
     message<> dspsetup{ this, "dspsetup",
         MIN_FUNCTION {
             if (!args.empty()) {
@@ -129,10 +158,12 @@ public:
             if (differenceResetRequested.exchange(false, std::memory_order_acq_rel)) {
                 curves.ResetDifference();
             }
-            const auto spectra = spectrumEngine.Analyze(capture, curves);
+            const auto listenEnabled = differenceEnabled.load(std::memory_order_acquire);
+            const auto spectra = spectrumEngine.Analyze(capture, curves, listenEnabled);
             auto featureFrame = featurePipeline.Process(capture, spectra);
             curves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
             curveFrames.ProducerValue().SetFeatures(std::move(featureFrame));
+            curveFrames.ProducerValue().SetGainLevels(ReadGainLevels());
             curveFrames.Publish();
             ScheduleCurveDelivery();
 
@@ -152,23 +183,35 @@ private:
     }
 
     void SetListenEnabled(bool enabled) {
-        if (differenceEnabled == enabled) return;
-        differenceEnabled = enabled;
+        if (differenceEnabled.exchange(enabled, std::memory_order_acq_rel) == enabled) return;
+        ResetDifferenceAccumulation();
+    }
+
+    void ResetDifferenceAccumulation() {
         differenceGeneration.fetch_add(1, std::memory_order_acq_rel);
         differenceResetRequested.store(true, std::memory_order_release);
         curveFrames.DiscardLatest();
-        if (!differenceEnabled) {
-            differenceOut.send("clear_difference");
-        }
+        differenceOut.send("clear_fit_curve");
     }
 
     void ApplyEvent(const std::optional<messaging::AtomList>& atoms) {
         if (!atoms) return;
         const auto decoded = messaging::EventCodec::Decode(*atoms);
-        if (!decoded.Succeeded()) return;
+        if (!decoded.Succeeded()) {
+            debugOut.send("error", decoded.error.code);
+            return;
+        }
         const auto* operation = std::get_if<domain::OperationChangedEvent>(&decoded.event);
-        if (!operation || operation->operation != "analyzer") return;
-        SetListenEnabled(operation->status == domain::OperationStatus::Capturing);
+        if (!operation) return;
+        if (operation->operation == "analyzer") {
+            SetListenEnabled(operation->status == domain::OperationStatus::Capturing);
+            return;
+        }
+        if (operation->operation.rfind("fit.", 0) == 0 &&
+            operation->status == domain::OperationStatus::Completed &&
+            differenceEnabled.load(std::memory_order_acquire)) {
+            ResetDifferenceAccumulation();
+        }
     }
 
     void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
@@ -187,9 +230,9 @@ private:
                 currentOut,
                 referenceOut,
                 differenceOut,
-                differenceEnabled &&
-                    frame.DifferenceGeneration() == differenceGeneration.load(std::memory_order_acquire),
-                analysisOut);
+                filterVisuals.BanksThroughSelectedCurve(),
+                analysisOut,
+                levelsOut);
         });
 
         curveDeliveryScheduled.store(false, std::memory_order_release);
@@ -202,6 +245,16 @@ private:
         }
     }
 
+    audio::GainLevelMetrics ReadGainLevels() const noexcept {
+        audio::GainLevelMetrics result;
+        result.inputPreDb = inputPreDb.load(std::memory_order_acquire);
+        result.inputPostDb = inputPostDb.load(std::memory_order_acquire);
+        result.outputPreDb = outputPreDb.load(std::memory_order_acquire);
+        result.outputPostDb = outputPostDb.load(std::memory_order_acquire);
+        result.referenceDb = capture.ReferenceLevelDb();
+        return result;
+    }
+
     AnalyzerFrameBuffer capture;
     AnalyzerCurveBatch curves;
     dspcore::LatestValueTripleBuffer<AnalyzerCurveFrame> curveFrames;
@@ -211,7 +264,11 @@ private:
     std::atomic<bool> curveDeliveryScheduled{ false };
     std::atomic<bool> differenceResetRequested{ false };
     std::atomic<std::uint64_t> differenceGeneration{ 0 };
-    bool differenceEnabled = false;
+    std::atomic<bool> differenceEnabled{ false };
+    std::atomic<double> inputPreDb{ -120.0 };
+    std::atomic<double> inputPostDb{ -120.0 };
+    std::atomic<double> outputPreDb{ -120.0 };
+    std::atomic<double> outputPostDb{ -120.0 };
 };
 
 MIN_EXTERNAL_CUSTOM(ConsolidatorAnalyzer, consolidator.analyzer);

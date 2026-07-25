@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DspDeviceTelemetry.h"
+
 #include <span>
 
 namespace consolidator::dsp {
@@ -9,6 +11,8 @@ public:
     virtual ~IDspDevice() = default;
 
     virtual double ProcessSample(double input) = 0;
+
+    virtual DspDeviceTelemetry Telemetry() const noexcept { return {}; }
 
     virtual void ProcessBlock(std::span<double> samples) {
         for (double& sample : samples) {

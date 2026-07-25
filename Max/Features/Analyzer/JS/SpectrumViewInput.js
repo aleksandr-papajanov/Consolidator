@@ -1,6 +1,18 @@
 SpectrumViewController.prototype.List = function() {
     var index = inlet;
 
+    if (index === 2) {
+        var taggedValues = arrayfromargs(arguments);
+        if (taggedValues.length > 1 && String(taggedValues[0]) === "fit_curve") {
+            this.SetFitCurve(taggedValues.slice(1));
+            return;
+        }
+        if (taggedValues.length > 1 && String(taggedValues[0]) === "difference") {
+            this.SetDifference(taggedValues.slice(1));
+            return;
+        }
+    }
+
     if (index === 3) {
         return;
     }
@@ -13,6 +25,20 @@ SpectrumViewController.prototype.List = function() {
     if (spectrumState.curvePointCount > 0 && values.length !== spectrumState.curvePointCount) return;
     spectrumState.curves[index] = values;
 
+    mgraphics.redraw();
+}
+
+SpectrumViewController.prototype.SetFitCurve = function(values) {
+    if (spectrumState.curvePointCount > 0 &&
+        values.length !== spectrumState.curvePointCount) return;
+    spectrumState.fitCurve = values.map(Number);
+    mgraphics.redraw();
+}
+
+SpectrumViewController.prototype.SetDifference = function(values) {
+    if (spectrumState.curvePointCount > 0 &&
+        values.length !== spectrumState.curvePointCount) return;
+    spectrumState.curves[2] = values.map(Number);
     mgraphics.redraw();
 }
 
@@ -163,6 +189,10 @@ SpectrumViewController.prototype.OnDrag = function(x, y, button, cmd, shift, cap
         spectrumState.minDb,
         spectrumState.maxDb
     );
+    if (spectrumState.draggedHandle.type === "gain") {
+        this.SendEditCommand(spectrumState.draggedHandle.slot, "gain", gain);
+        return;
+    }
     var parameter = spectrumState.draggedHandle.type === "tilt" ? "pivot" : "freq";
     this.SendEditCommand(spectrumState.draggedHandle.slot, parameter, frequency);
     this.SendEditCommand(spectrumState.draggedHandle.slot, "gain", gain);
@@ -301,6 +331,7 @@ SpectrumViewController.prototype.Clear = function() {
     for (var i = 0; i < spectrumState.curves.length; i++) {
         spectrumState.curves[i] = [];
     }
+    spectrumState.fitCurve = [];
 
     spectrumState.filterCurves = {};
     spectrumState.handles = [];
@@ -316,6 +347,7 @@ SpectrumViewController.prototype.Clear = function() {
 
 SpectrumViewController.prototype.ClearDifference = function() {
     spectrumState.curves[2] = [];
+    spectrumState.fitCurve = [];
     mgraphics.redraw();
 }
 

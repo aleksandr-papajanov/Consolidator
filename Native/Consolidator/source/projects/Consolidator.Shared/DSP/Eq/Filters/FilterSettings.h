@@ -5,6 +5,11 @@
 
 namespace consolidator::dsp {
 
+struct GainFilterSettings {
+    double gainDb = 0.0;
+    double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
+};
+
 struct BellFilterSettings {
     double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
     double q = 1.0;

@@ -5,48 +5,111 @@
 #include "Helpers/NumericHelper.h"
 #include "Settings/AudioOptions.h"
 #include "Settings/SaturatorOptions.h"
+#include "Models/DetectorFilterState.h"
+#include "DSP/Eq/Filters/BiquadBellFilter.h"
+#include "DSP/Eq/DetectorFilterFactory.h"
 
+#include <array>
 #include <cmath>
 
 namespace consolidator::dsp {
 
 struct SaturatorSettings {
-    double saturation = settings::SaturatorOptions::DefaultSaturation;
+    double inputDb = settings::SaturatorOptions::DefaultInputDb;
+    double outputDb = settings::SaturatorOptions::DefaultOutputDb;
+    double mix = settings::SaturatorOptions::DefaultMix;
+    long mode = settings::SaturatorOptions::DefaultMode;
+    std::array<models::DetectorFilterState, 2> detectorFilters{
+        models::DetectorFilterState{ 1 }, models::DetectorFilterState{ 2 }
+    };
+    long detectorListen = 0;
     double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 class Saturator final : public IDspDevice {
 public:
     explicit Saturator(SaturatorSettings configuration)
-        : saturation(helpers::NumericHelper::Clamp(
-              configuration.saturation,
-              settings::SaturatorOptions::MinimumSaturation,
-              settings::SaturatorOptions::MaximumSaturation),
-              settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)) {}
+        : inputGain(
+              helpers::NumericHelper::DecibelsToMagnitude(configuration.inputDb),
+              settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
+          outputGain(
+              helpers::NumericHelper::DecibelsToMagnitude(configuration.outputDb),
+              settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
+          mix(configuration.mix, settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
+          detectorFilters(CreateDetectorFilters(configuration.detectorFilters, configuration.sampleRate)),
+          mode(configuration.mode), detectorListen(configuration.detectorListen) {
+        for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
+            detectorBypass[index] = configuration.detectorFilters[index].bypass;
+        }
+    }
 
     double ProcessSample(double input) override {
-        const auto value = saturation.Next().value;
-        if (value <= 0.0) return input;
-        const auto drive = 1.0 + value * (settings::SaturatorOptions::MaximumDrive - 1.0);
-        const auto driveNormalization = std::tanh(drive);
-        const auto shaped = std::tanh(input * drive) / driveNormalization;
-        const auto mixed = input + value * (shaped - input);
-        const auto wetLinearGain = drive / driveNormalization;
-        const auto mixedLinearGain = 1.0 + value * (wetLinearGain - 1.0);
-        return mixed / mixedLinearGain;
+        const auto wet = helpers::NumericHelper::Clamp(mix.Next().value, 0.0, 1.0);
+        const auto detectorInput = ProcessDetector(input);
+        const auto wetInput = detectorListen > 0 ? detectorInput : input;
+        const auto driven = wetInput * inputGain.Next().value;
+        const auto processed = Shape(driven) * outputGain.Next().value;
+        return Mix(input, processed, wet);
     }
 
     void Reset() override {}
 
     void UpdateSettings(const SaturatorSettings& settings) {
-        saturation.SetTarget(helpers::NumericHelper::Clamp(
-            settings.saturation,
-            settings::SaturatorOptions::MinimumSaturation,
-            settings::SaturatorOptions::MaximumSaturation));
+        inputGain.SetTarget(helpers::NumericHelper::DecibelsToMagnitude(
+            helpers::NumericHelper::Clamp(
+                settings.inputDb,
+                settings::SaturatorOptions::MinimumInputDb,
+                settings::SaturatorOptions::MaximumInputDb)));
+        outputGain.SetTarget(helpers::NumericHelper::DecibelsToMagnitude(
+            helpers::NumericHelper::Clamp(
+                settings.outputDb,
+                settings::SaturatorOptions::MinimumOutputDb,
+                settings::SaturatorOptions::MaximumOutputDb)));
+        mix.SetTarget(settings.mix);
+        mode = settings.mode;
+        detectorListen = settings.detectorListen;
+        for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
+            detectorBypass[index] = settings.detectorFilters[index].bypass;
+            detectorFilters[index].UpdateSettings(
+                DetectorFilterFactory::Settings(settings.detectorFilters[index], settings.sampleRate));
+        }
     }
 
 private:
-    SmoothedParameter saturation;
+    double ProcessDetector(double input) {
+        for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
+            if (!detectorBypass[index]) input = detectorFilters[index].ProcessSample(input);
+        }
+        return input;
+    }
+
+    double Shape(double input) const {
+        if (mode == 0) return std::tanh(input);
+        if (mode == 1) return std::atan(input);
+        return input / (1.0 + std::abs(input));
+    }
+
+    static double Mix(double dry, double wet, double amount) {
+        return dry + amount * (wet - dry);
+    }
+
+    static std::array<BiquadBellFilter, 2> CreateDetectorFilters(
+        const std::array<models::DetectorFilterState, 2>& settings,
+        double sampleRate
+    ) {
+        return {
+            BiquadBellFilter(DetectorFilterFactory::Settings(settings[0], sampleRate)),
+            BiquadBellFilter(DetectorFilterFactory::Settings(settings[1], sampleRate))
+        };
+    }
+
+    SmoothedParameter inputGain;
+    SmoothedParameter outputGain;
+    SmoothedParameter mix;
+    std::array<BiquadBellFilter, 2> detectorFilters;
+    std::array<bool, 2> detectorBypass{ false, false };
+    long mode = settings::SaturatorOptions::DefaultMode;
+    long detectorListen = 0;
 };
 
 } // namespace consolidator::dsp

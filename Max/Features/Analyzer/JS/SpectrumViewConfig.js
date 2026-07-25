@@ -2,6 +2,7 @@ include("../../Shared/JS/DictionaryReader.js");
 
 function SpectrumViewState() {
 this.curves = [[], [], [], [], []];
+this.fitCurve = [];
 this.filterCurves = {};
 this.selectedBankId = 1;
 this.requestId = 0;
@@ -24,8 +25,8 @@ this.dragStartGain = 0;
 this.dragStartQNormalized = 0;
 this.qSensitivity = 1.5;
 
-this.minDb = -15;
-this.maxDb = 15;
+this.minDb = -30;
+this.maxDb = 30;
 this.dbRangePresets = [
     { min: -15, max: 15, label: "15 dB" },
     { min: -30, max: 30, label: "30 dB" }
@@ -56,19 +57,11 @@ this.visualSettings = {
     background: { r: 0.07, g: 0.07, b: 0.07, a: 1.0 },
     reference: { r: 1.00, g: 1.00, b: 1.00, a: 0.60 },
     target: { r: 1.00, g: 0.88, b: 0.25, a: 0.60 },
-    difference: { r: 1.00, g: 0.35, b: 0.35, a: 0.95 },
+    fitCurve: { r: 0.35, g: 0.92, b: 1.00, a: 0.95 },
     filterLineWidth: 1.5,
     filterLineAlpha: 0.3,
-    selectedFilterLineWidth: 3,
-    selectedFilterLineAlpha: 0.9,
-    filterColorTransitionDb: 6.0,
-    filterColorSensitivity: 1.0,
-    totalLineWidth: 2.5,
-    totalColorTransitionDb: 6.0,
-    totalColorNetSensitivity: 3.0,
     totalEqLineWidth: 1.0,
     totalEqLineColor: { r: 0.7, g: 0.7, b: 0.7, a: 1.0 },
-    totalBaseColor: { r: 0.1, g: 0.1, b: 0.1 },
     handleRadius: 6,
     handleInnerRadius: 1,
     handleSelectedRadius: 8,
@@ -102,12 +95,6 @@ this.styles = [
         this.visualSettings.target,
         { r: 1.00, g: 0.88, b: 0.25, a: 0.1 },
         null
-    ),
-    this.CreateCurveStyle(
-        { r: 1.00, g: 1.00, b: 1.00, a: 0.00 },
-        { r: 1.00, g: 1.00, b: 1.00, a: 0.00 },
-        { r: this.visualSettings.difference.r, g: this.visualSettings.difference.g, b: this.visualSettings.difference.b,
-            a: this.visualSettings.difference.a, width: this.visualSettings.totalLineWidth }
     ),
     this.CreateCurveStyle(
         { r: 0.75, g: 1.00, b: 0.35, a: 0.16 },

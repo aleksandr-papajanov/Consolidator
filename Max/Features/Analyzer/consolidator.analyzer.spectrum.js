@@ -20,7 +20,7 @@ function inletassist(index) {
     var descriptions = [
         "Current signal spectrum in dB; view commands: clear, range <min> <max>, range_mode <index>, toggle_range, smooth <0..1>, q_sensitivity <0..1>",
         "Reference signal spectrum in dB",
-        "Difference spectrum in dB; clear_difference",
+        "difference <dB...>; fit_curve <dB...>; clear_fit_curve",
         "curve_settings <minHz> <maxHz> <pointCount>; filter_curve <fields...>",
         "Total EQ response curve in dB",
         "snapshot 1 host eq ... from DeviceHost"
@@ -49,12 +49,14 @@ function list() {
     else spectrumViewController.List.apply(spectrumViewController, arguments);
 }
 function filter_curve() { spectrumViewController.FilterCurve.apply(spectrumViewController, arguments); }
+function fit_curve() { spectrumViewController.SetFitCurve(arrayfromargs(arguments)); }
+function difference() { spectrumViewController.SetDifference(arrayfromargs(arguments)); }
 function curve_settings() { spectrumViewController.CurveSettings.apply(spectrumViewController, arguments); }
 function onclick() { spectrumViewController.OnClick.apply(spectrumViewController, arguments); }
 function ondrag() { spectrumViewController.OnDrag.apply(spectrumViewController, arguments); }
 function onmouseup() { spectrumViewController.OnMouseUp.apply(spectrumViewController, arguments); }
 function clear() { spectrumViewController.Clear(); }
-function clear_difference() { spectrumViewController.ClearDifference(); }
+function clear_fit_curve() { spectrumViewController.ClearDifference(); }
 function range() { spectrumViewController.Range.apply(spectrumViewController, arguments); }
 function range_mode() { spectrumViewController.RangeMode.apply(spectrumViewController, arguments); }
 function toggle_range() { spectrumViewController.ToggleRange(); }

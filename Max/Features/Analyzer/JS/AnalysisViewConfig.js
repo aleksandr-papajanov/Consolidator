@@ -5,7 +5,7 @@ function AnalysisViewState() {
         metrics: [],
         bands: []
     };
-    this.displayMinFrequency = 10;
+    this.displayMinFrequency = 20;
     this.displayMaxFrequency = 20000;
     this.visualSettings = {
         background: { r: 0.07, g: 0.07, b: 0.07, a: 1.0 },

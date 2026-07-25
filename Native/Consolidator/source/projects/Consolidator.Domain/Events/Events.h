@@ -5,6 +5,7 @@
 
 #include <string>
 #include <variant>
+#include <vector>
 
 namespace consolidator::domain {
 
@@ -31,10 +32,17 @@ struct OperationChangedEvent {
     std::string error;
 };
 
+struct FitRequestedEvent {
+    SessionId sessionId{};
+    BankId bankId{};
+    std::vector<double> curveDb;
+};
+
 using Event = std::variant<
     HostInitializedEvent,
     StoreUpdatedEvent,
     CommandRejectedEvent,
+    FitRequestedEvent,
     OperationChangedEvent
 >;
 

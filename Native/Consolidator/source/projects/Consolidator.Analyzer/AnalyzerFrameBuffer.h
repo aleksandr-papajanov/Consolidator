@@ -2,8 +2,10 @@
 
 #include "Audio/AnalyzerInputFrame.h"
 #include "Settings/AnalysisOptions.h"
+#include "Helpers/NumericHelper.h"
 
 #include <array>
+#include <cmath>
 
 class AnalyzerFrameBuffer {
 public:
@@ -41,6 +43,19 @@ public:
 
     const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& ReferenceRight() const {
         return referenceRight;
+    }
+
+    double ReferenceLevelDb() const noexcept {
+        if (writeIndex <= 0) return -120.0;
+        double energy = 0.0;
+        for (int index = 0; index < writeIndex; ++index) {
+            const auto offset = static_cast<std::size_t>(index);
+            energy += referenceLeft[offset] * referenceLeft[offset] +
+                referenceRight[offset] * referenceRight[offset];
+        }
+        const auto meanSquare = energy / (2.0 * static_cast<double>(writeIndex));
+        return consolidator::helpers::NumericHelper::MagnitudeToDecibels(
+            std::sqrt(std::max(meanSquare, 1.0e-12)));
     }
 
 private:

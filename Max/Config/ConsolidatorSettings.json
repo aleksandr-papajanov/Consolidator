@@ -1,12 +1,11 @@
 {
   "filters": {
+    "1": { "color": "#7F82BB" },
     "2": { "color": "#A349A4" },
     "3": { "color": "#00A2E8" },
     "4": { "color": "#EA3680" },
     "5": { "color": "#FF6B6B" },
     "6": { "color": "#FFF200" },
-    "7": { "color": "#7F82BB" },
-    "8": { "color": "#75FA8D" },
-    "9": { "color": "#EE8AF8" }
+    "9": { "color": "#70D6A6" }
   }
 }

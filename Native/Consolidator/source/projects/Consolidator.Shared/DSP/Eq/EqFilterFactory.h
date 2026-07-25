@@ -2,6 +2,7 @@
 
 #include "../IDspDeviceFactory.h"
 #include "../../Models/FilterDefinition.h"
+#include "Filters/GainFilter.h"
 #include "Filters/BiquadBellFilter.h"
 #include "Filters/BiquadHighShelfFilter.h"
 #include "Filters/BiquadLowShelfFilter.h"
@@ -29,6 +30,8 @@ public:
 
     bool CanUpdate(const IDspDevice& device) const override {
         switch (definition.type) {
+            case models::FilterType::Gain:
+                return dynamic_cast<const GainFilter*>(&device) != nullptr;
             case models::FilterType::Tilt:
                 return dynamic_cast<const TiltFilter*>(&device) != nullptr;
             case models::FilterType::LowShelf:
@@ -44,25 +47,30 @@ public:
     void Update(IDspDevice& device) const override {
         const double gain = definition.Value(values, "gain", 0.0);
         switch (definition.type) {
+            case models::FilterType::Gain:
+                if (auto* filter = dynamic_cast<GainFilter*>(&device)) {
+                    filter->UpdateSettings({ gain, sampleRate });
+                }
+                return;
             case models::FilterType::Tilt:
                 if (auto* filter = dynamic_cast<TiltFilter*>(&device)) {
                     filter->UpdateSettings({
                         definition.Value(values, "pivot", settings::EqOptions::DefaultFrequencyHz),
-                        definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
+                        settings::EqOptions::DefaultFilterQ, gain, sampleRate });
                 }
                 return;
             case models::FilterType::LowShelf:
                 if (auto* filter = dynamic_cast<BiquadLowShelfFilter*>(&device)) {
                     filter->UpdateSettings({
                         definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
-                        definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
+                        settings::EqOptions::DefaultFilterQ, gain, sampleRate });
                 }
                 return;
             case models::FilterType::HighShelf:
                 if (auto* filter = dynamic_cast<BiquadHighShelfFilter*>(&device)) {
                     filter->UpdateSettings({
                         definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
-                        definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
+                        settings::EqOptions::DefaultFilterQ, gain, sampleRate });
                 }
                 return;
             case models::FilterType::Peak:
@@ -78,18 +86,21 @@ public:
     std::unique_ptr<IEqFilter> CreateFilter() const {
         const double gain = definition.Value(values, "gain", 0.0);
         switch (definition.type) {
+            case models::FilterType::Gain:
+                return std::make_unique<GainFilter>(
+                    GainFilterSettings{ gain, sampleRate });
             case models::FilterType::Tilt:
                 return std::make_unique<TiltFilter>(TiltFilterSettings{
                     definition.Value(values, "pivot", settings::EqOptions::DefaultFrequencyHz),
-                    definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
+                    settings::EqOptions::DefaultFilterQ, gain, sampleRate });
             case models::FilterType::LowShelf:
                 return std::make_unique<BiquadLowShelfFilter>(LowShelfFilterSettings{
                     definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
-                    definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
+                    settings::EqOptions::DefaultFilterQ, gain, sampleRate });
             case models::FilterType::HighShelf:
                 return std::make_unique<BiquadHighShelfFilter>(HighShelfFilterSettings{
                     definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),
-                    definition.Value(values, "q", settings::EqOptions::DefaultFilterQ), gain, sampleRate });
+                    settings::EqOptions::DefaultFilterQ, gain, sampleRate });
             case models::FilterType::Peak:
                 return std::make_unique<BiquadBellFilter>(BellFilterSettings{
                     definition.Value(values, "freq", settings::EqOptions::DefaultFrequencyHz),

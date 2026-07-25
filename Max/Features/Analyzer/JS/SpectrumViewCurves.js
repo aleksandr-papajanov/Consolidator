@@ -9,19 +9,37 @@ SpectrumViewController.prototype.Paint = function() {
     this.DrawFrequencyGrid(plotWidth, plotBottom);
     this.DrawZeroLine(plotWidth, plotBottom);
 
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < 2; i++) {
         var s = spectrumState.styles[i];
         this.DrawCurve(spectrumState.curves[i], plotWidth, plotBottom, s);
     }
 
+    this.DrawFitCurve(plotWidth, plotBottom);
     this.DrawTotalEqResponse(plotWidth, plotBottom);
     this.DrawIndividualFilterCurves(plotWidth, plotBottom);
-    this.DrawTotalFilterCurve(plotWidth, plotBottom);
-    this.DrawSelectedFilterCurve(plotWidth, plotBottom);
 
     this.DrawHandles(plotWidth, plotBottom);
     this.DrawFrequencyLabels(plotWidth, h);
     this.DrawDbRangeLabel(plotWidth, h);
+}
+
+SpectrumViewController.prototype.DrawFitCurve = function(w, plotBottom) {
+    var values = spectrumState.fitCurve;
+    if (!values || values.length < 2) return;
+
+    var color = spectrumState.visualSettings.fitCurve;
+    mgraphics.set_source_rgba(color.r, color.g, color.b, color.a);
+    mgraphics.set_line_width(spectrumState.visualSettings.totalEqLineWidth);
+    mgraphics.set_line_cap("round");
+    for (var index = 1; index < values.length; index++) {
+        var x0 = this.BinToX(index - 1, values.length, w);
+        var y0 = this.DbToY(values[index - 1], plotBottom);
+        var x1 = this.BinToX(index, values.length, w);
+        var y1 = this.DbToY(values[index], plotBottom);
+        mgraphics.move_to(x0, y0);
+        mgraphics.line_to(x1, y1);
+        mgraphics.stroke();
+    }
 }
 
 SpectrumViewController.prototype.DrawIndividualFilterCurves = function(w, plotBottom) {
@@ -33,24 +51,6 @@ SpectrumViewController.prototype.DrawIndividualFilterCurves = function(w, plotBo
         var item = spectrumState.filterCurves[key];
         this.DrawAdaptiveFilterCurve(item.curve, w, plotBottom, item.color);
     }
-}
-
-SpectrumViewController.prototype.DrawSelectedFilterCurve = function(w, plotBottom) {
-    var selected = spectrumState.selectedHandleSlot !== null
-        ? this.GetHandleBySlot(spectrumState.selectedHandleSlot)
-        : spectrumState.draggedHandle;
-    if (!selected || !spectrumState.filterCurves[selected.slot]) {
-        return;
-    }
-
-    this.DrawAdaptiveFilterCurve(
-        spectrumState.filterCurves[selected.slot].curve,
-        w,
-        plotBottom,
-        spectrumState.filterCurves[selected.slot].color,
-        spectrumState.visualSettings.selectedFilterLineWidth,
-        spectrumState.visualSettings.selectedFilterLineAlpha
-    );
 }
 
 SpectrumViewController.prototype.DrawTotalEqResponse = function(w, plotBottom) {
@@ -75,46 +75,6 @@ SpectrumViewController.prototype.DrawTotalEqResponse = function(w, plotBottom) {
     }
 }
 
-SpectrumViewController.prototype.DrawTotalFilterCurve = function(w, plotBottom) {
-    var items = [];
-    for (var key in spectrumState.filterCurves) {
-        if (spectrumState.filterCurves.hasOwnProperty(key)) {
-            items.push(spectrumState.filterCurves[key]);
-        }
-    }
-    if (items.length === 0) {
-        return;
-    }
-
-    var count = 0;
-    for (var i = 0; i < items.length; i++) {
-        count = Math.max(count, items[i].curve.length);
-    }
-
-    var total = [];
-    for (var index = 0; index < count; index++) {
-        var sum = 0;
-        for (var itemIndex = 0; itemIndex < items.length; itemIndex++) {
-            sum += Number(items[itemIndex].curve[index] || 0);
-        }
-        total.push(sum);
-    }
-
-    for (var segment = 1; segment < total.length; segment++) {
-        var x0 = this.BinToX(segment - 1, total.length, w);
-        var y0 = this.DbToY(total[segment - 1], plotBottom);
-        var x1 = this.BinToX(segment, total.length, w);
-        var y1 = this.DbToY(total[segment], plotBottom);
-        var color = this.TotalColor(items, segment - 1, total[segment - 1]);
-
-        mgraphics.set_source_rgba(color.r, color.g, color.b, 1.0);
-        mgraphics.set_line_width(spectrumState.visualSettings.totalLineWidth);
-        mgraphics.move_to(x0, y0);
-        mgraphics.line_to(x1, y1);
-        mgraphics.stroke();
-    }
-}
-
 SpectrumViewController.prototype.DrawAdaptiveFilterCurve = function(values, w, plotBottom, filterColor, lineWidth, lineAlpha) {
     if (!values || values.length < 2) {
         return;
@@ -125,20 +85,10 @@ SpectrumViewController.prototype.DrawAdaptiveFilterCurve = function(values, w, p
         var y0 = this.DbToY(values[i - 1], plotBottom);
         var x1 = this.BinToX(i, values.length, w);
         var y1 = this.DbToY(values[i], plotBottom);
-        var magnitude = (Math.abs(values[i - 1]) + Math.abs(values[i])) * 0.5;
-        var rawStrength = this.Clamp(
-            magnitude / spectrumState.visualSettings.filterColorTransitionDb,
-            0,
-            1
-        );
-        var strength = 1 - Math.pow(
-            1 - rawStrength,
-            spectrumState.visualSettings.filterColorSensitivity
-        );
         var color = {
-            r: spectrumState.visualSettings.totalBaseColor.r + strength * (filterColor.r - spectrumState.visualSettings.totalBaseColor.r),
-            g: spectrumState.visualSettings.totalBaseColor.g + strength * (filterColor.g - spectrumState.visualSettings.totalBaseColor.g),
-            b: spectrumState.visualSettings.totalBaseColor.b + strength * (filterColor.b - spectrumState.visualSettings.totalBaseColor.b),
+            r: filterColor.r,
+            g: filterColor.g,
+            b: filterColor.b,
             a: Math.min(filterColor.a, lineAlpha || spectrumState.visualSettings.filterLineAlpha)
         };
 
@@ -148,42 +98,6 @@ SpectrumViewController.prototype.DrawAdaptiveFilterCurve = function(values, w, p
         mgraphics.line_to(x1, y1);
         mgraphics.stroke();
     }
-}
-
-SpectrumViewController.prototype.TotalColor = function(items, index, net) {
-    var weighted = { r: 0, g: 0, b: 0 };
-    var absolute = 0;
-    for (var i = 0; i < items.length; i++) {
-        var contribution = Math.abs(Number(items[i].curve[index] || 0));
-        weighted.r += items[i].color.r * contribution;
-        weighted.g += items[i].color.g * contribution;
-        weighted.b += items[i].color.b * contribution;
-        absolute += contribution;
-    }
-
-    if (absolute < 0.001) {
-        return spectrumState.visualSettings.totalBaseColor;
-    }
-
-    var rawNetStrength = this.Clamp(
-        Math.abs(net) / spectrumState.visualSettings.totalColorTransitionDb,
-        0,
-        1
-    );
-    var netStrength = 1 - Math.pow(
-        1 - rawNetStrength,
-        spectrumState.visualSettings.totalColorNetSensitivity
-    );
-    var base = {
-        r: weighted.r / absolute,
-        g: weighted.g / absolute,
-        b: weighted.b / absolute
-    };
-    return {
-        r: spectrumState.visualSettings.totalBaseColor.r + netStrength * (base.r - spectrumState.visualSettings.totalBaseColor.r),
-        g: spectrumState.visualSettings.totalBaseColor.g + netStrength * (base.g - spectrumState.visualSettings.totalBaseColor.g),
-        b: spectrumState.visualSettings.totalBaseColor.b + netStrength * (base.b - spectrumState.visualSettings.totalBaseColor.b)
-    };
 }
 
 SpectrumViewController.prototype.DrawHandles = function(w, plotBottom) {

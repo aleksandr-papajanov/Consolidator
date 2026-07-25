@@ -1,6 +1,5 @@
 #pragma once
 
-#include "EqSection.h"
 #include "FilterType.h"
 #include "ParameterRange.h"
 
@@ -10,6 +9,11 @@
 
 namespace consolidator::models {
 
+enum class FilterScope {
+    Eq,
+    Detector
+};
+
 struct FilterParameterDefinition {
     std::string name;
     ParameterRange range;
@@ -18,10 +22,10 @@ struct FilterParameterDefinition {
 
 struct FilterDefinition {
     long filterId = 0;
-    EqSection section = EqSection::Pre;
     FilterType type = FilterType::Peak;
     std::vector<FilterParameterDefinition> parameters;
     bool defaultBypass = false;
+    FilterScope scope = FilterScope::Eq;
 
     std::vector<double> DefaultValues() const {
         std::vector<double> values;

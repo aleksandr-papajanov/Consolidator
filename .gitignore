@@ -2,6 +2,8 @@
 **/build/
 **/out/
 **/x64/
+Native/Consolidator/vcpkg_installed/
+Native/Consolidator/vcpkg_static/
 .git_native_backup/
 *.user
 *.suo

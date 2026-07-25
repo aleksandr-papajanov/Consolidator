@@ -24,20 +24,21 @@ public:
 
     AnalyzerSpectrumResult Analyze(
         const AnalyzerFrameBuffer& frame,
-        AnalyzerCurveBatch& curves
+        AnalyzerCurveBatch& curves,
+        bool accumulateDifference = false
     ) {
         AnalyzerSpectrumResult result;
-        AnalyzeInto(frame, curves, result);
+        AnalyzeInto(frame, curves, result, accumulateDifference);
         return result;
     }
 
     void AnalyzeInto(
         const AnalyzerFrameBuffer& frame,
         AnalyzerCurveBatch& curves,
-        AnalyzerSpectrumResult& result
+        AnalyzerSpectrumResult& result,
+        bool accumulateDifference = false
     ) {
         const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
-        const int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount);
         StereoSpectrumInto(
             frame.ReferenceLeft(),
             frame.ReferenceRight(),
@@ -51,7 +52,48 @@ public:
             frame.WriteIndex(),
             fftSize,
             result.current);
-        const int previousPendingCount = curves.Prepare();
+        StoreCurves(result, curves, fftSize, accumulateDifference);
+    }
+
+    void AnalyzeReferenceInto(
+        const AnalyzerFrameBuffer& frame,
+        AnalyzerSignalSpectrum& result
+    ) {
+        const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
+        StereoSpectrumInto(
+            frame.ReferenceLeft(),
+            frame.ReferenceRight(),
+            frame.WriteIndex(),
+            fftSize,
+            result);
+    }
+
+    void AnalyzeCurrentWithReferenceInto(
+        const AnalyzerFrameBuffer& frame,
+        const AnalyzerSignalSpectrum& reference,
+        AnalyzerCurveBatch& curves,
+        AnalyzerSpectrumResult& result
+    ) {
+        const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
+        result.reference = reference;
+        StereoSpectrumInto(
+            frame.CurrentLeft(),
+            frame.CurrentRight(),
+            frame.WriteIndex(),
+            fftSize,
+            result.current);
+        StoreCurves(result, curves, fftSize, false);
+    }
+
+private:
+    void StoreCurves(
+        const AnalyzerSpectrumResult& result,
+        AnalyzerCurveBatch& curves,
+        int fftSize,
+        bool accumulateDifference
+    ) {
+        const int binsOut = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount);
+        const int previousPendingCount = curves.Prepare(binsOut, accumulateDifference);
 
         for (int i = 0; i < binsOut; ++i) {
             curves.StoreBin(
@@ -63,8 +105,6 @@ public:
 
         curves.FinalizeFrame();
     }
-
-private:
     void StereoSpectrumInto(
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& left,
         const std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize>& right,

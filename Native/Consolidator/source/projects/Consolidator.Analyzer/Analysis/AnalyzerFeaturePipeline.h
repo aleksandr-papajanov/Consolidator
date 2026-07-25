@@ -115,6 +115,10 @@ private:
 
 class AnalyzerFeaturePipeline final {
 public:
+    void Reset(double value) {
+        SetSampleRate(value);
+    }
+
     void SetSampleRate(double value) {
         sampleRate = value;
         current.SetSampleRate(value);
