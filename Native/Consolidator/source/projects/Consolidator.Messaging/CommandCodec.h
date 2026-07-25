@@ -62,26 +62,16 @@ public:
                 { *requestId }, { *bankId }, { *filterId }, *bypass
             });
         }
-        if (*name == "eq.set_section_bypass") {
+        if (*name == "eq.set_chain_bypass") {
             const auto bankId = reader.ReadInt();
-            const auto sectionName = reader.ReadString();
             const auto bypass = reader.ReadBool();
-            if (!bankId || !sectionName || !bypass || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_set_section_bypass", reader.Index());
-            const auto section = *sectionName == "pre" ? models::EqSection::Pre
-                : *sectionName == "post" ? models::EqSection::Post
-                : models::EqSection::Pre;
-            if (*sectionName != "pre" && *sectionName != "post") return Invalid("invalid_eq_section", reader.Index());
-            return Success(domain::SetEqSectionBypassCommand{ { *requestId }, { *bankId }, section, *bypass });
+            if (!bankId || !bypass || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_set_chain_bypass", reader.Index());
+            return Success(domain::SetEqChainBypassCommand{ { *requestId }, { *bankId }, *bypass });
         }
-        if (*name == "eq.reset_section") {
+        if (*name == "eq.reset") {
             const auto bankId = reader.ReadInt();
-            const auto sectionName = reader.ReadString();
-            if (!bankId || !sectionName || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_reset_section", reader.Index());
-            const auto section = *sectionName == "pre" ? models::EqSection::Pre
-                : *sectionName == "post" ? models::EqSection::Post
-                : models::EqSection::Pre;
-            if (*sectionName != "pre" && *sectionName != "post") return Invalid("invalid_eq_section", reader.Index());
-            return Success(domain::ResetEqSectionCommand{ { *requestId }, { *bankId }, section });
+            if (!bankId || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_reset", reader.Index());
+            return Success(domain::ResetEqChainCommand{ { *requestId }, { *bankId } });
         }
         if (*name == "eq.add_bank") {
             if (reader.RequireEnd()) {
@@ -95,6 +85,32 @@ public:
             const auto bankId = reader.ReadInt();
             if (!bankId || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_remove_bank", reader.Index());
             return Success(domain::RemoveEqBankCommand{ { *requestId }, { *bankId } });
+        }
+        if (*name == "eq.remove_banks" || *name == "eq.set_banks_bypass" ||
+            *name == "eq.solo_banks" || *name == "eq.join_banks") {
+            const auto bypass = *name == "eq.set_banks_bypass" ? reader.ReadBool() : std::optional<bool>{ true };
+            const auto count = reader.ReadInt();
+            if (!bypass || !count || *count < 1 || *count > 1024) {
+                return Invalid("invalid_eq_bank_selection", reader.Index());
+            }
+            std::vector<domain::BankId> bankIds;
+            bankIds.reserve(static_cast<std::size_t>(*count));
+            for (long index = 0; index < *count; ++index) {
+                const auto bankId = reader.ReadInt();
+                if (!bankId || *bankId < 1) return Invalid("invalid_eq_bank_selection", reader.Index());
+                bankIds.push_back({ *bankId });
+            }
+            if (!reader.RequireEnd()) return Invalid("invalid_eq_bank_selection", reader.Index());
+            if (*name == "eq.remove_banks") {
+                return Success(domain::RemoveEqBanksCommand{ { *requestId }, std::move(bankIds) });
+            }
+            if (*name == "eq.set_banks_bypass") {
+                return Success(domain::SetEqBanksBypassCommand{ { *requestId }, *bypass, std::move(bankIds) });
+            }
+            if (*name == "eq.solo_banks") {
+                return Success(domain::SoloEqBanksCommand{ { *requestId }, std::move(bankIds) });
+            }
+            return Success(domain::JoinEqBanksCommand{ { *requestId }, std::move(bankIds) });
         }
         if (*name == "eq.rename_bank") {
             const auto bankId = reader.ReadInt();
@@ -130,18 +146,57 @@ public:
             if (!bypass || !reader.RequireEnd()) return Invalid("invalid_compressor_set_bypass", reader.Index());
             return Success(domain::SetCompressorBypassCommand{ { *requestId }, *bypass });
         }
+        if (*name == "compressor.set_mode") {
+            const auto mode = reader.ReadInt();
+            if (!mode || *mode < 0 || !reader.RequireEnd()) return Invalid("invalid_compressor_mode", reader.Index());
+            return Success(domain::SetCompressorModeCommand{ { *requestId }, static_cast<long>(*mode) });
+        }
+        if (*name == "compressor.set_detector_parameter") {
+            const auto filterId = reader.ReadInt();
+            const auto parameter = reader.ReadString();
+            const auto value = reader.ReadDouble();
+            if (!filterId || !parameter || !value || *filterId < 1 || *filterId > 2 || parameter->empty() || !reader.RequireEnd()) {
+                return Invalid("invalid_compressor_detector_parameter", reader.Index());
+            }
+            return Success(domain::SetCompressorDetectorParameterCommand{ { *requestId }, static_cast<long>(*filterId), *parameter, *value });
+        }
+        if (*name == "compressor.set_detector_listen") {
+            const auto filterId = reader.ReadInt();
+            if (!filterId || *filterId < 0 || *filterId > 2 || !reader.RequireEnd()) return Invalid("invalid_compressor_detector_listen", reader.Index());
+            return Success(domain::SetCompressorDetectorListenCommand{ { *requestId }, static_cast<long>(*filterId) });
+        }
         if (*name == "compressor.reset") return reader.RequireEnd()
             ? Success(domain::ResetCompressorCommand{ { *requestId } })
             : Invalid("invalid_compressor_reset", reader.Index());
         if (*name == "saturator.set_parameter") {
+            const auto parameter = reader.ReadString();
             const auto value = reader.ReadDouble();
-            if (!value || !reader.RequireEnd()) return Invalid("invalid_saturator_set_parameter", reader.Index());
-            return Success(domain::SetSaturatorParameterCommand{ { *requestId }, *value });
+            if (!parameter || !value || parameter->empty() || !reader.RequireEnd()) return Invalid("invalid_saturator_set_parameter", reader.Index());
+            return Success(domain::SetSaturatorParameterCommand{ { *requestId }, *parameter, *value });
         }
         if (*name == "saturator.set_bypass") {
             const auto bypass = reader.ReadBool();
             if (!bypass || !reader.RequireEnd()) return Invalid("invalid_saturator_set_bypass", reader.Index());
             return Success(domain::SetSaturatorBypassCommand{ { *requestId }, *bypass });
+        }
+        if (*name == "saturator.set_mode") {
+            const auto mode = reader.ReadInt();
+            if (!mode || *mode < 0 || !reader.RequireEnd()) return Invalid("invalid_saturator_mode", reader.Index());
+            return Success(domain::SetSaturatorModeCommand{ { *requestId }, static_cast<long>(*mode) });
+        }
+        if (*name == "saturator.set_detector_parameter") {
+            const auto filterId = reader.ReadInt();
+            const auto parameter = reader.ReadString();
+            const auto value = reader.ReadDouble();
+            if (!filterId || !parameter || !value || *filterId < 1 || *filterId > 2 || parameter->empty() || !reader.RequireEnd()) {
+                return Invalid("invalid_saturator_detector_parameter", reader.Index());
+            }
+            return Success(domain::SetSaturatorDetectorParameterCommand{ { *requestId }, static_cast<long>(*filterId), *parameter, *value });
+        }
+        if (*name == "saturator.set_detector_listen") {
+            const auto filterId = reader.ReadInt();
+            if (!filterId || *filterId < 0 || *filterId > 2 || !reader.RequireEnd()) return Invalid("invalid_saturator_detector_listen", reader.Index());
+            return Success(domain::SetSaturatorDetectorListenCommand{ { *requestId }, static_cast<long>(*filterId) });
         }
         if (*name == "saturator.reset") return reader.RequireEnd()
             ? Success(domain::ResetSaturatorCommand{ { *requestId } })
@@ -151,9 +206,22 @@ public:
             if (!enabled || !reader.RequireEnd()) return Invalid("invalid_analyzer_listen", reader.Index());
             return Success(domain::ListenAnalyzerCommand{ { *requestId }, *enabled });
         }
-        if (*name == "fit.start") return reader.RequireEnd()
-            ? Success(domain::StartFitCommand{ { *requestId } })
-            : Invalid("invalid_fit_start", reader.Index());
+        if (*name == "fit.start") {
+            const auto pointCount = reader.ReadInt();
+            if (!pointCount || *pointCount < 2 || *pointCount > 4096) {
+                return Invalid("invalid_fit_start", reader.Index());
+            }
+            std::vector<double> curveDb;
+            curveDb.reserve(static_cast<std::size_t>(*pointCount));
+            for (long index = 0; index < *pointCount; ++index) {
+                const auto value = reader.ReadDouble();
+                if (!value) return Invalid("invalid_fit_start", reader.Index());
+                curveDb.push_back(*value);
+            }
+            return reader.RequireEnd()
+                ? Success(domain::StartFitCommand{ { *requestId }, std::move(curveDb) })
+                : Invalid("invalid_fit_start", reader.Index());
+        }
         if (*name == "fit.cancel") {
             const auto sessionId = reader.ReadInt();
             if (!sessionId || *sessionId < 1 || !reader.RequireEnd()) return Invalid("invalid_fit_cancel", reader.Index());
@@ -196,12 +264,14 @@ public:
             const auto compressorBypass = reader.ReadBool();
             const auto attack = reader.ReadDouble();
             const auto release = reader.ReadDouble();
-            const auto threshold = reader.ReadDouble();
+            const auto input = reader.ReadDouble();
+            const auto output = reader.ReadDouble();
             const auto saturatorBypass = reader.ReadBool();
-            const auto saturation = reader.ReadDouble();
+            const auto saturatorInput = reader.ReadDouble();
+            const auto saturatorOutput = reader.ReadDouble();
             const auto outputGain = reader.ReadDouble();
-            if (!inputGain || !compressorBypass || !attack || !release || !threshold ||
-                !saturatorBypass || !saturation || !outputGain) {
+            if (!inputGain || !compressorBypass || !attack || !release || !input || !output ||
+                !saturatorBypass || !saturatorInput || !saturatorOutput || !outputGain) {
                 return Invalid("invalid_fit_complete", reader.Index());
             }
             if (*inputGain < settings::GainOptions::MinimumGainDb ||
@@ -212,15 +282,25 @@ public:
                 *attack > settings::CompressorOptions::MaximumAttackMs ||
                 *release < settings::CompressorOptions::MinimumReleaseMs ||
                 *release > settings::CompressorOptions::MaximumReleaseMs ||
-                *threshold < settings::CompressorOptions::MinimumThresholdDb ||
-                *threshold > settings::CompressorOptions::MaximumThresholdDb ||
-                *saturation < settings::SaturatorOptions::MinimumSaturation ||
-                *saturation > settings::SaturatorOptions::MaximumSaturation) {
+                *input < settings::CompressorOptions::MinimumInputDb ||
+                *input > settings::CompressorOptions::MaximumInputDb ||
+                *output < settings::CompressorOptions::MinimumOutputDb ||
+                *output > settings::CompressorOptions::MaximumOutputDb ||
+                *saturatorInput < settings::SaturatorOptions::MinimumInputDb ||
+                *saturatorInput > settings::SaturatorOptions::MaximumInputDb ||
+                *saturatorOutput < settings::SaturatorOptions::MinimumOutputDb ||
+                *saturatorOutput > settings::SaturatorOptions::MaximumOutputDb) {
                 return Invalid("invalid_fit_complete", reader.Index());
             }
             result.processor.inputGain = { *inputGain };
-            result.processor.compressor = { *attack, *release, *threshold, *compressorBypass };
-            result.processor.saturator = { *saturation, *saturatorBypass };
+            result.processor.compressor.attackMs = *attack;
+            result.processor.compressor.releaseMs = *release;
+            result.processor.compressor.inputDb = *input;
+            result.processor.compressor.outputDb = *output;
+            result.processor.compressor.bypass = *compressorBypass;
+            result.processor.saturator.inputDb = *saturatorInput;
+            result.processor.saturator.outputDb = *saturatorOutput;
+            result.processor.saturator.bypass = *saturatorBypass;
             result.processor.outputGain = { *outputGain };
             if (!reader.RequireEnd()) return Invalid("invalid_fit_complete", reader.Index());
             return Success(domain::CompleteFitCommand{ { *requestId }, std::move(result) });

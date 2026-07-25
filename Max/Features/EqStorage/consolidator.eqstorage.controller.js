@@ -1,12 +1,13 @@
 autowatch = 1;
 inlets = 3;
-outlets = 2;
+outlets = 3;
 
-// Inlet 0: local UI commands: add, remove, select, rename.
+// Inlet 0: local UI commands: action <1..5> <0|1>, select <bankId>, joinselection <count> <bankIds...>.
 // Inlet 1: direct EqStorage status: status <state> or error <code>.
-// Inlet 2: bank list commands: clear, append <name> <bankId>, setid <bankId>.
-// Outlet 0: local EqStorage commands: add, remove, select, rename.
-// Outlet 1: bank list commands: clear, append, setid.
+// Inlet 2: bank list commands: clear, append <name> <bankId> <bypass> <solo>, setstate <activeId> <joinCount> <joinIds...>.
+// Outlet 0: local EqStorage commands.
+// Outlet 1: bank list commands.
+// Outlet 2: thispatcher commands for EqStorage actions.
 
 function EqStorageFeatureController() {
     this.lastStatus = "initializing";
@@ -14,9 +15,7 @@ function EqStorageFeatureController() {
 }
 
 EqStorageFeatureController.prototype.ForwardCommand = function(command, args) {
-    if (args.length === 0) outlet(0, command);
-    else if (args.length === 1) outlet(0, command, args[0]);
-    else outlet(0, command, args[0], args[1]);
+    outlet(0, [command].concat(args));
 };
 
 EqStorageFeatureController.prototype.HandleStatus = function(command, args) {
@@ -27,28 +26,32 @@ EqStorageFeatureController.prototype.HandleStatus = function(command, args) {
         this.lastError = String(args[0]);
         post("EqStorage: " + this.lastError + "\n");
     }
+    else if (command === "actionstate" && args.length === 2) {
+        outlet(2, "script", "sendbox", "eqstorage.actions", "setvalue", 3, Number(args[0]));
+        outlet(2, "script", "sendbox", "eqstorage.actions", "setvalue", 4, Number(args[1]));
+    }
 };
 
 EqStorageFeatureController.prototype.ForwardListCommand = function(command, args) {
-    if (args.length === 0) outlet(1, command);
-    else if (args.length === 1) outlet(1, command, args[0]);
-    else outlet(1, command, args[0], args[1]);
+    outlet(1, [command].concat(args));
 };
 
 var controller = new EqStorageFeatureController();
 
 function inletassist(index) {
     assist(index === 0
-        ? "Local UI commands: add, remove, select, rename"
+        ? "Local UI commands: action <1..5> <0|1>, select <bankId>, joinselection <count> <bankIds...>"
         : index === 1
             ? "Direct EqStorage status: status <state> or error <code>"
-            : "Bank list commands: clear, append <name> <bankId>, setid <bankId>");
+            : "Bank list commands: clear, append <name> <bankId> <bypass> <solo>, setstate <activeId> <joinCount> <joinIds...>");
 }
 
 function outletassist(index) {
     assist(index === 0
-        ? "Local EqStorage commands: add, remove, select, rename"
-        : "Bank list commands: clear, append <name> <bankId>, setid <bankId>");
+        ? "Local EqStorage commands"
+        : index === 1
+            ? "Bank list commands: clear, append, setstate."
+            : "thispatcher action-button state commands.");
 }
 
 setinletassist(-1, inletassist);

@@ -2,109 +2,85 @@ autowatch = 1;
 inlets = 2;
 outlets = 3;
 
-// Inlet 0: local commands fit, listen 0|1, clear.
-// Inlet 1: native status status initialized|idle|ready|capturing|processing|error <code>.
-// Outlet 0: Host atom commands: analyzer.listen, fit.start, fit.clear.
-// Outlet 1: status forwarded to the local patch.
-// Outlet 2: thispatcher commands for Fit and Listen controls.
-
 function ApproximatorFeatureController() {
     this.requestId = 0;
-    this.listenEnabled = false;
+    this.fitCurve = [];
     this.fitting = false;
-    this.ready = false;
-    this.hostReady = false;
+    this.nativeReady = false;
+    this.listenEnabled = false;
 }
 
-ApproximatorFeatureController.prototype.SendCommand = function(name, values) {
+ApproximatorFeatureController.prototype.SendFit = function() {
+    if (this.fitting || !this.nativeReady || this.fitCurve.length < 2) return;
     this.requestId += 1;
-    outlet(0, "command", [1, "approximator.ui", this.requestId, name]
-        .concat(values || []));
+    this.fitting = true;
+    this.UpdateControl();
+    outlet(0, "command", [1, "approximator.ui", this.requestId, "fit.start", this.fitCurve.length]
+        .concat(this.fitCurve));
 };
 
-ApproximatorFeatureController.prototype.HandleLocalCommand = function(command, values) {
-    if (command === "fit") {
-        if (!this.ready || this.fitting) return;
-        outlet(2, "script", "sendbox", "fit_button", "set", 0);
-        this.SendCommand("fit.start", []);
-        return;
-    }
-    if (command === "clear") {
-        if (this.hostReady) this.SendCommand("fit.clear", []);
-        return;
-    }
-    if (command === "listen" && values.length === 1) {
-        this.listenEnabled = Number(values[0]) !== 0;
-        if (this.hostReady) {
-            this.SendCommand("analyzer.listen", [this.listenEnabled ? 1 : 0]);
-        }
-        this.UpdateControls();
-    }
+ApproximatorFeatureController.prototype.SetFitCurve = function(values) {
+    if (!values || values.length < 3 || String(values[0]) !== "fit_curve") return;
+    var curve = values.slice(1).map(Number);
+    if (!curve.every(isFinite)) return;
+    this.fitCurve = curve;
+    this.UpdateControl();
 };
 
-ApproximatorFeatureController.prototype.HandleNativeStatus = function(state, values) {
-    if (state === "initialized") {
-        this.hostReady = true;
-        this.SendCommand("analyzer.listen", [this.listenEnabled ? 1 : 0]);
-    }
-    else if (state === "ready") {
-        this.ready = true;
-        this.fitting = false;
-    }
-    else if (state === "capturing" || state === "processing") {
-        this.ready = false;
-        this.fitting = true;
-    }
-    else if (state === "idle" || state === "error") {
-        this.ready = false;
-        this.fitting = false;
-    }
-    this.UpdateControls();
+ApproximatorFeatureController.prototype.SetListen = function(value) {
+    this.listenEnabled = Number(value) !== 0;
+    this.requestId += 1;
+    outlet(0, "command", [1, "approximator.ui", this.requestId, "analyzer.listen", this.listenEnabled ? 1 : 0]);
+    this.UpdateControl();
+};
+
+ApproximatorFeatureController.prototype.SetStatus = function(state, values) {
+    if (state === "ready") this.nativeReady = Number(values[0]) !== 0;
+    if (state === "processing") this.fitting = true;
+    if (state === "idle" || state === "ready" || state === "error") this.fitting = false;
+    this.UpdateControl();
     outlet(1, "status", [state].concat(values || []));
 };
 
-ApproximatorFeatureController.prototype.UpdateControls = function() {
-    outlet(2, "script", "sendbox", "fit_button", "active",
-        this.ready && !this.fitting ? 1 : 0);
-    outlet(2, "script", "sendbox", "listen_button", "active",
-        this.fitting ? 0 : 1);
+ApproximatorFeatureController.prototype.UpdateControl = function() {
+    outlet(2, "script", "sendbox", "approximator.match", "loadingIndex", this.fitting ? 1 : 0);
+    outlet(2, "script", "sendbox", "approximator.match", "enabled",
+        !this.fitting && this.nativeReady && this.fitCurve.length > 1 ? 1 : 0);
+    outlet(2, "script", "sendbox", "approximator.listen", "enabled", !this.fitting ? 1 : 0);
+    outlet(2, "script", "sendbox", "approximator.listen", "set", this.listenEnabled ? 1 : 0);
 };
 
 var controller = new ApproximatorFeatureController();
 
 function inletassist(index) {
-    assist(index === 0
-        ? "Commands: fit, listen 0|1, clear"
-        : "Native status: status initialized|idle|ready|capturing|processing|error <code>");
+    assist(index === 0 ? "match 1 <0|1>; listen <0|1>" : "fit_curve <dB...> or native status");
 }
 
 function outletassist(index) {
-    var descriptions = [
-        "Host commands: analyzer.listen, fit.start, fit.clear",
-        "Local status: status <state>",
-        "thispatcher commands for Fit and Listen controls"
-    ];
-    assist(descriptions[index] || "");
+    assist([
+        "command 1 approximator.ui <id> fit.start <pointCount> <curve...>; analyzer.listen <0|1>",
+        "status <state>",
+        "thispatcher commands for Match EQ"
+    ][index] || "");
 }
 
 setinletassist(-1, inletassist);
 setoutletassist(-1, outletassist);
 
-function loadbang() {
-    controller.UpdateControls();
-    outlet(2, "script", "sendbox", "listen_button", "outputvalue");
+function match(index, value) {
+    if (inlet === 0 && Number(index) === 1 && Number(value) !== 0) controller.SendFit();
 }
-
-function fit() { if (inlet === 0) controller.HandleLocalCommand("fit", []); }
-function listen(value) { if (inlet === 0) controller.HandleLocalCommand("listen", [value]); }
-function clear() { if (inlet === 0) controller.HandleLocalCommand("clear", []); }
-
+function listen(value) {
+    if (inlet === 0) controller.SetListen(value);
+}
 function status(state) {
-    if (inlet === 1) controller.HandleNativeStatus(state, arrayfromargs(arguments).slice(1));
+    if (inlet === 1) controller.SetStatus(state, arrayfromargs(arguments).slice(1));
 }
-
 function anything() {
     var values = arrayfromargs(arguments);
-    if (inlet === 0) controller.HandleLocalCommand(messagename, values);
-    else controller.HandleNativeStatus(messagename, values);
+    if (inlet === 1 && messagename === "fit_curve") controller.SetFitCurve(["fit_curve"].concat(values));
+    else if (inlet === 1) controller.SetStatus(messagename, values);
+}
+function list() {
+    if (inlet === 1) controller.SetFitCurve(arrayfromargs(arguments));
 }

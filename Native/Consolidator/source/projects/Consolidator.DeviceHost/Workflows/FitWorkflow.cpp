@@ -1,6 +1,11 @@
 #include "FitWorkflow.h"
 
+#include "DSP/Eq/EqRuntime.h"
+#include "Settings/AudioOptions.h"
+
+#include <algorithm>
 #include <cmath>
+#include <set>
 #include <utility>
 
 namespace consolidator::host {
@@ -28,8 +33,55 @@ void FitWorkflow::Handle(const domain::StartFitCommand& command) {
     state.error.clear();
     ++state.sessionId.value;
     activeBankId = { eqStore.State().selectedBankId };
-    Publish(domain::OperationChangedEvent{
-        "fit", state.sessionId, domain::OperationStatus::Starting, 0.0, {}
+    joinedBankIds.clear();
+    activeMode = domain::FitMode::Eq;
+    Publish(domain::FitRequestedEvent{
+        state.sessionId, activeBankId, command.curveDb
+    });
+}
+
+void FitWorkflow::Handle(const domain::JoinEqBanksCommand& command) {
+    if (state.status == domain::ApproximatorState::Status::Processing) {
+        Reject(command.requestId, "fit_in_progress");
+        return;
+    }
+    if (command.bankIds.empty()) {
+        Reject(command.requestId, "invalid_join_banks");
+        return;
+    }
+
+    const auto& eqState = eqStore.State();
+    const auto targetBankId = static_cast<long>(command.bankIds.front().value);
+    std::set<long> uniqueBankIds;
+    for (const auto bankId : command.bankIds) {
+        if (bankId.value < 1 || !uniqueBankIds.insert(static_cast<long>(bankId.value)).second ||
+            !eqState.FindBank(static_cast<long>(bankId.value))) {
+            Reject(command.requestId, "invalid_join_banks");
+            return;
+        }
+    }
+    consolidator::dsp::EqRuntime runtime;
+    runtime.SetSnapshot(eqState);
+    consolidator::dsp::Curve joinedCurve;
+    for (const auto bankId : command.bankIds) {
+        joinedCurve = joinedCurve + runtime.BuildBankCurve(
+            static_cast<long>(bankId.value),
+            consolidator::settings::AudioOptions::DefaultSampleRateHz);
+    }
+    const auto residual = joinedCurve - runtime.BuildBankCurve(
+        targetBankId,
+        consolidator::settings::AudioOptions::DefaultSampleRateHz);
+
+    state.status = domain::ApproximatorState::Status::Processing;
+    state.progress = 0.0;
+    state.loss = 0.0;
+    state.error.clear();
+    ++state.sessionId.value;
+    activeBankId = { targetBankId };
+    joinedBankIds = command.bankIds;
+    activeMode = domain::FitMode::Eq;
+    Publish(domain::FitRequestedEvent{
+        state.sessionId, activeBankId, residual.Values()
     });
 }
 
@@ -40,21 +92,25 @@ void FitWorkflow::Handle(const domain::CancelFitCommand& command) {
         return;
     }
 
+    const auto operation = domain::FitOperationName(activeMode);
     state.status = domain::ApproximatorState::Status::Idle;
     activeBankId = {};
+    joinedBankIds.clear();
     Publish(domain::OperationChangedEvent{
-        "fit", command.sessionId, domain::OperationStatus::Cancelled, 0.0, {}
+        operation, command.sessionId, domain::OperationStatus::Cancelled, 0.0, {}
     });
 }
 
 void FitWorkflow::Handle(const domain::ClearFitCommand&) {
+    const auto operation = domain::FitOperationName(activeMode);
     state.status = domain::ApproximatorState::Status::Idle;
     state.progress = 0.0;
     state.loss = 0.0;
     state.error.clear();
     activeBankId = {};
+    joinedBankIds.clear();
     Publish(domain::OperationChangedEvent{
-        "fit", state.sessionId, domain::OperationStatus::Idle, 0.0, {}
+        operation, state.sessionId, domain::OperationStatus::Idle, 0.0, {}
     });
 }
 
@@ -65,44 +121,56 @@ void FitWorkflow::Handle(const domain::CompleteFitCommand& command) {
         Reject(command.requestId, "stale_fit_result");
         return;
     }
-    if (!std::isfinite(command.result.loss)) {
+    auto fitCommand = command;
+    fitCommand.result.processor.compressor.outputDb = compressorStore.State().outputDb;
+    fitCommand.result.processor.compressor.mix = compressorStore.State().mix;
+    fitCommand.result.processor.compressor.mode = compressorStore.State().mode;
+    fitCommand.result.processor.compressor.detectorFilters = compressorStore.State().detectorFilters;
+    fitCommand.result.processor.saturator.mix = saturatorStore.State().mix;
+    fitCommand.result.processor.saturator.mode = saturatorStore.State().mode;
+    fitCommand.result.processor.saturator.detectorFilters = saturatorStore.State().detectorFilters;
+    if (!std::isfinite(fitCommand.result.loss)) {
         Fail(command.requestId, "invalid_fit_result", true);
         return;
     }
-    if (!inputGainStore.CanApplyFit(command.result.processor.inputGain) ||
-        !compressorStore.CanApplyFit(command.result.processor.compressor) ||
-        !saturatorStore.CanApplyFit(command.result.processor.saturator) ||
-        !outputGainStore.CanApplyFit(command.result.processor.outputGain)) {
+    if (!inputGainStore.CanApplyFit(fitCommand.result.processor.inputGain) ||
+        !compressorStore.CanApplyFit(fitCommand.result.processor.compressor) ||
+        !saturatorStore.CanApplyFit(fitCommand.result.processor.saturator) ||
+        !outputGainStore.CanApplyFit(fitCommand.result.processor.outputGain)) {
         Fail(command.requestId, "invalid_fit_processor_state", true);
         return;
     }
 
-    const auto result = eqStore.ApplyFitResult(command);
+    const auto result = joinedBankIds.empty()
+        ? eqStore.ApplyFitResult(fitCommand)
+        : eqStore.ApplyJoinFitResult(fitCommand, joinedBankIds);
     if (!result.Accepted()) {
         Fail(command.requestId, result.error, true);
         return;
     }
     const auto inputGainResult = inputGainStore.ApplyFit(
-        command.result.processor.inputGain, command.requestId);
+        fitCommand.result.processor.inputGain, command.requestId);
     const auto compressorResult = compressorStore.ApplyFit(
-        command.result.processor.compressor, command.requestId);
+        fitCommand.result.processor.compressor, command.requestId);
     const auto saturatorResult = saturatorStore.ApplyFit(
-        command.result.processor.saturator, command.requestId);
+        fitCommand.result.processor.saturator, command.requestId);
     const auto outputGainResult = outputGainStore.ApplyFit(
-        command.result.processor.outputGain, command.requestId);
+        fitCommand.result.processor.outputGain, command.requestId);
     if (!inputGainResult.Accepted() || !compressorResult.Accepted() ||
         !saturatorResult.Accepted() || !outputGainResult.Accepted()) {
         Fail(command.requestId, "invalid_fit_processor_state", true);
         return;
     }
 
+    const auto operation = domain::FitOperationName(activeMode);
     state.status = domain::ApproximatorState::Status::Completed;
     state.progress = 1.0;
-    state.loss = command.result.loss;
+    state.loss = fitCommand.result.loss;
     state.error.clear();
     activeBankId = {};
+    joinedBankIds.clear();
     Publish(domain::OperationChangedEvent{
-        "fit", state.sessionId, domain::OperationStatus::Completed, 1.0, {}
+        operation, state.sessionId, domain::OperationStatus::Completed, 1.0, {}
     });
 }
 
@@ -129,12 +197,14 @@ void FitWorkflow::Fail(
     const std::string& error,
     bool rejectCommand
 ) {
+    const auto operation = domain::FitOperationName(activeMode);
     state.status = domain::ApproximatorState::Status::Failed;
     state.error = error;
     activeBankId = {};
+    joinedBankIds.clear();
     if (rejectCommand) Reject(requestId, error);
     Publish(domain::OperationChangedEvent{
-        "fit", state.sessionId, domain::OperationStatus::Failed, state.progress, error
+        operation, state.sessionId, domain::OperationStatus::Failed, state.progress, error
     });
 }
 

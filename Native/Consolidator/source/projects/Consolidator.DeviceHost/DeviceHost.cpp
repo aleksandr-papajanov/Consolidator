@@ -45,10 +45,14 @@ void DeviceHost::Handle(const domain::Command& command) {
             if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) PublishResult(eqStore.SetParameter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetEqBypassCommand>) PublishResult(eqStore.SetBypass(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetEqFilterCommand>) PublishResult(eqStore.ResetFilter(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::SetEqSectionBypassCommand>) PublishResult(eqStore.SetSectionBypass(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::ResetEqSectionCommand>) PublishResult(eqStore.ResetSection(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetEqChainBypassCommand>) PublishResult(eqStore.SetChainBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::ResetEqChainCommand>) PublishResult(eqStore.ResetChain(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::AddEqBankCommand>) PublishResult(eqStore.AddBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::RemoveEqBankCommand>) PublishResult(eqStore.RemoveBank(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::RemoveEqBanksCommand>) PublishResult(eqStore.RemoveBanks(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetEqBanksBypassCommand>) PublishResult(eqStore.SetBanksBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SoloEqBanksCommand>) PublishResult(eqStore.SoloBanks(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::JoinEqBanksCommand>) fitWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::RenameEqBankCommand>) PublishResult(eqStore.RenameBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SelectEqBankCommand>) PublishResult(eqStore.SelectBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
@@ -57,9 +61,15 @@ void DeviceHost::Handle(const domain::Command& command) {
             }
             else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) PublishResult(compressorStore.SetParameter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetCompressorBypassCommand>) PublishResult(compressorStore.SetBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorModeCommand>) PublishResult(compressorStore.SetMode(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorDetectorParameterCommand>) PublishResult(compressorStore.SetDetectorParameter(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorDetectorListenCommand>) PublishResult(compressorStore.SetDetectorListen(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetCompressorCommand>) PublishResult(compressorStore.Reset(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetSaturatorParameterCommand>) PublishResult(saturatorStore.SetParameter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetSaturatorBypassCommand>) PublishResult(saturatorStore.SetBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorModeCommand>) PublishResult(saturatorStore.SetMode(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorDetectorParameterCommand>) PublishResult(saturatorStore.SetDetectorParameter(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorDetectorListenCommand>) PublishResult(saturatorStore.SetDetectorListen(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetSaturatorCommand>) PublishResult(saturatorStore.Reset(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ListenAnalyzerCommand>) analyzerWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::StartFitCommand> ||

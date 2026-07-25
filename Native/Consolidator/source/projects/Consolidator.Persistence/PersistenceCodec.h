@@ -7,6 +7,7 @@
 #include "Settings/FilterOptions.h"
 
 #include <cstdint>
+#include <cstddef>
 #include <limits>
 #include <optional>
 #include <string>
@@ -14,20 +15,20 @@
 namespace consolidator::persistence {
 
 struct PersistedDeviceState {
-    long schemaVersion = 6;
+    long schemaVersion = 11;
     models::EqSnapshot eq;
     models::ProcessorState processor;
 };
 
 class PersistenceCodec final {
 public:
-    static constexpr long SchemaVersion = 6;
+    static constexpr long SchemaVersion = 11;
 
     static PersistedDeviceState Defaults() {
         PersistedDeviceState result{ SchemaVersion, {}, {} };
         result.eq.selectedBankId = 1;
-        result.eq.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), false, false, {} });
-        for (const auto& [filterId, definition] : settings::FilterOptions::Definitions()) {
+        result.eq.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), false, {} });
+        for (const auto& [filterId, definition] : settings::FilterOptions::EqDefinitions()) {
             result.eq.banks.front().filters.push_back({
                 filterId, definition.DefaultValues(), definition.defaultBypass
             });
@@ -47,17 +48,37 @@ public:
             { "input_gain.gain", state.processor.inputGain.gainDb },
             { "compressor.attack", state.processor.compressor.attackMs },
             { "compressor.release", state.processor.compressor.releaseMs },
-            { "compressor.threshold", state.processor.compressor.thresholdDb },
+            { "compressor.input", state.processor.compressor.inputDb },
+            { "compressor.output", state.processor.compressor.outputDb },
+            { "compressor.mix", state.processor.compressor.mix },
+            { "compressor.mode", static_cast<std::int64_t>(state.processor.compressor.mode) },
             { "compressor.bypass", state.processor.compressor.bypass },
-            { "saturator.saturation", state.processor.saturator.saturation },
+            { "saturator.input", state.processor.saturator.inputDb },
+            { "saturator.output", state.processor.saturator.outputDb },
+            { "saturator.mix", state.processor.saturator.mix },
+            { "saturator.mode", static_cast<std::int64_t>(state.processor.saturator.mode) },
             { "saturator.bypass", state.processor.saturator.bypass },
             { "output_gain.gain", state.processor.outputGain.gainDb }
         };
+        for (std::size_t index = 0; index < 2; ++index) {
+            const auto& compressorFilter = state.processor.compressor.detectorFilters[index];
+            const auto compressorPrefix = "compressor.detector." + std::to_string(index + 1) + ".";
+            result[compressorPrefix + "bypass"] = compressorFilter.bypass;
+            result[compressorPrefix + "gain"] = compressorFilter.gainDb;
+            result[compressorPrefix + "frequency"] = compressorFilter.frequencyHz;
+            result[compressorPrefix + "q"] = compressorFilter.q;
+            const auto& saturatorFilter = state.processor.saturator.detectorFilters[index];
+            const auto saturatorPrefix = "saturator.detector." + std::to_string(index + 1) + ".";
+            result[saturatorPrefix + "bypass"] = saturatorFilter.bypass;
+            result[saturatorPrefix + "gain"] = saturatorFilter.gainDb;
+            result[saturatorPrefix + "frequency"] = saturatorFilter.frequencyHz;
+            result[saturatorPrefix + "q"] = saturatorFilter.q;
+        }
         for (const auto& bank : state.eq.banks) {
             const auto prefix = "bank." + std::to_string(bank.bankId) + ".";
             result[prefix + "name"] = bank.name;
-            result[prefix + "pre_bypass"] = bank.preBypass;
-            result[prefix + "post_bypass"] = bank.postBypass;
+            result[prefix + "bypass"] = bank.bypass;
+            result[prefix + "solo"] = bank.solo;
             messaging::MessageArray filterIds;
             for (const auto& filter : bank.filters) {
                 filterIds.emplace_back(static_cast<std::int64_t>(filter.filterId));
@@ -87,19 +108,62 @@ public:
         const auto inputGain = root.ReadDouble("input_gain.gain");
         const auto attack = root.ReadDouble("compressor.attack");
         const auto release = root.ReadDouble("compressor.release");
-        const auto threshold = root.ReadDouble("compressor.threshold");
+        const auto input = root.ReadDouble("compressor.input");
+        const auto output = root.ReadDouble("compressor.output");
+        const auto compressorMix = root.ReadDouble("compressor.mix");
+        const auto compressorMode = root.ReadLong("compressor.mode");
         const auto compressorBypass = root.ReadBool("compressor.bypass");
-        const auto saturation = root.ReadDouble("saturator.saturation");
+        const auto saturatorInput = root.ReadDouble("saturator.input");
+        const auto saturatorOutput = root.ReadDouble("saturator.output");
+        const auto saturatorMix = root.ReadDouble("saturator.mix");
+        const auto saturatorMode = root.ReadLong("saturator.mode");
         const auto saturatorBypass = root.ReadBool("saturator.bypass");
         const auto outputGain = root.ReadDouble("output_gain.gain");
-        if (!inputGain || !attack || !release || !threshold || !compressorBypass ||
-            !saturation || !saturatorBypass || !outputGain) {
+        if (!inputGain || !attack || !release || !input || !output || !compressorMix || !compressorMode || !compressorBypass ||
+            !saturatorInput || !saturatorOutput || !saturatorMix ||
+            !saturatorMode || !saturatorBypass || !outputGain) {
             return std::nullopt;
         }
         result.processor.inputGain = { *inputGain };
-        result.processor.compressor = { *attack, *release, *threshold, *compressorBypass };
-        result.processor.saturator = { *saturation, *saturatorBypass };
+        result.processor.compressor.attackMs = *attack;
+        result.processor.compressor.releaseMs = *release;
+        result.processor.compressor.inputDb = *input;
+        result.processor.compressor.outputDb = *output;
+        result.processor.compressor.mix = *compressorMix;
+        result.processor.compressor.mode = *compressorMode;
+        result.processor.compressor.bypass = *compressorBypass;
+        result.processor.saturator.inputDb = *saturatorInput;
+        result.processor.saturator.outputDb = *saturatorOutput;
+        result.processor.saturator.mix = *saturatorMix;
+        result.processor.saturator.mode = *saturatorMode;
+        result.processor.saturator.bypass = *saturatorBypass;
         result.processor.outputGain = { *outputGain };
+        for (std::size_t index = 0; index < 2; ++index) {
+            auto& compressorFilter = result.processor.compressor.detectorFilters[index];
+            auto& saturatorFilter = result.processor.saturator.detectorFilters[index];
+            compressorFilter.filterId = static_cast<long>(index + 1);
+            saturatorFilter.filterId = static_cast<long>(index + 1);
+            const auto compressorPrefix = "compressor.detector." + std::to_string(index + 1) + ".";
+            const auto saturatorPrefix = "saturator.detector." + std::to_string(index + 1) + ".";
+            const auto compressorBypassValue = root.ReadBool(compressorPrefix + "bypass");
+            const auto compressorGain = root.ReadDouble(compressorPrefix + "gain");
+            const auto compressorFrequency = root.ReadDouble(compressorPrefix + "frequency");
+            const auto compressorQ = root.ReadDouble(compressorPrefix + "q");
+            const auto saturatorBypassValue = root.ReadBool(saturatorPrefix + "bypass");
+            const auto saturatorGain = root.ReadDouble(saturatorPrefix + "gain");
+            const auto saturatorFrequency = root.ReadDouble(saturatorPrefix + "frequency");
+            const auto saturatorQ = root.ReadDouble(saturatorPrefix + "q");
+            if (!compressorBypassValue || !compressorGain || !compressorFrequency || !compressorQ ||
+                !saturatorBypassValue || !saturatorGain || !saturatorFrequency || !saturatorQ) return std::nullopt;
+            compressorFilter.bypass = *compressorBypassValue;
+            compressorFilter.gainDb = *compressorGain;
+            compressorFilter.frequencyHz = *compressorFrequency;
+            compressorFilter.q = *compressorQ;
+            saturatorFilter.bypass = *saturatorBypassValue;
+            saturatorFilter.gainDb = *saturatorGain;
+            saturatorFilter.frequencyHz = *saturatorFrequency;
+            saturatorFilter.q = *saturatorQ;
+        }
         for (const auto& bankIdValue : *bankIds) {
             const auto decodedBankId = bankIdValue.As<std::int64_t>();
             if (!decodedBankId || *decodedBankId < 1 ||
@@ -107,10 +171,10 @@ public:
             const auto bankId = static_cast<long>(*decodedBankId);
             const auto prefix = "bank." + std::to_string(bankId) + ".";
             const auto name = root.ReadString(prefix + "name");
-            const auto preBypass = root.ReadBool(prefix + "pre_bypass");
-            const auto postBypass = root.ReadBool(prefix + "post_bypass");
-            if (!name || !preBypass || !postBypass) return std::nullopt;
-            models::EqBank bank{ bankId, *name, *preBypass, *postBypass, {} };
+            const auto bypass = root.ReadBool(prefix + "bypass");
+            const auto solo = root.ReadBool(prefix + "solo");
+            if (!name || !bypass || !solo) return std::nullopt;
+            models::EqBank bank{ bankId, *name, *bypass, *solo, {} };
             const auto filterIds = root.ReadArray(prefix + "filter_ids");
             if (!filterIds) return std::nullopt;
             for (const auto& filterIdValue : *filterIds) {

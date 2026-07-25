@@ -2,6 +2,7 @@
 
 #include "c74_min.h"
 #include "Analysis/AnalysisFeatureFrame.h"
+#include "Audio/GainLevelMetrics.h"
 #include "DSP/Curve/Curve.h"
 #include "Settings/AnalysisOptions.h"
 
@@ -30,30 +31,43 @@ public:
         c74::min::outlet<>& currentOut,
         c74::min::outlet<>& referenceOut,
         c74::min::outlet<>& differenceOut,
-        bool sendDifference,
-        c74::min::outlet<>& analysisOut
+        const consolidator::dsp::Curve& banksThroughSelectedCurve,
+        c74::min::outlet<>& analysisOut,
+        c74::min::outlet<>& levelsOut
     ) const {
         c74::min::atoms currentAtoms;
         c74::min::atoms referenceAtoms;
-        c74::min::atoms differenceAtoms;
-        const auto& currentValues = current.Values();
-        const auto& referenceValues = reference.Values();
         const auto& differenceValues = difference.Values();
+        c74::min::atoms fitCurveAtoms;
 
         for (int index = 0; index < pointCount; ++index) {
-            currentAtoms.push_back(currentValues[static_cast<std::size_t>(index)]);
-            referenceAtoms.push_back(referenceValues[static_cast<std::size_t>(index)]);
-            differenceAtoms.push_back(differenceValues[static_cast<std::size_t>(index)]);
+            currentAtoms.push_back(current.Values().at(static_cast<std::size_t>(index)));
+            referenceAtoms.push_back(reference.Values().at(static_cast<std::size_t>(index)));
+            fitCurveAtoms.push_back(
+                differenceValues[static_cast<std::size_t>(index)]
+                - banksThroughSelectedCurve.Values().at(static_cast<std::size_t>(index)));
         }
 
         currentOut.send(currentAtoms);
         referenceOut.send(referenceAtoms);
-        if (sendDifference) differenceOut.send(differenceAtoms);
+        fitCurveAtoms.insert(fitCurveAtoms.begin(), "fit_curve");
+        differenceOut.send(fitCurveAtoms);
         features.Send(analysisOut);
+        levelsOut.send(
+            "gain_levels",
+            gainLevels.inputPreDb,
+            gainLevels.inputPostDb,
+            gainLevels.outputPreDb,
+            gainLevels.outputPostDb,
+            gainLevels.referenceDb);
     }
 
     void SetFeatures(AnalysisFeatureFrame value) {
         features = std::move(value);
+    }
+
+    void SetGainLevels(consolidator::audio::GainLevelMetrics value) {
+        gainLevels = value;
     }
 
     std::uint64_t DifferenceGeneration() const noexcept {
@@ -73,4 +87,5 @@ private:
     int pointCount = 0;
     std::uint64_t differenceGeneration = 0;
     AnalysisFeatureFrame features;
+    consolidator::audio::GainLevelMetrics gainLevels;
 };

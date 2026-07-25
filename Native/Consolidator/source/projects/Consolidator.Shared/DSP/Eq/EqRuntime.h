@@ -15,7 +15,7 @@ namespace consolidator::dsp {
 
 class EqRuntime final {
 public:
-    EqRuntime() : definitions(settings::FilterOptions::Definitions()) {}
+    EqRuntime() : definitions(settings::FilterOptions::EqDefinitions()) {}
 
     void SetSnapshot(models::EqSnapshot snapshot) {
         this->snapshot = std::move(snapshot);
@@ -31,24 +31,13 @@ public:
 
     DspChainBuilder BuildAllBanks(double sampleRate) const {
         DspChainBuilder builder;
-        auto order = AddAllBanksSection(builder, sampleRate, 0, models::EqSection::Pre);
-        AddAllBanksSection(builder, sampleRate, order, models::EqSection::Post);
+        AddAllBanks(builder, sampleRate, 0);
         return builder;
     }
 
     long AddAllBanks(DspChainBuilder& builder, double sampleRate, long firstOrder) const {
-        auto order = AddAllBanksSection(builder, sampleRate, firstOrder, models::EqSection::Pre);
-        return AddAllBanksSection(builder, sampleRate, order, models::EqSection::Post);
-    }
-
-    long AddAllBanksSection(
-        DspChainBuilder& builder,
-        double sampleRate,
-        long firstOrder,
-        models::EqSection section
-    ) const {
         auto order = firstOrder;
-        for (const auto& bank : snapshot.banks) AddBankSection(builder, bank, sampleRate, order, section);
+        for (const auto& bank : snapshot.banks) AddBank(builder, bank, sampleRate, order);
         return order;
     }
 
@@ -56,8 +45,7 @@ public:
         DspChainBuilder builder;
         if (const auto bank = snapshot.FindBank(bankId)) {
             auto order = 0L;
-            AddBankSection(builder, *bank, sampleRate, order, models::EqSection::Pre);
-            AddBankSection(builder, *bank, sampleRate, order, models::EqSection::Post);
+            AddBank(builder, *bank, sampleRate, order);
         }
         return builder;
     }
@@ -66,9 +54,8 @@ public:
         DspChainBuilder builder;
         auto order = 0L;
         for (const auto& bank : snapshot.banks) {
-            if (bank.bankId > bankId) break;
-            AddBankSection(builder, bank, sampleRate, order, models::EqSection::Pre);
-            AddBankSection(builder, bank, sampleRate, order, models::EqSection::Post);
+            AddBank(builder, bank, sampleRate, order);
+            if (bank.bankId == bankId) break;
         }
         return builder;
     }
@@ -78,26 +65,25 @@ public:
         const auto bank = snapshot.FindBank(bankId);
         if (!bank) return curve;
 
-        for (const auto& filter : bank->filters) {
-            if (filter.bypass) continue;
-            const auto definition = definitions.find(filter.filterId);
-            if (definition == definitions.end()) continue;
-            if (SectionBypassed(*bank, definition->second.section)) continue;
-            EqFilterFactory factory{ definition->second, filter.values, sampleRate };
-            const auto processor = factory.CreateFilter();
-            if (!processor) continue;
-            for (std::size_t index = 0; index < curve.Inputs().size(); ++index) {
-                curve.AddValue(index, processor->GetMagnitudeDb(curve.Inputs()[index]));
-            }
-        }
+        AddBankCurve(curve, *bank, sampleRate);
         return curve;
     }
 
     Curve BuildThroughBankCurve(long bankId, double sampleRate) const {
         Curve curve;
         for (const auto& bank : snapshot.banks) {
-            if (bank.bankId > bankId) break;
             AddBankCurve(curve, bank, sampleRate);
+            if (bank.bankId == bankId) break;
+        }
+        return curve;
+    }
+
+    Curve BuildAfterBankCurve(long bankId, double sampleRate) const {
+        Curve curve;
+        bool selectedBankFound = false;
+        for (const auto& bank : snapshot.banks) {
+            if (selectedBankFound) AddBankCurve(curve, bank, sampleRate);
+            if (bank.bankId == bankId) selectedBankFound = true;
         }
         return curve;
     }
@@ -114,7 +100,7 @@ private:
             if (filter.bypass) continue;
             const auto definition = definitions.find(filter.filterId);
             if (definition == definitions.end()) continue;
-            if (SectionBypassed(bank, definition->second.section)) continue;
+            if (snapshot.IsBypassed(bank)) continue;
             EqFilterFactory factory{ definition->second, filter.values, sampleRate };
             const auto processor = factory.CreateFilter();
             if (!processor) continue;
@@ -124,28 +110,23 @@ private:
         }
     }
 
-    void AddBankSection(
+    void AddBank(
         DspChainBuilder& builder,
         const models::EqBank& bank,
         double sampleRate,
-        long& order,
-        models::EqSection section
+        long& order
     ) const {
         for (const auto& filter : bank.filters) {
             const auto definition = definitions.find(filter.filterId);
-            if (definition == definitions.end() || definition->second.section != section) continue;
+            if (definition == definitions.end()) continue;
             builder.UpsertDevice({
                 std::to_string(bank.bankId) + ":" + std::to_string(filter.filterId),
                 std::make_shared<EqFilterFactory>(definition->second, filter.values, sampleRate),
-                SectionBypassed(bank, section) || filter.bypass,
+                snapshot.IsBypassed(bank) || filter.bypass,
                 order++,
                 settings::AudioOptions::ParameterSmoothingSamples(sampleRate)
             });
         }
-    }
-
-    static bool SectionBypassed(const models::EqBank& bank, models::EqSection section) {
-        return section == models::EqSection::Pre ? bank.preBypass : bank.postBypass;
     }
 
     std::map<long, models::FilterDefinition> definitions;

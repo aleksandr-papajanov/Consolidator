@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Ids/DomainIds.h"
-#include "Models/EqSection.h"
 #include "Models/ProcessorState.h"
+#include "Operations/OperationTypes.h"
 #include "Results/FitResult.h"
 
 #include <string>
 #include <variant>
+#include <vector>
 
 namespace consolidator::domain {
 
@@ -31,17 +32,15 @@ struct SetEqBypassCommand {
     bool bypass = false;
 };
 
-struct SetEqSectionBypassCommand {
+struct SetEqChainBypassCommand {
     RequestId requestId{};
     BankId bankId{};
-    models::EqSection section = models::EqSection::Pre;
     bool bypass = false;
 };
 
-struct ResetEqSectionCommand {
+struct ResetEqChainCommand {
     RequestId requestId{};
     BankId bankId{};
-    models::EqSection section = models::EqSection::Pre;
 };
 
 struct AddEqBankCommand {
@@ -52,6 +51,27 @@ struct AddEqBankCommand {
 struct RemoveEqBankCommand {
     RequestId requestId{};
     BankId bankId{};
+};
+
+struct RemoveEqBanksCommand {
+    RequestId requestId{};
+    std::vector<BankId> bankIds;
+};
+
+struct SetEqBanksBypassCommand {
+    RequestId requestId{};
+    bool bypass = false;
+    std::vector<BankId> bankIds;
+};
+
+struct SoloEqBanksCommand {
+    RequestId requestId{};
+    std::vector<BankId> bankIds;
+};
+
+struct JoinEqBanksCommand {
+    RequestId requestId{};
+    std::vector<BankId> bankIds;
 };
 
 struct RenameEqBankCommand {
@@ -82,18 +102,53 @@ struct SetCompressorBypassCommand {
     bool bypass = false;
 };
 
+struct SetCompressorModeCommand {
+    RequestId requestId{};
+    long mode = 0;
+};
+
+struct SetCompressorDetectorParameterCommand {
+    RequestId requestId{};
+    long filterId = 1;
+    std::string parameter;
+    double value = 0.0;
+};
+
+struct SetCompressorDetectorListenCommand {
+    RequestId requestId{};
+    long filterId = 0;
+};
+
 struct ResetCompressorCommand {
     RequestId requestId{};
 };
 
 struct SetSaturatorParameterCommand {
     RequestId requestId{};
-    double saturation = 0.0;
+    std::string parameter = "saturation";
+    double value = 0.0;
 };
 
 struct SetSaturatorBypassCommand {
     RequestId requestId{};
     bool bypass = false;
+};
+
+struct SetSaturatorModeCommand {
+    RequestId requestId{};
+    long mode = 0;
+};
+
+struct SetSaturatorDetectorParameterCommand {
+    RequestId requestId{};
+    long filterId = 1;
+    std::string parameter;
+    double value = 0.0;
+};
+
+struct SetSaturatorDetectorListenCommand {
+    RequestId requestId{};
+    long filterId = 0;
 };
 
 struct ResetSaturatorCommand {
@@ -107,6 +162,7 @@ struct ListenAnalyzerCommand {
 
 struct StartFitCommand {
     RequestId requestId{};
+    std::vector<double> curveDb;
 };
 
 struct CancelFitCommand {
@@ -133,18 +189,28 @@ using Command = std::variant<
     SetEqParameterCommand,
     SetEqBypassCommand,
     ResetEqFilterCommand,
-    SetEqSectionBypassCommand,
-    ResetEqSectionCommand,
+    SetEqChainBypassCommand,
+    ResetEqChainCommand,
     AddEqBankCommand,
     RemoveEqBankCommand,
+    RemoveEqBanksCommand,
+    SetEqBanksBypassCommand,
+    SoloEqBanksCommand,
+    JoinEqBanksCommand,
     RenameEqBankCommand,
     SelectEqBankCommand,
     SetGainParameterCommand,
     SetCompressorParameterCommand,
     SetCompressorBypassCommand,
+    SetCompressorModeCommand,
+    SetCompressorDetectorParameterCommand,
+    SetCompressorDetectorListenCommand,
     ResetCompressorCommand,
     SetSaturatorParameterCommand,
     SetSaturatorBypassCommand,
+    SetSaturatorModeCommand,
+    SetSaturatorDetectorParameterCommand,
+    SetSaturatorDetectorListenCommand,
     ResetSaturatorCommand,
     ListenAnalyzerCommand,
     StartFitCommand,

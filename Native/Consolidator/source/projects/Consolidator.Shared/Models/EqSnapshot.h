@@ -11,8 +11,8 @@ namespace consolidator::models {
 struct EqBank {
     long bankId = 0;
     std::string name;
-    bool preBypass = false;
-    bool postBypass = false;
+    bool bypass = false;
+    bool solo = false;
     std::vector<FilterState> filters;
 
     FilterState* FindFilter(long filterId) {
@@ -58,6 +58,16 @@ struct EqSnapshot {
 
     const EqBank* SelectedBank() const {
         return FindBank(selectedBankId);
+    }
+
+    bool HasSoloBanks() const {
+        return std::any_of(banks.begin(), banks.end(), [](const EqBank& bank) {
+            return bank.solo;
+        });
+    }
+
+    bool IsBypassed(const EqBank& bank) const {
+        return bank.bypass || (HasSoloBanks() && !bank.solo);
     }
 };
 

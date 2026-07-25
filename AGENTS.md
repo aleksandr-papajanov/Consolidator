@@ -34,8 +34,8 @@ external outlet callback may run while a Host store mutex is held.
 The audio and analysis flows are:
 
 ```text
-audio -> DspProcessor -> audio and Analyzer candidate input
-post-DSP candidate + reference -> Analyzer -> SpectrumView
+audio -> input gain -> saturator -> compressor -> EQ banks -> output gain -> audio
+signal after compressor / before EQ + reference -> Analyzer -> SpectrumView
 Fit capture (pre-DSP current + reference) -> offline Approximator -> fit.complete -> DeviceHost
 ```
 
@@ -57,7 +57,9 @@ routing, and envelope payload objects are not part of the architecture.
 - `Consolidator.DspCore` contains snapshot builders and reusable DSP-facing
   projections.
 - `Consolidator.Shared` contains transport-neutral audio, curve, EQ, FFT, DSP,
-  settings, numeric helpers, and the remaining shared value types.
+  optimization primitives, settings, numeric helpers, and the remaining shared
+  value types. Generic search infrastructure must remain independent of EQ,
+  DSP, Max, and persistence.
 - `Consolidator.MaxAdapter` is the only native Max transport boundary. It maps
   Min atoms to `AtomList` and Max Dictionaries to persistence objects.
 
@@ -97,22 +99,32 @@ Supported commands are:
 - `eq.set_parameter <bankId> <filterId> <parameter> <absoluteValue>`
 - `eq.set_bypass <bankId> <filterId> <0|1>`
 - `eq.reset_filter <bankId> <filterId>`
-- `eq.set_section_bypass <bankId> <pre|post> <0|1>`
-- `eq.reset_section <bankId> <pre|post>`
+- `eq.set_chain_bypass <bankId> <0|1>`
+- `eq.reset <bankId>`
 - `eq.add_bank [name]`
 - `eq.remove_bank <bankId>`
+- `eq.remove_banks <count> <bankIds...>`
+- `eq.set_banks_bypass <0|1> <count> <bankIds...>`
+- `eq.solo_banks <count> <bankIds...>`
+- `eq.join_banks <count> <bankIds...>`
 - `eq.rename_bank <bankId> <name>`
 - `eq.select_bank <bankId>`
 - `gain.set_parameter <input|output> <absoluteGainDb>`
-- `compressor.set_parameter <attack|release|threshold> <absoluteValue>`
+- `compressor.set_parameter <attack|release|input|output|mix> <absoluteValue>`
+- `compressor.set_mode <0..2>`
+- `compressor.set_detector_parameter <1|2> <gain|frequency|q|bypass> <absoluteValue>`
+- `compressor.set_detector_listen <0|1|2>`
 - `compressor.set_bypass <0|1>`
 - `compressor.reset`
-- `saturator.set_parameter <absoluteSaturation>`
+- `saturator.set_parameter <input|output|mix> <absoluteValue>`
+- `saturator.set_mode <0..2>`
+- `saturator.set_detector_parameter <1|2> <gain|frequency|q|bypass> <absoluteValue>`
+- `saturator.set_detector_listen <0|1|2>`
 - `saturator.set_bypass <0|1>`
 - `saturator.reset`
 - `analyzer.listen <0|1>`
-- `fit.start`, `fit.cancel <sessionId>`, and `fit.clear`
-- `fit.complete <sessionId> <bankId> <loss> <filterCount> <filters...> <inputGain> <compressorBypass> <attack> <release> <threshold> <saturatorBypass> <saturation> <outputGain>`
+- `fit.start <pointCount> <curveDb...>`, `fit.cancel <sessionId>`, and `fit.clear`
+- `fit.complete <sessionId> <bankId> <loss> <filterCount> <filters...> <inputGain> <compressorBypass> <attack> <release> <input> <output> <saturatorBypass> <saturatorInput> <saturatorOutput> <outputGain>`
 - `fit.fail <sessionId> <error>`
 
 Every command inlet and outlet must document its complete accepted or produced
@@ -132,12 +144,14 @@ a contract changes.
 - Runtime state, snapshots, persistence, graph edits, and DSP use absolute
   values. Normalized `0..1` values exist only between Max controls and the
   Filter UI controller.
-- `FilterOptions` is the only source of filter types, PreEq/PostEq placement,
-  parameter names, ranges, scales, defaults, and bypass defaults. PreEq contains
-  tilt 2 and bells 4-5. PostEq contains shelves 3 and 6 and bells 7-9.
+- `FilterOptions` is the only source of filter types, parameter names, ranges,
+  scales, defaults, and bypass defaults. All EQ filters belong to one ordered
+  chain; placement is not part of filter state or definitions. Shelf and tilt
+  Q values are fixed DSP settings and are not exposed as filter parameters.
 - `CompressorOptions` and `SaturatorOptions` are the only sources of processor
-  ranges and defaults. `GainOptions` owns input/output gain range and default.
-  Compressor ratio is fixed in `CompressorOptions`.
+  ranges and defaults, including mode, mix, and detector-filter state.
+  `GainOptions` owns input/output gain range and default. Compressor ratio and
+  the temporary DSP threshold are fixed in `CompressorOptions`.
 - `Max/Config/ConsolidatorSettings.json` contains presentation-only per-filter
   colors. Runtime parameter definitions and ranges never come from JSON.
 
@@ -153,19 +167,26 @@ device's deferred persistence restore, one `persistence_ready` message makes
 Host publish definitions, EQ, and DSP snapshots exactly once.
 
 `consolidator.dspprocessor` receives complete DSP snapshots and builds the full
-chain in this fixed order: input gain, PreEq filters from every bank in ascending
-ID order, compressor, saturator, PostEq filters from every bank in ascending ID
-order, then output gain. It knows nothing about selection, UI, persistence, Analyzer,
+chain in this fixed order: input gain, saturator, compressor, all EQ filters from
+every bank in ascending bank/filter ID order, then output gain. It knows nothing about selection, UI, persistence, Analyzer,
 or Approximator. It publishes bounded latest-value processor telemetry directly
-to Analyzer's processor meters over the scoped `---processor.telemetry` transport. Telemetry
-contains measured compressor gain reduction, saturator nonlinear residual, and
-saturator level delta; it never enters Host or the runtime atom bus.
+to Analyzer over the scoped `---processor.telemetry` transport. Telemetry
+contains measured compressor gain reduction, saturator nonlinear residual,
+saturator level delta, RMS levels before/after both gain stages, and measured
+compressor/saturator output RMS; it never enters Host or the runtime atom bus.
+Its first two signal outlets are the final stereo output; outlets three and four
+are the stereo EQ-input tap after compressor and before the EQ banks. The
+`DspProcessor.maxpat` feature must pass all four signal outlets through in that
+same order before routing status, diagnostics, and telemetry.
 
-`consolidator.analyzer` receives the real post-DSP candidate stereo and the
-unprocessed reference stereo. It publishes measured current, reference and
+`consolidator.analyzer` receives the DSP tap after compressor and before the EQ
+banks, plus the unprocessed reference stereo. It publishes measured current, reference and
 difference curves, selected-bank filter curves, the total EQ response, and a
 rolling feature vector with global and standard-band metrics. It never adds a
 calculated EQ response to the measured candidate. The audio thread owns smoothing state and
+accumulates the smoothed difference curve as a running mean for the duration of
+each active `analyzer.listen` session. Disabling Listen clears that accumulation.
+The audio thread
 publishes immutable `AnalyzerCurveFrame` values through a preallocated
 single-producer/single-consumer triple buffer. Its overflow policy is
 latest-wins and replaced frames are counted. One coalesced Min `queue<>` handoff
@@ -174,18 +195,30 @@ delivers the newest frame on Max's main thread; do not poll Analyzer with
 on its visual outlet; SpectrumView must use that metadata instead of
 duplicating the native curve grid.
 
-`consolidator.approximator` receives complete DSP snapshots plus scoped pre-DSP
-current and reference signals. `fit.start` captures one fixed four-second stereo
-fragment into a preallocated buffer. A worker evaluates every candidate against
-that immutable fragment with the same DSP chain and feature pipeline used by the
-runtime components. The first half-second is processed as deterministic device
-warm-up and excluded from loss. NLopt minimizes that loss over normalized,
-bounded coordinates which are converted back into absolute snapshot values.
-Do not replace NLopt with a hand-written parameter sweep. Optimization covers every parameter of
-non-bypassed selected-bank filters, both gains, and every parameter of
-non-bypassed compressor and saturator devices. Candidates never touch live DSP,
-Host, persistence, or UI. Approximator returns one complete `fit.complete` or
-`fit.fail`; only Host commits the final EQ and processor state.
+`consolidator.approximator` owns the EQ curve workflow only. Its UI controller
+caches the latest Analyzer `fit_curve` and sends it atomically in
+`fit.start <pointCount> <curveDb...>`. DeviceHost publishes one internal
+`fit.requested <sessionId> <bankId> <pointCount> <curveDb...>` event, and the
+Approximator returns one `fit.complete` or `fit.fail`. It has no audio signal
+inlet, capture buffer, or offline dynamics/saturation workflow. `fit_curve` is
+the accumulated Analyzer difference at the EQ input minus the response of the
+ordered banks `1..selected`. `analyzer.listen` controls that Analyzer
+accumulation and is independent of the Approximator. Analyzer publishes only
+the tagged `fit_curve` message through `---analyzer.curves`. Beam Search remains
+dormant infrastructure for future structural search. Only Host commits a fit
+result atomically.
+
+`EqStorage` maintains a local ordered multi-selection whose primary bank is
+the Host selected bank. Ctrl/Cmd creates the separate join selection; it never
+changes the active bank. `Remove`, `Bypass`, and `Solo` target the join
+selection when present, otherwise the active bank. Banks persist independent
+manual `bypass` and `solo` flags. Effective DSP bypass is `bypass ||
+(anySolo && !solo)`, so disabling Solo restores manual bypass states exactly.
+The list renders `B` and `S` badges from those flags. `Join` accepts one or
+more banks and is independent of the active bank: Host uses one selected source
+as its temporary optimization layout, then after a successful fit removes every
+selected source bank and appends a newly named result bank at the end of the
+chain atomically.
 
 Analyzer visualization is split into independent responsive JSUI components.
 `consolidator.analyzer.spectrum.js` receives current spectrum, reference spectrum,
@@ -193,7 +226,8 @@ difference, selected-bank filter curves, total EQ response, and Host snapshots;
 marker drag emits absolute `eq.set_parameter` commands and Alt changes Q.
 `consolidator.analyzer.analysis.js` receives feature vectors only.
 `consolidator.analyzer.processormeters.js` receives processor telemetry only.
-The three boxes must remain independently resizable and composable in Max
+`consolidator.analyzer.gainmeters.js` receives Analyzer `gain_levels` only.
+The four boxes must remain independently resizable and composable in Max
 presentation; no component derives its drawing area from a sibling box.
 
 `Max/Features/ProcessorControls/ProcessorControls.maxpat` is the single control
@@ -239,7 +273,7 @@ unrelated global functions.
 
 ## Persistence
 
-Persistence is the only Max Dictionary use in native runtime. Schema 6 stores
+Persistence is the only Max Dictionary use in native runtime. Schema 11 stores
 EQ, input/output gain, compressor, and saturator state. The root device's
 `pattrstorage` sends recalled dictionaries through EqStorage's private third
 port to `---device.persistence.in`. DeviceHost validates the schema and complete
@@ -289,3 +323,7 @@ For normal implementation work:
 
 When the user explicitly postpones builds or tests, perform the static checks
 and report that native binaries were not rebuilt.
+
+Native builds must be started only through the VS Code default task
+`Consolidator: Build All`, which executes `.vscode/build-all.cmd`. Do not invoke
+CMake or Visual Studio build commands directly.

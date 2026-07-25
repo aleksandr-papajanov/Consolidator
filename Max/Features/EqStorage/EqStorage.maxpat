@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 718.0, 143.0, 900.0, 600.0 ],
+		"rect" : [ 639.0, 250.0, 900.0, 600.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 10.0, 10.0 ],
 		"boxes" : [ 			{
@@ -19,7 +19,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 525.0, 255.0, 145.0, 22.0 ],
+					"patching_rect" : [ 360.0, 130.0, 145.0, 22.0 ],
 					"text" : "s ---message.bus.in"
 				}
 
@@ -31,67 +31,8 @@
 					"numinlets" : 0,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 375.0, 30.0, 145.0, 22.0 ],
+					"patching_rect" : [ 360.0, 50.0, 145.0, 22.0 ],
 					"text" : "r ---message.bus.out"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "persistenceSend",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 525.0, 135.0, 170.0, 22.0 ],
-					"text" : "s ---device.persistence.in"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "persistenceReceive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 525.0, 465.0, 175.0, 22.0 ],
-					"text" : "r ---device.persistence.out"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "persistenceRoute",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 3,
-					"outlettype" : [ "bang", "", "" ],
-					"patching_rect" : [ 480.0, 180.0, 190.0, 22.0 ],
-					"text" : "route persistence_ready dictionary"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "persistenceReady",
-					"maxclass" : "message",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 480.0, 215.0, 110.0, 22.0 ],
-					"text" : "persistence_ready"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "persistenceRestore",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 600.0, 215.0, 95.0, 22.0 ],
-					"text" : "prepend restore"
 				}
 
 			}
@@ -102,7 +43,7 @@
 					"numinlets" : 2,
 					"numoutlets" : 3,
 					"outlettype" : [ "", "", "" ],
-					"patching_rect" : [ 255.0, 195.0, 148.0, 22.0 ],
+					"patching_rect" : [ 220.0, 90.0, 159.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "consolidator.eqstorage.js",
 						"parameter_enable" : 0
@@ -118,9 +59,9 @@
 					"id" : "controller",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 2,
-					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 255.0, 150.0, 217.0, 22.0 ],
+					"numoutlets" : 3,
+					"outlettype" : [ "", "", "" ],
+					"patching_rect" : [ 30.0, 140.0, 209.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "consolidator.eqstorage.controller.js",
 						"parameter_enable" : 0
@@ -133,93 +74,6 @@
 			}
 , 			{
 				"box" : 				{
-					"comment" : "",
-					"id" : "inputL",
-					"index" : 1,
-					"maxclass" : "inlet",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "signal" ],
-					"patching_rect" : [ 270.0, 450.0, 30.0, 30.0 ]
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"comment" : "",
-					"id" : "inputR",
-					"index" : 2,
-					"maxclass" : "inlet",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "signal" ],
-					"patching_rect" : [ 330.0, 450.0, 30.0, 30.0 ]
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "dspProcessor",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 2,
-					"outlettype" : [ "signal", "signal" ],
-					"patching_rect" : [ 270.0, 495.0, 139.0, 22.0 ],
-					"text" : "DspProcessor"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"comment" : "",
-					"id" : "outputL",
-					"index" : 1,
-					"maxclass" : "outlet",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 270.0, 540.0, 30.0, 30.0 ]
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"comment" : "",
-					"id" : "outputR",
-					"index" : 2,
-					"maxclass" : "outlet",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 330.0, 540.0, 30.0, 30.0 ]
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"comment" : "dictionary <name> after an EqStorage mutation",
-					"id" : "persistenceOutput",
-					"index" : 3,
-					"maxclass" : "outlet",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 461.5, 495.0, 30.0, 30.0 ]
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"comment" : "dictionary <name> restored from root pattrstorage",
-					"id" : "persistenceInput",
-					"index" : 3,
-					"maxclass" : "inlet",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 480.0, 135.0, 30.0, 30.0 ]
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"filename" : "consolidator.eqstorage.banklistview.js",
 					"id" : "list",
 					"maxclass" : "jsui",
@@ -227,9 +81,52 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 300.0, 255.0, 120.0, 110.0 ],
+					"patching_rect" : [ 220.0, 180.0, 220.0, 110.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 90.0, 110.0 ]
+					"presentation_rect" : [ 0.0, 0.0, 220.0, 110.0 ]
+				}
+
+			}
+,			{
+				"box" : 				{
+					"border" : 0,
+					"embedstate" : [ [ "count", 5 ], [ "allowEmptySelection", 1 ], [ "enabled", 1 ], [ "labels", "Add", "Remove", "Bypass", "Solo", "Join" ], [ "buttonModes", "momentary", "momentary", "toggle", "toggle", "momentary" ], [ "layout", "horizontal" ], [ "selectionMode", "custom" ] ],
+					"filename" : "ButtonGroupControl.js",
+					"id" : "bank-actions",
+					"maxclass" : "jsui",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"parameter_enable" : 0,
+					"patching_rect" : [ 220.0, 310.0, 220.0, 28.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 0.0, 112.0, 220.0, 28.0 ],
+					"varname" : "eqstorage.actions"
+				}
+
+			}
+,			{
+				"box" : 				{
+					"id" : "thispatcher",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 460.0, 350.0, 80.0, 22.0 ],
+					"save" : [ "#N", "thispatcher", ";", "#Q", "end", ";" ],
+					"text" : "thispatcher"
+				}
+
+			}
+,			{
+				"box" : 				{
+					"id" : "actions-prepend",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 240.0, 350.0, 88.0, 22.0 ],
+					"text" : "prepend action"
 				}
 
 			}
@@ -242,8 +139,8 @@
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
 					"parameter_enable" : 1,
-					"patching_rect" : [ 255.0, 90.0, 44.0, 15.0 ],
-					"presentation" : 1,
+					"patching_rect" : [ 30.0, 0.0, 44.0, 15.0 ],
+					"presentation" : 0,
 					"presentation_rect" : [ 0.0, 110.0, 44.0, 15.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
@@ -271,8 +168,8 @@
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
 					"parameter_enable" : 1,
-					"patching_rect" : [ 315.0, 90.0, 44.0, 15.0 ],
-					"presentation" : 1,
+					"patching_rect" : [ 90.0, 0.0, 44.0, 15.0 ],
+					"presentation" : 0,
 					"presentation_rect" : [ 0.0, 125.0, 44.0, 15.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
@@ -298,7 +195,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "add" ],
-					"patching_rect" : [ 255.0, 120.0, 35.0, 22.0 ],
+					"patching_rect" : [ 30.0, 30.0, 35.0, 22.0 ],
 					"text" : "t add"
 				}
 
@@ -310,49 +207,13 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "remove" ],
-					"patching_rect" : [ 315.0, 120.0, 55.0, 22.0 ],
+					"patching_rect" : [ 90.0, 30.0, 55.0, 22.0 ],
 					"text" : "t remove"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "fitCurrentLeft",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 30.0, 495.0, 145.0, 22.0 ],
-					"text" : "send~ ---fit.current.left"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "fitCurrentRight",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 30.0, 525.0, 150.0, 22.0 ],
-					"text" : "send~ ---fit.current.right"
 				}
 
 			}
  ],
 		"lines" : [ 			{
-				"patchline" : 				{
-					"destination" : [ "fitCurrentLeft", 0 ],
-					"source" : [ "inputL", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "fitCurrentRight", 0 ],
-					"source" : [ "inputR", 0 ]
-				}
-
-			}
-, 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 0 ],
 					"source" : [ "add", 0 ]
@@ -368,36 +229,23 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "outputL", 0 ],
-					"source" : [ "dspProcessor", 0 ]
+					"destination" : [ "list", 0 ],
+					"source" : [ "controller", 1 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "outputR", 0 ],
-					"source" : [ "dspProcessor", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "dspProcessor", 0 ],
-					"source" : [ "inputL", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "dspProcessor", 1 ],
-					"source" : [ "inputR", 0 ]
+					"destination" : [ "storage", 0 ],
+					"midpoints" : [ 39.5, 172.0, 9.5, 172.0, 9.5, 80.0, 229.5, 80.0 ],
+					"source" : [ "controller", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "controller", 0 ],
-					"midpoints" : [ 309.5, 393.0, 210.5, 393.0, 210.5, 183.0, 264.5, 183.0 ],
+					"midpoints" : [ 229.5, 309.0, 19.5, 309.0, 19.5, 130.0, 39.5, 130.0 ],
 					"source" : [ "list", 0 ]
 				}
 
@@ -406,13 +254,6 @@
 				"patchline" : 				{
 					"destination" : [ "storage", 1 ],
 					"source" : [ "obj-message-bus-receive-9", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "persistenceRoute", 0 ],
-					"source" : [ "persistenceInput", 0 ]
 				}
 
 			}
@@ -432,41 +273,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "persistenceReady", 0 ],
-					"source" : [ "persistenceRoute", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "persistenceRestore", 0 ],
-					"source" : [ "persistenceRoute", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "persistenceSend", 0 ],
-					"source" : [ "persistenceReady", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "persistenceSend", 0 ],
-					"source" : [ "persistenceRestore", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "storage", 0 ],
-					"source" : [ "controller", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "controller", 1 ],
 					"source" : [ "storage", 1 ]
 				}
@@ -481,22 +287,29 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "list", 0 ],
-					"source" : [ "controller", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "obj-message-bus-send-9", 0 ],
 					"source" : [ "storage", 2 ]
 				}
 
 			}
-, 			{
+,			{
 				"patchline" : 				{
-					"destination" : [ "persistenceOutput", 0 ],
-					"source" : [ "persistenceReceive", 0 ]
+					"destination" : [ "actions-prepend", 0 ],
+					"source" : [ "bank-actions", 0 ]
+				}
+
+			}
+,			{
+				"patchline" : 				{
+					"destination" : [ "controller", 0 ],
+					"source" : [ "actions-prepend", 0 ]
+				}
+
+			}
+,			{
+				"patchline" : 				{
+					"destination" : [ "thispatcher", 0 ],
+					"source" : [ "controller", 2 ]
 				}
 
 			}

@@ -1,405 +1,513 @@
 {
-	"patcher" : 	{
-		"fileversion" : 1,
-		"appversion" : 		{
-			"major" : 9,
-			"minor" : 0,
-			"revision" : 9,
-			"architecture" : "x64",
-			"modernui" : 1
-		}
-,
-		"classnamespace" : "box",
-		"rect" : [ 127.0, 85.0, 1212.0, 875.0 ],
-		"openinpresentation" : 1,
-		"gridsize" : [ 10.0, 10.0 ],
-		"boxes" : [ 			{
-				"box" : 				{
-					"id" : "obj-current-left",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "signal" ],
-					"patching_rect" : [ 450.0, 60.0, 145.0, 22.0 ],
-					"text" : "receive~ ---fit.current.left"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-current-right",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "signal" ],
-					"patching_rect" : [ 610.0, 60.0, 150.0, 22.0 ],
-					"text" : "receive~ ---fit.current.right"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-fit-trigger",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 2,
-					"outlettype" : [ "bang", "" ],
-					"patching_rect" : [ 15.0, 165.0, 35.0, 22.0 ],
-					"text" : "sel 1"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-fit-message",
-					"maxclass" : "message",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 195.0, 225.0, 35.0, 22.0 ],
-					"text" : "fit"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-local-command",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
-					"patching_rect" : [ 85.0, 228.0, 334.0, 22.0 ],
-					"saved_object_attributes" : 					{
-						"filename" : "consolidator.approximator.controller.js",
-						"parameter_enable" : 0
-					}
-,
-					"text" : "js consolidator.approximator.controller.js"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-ui-script",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 2,
-					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 615.0, 270.0, 73.0, 22.0 ],
-					"save" : [ "#N", "thispatcher", ";", "#Q", "end", ";" ],
-					"text" : "thispatcher"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-bus-send",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 75.0, 270.0, 145.0, 22.0 ],
-					"text" : "s ---message.bus.in"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-bus-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 240.0, 30.0, 145.0, 22.0 ],
-					"text" : "r ---message.bus.out"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-reference-left",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "signal" ],
-					"patching_rect" : [ 775.0, 60.0, 155.0, 22.0 ],
-					"text" : "receive~ ---fit.reference.left"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-reference-right",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "signal" ],
-					"patching_rect" : [ 945.0, 60.0, 160.0, 22.0 ],
-					"text" : "receive~ ---fit.reference.right"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-native",
-					"maxclass" : "newobj",
-					"numinlets" : 5,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
-					"patching_rect" : [ 240.0, 135.0, 319.0, 22.0 ],
-					"text" : "consolidator.approximator"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-native-command-send",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 240.0, 165.0, 145.0, 22.0 ],
-					"text" : "s ---message.bus.in"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-debug",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 0,
-					"patching_rect" : [ 540.0, 165.0, 105.0, 22.0 ],
-					"text" : "print approximator"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-fit-button",
-					"maxclass" : "live.text",
-					"mode" : 1,
-					"outputmode" : 0,
-					"numinlets" : 1,
-					"numoutlets" : 2,
-					"outlettype" : [ "", "" ],
-					"parameter_enable" : 1,
-					"patching_rect" : [ 15.0, 120.0, 56.0, 24.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 56.0, 24.0 ],
-					"saved_attribute_attributes" : 					{
-						"valueof" : 						{
-							"parameter_enum" : [ "val1", "val2" ],
-							"parameter_longname" : "fit_button",
-							"parameter_mmax" : 1,
-							"parameter_modmode" : 0,
-							"parameter_shortname" : "fit_button",
-							"parameter_type" : 2
-						}
-
-					}
-,
-					"text" : "Fit",
-					"varname" : "fit_button"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-listen-button",
-					"maxclass" : "live.text",
-					"mode" : 1,
-					"outputmode" : 0,
-					"numinlets" : 1,
-					"numoutlets" : 2,
-					"outlettype" : [ "", "" ],
-					"parameter_enable" : 1,
-					"patching_rect" : [ 105.0, 120.0, 56.0, 24.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 64.0, 0.0, 56.0, 24.0 ],
-					"rounded" : 20.0,
-					"saved_attribute_attributes" : 					{
-						"valueof" : 						{
-							"parameter_enum" : [ "val1", "val2" ],
-							"parameter_longname" : "listen_button",
-							"parameter_mmax" : 1,
-							"parameter_modmode" : 0,
-							"parameter_shortname" : "listen_button",
-							"parameter_type" : 2
-						}
-
-					}
-,
-					"text" : "Listen",
-					"texton" : "Listening",
-					"varname" : "listen_button"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-listen-prepend",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 105.0, 165.0, 90.0, 22.0 ],
-					"text" : "prepend listen"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-clear-message",
-					"maxclass" : "message",
-					"numinlets" : 2,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 60.0, 165.0, 42.0, 22.0 ],
-					"text" : "clear"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-status-route",
-					"maxclass" : "newobj",
-					"numinlets" : 2,
-					"numoutlets" : 2,
-					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 390.0, 270.0, 90.0, 22.0 ],
-					"text" : "route status"
-				}
-
-			}
- ],
-		"lines" : [ 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native", 0 ],
-					"source" : [ "obj-current-left", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native", 1 ],
-					"source" : [ "obj-current-right", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-local-command", 0 ],
-					"source" : [ "obj-fit-message", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native", 4 ],
-					"source" : [ "obj-bus-receive", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-local-command", 0 ],
-					"source" : [ "obj-clear-message", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native", 2 ],
-					"source" : [ "obj-reference-left", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native", 3 ],
-					"source" : [ "obj-reference-right", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-fit-trigger", 0 ],
-					"source" : [ "obj-fit-button", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-fit-message", 0 ],
-					"source" : [ "obj-fit-trigger", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-listen-prepend", 0 ],
-					"source" : [ "obj-listen-button", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-local-command", 0 ],
-					"source" : [ "obj-listen-prepend", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-bus-send", 0 ],
-					"source" : [ "obj-local-command", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-status-route", 0 ],
-					"source" : [ "obj-local-command", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-ui-script", 0 ],
-					"source" : [ "obj-local-command", 2 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-debug", 0 ],
-					"order" : 0,
-					"source" : [ "obj-native", 2 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-local-command", 1 ],
-					"source" : [ "obj-native", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-native-command-send", 0 ],
-					"source" : [ "obj-native", 0 ]
-				}
-
-			}
- ],
-		"saved_attribute_attributes" : 		{
-			"default_plcolor" : 			{
-				"expression" : ""
-			}
-
-		}
-,
-		"oscreceiveudpport" : 0
-	}
-
+    "patcher":  {
+                    "fileversion":  1,
+                    "appversion":  {
+                                       "major":  9,
+                                       "minor":  0,
+                                       "revision":  9,
+                                       "architecture":  "x64",
+                                       "modernui":  1
+                                   },
+                    "classnamespace":  "box",
+                    "rect":  [
+                                 100.0,
+                                 100.0,
+                                 760.0,
+                                 420.0
+                             ],
+                    "openinpresentation":  1,
+                    "gridsize":  [
+                                     10.0,
+                                     10.0
+                                 ],
+                    "boxes":  [
+                                  {
+                                      "box":  {
+                                                  "border":  0,
+                                                  "embedstate":  [
+                                                                     [
+                                                                         "enabled",
+                                                                         1
+                                                                     ],
+                                                                     [
+                                                                         "loadingIndex",
+                                                                         0
+                                                                     ],
+                                                                     [
+                                                                         "labels",
+                                                                         "Match EQ"
+                                                                     ],
+                                                                     [
+                                                                         "selectionMode",
+                                                                         "custom"
+                                                                     ],
+                                                                     [
+                                                                         "buttonModes",
+                                                                         "momentary"
+                                                                     ],
+                                                                     [
+                                                                         "layout",
+                                                                         "horizontal"
+                                                                     ],
+                                                                     [
+                                                                         "allowEmptySelection",
+                                                                         1
+                                                                     ],
+                                                                     [
+                                                                         "count",
+                                                                         1
+                                                                     ]
+                                                                 ],
+                                                  "filename":  "ButtonGroupControl.js",
+                                                  "id":  "match-control",
+                                                  "maxclass":  "jsui",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  1,
+                                                  "outlettype":  [
+                                                                     ""
+                                                                 ],
+                                                  "parameter_enable":  0,
+                                                  "patching_rect":  [
+                                                                        0,
+                                                                        0,
+                                                                        120,
+                                                                        30
+                                                                    ],
+                                                  "presentation":  1,
+                                                  "presentation_rect":  [
+                                                                            0,
+                                                                            0,
+                                                                            120,
+                                                                            30
+                                                                        ],
+                                                  "varname":  "approximator.match"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "border":  0,
+                                                  "embedstate":  [
+                                                                     [
+                                                                         "enabled",
+                                                                         1
+                                                                     ],
+                                                                     [
+                                                                         "label",
+                                                                         "Listen"
+                                                                     ],
+                                                                     [
+                                                                         "mode",
+                                                                         "toggle"
+                                                                     ],
+                                                                     [
+                                                                         "value",
+                                                                         0
+                                                                     ]
+                                                                 ],
+                                                  "filename":  "ButtonControl.js",
+                                                  "id":  "listen-control",
+                                                  "maxclass":  "jsui",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  1,
+                                                  "outlettype":  [
+                                                                     ""
+                                                                 ],
+                                                  "parameter_enable":  0,
+                                                  "patching_rect":  [
+                                                                        130,
+                                                                        0,
+                                                                        90,
+                                                                        30
+                                                                    ],
+                                                  "presentation":  1,
+                                                  "presentation_rect":  [
+                                                                            130,
+                                                                            0,
+                                                                            90,
+                                                                            30
+                                                                        ],
+                                                  "varname":  "approximator.listen"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "listen-prepend",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  1,
+                                                  "outlettype":  [
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        125.0,
+                                                                        70.0,
+                                                                        95.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "prepend listen"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "match-prepend",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  1,
+                                                  "outlettype":  [
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        20.0,
+                                                                        70.0,
+                                                                        95.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "prepend match"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "controller",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  2,
+                                                  "numoutlets":  3,
+                                                  "outlettype":  [
+                                                                     "",
+                                                                     "",
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        20.0,
+                                                                        110.0,
+                                                                        265.0,
+                                                                        22.0
+                                                                    ],
+                                                  "saved_object_attributes":  {
+                                                                                  "filename":  "consolidator.approximator.controller.js",
+                                                                                  "parameter_enable":  0
+                                                                              },
+                                                  "text":  "js consolidator.approximator.controller.js"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "thispatcher",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  2,
+                                                  "outlettype":  [
+                                                                     "",
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        300.0,
+                                                                        150.0,
+                                                                        80.0,
+                                                                        22.0
+                                                                    ],
+                                                  "save":  [
+                                                               "#N",
+                                                               "thispatcher",
+                                                               ";",
+                                                               "#Q",
+                                                               "end",
+                                                               ";"
+                                                           ],
+                                                  "text":  "thispatcher"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "bus-receive",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  0,
+                                                  "numoutlets":  1,
+                                                  "outlettype":  [
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        390.0,
+                                                                        70.0,
+                                                                        145.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "r ---message.bus.out"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "controller-bus-send",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  0,
+                                                  "patching_rect":  [
+                                                                        20.0,
+                                                                        150.0,
+                                                                        145.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "s ---message.bus.in"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "native",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  3,
+                                                  "outlettype":  [
+                                                                     "",
+                                                                     "",
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        390.0,
+                                                                        190.0,
+                                                                        300.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "consolidator.approximator"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "native-bus-send",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  0,
+                                                  "patching_rect":  [
+                                                                        390.0,
+                                                                        230.0,
+                                                                        145.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "s ---message.bus.in"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "status-print",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  0,
+                                                  "patching_rect":  [
+                                                                        180.0,
+                                                                        150.0,
+                                                                        145.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "print approximator.status"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "debug-print",
+                                                  "maxclass":  "newobj",
+                                                  "numinlets":  1,
+                                                  "numoutlets":  0,
+                                                  "patching_rect":  [
+                                                                        550.0,
+                                                                        230.0,
+                                                                        120.0,
+                                                                        22.0
+                                                                    ],
+                                                  "text":  "print approximator"
+                                              }
+                                  },
+                                  {
+                                      "box":  {
+                                                  "id":  "fit-curve-receive",
+                                                  "maxclass":  "newobj",
+                                                  "text":  "r ---analyzer.curves",
+                                                  "numinlets":  0,
+                                                  "numoutlets":  1,
+                                                  "outlettype":  [
+                                                                     ""
+                                                                 ],
+                                                  "patching_rect":  [
+                                                                        550,
+                                                                        70,
+                                                                        145,
+                                                                        22
+                                                                    ]
+                                              }
+                                  }
+                              ],
+                    "lines":  [
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "match-prepend",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "match-control",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "listen-prepend",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "listen-control",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "controller",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "listen-prepend",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "controller",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "match-prepend",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "controller-bus-send",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "controller",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "status-print",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "controller",
+                                                                       1
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "thispatcher",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "controller",
+                                                                       2
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "native",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "bus-receive",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "native-bus-send",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "native",
+                                                                       0
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "controller",
+                                                                            1
+                                                                        ],
+                                                        "source":  [
+                                                                       "native",
+                                                                       1
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "destination":  [
+                                                                            "debug-print",
+                                                                            0
+                                                                        ],
+                                                        "source":  [
+                                                                       "native",
+                                                                       2
+                                                                   ]
+                                                    }
+                                  },
+                                  {
+                                      "patchline":  {
+                                                        "source":  [
+                                                                       "fit-curve-receive",
+                                                                       0
+                                                                   ],
+                                                        "destination":  [
+                                                                            "controller",
+                                                                            1
+                                                                        ]
+                                                    }
+                                  }
+                              ],
+                    "dependency_cache":  [
+                                             {
+                                                 "name":  "ButtonControl.js",
+                                                 "bootpath":  "D:/Projects/Ableton/Consolidator/Max/Features/Interface",
+                                                 "patcherrelativepath":  "../Interface",
+                                                 "type":  "TEXT",
+                                                 "implicit":  1
+                                             },
+                                             {
+                                                 "name":  "ButtonGroupControl.js",
+                                                 "bootpath":  "D:/Projects/Ableton/Consolidator/Max/Features/Interface",
+                                                 "patcherrelativepath":  "../Interface",
+                                                 "type":  "TEXT",
+                                                 "implicit":  1
+                                             },
+                                             {
+                                                 "name":  "consolidator.approximator.controller.js",
+                                                 "bootpath":  "D:/Projects/Ableton/Consolidator/Max/Features/Approximator",
+                                                 "patcherrelativepath":  ".",
+                                                 "type":  "TEXT",
+                                                 "implicit":  1
+                                             },
+                                             {
+                                                 "name":  "consolidator.approximator.mxe64",
+                                                 "bootpath":  "D:/Projects/Ableton/Consolidator/Max/Features/Approximator",
+                                                 "patcherrelativepath":  ".",
+                                                 "type":  "mx64",
+                                                 "implicit":  1
+                                             }
+                                         ]
+                }
 }

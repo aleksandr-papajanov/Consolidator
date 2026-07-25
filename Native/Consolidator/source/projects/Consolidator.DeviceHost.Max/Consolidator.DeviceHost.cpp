@@ -24,7 +24,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_section_bypass, eq.reset_section, eq.add_bank, eq.remove_bank, eq.rename_bank, eq.select_bank, gain.set_parameter, compressor.set_parameter, compressor.set_bypass, compressor.reset, saturator.set_parameter, saturator.set_bypass, saturator.reset, analyzer.listen, fit.start, fit.cancel, fit.clear, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass, eq.reset, eq.add_bank, eq.remove_bank, eq.remove_banks <count> <bankIds...>, eq.set_banks_bypass <0|1> <count> <bankIds...>, eq.solo_banks <count> <bankIds...>, eq.join_banks <count> <bankIds...>, eq.rename_bank, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.listen, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,

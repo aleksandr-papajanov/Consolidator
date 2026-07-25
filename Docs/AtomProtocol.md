@@ -10,15 +10,17 @@ command <version> <source> <requestId> <name> <fields...>
 ```
 
 The current commands are `eq.set_parameter`, `eq.set_bypass`, `eq.reset_filter`,
-`eq.set_section_bypass`, `eq.reset_section`, `eq.add_bank`,
-`eq.remove_bank`, `eq.rename_bank`, `eq.select_bank`, `analyzer.listen`,
+`eq.set_chain_bypass`, `eq.reset`, `eq.add_bank`,
+`eq.remove_bank`, `eq.remove_banks`, `eq.set_banks_bypass`, `eq.solo_banks`,
+`eq.join_banks`, `eq.rename_bank`, `eq.select_bank`, `analyzer.listen`,
 `gain.set_parameter`,
 `compressor.set_parameter`, `compressor.set_bypass`, `compressor.reset`,
-`saturator.set_parameter`, `saturator.set_bypass`, `saturator.reset`, `fit.start`, `fit.cancel`,
+`saturator.set_parameter <input|output|mix> <absoluteValue>`, `saturator.set_bypass`, `saturator.set_mode`, `saturator.set_detector_parameter`, `saturator.reset`,
+`fit.start <pointCount> <curveDb...>`, `fit.cancel`,
 `fit.clear`, `fit.complete`, and `fit.fail`. All processor and EQ
 values are absolute. `fit.complete` frames its filters and values with explicit
-counts, then appends input gain, compressor bypass/attack/release/threshold,
-saturator bypass/amount, and output gain. Host commits the complete result as
+counts, then appends input gain, compressor bypass/attack/release/input/output,
+saturator bypass/input/output, and output gain. Host commits the complete result as
 one fit transaction. `eq.add_bank` accepts an optional
 single name atom; when omitted, Host generates the deterministic bank name.
 
@@ -35,7 +37,7 @@ Events include `host.initialized`, `store.updated`,
 
 ```text
 snapshot <version> host eq <revision> <selectedBank> <bankCount>
-    <bankId> <bankName> <preBypass> <postBypass> <filterCount>
+    <bankId> <bankName> <bypass> <filterCount>
         <filterId> <bypass> <valueCount> <absoluteValue...>
 ```
 
@@ -48,21 +50,24 @@ Filter definitions use a second snapshot family:
 
 ```text
 snapshot <version> host definitions <revision> <filterCount>
-    <filterId> <pre|post> <type> <defaultBypass> <parameterCount>
+    <filterId> <type> <defaultBypass> <parameterCount>
         <name> <minimum> <maximum> <scale> <defaultValue>
 ```
 
 Processor definitions use `snapshot 1 host processor_definitions ...` and
 contain the absolute range, scale, and default for input gain, compressor
-attack/release/threshold, saturator saturation, and output gain.
+attack/release/input/output/mix/mode plus detector filter definitions, saturator
+input/output/mix/mode plus detector filter definitions, and output gain.
 
 The audio endpoint receives the complete processing state:
 
 ```text
 snapshot 1 host dsp <revision> <EQ snapshot body...>
     <inputGainDb>
-    <compressorBypass> <attackMs> <releaseMs> <thresholdDb>
-    <saturatorBypass> <saturation>
+    <compressorBypass> <attackMs> <releaseMs> <inputDb> <outputDb>
+    <compressorMix> <compressorMode> <compressorDetectorFields...>
+    <saturatorBypass> <inputDb> <outputDb> <saturatorMix> <saturatorMode>
+    <saturatorDetectorFields...>
     <outputGainDb>
 ```
 
