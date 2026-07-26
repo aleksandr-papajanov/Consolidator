@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <string>
 #include <vector>
 
 namespace consolidator::host {
@@ -28,7 +29,12 @@ public:
     const CompressorStore& Compressor() const noexcept;
     const SaturatorStore& Saturator() const noexcept;
     domain::StoreRevision Revision() const noexcept;
-    bool Restore(domain::EqState eq, domain::ProcessorState processor, domain::StoreRevision revision);
+    bool Restore(
+        domain::EqState eq,
+        domain::ProcessorState processor,
+        domain::StoreRevision revision,
+        std::string instanceId);
+    const std::string& InstanceId() const noexcept;
 
 private:
     void PublishResult(const UpdateResult& result, domain::RequestId requestId);
@@ -44,6 +50,7 @@ private:
     AnalyzerWorkflow analyzerWorkflow;
     FitWorkflow fitWorkflow;
     EventHandler eventHandler;
+    std::string instanceId;
     std::vector<domain::Event>* activeEvents = nullptr;
 };
 

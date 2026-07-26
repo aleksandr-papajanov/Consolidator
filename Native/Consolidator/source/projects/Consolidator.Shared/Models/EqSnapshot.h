@@ -10,9 +10,7 @@ namespace consolidator::models {
 
 struct EqBank {
     long bankId = 0;
-    std::string name;
-    bool bypass = false;
-    bool solo = false;
+    std::string linkId;
     std::vector<FilterState> filters;
 
     FilterState* FindFilter(long filterId) {
@@ -33,8 +31,23 @@ struct EqBank {
 };
 
 struct EqSnapshot {
-    long selectedBankId = 0;
+    static constexpr long SystemBankId = 0;
+    static constexpr long FirstUserBankId = 1;
+    static constexpr long LastUserBankId = 6;
+    static constexpr long BankCount = LastUserBankId + 1;
+
+    long selectedBankId = FirstUserBankId;
+    bool bypass = false;
+    bool solo = false;
     std::vector<EqBank> banks;
+
+    static bool IsUserBankId(long bankId) noexcept {
+        return bankId >= FirstUserBankId && bankId <= LastUserBankId;
+    }
+
+    static bool IsKnownBankId(long bankId) noexcept {
+        return bankId >= SystemBankId && bankId <= LastUserBankId;
+    }
 
     EqBank* FindBank(long bankId) {
         const auto bank = std::find_if(banks.begin(), banks.end(),
@@ -60,14 +73,8 @@ struct EqSnapshot {
         return FindBank(selectedBankId);
     }
 
-    bool HasSoloBanks() const {
-        return std::any_of(banks.begin(), banks.end(), [](const EqBank& bank) {
-            return bank.solo;
-        });
-    }
-
-    bool IsBypassed(const EqBank& bank) const {
-        return bank.bypass || (HasSoloBanks() && !bank.solo);
+    bool IsBypassed() const noexcept {
+        return bypass;
     }
 };
 

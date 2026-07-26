@@ -128,7 +128,7 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
             this.SendCommand("eq.reset", [this.selectedBankId]);
         } else if (eqAction === "bypass") {
             var eqBypass = Number(values[2]) ? 1 : 0;
-            this.SendCommand("eq.set_chain_bypass", [this.selectedBankId, eqBypass]);
+            this.SendCommand("eq.set_chain_bypass", [eqBypass]);
         }
         return;
     }
@@ -330,17 +330,14 @@ ProcessorControlsController.prototype.SendProcessorControlState = function(devic
 
 ProcessorControlsController.prototype.HandleEqSnapshot = function(values) {
     this.selectedBankId = Number(values[5]);
-    var position = 7;
-    var bankCount = Number(values[6]);
+    var chainBypass = Number(values[6]);
+    var position = 9;
+    var bankCount = Number(values[8]);
+    this.SendValue(["eq", "bypass", chainBypass]);
     for (var bankIndex = 0; bankIndex < bankCount; bankIndex++) {
         var bankId = Number(values[position++]);
         position++;
-        var bypass = Number(values[position++]);
-        position++;
         var filterCount = Number(values[position++]);
-        if (bankId === this.selectedBankId) {
-            this.SendValue(["eq", "bypass", bypass]);
-        }
         for (var filterIndex = 0; filterIndex < filterCount; filterIndex++) {
             var filterId = Number(values[position++]);
             var bypass = Number(values[position++]);

@@ -22,6 +22,14 @@ namespace consolidator::messaging {
 
 class SnapshotCodec final {
 public:
+    static AtomList EncodeDevice(std::string instanceId) {
+        AtomWriter writer;
+        writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
+            .Write(std::string{ "host" }).Write(std::string{ "device" })
+            .Write(static_cast<std::int64_t>(1)).Write(std::move(instanceId));
+        return std::move(writer).Finish();
+    }
+
     static AtomList EncodeDefinitions(const domain::FilterDefinitionCatalog& definitions) {
         AtomWriter writer;
         writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
@@ -97,11 +105,11 @@ public:
             .Write(std::string{ "host" }).Write(std::string{ "eq" })
             .Write(static_cast<std::int64_t>(revision))
             .Write(static_cast<std::int64_t>(state.selectedBankId))
+            .Write(state.bypass)
+            .Write(state.solo)
             .Write(static_cast<std::int64_t>(state.banks.size()));
         for (const auto& bank : state.banks) {
-            writer.Write(static_cast<std::int64_t>(bank.bankId)).Write(bank.name)
-                .Write(bank.bypass)
-                .Write(bank.solo)
+            writer.Write(static_cast<std::int64_t>(bank.bankId)).Write(bank.linkId)
                 .Write(static_cast<std::int64_t>(bank.filters.size()));
             for (const auto& filter : bank.filters) {
                 writer.Write(static_cast<std::int64_t>(filter.filterId))
@@ -121,41 +129,35 @@ public:
         const auto store = reader.ReadString();
         const auto revision = reader.ReadInt();
         const auto selectedBank = reader.ReadInt();
+        const auto bypass = reader.ReadBool();
+        const auto solo = reader.ReadBool();
         const auto bankCount = reader.ReadInt();
-        if (!category || !version || !source || !store || !revision || !selectedBank || !bankCount ||
+        if (!category || !version || !source || !store || !revision || !selectedBank || !bypass || !solo || !bankCount ||
             *category != "snapshot" || *version != 1 || *source != "host" || *store != "eq" ||
-            *revision < 0 || *selectedBank < 1 || *selectedBank > std::numeric_limits<long>::max() ||
-            *bankCount < 1) {
+            *revision < 0 || !models::EqSnapshot::IsUserBankId(static_cast<long>(*selectedBank)) ||
+            *bankCount != models::EqSnapshot::BankCount) {
             return std::nullopt;
         }
 
         domain::EqState result;
         result.selectedBankId = static_cast<long>(*selectedBank);
-        std::int64_t previousBankId = 0;
+        result.bypass = *bypass;
+        result.solo = *solo;
         for (long bankIndex = 0; bankIndex < *bankCount; ++bankIndex) {
             const auto bankId = reader.ReadInt();
-            const auto name = reader.ReadString();
-            const auto bypass = reader.ReadBool();
-            const auto solo = reader.ReadBool();
+            const auto linkId = reader.ReadString();
             const auto filterCount = reader.ReadInt();
-            if (!bankId || !name || !bypass || !solo || !filterCount || *bankId <= previousBankId ||
-                *bankId > std::numeric_limits<long>::max() ||
-                name->empty() || *filterCount < 0) return std::nullopt;
-            previousBankId = *bankId;
+            if (!bankId || !linkId || !filterCount || *bankId != bankIndex || *filterCount < 0) return std::nullopt;
             models::EqBank bank;
             bank.bankId = static_cast<long>(*bankId);
-            bank.name = *name;
-            bank.bypass = *bypass;
-            bank.solo = *solo;
-            std::int64_t previousFilterId = 0;
+            bank.linkId = *linkId;
             for (long filterIndex = 0; filterIndex < *filterCount; ++filterIndex) {
                 const auto filterId = reader.ReadInt();
                 const auto bypass = reader.ReadBool();
                 const auto valueCount = reader.ReadInt();
-                if (!filterId || !bypass || !valueCount || *filterId <= previousFilterId ||
+                if (!filterId || !bypass || !valueCount || *filterId < 1 ||
                     *filterId > std::numeric_limits<long>::max() ||
                     *valueCount < 0) return std::nullopt;
-                previousFilterId = *filterId;
                 models::FilterState filter;
                 filter.filterId = static_cast<long>(*filterId);
                 filter.bypass = *bypass;

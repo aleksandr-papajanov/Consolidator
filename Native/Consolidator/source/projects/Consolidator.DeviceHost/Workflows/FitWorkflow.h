@@ -10,7 +10,6 @@
 
 #include <functional>
 #include <string>
-#include <vector>
 
 namespace consolidator::host {
 
@@ -27,7 +26,7 @@ public:
         EventHandler eventHandler = {});
 
     void Handle(const domain::StartFitCommand& command);
-    void Handle(const domain::JoinEqBanksCommand& command);
+    void Handle(const domain::CommitHiddenEqBankCommand& command);
     void Handle(const domain::CancelFitCommand& command);
     void Handle(const domain::ClearFitCommand& command);
     void Handle(const domain::CompleteFitCommand& command);
@@ -46,8 +45,8 @@ private:
     GainStore& outputGainStore;
     domain::ApproximatorState state;
     domain::BankId activeBankId{};
-    std::vector<domain::BankId> joinedBankIds;
     domain::FitMode activeMode = domain::FitMode::Eq;
+    bool commitHidden = false;
     EventHandler eventHandler;
 };
 

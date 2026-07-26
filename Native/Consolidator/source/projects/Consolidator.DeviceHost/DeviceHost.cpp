@@ -43,17 +43,15 @@ void DeviceHost::Handle(const domain::Command& command) {
         std::visit([this](const auto& value) {
             using Command = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) PublishResult(eqStore.SetParameter(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetEqParameterIndexCommand>) PublishResult(eqStore.SetParameterAtIndex(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetEqBypassCommand>) PublishResult(eqStore.SetBypass(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetEqFilterCommand>) PublishResult(eqStore.ResetFilter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetEqChainBypassCommand>) PublishResult(eqStore.SetChainBypass(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::SetEqChainSoloCommand>) PublishResult(eqStore.SetChainSolo(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetEqChainCommand>) PublishResult(eqStore.ResetChain(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::AddEqBankCommand>) PublishResult(eqStore.AddBank(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::RemoveEqBankCommand>) PublishResult(eqStore.RemoveBank(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::RemoveEqBanksCommand>) PublishResult(eqStore.RemoveBanks(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::SetEqBanksBypassCommand>) PublishResult(eqStore.SetBanksBypass(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::SoloEqBanksCommand>) PublishResult(eqStore.SoloBanks(value), value.requestId);
-            else if constexpr (std::is_same_v<Command, domain::JoinEqBanksCommand>) fitWorkflow.Handle(value);
-            else if constexpr (std::is_same_v<Command, domain::RenameEqBankCommand>) PublishResult(eqStore.RenameBank(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::JoinEqBanksCommand>) PublishResult(eqStore.JoinBanks(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::CommitHiddenEqBankCommand>) fitWorkflow.Handle(value);
+            else if constexpr (std::is_same_v<Command, domain::SetEqBankLinkCommand>) PublishResult(eqStore.SetBankLink(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SelectEqBankCommand>) PublishResult(eqStore.SelectBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
                 auto& store = value.stage == domain::GainStage::Input ? inputGainStore : outputGainStore;
@@ -97,16 +95,26 @@ domain::StoreRevision DeviceHost::Revision() const noexcept {
         saturatorStore.Revision() + outputGainStore.Revision();
 }
 
-bool DeviceHost::Restore(domain::EqState eq, domain::ProcessorState processor, domain::StoreRevision revision) {
+bool DeviceHost::Restore(
+    domain::EqState eq,
+    domain::ProcessorState processor,
+    domain::StoreRevision revision,
+    std::string instanceId
+) {
+    if (instanceId.empty()) return false;
     std::lock_guard<std::mutex> lock(mutex);
     const auto eqResult = eqStore.Replace(std::move(eq), revision);
     const auto inputGainResult = inputGainStore.Replace(processor.inputGain, 0);
     const auto compressorResult = compressorStore.Replace(processor.compressor, 0);
     const auto saturatorResult = saturatorStore.Replace(processor.saturator, 0);
     const auto outputGainResult = outputGainStore.Replace(processor.outputGain, 0);
-    return eqResult.Accepted() && inputGainResult.Accepted() && compressorResult.Accepted() &&
+    const auto restored = eqResult.Accepted() && inputGainResult.Accepted() && compressorResult.Accepted() &&
         saturatorResult.Accepted() && outputGainResult.Accepted();
+    if (restored) this->instanceId = std::move(instanceId);
+    return restored;
 }
+
+const std::string& DeviceHost::InstanceId() const noexcept { return instanceId; }
 
 void DeviceHost::Publish(domain::Event event) {
     if (activeEvents) activeEvents->push_back(std::move(event));

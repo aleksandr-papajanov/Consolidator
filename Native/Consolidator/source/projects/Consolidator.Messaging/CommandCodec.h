@@ -45,6 +45,19 @@ public:
                 { *requestId }, { *bankId }, { *filterId }, *parameter, *value
             });
         }
+        if (*name == "eq.set_parameter_index") {
+            const auto bankId = reader.ReadInt();
+            const auto filterId = reader.ReadInt();
+            const auto parameterIndex = reader.ReadInt();
+            const auto value = reader.ReadDouble();
+            if (!bankId || !filterId || !parameterIndex || !value || *bankId < 1 || *filterId < 1 ||
+                *parameterIndex < 0 || !reader.RequireEnd()) {
+                return Invalid("invalid_eq_set_parameter_index", reader.Index());
+            }
+            return Success(domain::SetEqParameterIndexCommand{
+                { *requestId }, { *bankId }, { *filterId }, static_cast<std::size_t>(*parameterIndex), *value
+            });
+        }
         if (*name == "eq.reset_filter") {
             const auto bankId = reader.ReadInt();
             const auto filterId = reader.ReadInt();
@@ -63,60 +76,49 @@ public:
             });
         }
         if (*name == "eq.set_chain_bypass") {
-            const auto bankId = reader.ReadInt();
             const auto bypass = reader.ReadBool();
-            if (!bankId || !bypass || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_set_chain_bypass", reader.Index());
-            return Success(domain::SetEqChainBypassCommand{ { *requestId }, { *bankId }, *bypass });
+            if (!bypass || !reader.RequireEnd()) return Invalid("invalid_eq_set_chain_bypass", reader.Index());
+            return Success(domain::SetEqChainBypassCommand{ { *requestId }, *bypass });
+        }
+        if (*name == "eq.set_chain_solo") {
+            const auto solo = reader.ReadBool();
+            if (!solo || !reader.RequireEnd()) return Invalid("invalid_eq_set_chain_solo", reader.Index());
+            return Success(domain::SetEqChainSoloCommand{ { *requestId }, *solo });
         }
         if (*name == "eq.reset") {
             const auto bankId = reader.ReadInt();
             if (!bankId || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_reset", reader.Index());
             return Success(domain::ResetEqChainCommand{ { *requestId }, { *bankId } });
         }
-        if (*name == "eq.add_bank") {
-            if (reader.RequireEnd()) {
-                return Success(domain::AddEqBankCommand{ { *requestId }, {} });
-            }
-            const auto bankName = reader.ReadString();
-            if (!bankName || !reader.RequireEnd()) return Invalid("invalid_eq_add_bank", reader.Index());
-            return Success(domain::AddEqBankCommand{ { *requestId }, *bankName });
-        }
-        if (*name == "eq.remove_bank") {
-            const auto bankId = reader.ReadInt();
-            if (!bankId || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_remove_bank", reader.Index());
-            return Success(domain::RemoveEqBankCommand{ { *requestId }, { *bankId } });
-        }
-        if (*name == "eq.remove_banks" || *name == "eq.set_banks_bypass" ||
-            *name == "eq.solo_banks" || *name == "eq.join_banks") {
-            const auto bypass = *name == "eq.set_banks_bypass" ? reader.ReadBool() : std::optional<bool>{ true };
+        if (*name == "eq.join_banks") {
             const auto count = reader.ReadInt();
-            if (!bypass || !count || *count < 1 || *count > 1024) {
+            if (!count || *count < 1 || *count > 6) {
                 return Invalid("invalid_eq_bank_selection", reader.Index());
             }
             std::vector<domain::BankId> bankIds;
             bankIds.reserve(static_cast<std::size_t>(*count));
             for (long index = 0; index < *count; ++index) {
                 const auto bankId = reader.ReadInt();
-                if (!bankId || *bankId < 1) return Invalid("invalid_eq_bank_selection", reader.Index());
+                if (!bankId || *bankId < 1 || *bankId > 6) return Invalid("invalid_eq_bank_selection", reader.Index());
                 bankIds.push_back({ *bankId });
             }
             if (!reader.RequireEnd()) return Invalid("invalid_eq_bank_selection", reader.Index());
-            if (*name == "eq.remove_banks") {
-                return Success(domain::RemoveEqBanksCommand{ { *requestId }, std::move(bankIds) });
-            }
-            if (*name == "eq.set_banks_bypass") {
-                return Success(domain::SetEqBanksBypassCommand{ { *requestId }, *bypass, std::move(bankIds) });
-            }
-            if (*name == "eq.solo_banks") {
-                return Success(domain::SoloEqBanksCommand{ { *requestId }, std::move(bankIds) });
-            }
             return Success(domain::JoinEqBanksCommand{ { *requestId }, std::move(bankIds) });
         }
-        if (*name == "eq.rename_bank") {
+        if (*name == "eq.commit_hidden") {
             const auto bankId = reader.ReadInt();
-            const auto bankName = reader.ReadString();
-            if (!bankId || !bankName || *bankId < 1 || bankName->empty() || !reader.RequireEnd()) return Invalid("invalid_eq_rename_bank", reader.Index());
-            return Success(domain::RenameEqBankCommand{ { *requestId }, { *bankId }, *bankName });
+            if (!bankId || *bankId < 1 || *bankId > 6 || !reader.RequireEnd()) return Invalid("invalid_eq_commit_hidden", reader.Index());
+            return Success(domain::CommitHiddenEqBankCommand{ { *requestId }, { *bankId } });
+        }
+        if (*name == "eq.set_link") {
+            const auto bankId = reader.ReadInt();
+            const auto linkId = reader.ReadString();
+            if (!bankId || !linkId || *bankId < 1 || *bankId > 6 || !reader.RequireEnd()) {
+                return Invalid("invalid_eq_set_link", reader.Index());
+            }
+            return Success(domain::SetEqBankLinkCommand{
+                { *requestId }, { *bankId }, *linkId == "-" ? std::string{} : *linkId
+            });
         }
         if (*name == "eq.select_bank") {
             const auto bankId = reader.ReadInt();

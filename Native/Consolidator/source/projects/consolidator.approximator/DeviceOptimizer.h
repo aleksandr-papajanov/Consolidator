@@ -247,7 +247,7 @@ public:
         for (std::size_t filterIndex = 0; filterIndex < bank->filters.size(); ++filterIndex) {
             const auto& filter = bank->filters[filterIndex];
             const auto definition = definitions.find(filter.filterId);
-            if (definition == definitions.end() || filter.bypass || bank->bypass) continue;
+            if (definition == definitions.end() || filter.bypass || snapshot.eq.IsBypassed()) continue;
             for (std::size_t parameterIndex = 0;
                  parameterIndex < definition->second.parameters.size();
                  ++parameterIndex) {

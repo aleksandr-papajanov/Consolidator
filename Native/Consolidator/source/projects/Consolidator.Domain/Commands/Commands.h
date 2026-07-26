@@ -5,6 +5,7 @@
 #include "Operations/OperationTypes.h"
 #include "Results/FitResult.h"
 
+#include <cstddef>
 #include <string>
 #include <variant>
 #include <vector>
@@ -16,6 +17,14 @@ struct SetEqParameterCommand {
     BankId bankId{};
     FilterId filterId{};
     std::string parameter;
+    double value = 0.0;
+};
+
+struct SetEqParameterIndexCommand {
+    RequestId requestId{};
+    BankId bankId{};
+    FilterId filterId{};
+    std::size_t parameterIndex = 0;
     double value = 0.0;
 };
 
@@ -34,8 +43,12 @@ struct SetEqBypassCommand {
 
 struct SetEqChainBypassCommand {
     RequestId requestId{};
-    BankId bankId{};
     bool bypass = false;
+};
+
+struct SetEqChainSoloCommand {
+    RequestId requestId{};
+    bool solo = false;
 };
 
 struct ResetEqChainCommand {
@@ -43,41 +56,20 @@ struct ResetEqChainCommand {
     BankId bankId{};
 };
 
-struct AddEqBankCommand {
-    RequestId requestId{};
-    std::string name;
-};
-
-struct RemoveEqBankCommand {
-    RequestId requestId{};
-    BankId bankId{};
-};
-
-struct RemoveEqBanksCommand {
-    RequestId requestId{};
-    std::vector<BankId> bankIds;
-};
-
-struct SetEqBanksBypassCommand {
-    RequestId requestId{};
-    bool bypass = false;
-    std::vector<BankId> bankIds;
-};
-
-struct SoloEqBanksCommand {
-    RequestId requestId{};
-    std::vector<BankId> bankIds;
-};
-
 struct JoinEqBanksCommand {
     RequestId requestId{};
     std::vector<BankId> bankIds;
 };
 
-struct RenameEqBankCommand {
+struct CommitHiddenEqBankCommand {
     RequestId requestId{};
     BankId bankId{};
-    std::string name;
+};
+
+struct SetEqBankLinkCommand {
+    RequestId requestId{};
+    BankId bankId{};
+    std::string linkId;
 };
 
 struct SelectEqBankCommand {
@@ -187,17 +179,15 @@ struct FailFitCommand {
 
 using Command = std::variant<
     SetEqParameterCommand,
+    SetEqParameterIndexCommand,
     SetEqBypassCommand,
     ResetEqFilterCommand,
     SetEqChainBypassCommand,
+    SetEqChainSoloCommand,
     ResetEqChainCommand,
-    AddEqBankCommand,
-    RemoveEqBankCommand,
-    RemoveEqBanksCommand,
-    SetEqBanksBypassCommand,
-    SoloEqBanksCommand,
     JoinEqBanksCommand,
-    RenameEqBankCommand,
+    CommitHiddenEqBankCommand,
+    SetEqBankLinkCommand,
     SelectEqBankCommand,
     SetGainParameterCommand,
     SetCompressorParameterCommand,

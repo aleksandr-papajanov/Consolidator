@@ -24,7 +24,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass, eq.reset, eq.add_bank, eq.remove_bank, eq.remove_banks <count> <bankIds...>, eq.set_banks_bypass <0|1> <count> <bankIds...>, eq.solo_banks <count> <bankIds...>, eq.join_banks <count> <bankIds...>, eq.rename_bank, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.listen, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.listen, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
@@ -142,9 +142,9 @@ public:
             const auto object = maxadapter::MaxDictionarySerializer::Deserialize<messaging::MessageObject>(args[0]);
             const auto persisted = object ? persistence::PersistenceCodec::Deserialize(*object) : std::nullopt;
             auto state = persisted.value_or(persistence::PersistenceCodec::Defaults());
-            if (!host.Restore(std::move(state.eq), state.processor, 0)) {
+            if (!host.Restore(std::move(state.eq), state.processor, 0, state.instanceId)) {
                 auto defaults = persistence::PersistenceCodec::Defaults();
-                if (!host.Restore(std::move(defaults.eq), defaults.processor, 0)) {
+                if (!host.Restore(std::move(defaults.eq), defaults.processor, 0, defaults.instanceId)) {
                     debugOut.send("error", "persistence_defaults_failed");
                     return {};
                 }
@@ -209,6 +209,8 @@ private:
     }
 
     void PublishAllSnapshots() {
+        eventOut.send(maxadapter::AtomAdapter::Write(
+            messaging::SnapshotCodec::EncodeDevice(host.InstanceId())));
         PublishEqSnapshot();
         PublishDspSnapshot();
         eqSnapshotDirty = false;
@@ -240,6 +242,7 @@ private:
     void PublishPersistence() {
         persistence::PersistedDeviceState persisted{
             persistence::PersistenceCodec::SchemaVersion,
+            host.InstanceId(),
             host.Eq().State(),
             { host.InputGain().State(), host.Compressor().State(),
                 host.Saturator().State(), host.OutputGain().State() }

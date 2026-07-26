@@ -3,8 +3,8 @@
 ## Project
 
 Consolidator is an Ableton Live / Max for Live device that compares a current
-signal with a reference, fits an EQ, and processes audio through a stack of EQ
-banks.
+signal with a reference, fits an EQ, and processes audio through a fixed stack
+of EQ banks.
 
 - `Max/` owns the device patch, feature patchers, JavaScript UI, presentation
   configuration, and built `.mxe64` files.
@@ -97,17 +97,14 @@ is the same protocol message, not a fallback format.
 Supported commands are:
 
 - `eq.set_parameter <bankId> <filterId> <parameter> <absoluteValue>`
+- `eq.set_parameter_index <bankId> <filterId> <parameterIndex> <absoluteValue>` is internal link transport; UI must use named parameters.
 - `eq.set_bypass <bankId> <filterId> <0|1>`
 - `eq.reset_filter <bankId> <filterId>`
-- `eq.set_chain_bypass <bankId> <0|1>`
+- `eq.set_chain_bypass <0|1>` and `eq.set_chain_solo <0|1>`
 - `eq.reset <bankId>`
-- `eq.add_bank [name]`
-- `eq.remove_bank <bankId>`
-- `eq.remove_banks <count> <bankIds...>`
-- `eq.set_banks_bypass <0|1> <count> <bankIds...>`
-- `eq.solo_banks <count> <bankIds...>`
 - `eq.join_banks <count> <bankIds...>`
-- `eq.rename_bank <bankId> <name>`
+- `eq.commit_hidden <bankId>`
+- `eq.set_link <bankId> <linkId|->`
 - `eq.select_bank <bankId>`
 - `gain.set_parameter <input|output> <absoluteGainDb>`
 - `compressor.set_parameter <attack|release|input|output|mix> <absoluteValue>`
@@ -133,10 +130,17 @@ a contract changes.
 
 ## State Rules
 
-- Bank IDs and filter IDs are one-based everywhere.
-- Bank IDs are stable and never reused after removal.
-- Banks are stored and processed in ascending ID order. The UI may display
-  them in reverse order but must retain the real ID on each row.
+- EQ has exactly seven fixed banks: hidden system bank `0` and user banks
+  `1..6`. User-bank and filter IDs are one-based everywhere. Bank `0` is never
+  manually edited or linked.
+- User banks contain only filter state and an optional `linkId`; names and
+  per-bank bypass/solo state do not exist. EQ chain `bypass` and `solo` are
+  operational state on `EqSnapshot`, independent of bank selection. `solo`
+  auditions the selected user bank only.
+  - Without Solo, DSP and the total EQ response apply every bank in ascending
+    ID order, including hidden bank `0`. Selection never changes the normal
+    DSP chain.
+  All user banks are part of the normal DSP stack.
 - A successful transaction increments the store revision exactly once.
 - Rejected and unchanged operations do not increment the revision.
 - Fit applies all returned filter values atomically to the bank captured when
@@ -208,17 +212,20 @@ the tagged `fit_curve` message through `---analyzer.curves`. Beam Search remains
 dormant infrastructure for future structural search. Only Host commits a fit
 result atomically.
 
-`EqStorage` maintains a local ordered multi-selection whose primary bank is
-the Host selected bank. Ctrl/Cmd creates the separate join selection; it never
-changes the active bank. `Remove`, `Bypass`, and `Solo` target the join
-selection when present, otherwise the active bank. Banks persist independent
-manual `bypass` and `solo` flags. Effective DSP bypass is `bypass ||
-(anySolo && !solo)`, so disabling Solo restores manual bypass states exactly.
-The list renders `B` and `S` badges from those flags. `Join` accepts one or
-more banks and is independent of the active bank: Host uses one selected source
-as its temporary optimization layout, then after a successful fit removes every
-selected source bank and appends a newly named result bank at the end of the
-chain atomically.
+`BankManager` is the single bank UI. It renders the six local user banks and
+the bank summaries of other registered instances. A normal local click selects
+the active bank. Ctrl/Cmd maintains a separate Link selection and never changes
+the active bank. `Join` copies audible filters from the selected local user
+banks into hidden bank `0` and clears those source banks in one Store commit.
+`Commit` is available only for an empty user bank: Fit approximates hidden bank
+`0` into that user bank and clears bank `0` only after a successful atomic Host
+commit. Link selection accepts only empty user banks; each bank belongs to at
+most one Link group.
+
+`link.join <linkId> <sourceDeviceId> <revision>` is a group command on the
+global host bus. Each participant joins its occupied bank(s) with that link into
+its own hidden bank `0`; the link remains intact. The resulting default source
+values are local Join effects and must never be replicated as parameter edits.
 
 Analyzer visualization is split into independent responsive JSUI components.
 `consolidator.analyzer.spectrum.js` receives current spectrum, reference spectrum,
@@ -255,12 +262,12 @@ r ---message.bus.out
 
 Cross-device coordination uses the unscoped `consolidator.host.bus` transport;
 it is intentionally distinct from the per-device `---message.bus.*` runtime
-bus. `HostDirectory` enumerates the Live set at startup and synchronizes
-incrementally through `host.query <requesterDeviceId>`,
-`host.announce <deviceId> <label...>`, and `host.leave <deviceId>`. An
-announcement updates only the addressed row; it must not cause another full
-Live set traversal. Future cross-host work must address stable Live device IDs
-on this bus and must not route through one device's `DeviceHost`.
+bus. `BankManager` is its consumer and producer. Every instance announces a
+stable persisted `instanceId`, its label, active user bank, bank occupancy and
+link memberships. A peer announcement updates only that peer row and must not
+cause a Live-set traversal. Link updates carry `linkId`, source `instanceId`,
+and host-assigned monotonically increasing revision. A received remote update
+must apply in remote mode and never be broadcast again.
 
 BusHub owns the single `consolidator.devicehost` instance. Persistence uses the
 separate scoped `---device.persistence.in/out` transport and never enters the
@@ -282,10 +289,10 @@ unrelated global functions.
 
 ## Persistence
 
-Persistence is the only Max Dictionary use in native runtime. Schema 11 stores
-EQ, input/output gain, compressor, and saturator state. The root device's
-`pattrstorage` sends recalled dictionaries through EqStorage's private third
-port to `---device.persistence.in`. DeviceHost validates the schema and complete
+Persistence is the only Max Dictionary use in native runtime. Schema 12 stores
+the fixed EQ banks, stable `instanceId`, input/output gain, compressor, and saturator state. The root device's
+`pattrstorage` sends recalled dictionaries directly to `---device.persistence.in`.
+DeviceHost validates the schema and complete
 EQ invariants before replacing state. Incompatible schemas reset to typed
 defaults; no migration or legacy reader is added during development.
 
@@ -295,8 +302,8 @@ restore. A `pattrstorage recall` is an external change and must still reach
 DeviceHost. Never create a persistence write-to-restore feedback loop.
 
 DeviceHost publishes persistence only after `persistence_ready`. The temporary
-Dictionary must travel synchronously through EqStorage's private third outlet
-to the root `pattrstorage`; never delay a Dictionary name after its owner has
+Dictionary must travel synchronously through `---device.persistence.out` to the
+root `pattrstorage`; never delay a Dictionary name after its owner has
 gone out of scope. Persistence debounce happens before serialization; the
 timer callback creates and sends the temporary Dictionary synchronously.
 Never release a parent Max Dictionary after appending atoms or a nested

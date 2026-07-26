@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <set>
 #include <utility>
 
 namespace consolidator::host {
@@ -33,56 +32,43 @@ void FitWorkflow::Handle(const domain::StartFitCommand& command) {
     state.error.clear();
     ++state.sessionId.value;
     activeBankId = { eqStore.State().selectedBankId };
-    joinedBankIds.clear();
+    commitHidden = false;
     activeMode = domain::FitMode::Eq;
     Publish(domain::FitRequestedEvent{
         state.sessionId, activeBankId, command.curveDb
     });
 }
 
-void FitWorkflow::Handle(const domain::JoinEqBanksCommand& command) {
+void FitWorkflow::Handle(const domain::CommitHiddenEqBankCommand& command) {
     if (state.status == domain::ApproximatorState::Status::Processing) {
         Reject(command.requestId, "fit_in_progress");
         return;
     }
-    if (command.bankIds.empty()) {
-        Reject(command.requestId, "invalid_join_banks");
+    if (command.bankId.value < models::EqSnapshot::FirstUserBankId ||
+        command.bankId.value > models::EqSnapshot::LastUserBankId ||
+        !eqStore.IsUserBankEmpty(static_cast<long>(command.bankId.value))) {
+        Reject(command.requestId, "invalid_commit_hidden");
         return;
     }
-
-    const auto& eqState = eqStore.State();
-    const auto targetBankId = static_cast<long>(command.bankIds.front().value);
-    std::set<long> uniqueBankIds;
-    for (const auto bankId : command.bankIds) {
-        if (bankId.value < 1 || !uniqueBankIds.insert(static_cast<long>(bankId.value)).second ||
-            !eqState.FindBank(static_cast<long>(bankId.value))) {
-            Reject(command.requestId, "invalid_join_banks");
-            return;
-        }
-    }
     consolidator::dsp::EqRuntime runtime;
-    runtime.SetSnapshot(eqState);
-    consolidator::dsp::Curve joinedCurve;
-    for (const auto bankId : command.bankIds) {
-        joinedCurve = joinedCurve + runtime.BuildBankCurve(
-            static_cast<long>(bankId.value),
-            consolidator::settings::AudioOptions::DefaultSampleRateHz);
-    }
-    const auto residual = joinedCurve - runtime.BuildBankCurve(
-        targetBankId,
+    runtime.SetSnapshot(eqStore.State());
+    const auto hiddenCurve = runtime.BuildBankCurve(
+        models::EqSnapshot::SystemBankId,
         consolidator::settings::AudioOptions::DefaultSampleRateHz);
-
+    if (hiddenCurve.Values().empty() || std::all_of(hiddenCurve.Values().begin(), hiddenCurve.Values().end(),
+        [](double value) { return std::abs(value) < 1.0e-12; })) {
+        Reject(command.requestId, "empty_hidden_bank");
+        return;
+    }
     state.status = domain::ApproximatorState::Status::Processing;
     state.progress = 0.0;
     state.loss = 0.0;
     state.error.clear();
     ++state.sessionId.value;
-    activeBankId = { targetBankId };
-    joinedBankIds = command.bankIds;
+    activeBankId = command.bankId;
+    commitHidden = true;
     activeMode = domain::FitMode::Eq;
-    Publish(domain::FitRequestedEvent{
-        state.sessionId, activeBankId, residual.Values()
-    });
+    Publish(domain::FitRequestedEvent{ state.sessionId, activeBankId, hiddenCurve.Values() });
 }
 
 void FitWorkflow::Handle(const domain::CancelFitCommand& command) {
@@ -95,7 +81,7 @@ void FitWorkflow::Handle(const domain::CancelFitCommand& command) {
     const auto operation = domain::FitOperationName(activeMode);
     state.status = domain::ApproximatorState::Status::Idle;
     activeBankId = {};
-    joinedBankIds.clear();
+    commitHidden = false;
     Publish(domain::OperationChangedEvent{
         operation, command.sessionId, domain::OperationStatus::Cancelled, 0.0, {}
     });
@@ -108,7 +94,7 @@ void FitWorkflow::Handle(const domain::ClearFitCommand&) {
     state.loss = 0.0;
     state.error.clear();
     activeBankId = {};
-    joinedBankIds.clear();
+    commitHidden = false;
     Publish(domain::OperationChangedEvent{
         operation, state.sessionId, domain::OperationStatus::Idle, 0.0, {}
     });
@@ -141,9 +127,9 @@ void FitWorkflow::Handle(const domain::CompleteFitCommand& command) {
         return;
     }
 
-    const auto result = joinedBankIds.empty()
-        ? eqStore.ApplyFitResult(fitCommand)
-        : eqStore.ApplyJoinFitResult(fitCommand, joinedBankIds);
+    const auto result = commitHidden
+        ? eqStore.ApplyCommitHiddenResult(fitCommand)
+        : eqStore.ApplyFitResult(fitCommand);
     if (!result.Accepted()) {
         Fail(command.requestId, result.error, true);
         return;
@@ -168,7 +154,7 @@ void FitWorkflow::Handle(const domain::CompleteFitCommand& command) {
     state.loss = fitCommand.result.loss;
     state.error.clear();
     activeBankId = {};
-    joinedBankIds.clear();
+    commitHidden = false;
     Publish(domain::OperationChangedEvent{
         operation, state.sessionId, domain::OperationStatus::Completed, 1.0, {}
     });
@@ -201,7 +187,7 @@ void FitWorkflow::Fail(
     state.status = domain::ApproximatorState::Status::Failed;
     state.error = error;
     activeBankId = {};
-    joinedBankIds.clear();
+    commitHidden = false;
     if (rejectCommand) Reject(requestId, error);
     Publish(domain::OperationChangedEvent{
         operation, state.sessionId, domain::OperationStatus::Failed, state.progress, error

@@ -52,7 +52,7 @@
 , 			{
 				"box" : 				{
 					"border" : 0,
-					"embedstate" : [ [ "labels", "B", "R" ], [ "loadingIndex", 0 ], [ "layout", "horizontal" ], [ "selectionMode", "custom" ], [ "buttonModes", "toggle", "momentary", "toggle" ], [ "enabled", 1 ], [ "allowEmptySelection", 1 ], [ "count", 2 ] ],
+					"embedstate" : [ [ "labels", "B", "S", "R" ], [ "loadingIndex", 0 ], [ "layout", "horizontal" ], [ "selectionMode", "custom" ], [ "buttonModes", "toggle", "toggle", "momentary" ], [ "enabled", 1 ], [ "allowEmptySelection", 1 ], [ "count", 3 ] ],
 					"filename" : "ButtonGroupControl.js",
 					"id" : "obj-6",
 					"maxclass" : "jsui",

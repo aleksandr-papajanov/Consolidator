@@ -164,8 +164,10 @@ EqController.prototype.HandleGlobal = function(buttonIndex, value) {
     var action = Number(buttonIndex);
     var isPressed = Number(value) ? 1 : 0;
     if (action === 1) {
-        this.SendCommand("eq.set_chain_bypass", [this.selectedBankId, isPressed]);
-    } else if (action === 2 && isPressed) {
+        this.SendCommand("eq.set_chain_bypass", [isPressed]);
+    } else if (action === 2) {
+        this.SendCommand("eq.set_chain_solo", [isPressed]);
+    } else if (action === 3 && isPressed) {
         this.SendCommand("eq.reset", [this.selectedBankId]);
     }
 };
@@ -202,12 +204,10 @@ EqController.prototype.HandleLocal = function(values) {
 
 EqController.prototype.HandleEqSnapshot = function(values) {
     this.selectedBankId = Number(values[5]);
-    var position = 7;
-    var bankCount = Number(values[6]);
+    var position = 9;
+    var bankCount = Number(values[8]);
     for (var bankIndex = 0; bankIndex < bankCount; bankIndex++) {
         var bankId = Number(values[position++]);
-        position++;
-        position++;
         position++;
         var filterCount = Number(values[position++]);
         for (var filterIndex = 0; filterIndex < filterCount; filterIndex++) {
@@ -253,7 +253,7 @@ function inletassist(index) {
 
 function outletassist(index) {
     assist([
-        "Host commands: eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass, eq.reset",
+        "Host commands: eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass, eq.set_chain_solo, eq.reset",
         "thispatcher: script sendbox eq.filter.<id>.dial|control <attribute> <value>",
         "Diagnostics: error <code>"
     ][index] || "");

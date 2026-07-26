@@ -1,5 +1,4 @@
 #include "EqStore.h"
-#include "Definitions/BankNameGenerator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,8 +12,10 @@ namespace consolidator::host {
 
 namespace {
 
-std::optional<long> ToLegacyId(std::int64_t value) {
-    if (value < 1 || value > std::numeric_limits<long>::max()) return std::nullopt;
+std::optional<long> ToId(std::int64_t value) {
+    if (value < models::EqSnapshot::SystemBankId || value > models::EqSnapshot::LastUserBankId) {
+        return std::nullopt;
+    }
     return static_cast<long>(value);
 }
 
@@ -22,54 +23,79 @@ std::optional<long> ToLegacyId(std::int64_t value) {
 
 EqStore::EqStore(CommitHandler commitHandler)
     : definitions(domain::FilterDefinitions()), commitHandler(std::move(commitHandler)) {
-    state.selectedBankId = 1;
-    state.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), false, false, {} });
-    auto& bank = state.banks.back();
-    for (const auto& [filterId, definition] : definitions) {
-        bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
+    for (long bankId = models::EqSnapshot::SystemBankId;
+         bankId <= models::EqSnapshot::LastUserBankId;
+         ++bankId) {
+        state.banks.push_back(CreateDefaultBank(bankId));
     }
 }
 
-const domain::EqState& EqStore::State() const noexcept {
-    return state;
-}
+const domain::EqState& EqStore::State() const noexcept { return state; }
+domain::StoreRevision EqStore::Revision() const noexcept { return revision; }
 
-domain::StoreRevision EqStore::Revision() const noexcept {
-    return revision;
+models::EqBank EqStore::CreateDefaultBank(long bankId) const {
+    models::EqBank bank;
+    bank.bankId = bankId;
+    if (bankId == models::EqSnapshot::SystemBankId) return bank;
+    for (const auto& [filterId, definition] : definitions) {
+        bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
+    }
+    return bank;
 }
 
 models::FilterState* EqStore::FindFilter(domain::BankId bankId, domain::FilterId filterId) {
-    const auto bankValue = ToLegacyId(bankId.value);
-    const auto filterValue = ToLegacyId(filterId.value);
-    if (!bankValue || !filterValue) return nullptr;
+    const auto bankValue = ToId(bankId.value);
+    if (!bankValue || filterId.value < 1 || filterId.value > std::numeric_limits<long>::max()) return nullptr;
     auto* bank = state.FindBank(*bankValue);
-    return bank ? bank->FindFilter(*filterValue) : nullptr;
+    return bank ? bank->FindFilter(static_cast<long>(filterId.value)) : nullptr;
 }
 
 const models::FilterDefinition* EqStore::FindDefinition(domain::FilterId filterId) const {
-    const auto filterValue = ToLegacyId(filterId.value);
-    if (!filterValue) return nullptr;
-    const auto definition = definitions.find(*filterValue);
+    if (filterId.value < 1 || filterId.value > std::numeric_limits<long>::max()) return nullptr;
+    const auto definition = definitions.find(static_cast<long>(filterId.value));
     return definition == definitions.end() ? nullptr : &definition->second;
 }
 
 UpdateResult EqStore::SetParameter(const domain::SetEqParameterCommand& command) {
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
     auto* filter = FindFilter(command.bankId, command.filterId);
     const auto* definition = FindDefinition(command.filterId);
     if (!filter || !definition) return Reject("invalid_filter");
     const auto parameterIndex = definition->ParameterIndex(command.parameter);
     const auto* parameter = definition->FindParameter(command.parameter);
-    if (!parameterIndex || !parameter || !std::isfinite(command.value)) return Reject("invalid_parameter");
-    if (command.value < parameter->range.minimum || command.value > parameter->range.maximum) {
-        return Reject("parameter_out_of_range");
+    if (!parameterIndex || !parameter || !std::isfinite(command.value) ||
+        command.value < parameter->range.minimum || command.value > parameter->range.maximum ||
+        *parameterIndex >= filter->values.size()) {
+        return Reject("invalid_parameter");
     }
-    if (*parameterIndex >= filter->values.size()) return Reject("invalid_filter_state");
     if (filter->values[*parameterIndex] == command.value) return { UpdateStatus::Unchanged, {} };
     filter->values[*parameterIndex] = command.value;
     return Commit(command.requestId);
 }
 
+UpdateResult EqStore::SetParameterAtIndex(const domain::SetEqParameterIndexCommand& command) {
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
+    auto* filter = FindFilter(command.bankId, command.filterId);
+    const auto* definition = FindDefinition(command.filterId);
+    if (!filter || !definition || command.parameterIndex >= definition->parameters.size() ||
+        command.parameterIndex >= filter->values.size()) {
+        return Reject("invalid_parameter_index");
+    }
+    const auto& parameter = definition->parameters[command.parameterIndex];
+    if (!std::isfinite(command.value) || command.value < parameter.range.minimum ||
+        command.value > parameter.range.maximum) {
+        return Reject("invalid_parameter");
+    }
+    if (filter->values[command.parameterIndex] == command.value) return { UpdateStatus::Unchanged, {} };
+    filter->values[command.parameterIndex] = command.value;
+    return Commit(command.requestId);
+}
+
 UpdateResult EqStore::SetBypass(const domain::SetEqBypassCommand& command) {
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
     auto* filter = FindFilter(command.bankId, command.filterId);
     if (!filter) return Reject("invalid_filter");
     if (filter->bypass == command.bypass) return { UpdateStatus::Unchanged, {} };
@@ -78,192 +104,128 @@ UpdateResult EqStore::SetBypass(const domain::SetEqBypassCommand& command) {
 }
 
 UpdateResult EqStore::ResetFilter(const domain::ResetEqFilterCommand& command) {
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
     auto* filter = FindFilter(command.bankId, command.filterId);
     const auto* definition = FindDefinition(command.filterId);
     if (!filter || !definition) return Reject("invalid_filter");
     const auto values = definition->DefaultValues();
-    if (filter->values == values && filter->bypass == definition->defaultBypass) {
-        return { UpdateStatus::Unchanged, {} };
-    }
+    if (filter->values == values && filter->bypass == definition->defaultBypass) return { UpdateStatus::Unchanged, {} };
     filter->values = values;
     filter->bypass = definition->defaultBypass;
     return Commit(command.requestId);
 }
 
 UpdateResult EqStore::SetChainBypass(const domain::SetEqChainBypassCommand& command) {
-    const auto bankId = ToLegacyId(command.bankId.value);
-    auto* bank = bankId ? state.FindBank(*bankId) : nullptr;
-    if (!bank) return Reject("invalid_bank");
-    if (bank->bypass == command.bypass) return { UpdateStatus::Unchanged, {} };
-    bank->bypass = command.bypass;
+    if (state.bypass == command.bypass) return { UpdateStatus::Unchanged, {} };
+    state.bypass = command.bypass;
+    return Commit(command.requestId);
+}
+
+UpdateResult EqStore::SetChainSolo(const domain::SetEqChainSoloCommand& command) {
+    if (state.solo == command.solo) return { UpdateStatus::Unchanged, {} };
+    state.solo = command.solo;
     return Commit(command.requestId);
 }
 
 UpdateResult EqStore::ResetChain(const domain::ResetEqChainCommand& command) {
-    const auto bankId = ToLegacyId(command.bankId.value);
-    auto* bank = bankId ? state.FindBank(*bankId) : nullptr;
-    if (!bank) return Reject("invalid_bank");
-
-    auto changed = bank->bypass;
-    bank->bypass = false;
-    for (auto& filter : bank->filters) {
-        const auto definition = definitions.find(filter.filterId);
-        if (definition == definitions.end()) return Reject("invalid_filter");
-        const auto values = definition->second.DefaultValues();
-        changed = changed || filter.values != values ||
-            filter.bypass != definition->second.defaultBypass;
-        filter.values = values;
-        filter.bypass = definition->second.defaultBypass;
-    }
-    return changed ? Commit(command.requestId) : UpdateResult{ UpdateStatus::Unchanged, {} };
-}
-
-UpdateResult EqStore::AddBank(const domain::AddEqBankCommand& command) {
-    const auto nextId = nextBankId++;
-    const auto name = command.name.empty() ? domain::BankNameGenerator::Generate(nextId) : command.name;
-    state.banks.push_back({ nextId, name, false, false, {} });
-    auto& bank = state.banks.back();
-    for (const auto& [filterId, definition] : definitions) {
-        bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
-    }
-    state.selectedBankId = nextId;
-    return Commit(command.requestId);
-}
-
-UpdateResult EqStore::RemoveBank(const domain::RemoveEqBankCommand& command) {
-    return RemoveBanks({ command.requestId, { command.bankId } });
-}
-
-UpdateResult EqStore::RemoveBanks(const domain::RemoveEqBanksCommand& command) {
-    if (command.bankIds.empty() || !HasBanks(command.bankIds)) return Reject("invalid_bank");
-
-    std::set<long> removedIds;
-    for (const auto bankId : command.bankIds) {
-        const auto id = ToLegacyId(bankId.value);
-        if (!id || !removedIds.insert(*id).second) return Reject("invalid_bank");
-    }
-    if (removedIds.size() >= state.banks.size()) return Reject("cannot_remove_last_bank");
-
-    const auto selectedRemoved = removedIds.contains(state.selectedBankId);
-    const auto selectedIndex = std::find_if(state.banks.begin(), state.banks.end(),
-        [id = state.selectedBankId](const auto& bank) { return bank.bankId == id; });
-    const auto fallbackIndex = static_cast<std::size_t>(std::distance(state.banks.begin(), selectedIndex));
-    std::erase_if(state.banks, [&removedIds](const auto& bank) {
-        return removedIds.contains(bank.bankId);
-    });
-    if (selectedRemoved) {
-        state.selectedBankId = state.banks[std::min(fallbackIndex, state.banks.size() - 1)].bankId;
-    }
-    return Commit(command.requestId);
-}
-
-UpdateResult EqStore::SetBanksBypass(const domain::SetEqBanksBypassCommand& command) {
-    if (command.bankIds.empty() || !HasBanks(command.bankIds)) return Reject("invalid_bank");
-    auto changed = false;
-    std::set<long> seenIds;
-    for (const auto bankId : command.bankIds) {
-        const auto id = ToLegacyId(bankId.value);
-        if (!id || !seenIds.insert(*id).second) return Reject("invalid_bank");
-        auto* bank = state.FindBank(*id);
-        changed = changed || bank->bypass != command.bypass;
-        bank->bypass = command.bypass;
-    }
-    return changed ? Commit(command.requestId) : UpdateResult{ UpdateStatus::Unchanged, {} };
-}
-
-UpdateResult EqStore::SoloBanks(const domain::SoloEqBanksCommand& command) {
-    if (command.bankIds.empty() || !HasBanks(command.bankIds)) return Reject("invalid_bank");
-    std::set<long> soloIds;
-    for (const auto bankId : command.bankIds) {
-        const auto id = ToLegacyId(bankId.value);
-        if (!id || !soloIds.insert(*id).second) return Reject("invalid_bank");
-    }
-    const auto alreadySoloed = std::all_of(command.bankIds.begin(), command.bankIds.end(),
-        [this](const auto bankId) {
-            const auto id = ToLegacyId(bankId.value);
-            const auto* bank = id ? state.FindBank(*id) : nullptr;
-            return bank && bank->solo;
-        });
-    auto changed = false;
-    for (auto& bank : state.banks) {
-        const auto nextSolo = alreadySoloed ? false : soloIds.contains(bank.bankId);
-        changed = changed || bank.solo != nextSolo;
-        bank.solo = nextSolo;
-    }
-    return changed ? Commit(command.requestId) : UpdateResult{ UpdateStatus::Unchanged, {} };
-}
-
-UpdateResult EqStore::RenameBank(const domain::RenameEqBankCommand& command) {
-    const auto bankId = ToLegacyId(command.bankId.value);
-    auto* bank = bankId ? state.FindBank(*bankId) : nullptr;
-    if (!bank || command.name.empty()) return Reject("invalid_bank");
-    if (bank->name == command.name) return { UpdateStatus::Unchanged, {} };
-    bank->name = command.name;
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
+    auto* bank = state.FindBank(*bankId);
+    if (!bank) return Reject("invalid_user_bank");
+    const auto defaults = CreateDefaultBank(*bankId);
+    if (bank->filters == defaults.filters) return { UpdateStatus::Unchanged, {} };
+    bank->filters = defaults.filters;
     return Commit(command.requestId);
 }
 
 UpdateResult EqStore::SelectBank(const domain::SelectEqBankCommand& command) {
-    const auto bankId = ToLegacyId(command.bankId.value);
-    if (!bankId || !state.FindBank(*bankId)) return Reject("invalid_bank");
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
     if (state.selectedBankId == *bankId) return { UpdateStatus::Unchanged, {} };
     state.selectedBankId = *bankId;
     return Commit(command.requestId);
 }
 
+UpdateResult EqStore::JoinBanks(const domain::JoinEqBanksCommand& command) {
+    if (command.bankIds.empty()) return Reject("invalid_join_banks");
+    std::set<long> bankIds;
+    for (const auto bankId : command.bankIds) {
+        const auto value = ToId(bankId.value);
+        if (!value || !models::EqSnapshot::IsUserBankId(*value) || !bankIds.insert(*value).second) {
+            return Reject("invalid_join_banks");
+        }
+    }
+
+    auto* systemBank = state.FindBank(models::EqSnapshot::SystemBankId);
+    if (!systemBank) return Reject("missing_system_bank");
+    std::vector<models::FilterState> accumulatedFilters;
+    for (const auto bankId : bankIds) {
+        const auto* bank = state.FindBank(bankId);
+        if (!bank) return Reject("invalid_join_banks");
+        for (const auto& filter : bank->filters) {
+            const auto definition = definitions.find(filter.filterId);
+            if (definition != definitions.end() && !filter.bypass &&
+                std::abs(definition->second.Value(filter.values, "gain", 0.0)) > 1.0e-12) {
+                accumulatedFilters.push_back(filter);
+            }
+        }
+    }
+    if (accumulatedFilters.empty()) return { UpdateStatus::Unchanged, {} };
+
+    systemBank->filters.insert(systemBank->filters.end(), accumulatedFilters.begin(), accumulatedFilters.end());
+    for (const auto bankId : bankIds) {
+        auto* bank = state.FindBank(bankId);
+        bank->filters = CreateDefaultBank(bankId).filters;
+    }
+    return Commit(command.requestId);
+}
+
+UpdateResult EqStore::SetBankLink(const domain::SetEqBankLinkCommand& command) {
+    const auto bankId = ToId(command.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
+    auto* bank = state.FindBank(*bankId);
+    if (!bank) return Reject("invalid_user_bank");
+    if (!command.linkId.empty() && !IsUserBankEmpty(*bankId)) return Reject("linked_bank_not_empty");
+    if (bank->linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
+    bank->linkId = command.linkId;
+    return Commit(command.requestId);
+}
+
+bool EqStore::IsUserBankEmpty(long bankId) const {
+    const auto* bank = state.FindBank(bankId);
+    if (!bank || !models::EqSnapshot::IsUserBankId(bankId)) return false;
+    return bank->filters == CreateDefaultBank(bankId).filters;
+}
+
 UpdateResult EqStore::ApplyFitResult(const domain::CompleteFitCommand& command) {
-    const auto bankId = ToLegacyId(command.result.bankId.value);
-    auto* bank = bankId ? state.FindBank(*bankId) : nullptr;
+    const auto bankId = ToId(command.result.bankId.value);
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_fit_result");
+    auto* bank = state.FindBank(*bankId);
     if (!bank) return Reject("invalid_fit_result");
     const auto previousFilters = bank->filters;
     if (!ApplyFitFilters(*bank, command.result)) return Reject("invalid_fit_result");
-    const auto unchanged = std::equal(previousFilters.begin(), previousFilters.end(), bank->filters.begin(),
-        [](const auto& left, const auto& right) {
-            return left.filterId == right.filterId && left.values == right.values && left.bypass == right.bypass;
-        });
-    if (unchanged) return { UpdateStatus::Unchanged, {} };
+    if (previousFilters == bank->filters) return { UpdateStatus::Unchanged, {} };
     return Commit(command.requestId);
 }
 
-UpdateResult EqStore::ApplyJoinFitResult(
-    const domain::CompleteFitCommand& command,
-    const std::vector<domain::BankId>& joinedBankIds
-) {
-    if (joinedBankIds.empty() || !HasBanks(joinedBankIds)) return Reject("invalid_join_banks");
-    const auto targetId = ToLegacyId(command.result.bankId.value);
-    if (!targetId || std::none_of(joinedBankIds.begin(), joinedBankIds.end(),
-        [targetId](const auto bankId) { return bankId.value == *targetId; })) {
-        return Reject("invalid_join_banks");
+UpdateResult EqStore::ApplyCommitHiddenResult(const domain::CompleteFitCommand& command) {
+    const auto bankId = ToId(command.result.bankId.value);
+    auto* systemBank = state.FindBank(models::EqSnapshot::SystemBankId);
+    auto* targetBank = bankId ? state.FindBank(*bankId) : nullptr;
+    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId) || !systemBank || !targetBank ||
+        systemBank->filters.empty() || !IsUserBankEmpty(*bankId)) {
+        return Reject("invalid_commit_hidden");
     }
-    auto* targetBank = state.FindBank(*targetId);
-    if (!targetBank || !ApplyFitFilters(*targetBank, command.result)) return Reject("invalid_fit_result");
-
-    std::set<long> joinedIds;
-    for (const auto bankId : joinedBankIds) {
-        const auto id = ToLegacyId(bankId.value);
-        if (!id || !joinedIds.insert(*id).second) return Reject("invalid_join_banks");
-    }
-    const auto name = domain::BankNameGenerator::Generate(nextBankId);
-    models::EqBank joinedBank{
-        nextBankId++, name, targetBank->bypass, targetBank->solo, targetBank->filters
-    };
-    std::erase_if(state.banks, [&joinedIds](const auto& bank) {
-        return joinedIds.contains(bank.bankId);
-    });
-    state.banks.push_back(std::move(joinedBank));
-    state.selectedBankId = state.banks.back().bankId;
+    auto nextFilters = targetBank->filters;
+    if (!ApplyFitFilters(*targetBank, command.result)) return Reject("invalid_fit_result");
+    if (targetBank->filters == nextFilters) return { UpdateStatus::Unchanged, {} };
+    systemBank->filters.clear();
     return Commit(command.requestId);
-}
-
-bool EqStore::HasBanks(const std::vector<domain::BankId>& bankIds) const {
-    return std::all_of(bankIds.begin(), bankIds.end(), [this](const auto bankId) {
-        const auto id = ToLegacyId(bankId.value);
-        return id && state.FindBank(*id);
-    });
 }
 
 bool EqStore::ApplyFitFilters(models::EqBank& bank, const domain::FitResult& result) const {
     if (result.filters.size() != definitions.size()) return false;
-
     auto nextFilters = bank.filters;
     std::set<long> seenFilterIds;
     for (const auto& candidate : result.filters) {
@@ -271,16 +233,11 @@ bool EqStore::ApplyFitFilters(models::EqBank& bank, const domain::FitResult& res
         const auto* definition = FindDefinition({ candidate.filterId });
         const auto destination = std::find_if(nextFilters.begin(), nextFilters.end(),
             [filterId = candidate.filterId](const auto& filter) { return filter.filterId == filterId; });
-        if (!definition || destination == nextFilters.end() ||
-            candidate.values.size() != definition->parameters.size()) {
-            return false;
-        }
+        if (!definition || destination == nextFilters.end() || candidate.values.size() != definition->parameters.size()) return false;
         for (std::size_t index = 0; index < candidate.values.size(); ++index) {
             const auto value = candidate.values[index];
             const auto& range = definition->parameters[index].range;
-            if (!std::isfinite(value) || value < range.minimum || value > range.maximum) {
-                return false;
-            }
+            if (!std::isfinite(value) || value < range.minimum || value > range.maximum) return false;
         }
         destination->values = candidate.values;
         destination->bypass = candidate.bypass;
@@ -290,19 +247,25 @@ bool EqStore::ApplyFitFilters(models::EqBank& bank, const domain::FitResult& res
 }
 
 UpdateResult EqStore::Replace(domain::EqState nextState, domain::StoreRevision nextRevision) {
-    if (nextState.banks.empty() || !nextState.FindBank(nextState.selectedBankId)) {
+    if (!models::EqSnapshot::IsUserBankId(nextState.selectedBankId) ||
+        nextState.banks.size() != static_cast<std::size_t>(models::EqSnapshot::BankCount)) {
         return Reject("invalid_persisted_eq_state");
     }
-    long previousBankId = 0;
-    for (auto& bank : nextState.banks) {
-        if (bank.bankId <= previousBankId || bank.name.empty() ||
-            bank.filters.size() != definitions.size()) {
+    for (long bankId = models::EqSnapshot::SystemBankId;
+         bankId <= models::EqSnapshot::LastUserBankId;
+         ++bankId) {
+        auto* bank = nextState.FindBank(bankId);
+        if (!bank || bank->bankId != bankId ||
+            (bankId == models::EqSnapshot::SystemBankId && !bank->linkId.empty()) ||
+            (models::EqSnapshot::IsUserBankId(bankId) && bank->filters.size() != definitions.size())) {
             return Reject("invalid_persisted_eq_state");
         }
-        previousBankId = bank.bankId;
-        auto definition = definitions.begin();
-        for (auto& filter : bank.filters) {
-            if (definition == definitions.end() || filter.filterId != definition->first ||
+        auto expectedDefinition = definitions.begin();
+        for (const auto& filter : bank->filters) {
+            const auto definition = definitions.find(filter.filterId);
+            if (definition == definitions.end() ||
+                (models::EqSnapshot::IsUserBankId(bankId) &&
+                    (expectedDefinition == definitions.end() || filter.filterId != expectedDefinition->first)) ||
                 filter.values.size() != definition->second.parameters.size()) {
                 return Reject("invalid_persisted_eq_state");
             }
@@ -313,13 +276,11 @@ UpdateResult EqStore::Replace(domain::EqState nextState, domain::StoreRevision n
                     return Reject("invalid_persisted_eq_state");
                 }
             }
-            ++definition;
+            if (models::EqSnapshot::IsUserBankId(bankId)) ++expectedDefinition;
         }
     }
     state = std::move(nextState);
     revision = nextRevision;
-    nextBankId = 1;
-    for (const auto& bank : state.banks) nextBankId = std::max(nextBankId, bank.bankId + 1);
     return { UpdateStatus::Changed, {} };
 }
 
@@ -329,8 +290,6 @@ UpdateResult EqStore::Commit(domain::RequestId requestId) {
     return { UpdateStatus::Changed, {} };
 }
 
-UpdateResult EqStore::Reject(const char* error) const {
-    return { UpdateStatus::Rejected, error };
-}
+UpdateResult EqStore::Reject(const char* error) const { return { UpdateStatus::Rejected, error }; }
 
 } // namespace consolidator::host

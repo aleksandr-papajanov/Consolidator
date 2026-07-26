@@ -1,13 +1,14 @@
 #pragma once
 
 #include "Messaging/MessagePayload.h"
-#include "Definitions/BankNameGenerator.h"
 #include "Models/EqSnapshot.h"
 #include "Models/ProcessorState.h"
 #include "Settings/FilterOptions.h"
 
 #include <cstdint>
 #include <cstddef>
+#include <atomic>
+#include <chrono>
 #include <limits>
 #include <optional>
 #include <string>
@@ -15,23 +16,29 @@
 namespace consolidator::persistence {
 
 struct PersistedDeviceState {
-    long schemaVersion = 11;
+    long schemaVersion = 12;
+    std::string instanceId;
     models::EqSnapshot eq;
     models::ProcessorState processor;
 };
 
 class PersistenceCodec final {
 public:
-    static constexpr long SchemaVersion = 11;
+    static constexpr long SchemaVersion = 12;
 
     static PersistedDeviceState Defaults() {
-        PersistedDeviceState result{ SchemaVersion, {}, {} };
-        result.eq.selectedBankId = 1;
-        result.eq.banks.push_back({ 1, domain::BankNameGenerator::Generate(1), false, {} });
-        for (const auto& [filterId, definition] : settings::FilterOptions::EqDefinitions()) {
-            result.eq.banks.front().filters.push_back({
-                filterId, definition.DefaultValues(), definition.defaultBypass
-            });
+        PersistedDeviceState result{ SchemaVersion, GenerateInstanceId(), {}, {} };
+        for (long bankId = models::EqSnapshot::SystemBankId;
+             bankId <= models::EqSnapshot::LastUserBankId;
+             ++bankId) {
+            models::EqBank bank;
+            bank.bankId = bankId;
+            if (bankId != models::EqSnapshot::SystemBankId) {
+                for (const auto& [filterId, definition] : settings::FilterOptions::EqDefinitions()) {
+                    bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
+                }
+            }
+            result.eq.banks.push_back(std::move(bank));
         }
         return result;
     }
@@ -43,7 +50,10 @@ public:
         }
         messaging::MessageObject result{
             { "schema_version", static_cast<std::int64_t>(state.schemaVersion) },
+            { "instance_id", state.instanceId },
             { "selected_bank", static_cast<std::int64_t>(state.eq.selectedBankId) },
+            { "eq.bypass", state.eq.bypass },
+            { "eq.solo", state.eq.solo },
             { "bank_ids", std::move(bankIds) },
             { "input_gain.gain", state.processor.inputGain.gainDb },
             { "compressor.attack", state.processor.compressor.attackMs },
@@ -76,9 +86,7 @@ public:
         }
         for (const auto& bank : state.eq.banks) {
             const auto prefix = "bank." + std::to_string(bank.bankId) + ".";
-            result[prefix + "name"] = bank.name;
-            result[prefix + "bypass"] = bank.bypass;
-            result[prefix + "solo"] = bank.solo;
+            result[prefix + "link_id"] = bank.linkId;
             messaging::MessageArray filterIds;
             for (const auto& filter : bank.filters) {
                 filterIds.emplace_back(static_cast<std::int64_t>(filter.filterId));
@@ -96,15 +104,22 @@ public:
     static std::optional<PersistedDeviceState> Deserialize(const messaging::MessageObject& object) {
         const messaging::MessagePayload root{ object };
         const auto schema = root.ReadLong("schema_version");
+        const auto instanceId = root.ReadString("instance_id");
         const auto selectedBank = root.ReadLong("selected_bank");
         const auto bankIds = root.ReadArray("bank_ids");
-        if (!schema || !selectedBank || !bankIds || *schema != SchemaVersion || bankIds->empty()) {
+        const auto eqBypass = root.ReadBool("eq.bypass");
+        const auto eqSolo = root.ReadBool("eq.solo");
+        if (!schema || !instanceId || instanceId->empty() || !selectedBank || !bankIds || !eqBypass || !eqSolo || *schema != SchemaVersion ||
+            bankIds->size() != static_cast<std::size_t>(models::EqSnapshot::BankCount)) {
             return std::nullopt;
         }
 
         PersistedDeviceState result;
         result.schemaVersion = *schema;
+        result.instanceId = *instanceId;
         result.eq.selectedBankId = *selectedBank;
+        result.eq.bypass = *eqBypass;
+        result.eq.solo = *eqSolo;
         const auto inputGain = root.ReadDouble("input_gain.gain");
         const auto attack = root.ReadDouble("compressor.attack");
         const auto release = root.ReadDouble("compressor.release");
@@ -164,17 +179,18 @@ public:
             saturatorFilter.frequencyHz = *saturatorFrequency;
             saturatorFilter.q = *saturatorQ;
         }
-        for (const auto& bankIdValue : *bankIds) {
+        for (std::size_t bankIndex = 0; bankIndex < bankIds->size(); ++bankIndex) {
+            const auto& bankIdValue = bankIds->at(bankIndex);
             const auto decodedBankId = bankIdValue.As<std::int64_t>();
-            if (!decodedBankId || *decodedBankId < 1 ||
+            if (!decodedBankId || *decodedBankId != static_cast<std::int64_t>(bankIndex) ||
                 *decodedBankId > std::numeric_limits<long>::max()) return std::nullopt;
             const auto bankId = static_cast<long>(*decodedBankId);
             const auto prefix = "bank." + std::to_string(bankId) + ".";
-            const auto name = root.ReadString(prefix + "name");
-            const auto bypass = root.ReadBool(prefix + "bypass");
-            const auto solo = root.ReadBool(prefix + "solo");
-            if (!name || !bypass || !solo) return std::nullopt;
-            models::EqBank bank{ bankId, *name, *bypass, *solo, {} };
+            const auto linkId = root.ReadString(prefix + "link_id");
+            if (!linkId) return std::nullopt;
+            models::EqBank bank;
+            bank.bankId = bankId;
+            bank.linkId = *linkId;
             const auto filterIds = root.ReadArray(prefix + "filter_ids");
             if (!filterIds) return std::nullopt;
             for (const auto& filterIdValue : *filterIds) {
@@ -198,6 +214,14 @@ public:
         }
         if (!result.eq.FindBank(result.eq.selectedBankId)) return std::nullopt;
         return result;
+    }
+
+private:
+    static std::string GenerateInstanceId() {
+        static std::atomic<std::uint64_t> sequence = 0;
+        const auto ticks = static_cast<std::uint64_t>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        return "instance-" + std::to_string(ticks) + "-" + std::to_string(++sequence);
     }
 };
 

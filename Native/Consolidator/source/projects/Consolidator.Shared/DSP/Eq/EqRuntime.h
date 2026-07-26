@@ -38,7 +38,11 @@ public:
 
     long AddAllBanks(DspChainBuilder& builder, double sampleRate, long firstOrder) const {
         auto order = firstOrder;
-        for (const auto& bank : snapshot.banks) AddBank(builder, bank, sampleRate, order);
+        for (const auto& bank : snapshot.banks) {
+            if (ShouldIncludeBank(bank)) {
+                AddBank(builder, bank, sampleRate, order);
+            }
+        }
         return order;
     }
 
@@ -55,8 +59,9 @@ public:
         DspChainBuilder builder;
         auto order = 0L;
         for (const auto& bank : snapshot.banks) {
-            AddBank(builder, bank, sampleRate, order);
-            if (bank.bankId == bankId) break;
+            if (bank.bankId <= bankId && ShouldIncludeBank(bank)) {
+                AddBank(builder, bank, sampleRate, order);
+            }
         }
         return builder;
     }
@@ -73,35 +78,34 @@ public:
     Curve BuildThroughBankCurve(long bankId, double sampleRate) const {
         Curve curve;
         for (const auto& bank : snapshot.banks) {
-            AddBankCurve(curve, bank, sampleRate);
-            if (bank.bankId == bankId) break;
-        }
-        return curve;
-    }
-
-    Curve BuildAfterBankCurve(long bankId, double sampleRate) const {
-        Curve curve;
-        bool selectedBankFound = false;
-        for (const auto& bank : snapshot.banks) {
-            if (selectedBankFound) AddBankCurve(curve, bank, sampleRate);
-            if (bank.bankId == bankId) selectedBankFound = true;
+            if (bank.bankId <= bankId && ShouldIncludeBank(bank)) {
+                AddBankCurve(curve, bank, sampleRate);
+            }
         }
         return curve;
     }
 
     Curve BuildAllBanksCurve(double sampleRate) const {
         Curve curve;
-        for (const auto& bank : snapshot.banks) AddBankCurve(curve, bank, sampleRate);
+        for (const auto& bank : snapshot.banks) {
+            if (ShouldIncludeBank(bank)) {
+                AddBankCurve(curve, bank, sampleRate);
+            }
+        }
         return curve;
     }
 
 private:
+    bool ShouldIncludeBank(const models::EqBank& bank) const {
+        return !snapshot.solo || bank.bankId == snapshot.selectedBankId;
+    }
+
     void AddBankCurve(Curve& curve, const models::EqBank& bank, double sampleRate) const {
+        if (snapshot.IsBypassed()) return;
         for (const auto& filter : bank.filters) {
             if (filter.bypass) continue;
             const auto definition = definitions.find(filter.filterId);
             if (definition == definitions.end()) continue;
-            if (snapshot.IsBypassed(bank)) continue;
             EqFilterFactory factory{ definition->second, filter.values, sampleRate };
             const auto processor = factory.CreateFilter();
             if (!processor) continue;
@@ -117,13 +121,14 @@ private:
         double sampleRate,
         long& order
     ) const {
-        for (const auto& filter : bank.filters) {
+        for (std::size_t filterIndex = 0; filterIndex < bank.filters.size(); ++filterIndex) {
+            const auto& filter = bank.filters[filterIndex];
             const auto definition = definitions.find(filter.filterId);
             if (definition == definitions.end()) continue;
             builder.UpsertDevice({
-                std::to_string(bank.bankId) + ":" + std::to_string(filter.filterId),
+                std::to_string(bank.bankId) + ":" + std::to_string(filterIndex),
                 std::make_shared<EqFilterFactory>(definition->second, filter.values, sampleRate),
-                snapshot.IsBypassed(bank) || filter.bypass || IsNeutral(definition->second, filter),
+                snapshot.IsBypassed() || filter.bypass || IsNeutral(definition->second, filter),
                 order++,
                 settings::AudioOptions::ParameterSmoothingSamples(sampleRate)
             });
