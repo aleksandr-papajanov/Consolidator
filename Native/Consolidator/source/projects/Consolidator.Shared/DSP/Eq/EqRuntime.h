@@ -8,6 +8,7 @@
 #include "EqFilterFactory.h"
 
 #include <map>
+#include <cmath>
 #include <memory>
 #include <string>
 
@@ -122,11 +123,18 @@ private:
             builder.UpsertDevice({
                 std::to_string(bank.bankId) + ":" + std::to_string(filter.filterId),
                 std::make_shared<EqFilterFactory>(definition->second, filter.values, sampleRate),
-                snapshot.IsBypassed(bank) || filter.bypass,
+                snapshot.IsBypassed(bank) || filter.bypass || IsNeutral(definition->second, filter),
                 order++,
                 settings::AudioOptions::ParameterSmoothingSamples(sampleRate)
             });
         }
+    }
+
+    static bool IsNeutral(
+        const models::FilterDefinition& definition,
+        const models::FilterState& filter
+    ) {
+        return std::abs(definition.Value(filter.values, "gain", 0.0)) < 1.0e-12;
     }
 
     std::map<long, models::FilterDefinition> definitions;

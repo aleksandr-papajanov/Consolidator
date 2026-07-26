@@ -35,9 +35,13 @@ public:
         std::size_t index = 0;
         for (const auto& slot : devices) {
             const auto deviceInput = input;
+            const auto bypass = slot->bypass.Next();
+            if (bypass.value >= 1.0 && !bypass.changed) {
+                observer(index++, deviceInput, input, {});
+                continue;
+            }
             const auto processed = slot->device->ProcessSample(input);
-            const auto bypass = slot->bypass.Next().value;
-            input = processed + (input - processed) * bypass;
+            input = processed + (input - processed) * bypass.value;
             observer(index++, deviceInput, input, slot->device->Telemetry());
         }
         return input;

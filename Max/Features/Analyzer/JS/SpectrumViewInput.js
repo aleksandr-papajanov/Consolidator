@@ -25,21 +25,21 @@ SpectrumViewController.prototype.List = function() {
     if (spectrumState.curvePointCount > 0 && values.length !== spectrumState.curvePointCount) return;
     spectrumState.curves[index] = values;
 
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.SetFitCurve = function(values) {
     if (spectrumState.curvePointCount > 0 &&
         values.length !== spectrumState.curvePointCount) return;
     spectrumState.fitCurve = values.map(Number);
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.SetDifference = function(values) {
     if (spectrumState.curvePointCount > 0 &&
         values.length !== spectrumState.curvePointCount) return;
     spectrumState.curves[2] = values.map(Number);
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.FilterCurve = function() {
@@ -91,7 +91,7 @@ SpectrumViewController.prototype.FilterCurve = function() {
         }
     }
 
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.CurveSettings = function(minimumHz, maximumHz, pointCount) {
@@ -103,7 +103,7 @@ SpectrumViewController.prototype.CurveSettings = function(minimumHz, maximumHz, 
     spectrumState.curveMinFrequency = minimum;
     spectrumState.curveMaxFrequency = maximum;
     spectrumState.curvePointCount = count;
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.OnClick = function(x, y, button, cmd, shift, capslock, option) {
@@ -259,7 +259,7 @@ SpectrumViewController.prototype.FinishClick = function() {
     spectrumState.clickWasRepeat = false;
     spectrumState.clickMoved = false;
     spectrumState.draggingWithAlt = false;
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.SameHandle = function(left, right) {
@@ -342,20 +342,20 @@ SpectrumViewController.prototype.Clear = function() {
     spectrumState.clickMoved = false;
     spectrumState.selectionCandidates = [];
     spectrumState.selectionIndex = -1;
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.ClearDifference = function() {
     spectrumState.curves[2] = [];
     spectrumState.fitCurve = [];
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.Range = function(minValue, maxValue) {
     spectrumState.minDb = Number(minValue);
     spectrumState.maxDb = Number(maxValue);
     spectrumState.dbRangeIndex = -1;
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.RangeMode = function(value) {
@@ -374,7 +374,7 @@ SpectrumViewController.prototype.SetDbRangeMode = function(index) {
     spectrumState.dbRangeIndex = index;
     spectrumState.minDb = spectrumState.dbRangePresets[index].min;
     spectrumState.maxDb = spectrumState.dbRangePresets[index].max;
-    mgraphics.redraw();
+    this.RequestRedraw();
 }
 
 SpectrumViewController.prototype.FindHandle = function(slot) {

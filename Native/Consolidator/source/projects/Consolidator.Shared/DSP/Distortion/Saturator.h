@@ -39,7 +39,7 @@ public:
           detectorFilters(CreateDetectorFilters(configuration.detectorFilters, configuration.sampleRate)),
           mode(configuration.mode), detectorListen(configuration.detectorListen) {
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
-            detectorBypass[index] = configuration.detectorFilters[index].bypass;
+            detectorActive[index] = IsDetectorActive(configuration.detectorFilters[index]);
         }
     }
 
@@ -69,7 +69,7 @@ public:
         mode = settings.mode;
         detectorListen = settings.detectorListen;
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
-            detectorBypass[index] = settings.detectorFilters[index].bypass;
+            detectorActive[index] = IsDetectorActive(settings.detectorFilters[index]);
             detectorFilters[index].UpdateSettings(
                 DetectorFilterFactory::Settings(settings.detectorFilters[index], settings.sampleRate));
         }
@@ -78,7 +78,7 @@ public:
 private:
     double ProcessDetector(double input) {
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
-            if (!detectorBypass[index]) input = detectorFilters[index].ProcessSample(input);
+            if (detectorActive[index]) input = detectorFilters[index].ProcessSample(input);
         }
         return input;
     }
@@ -91,6 +91,10 @@ private:
 
     static double Mix(double dry, double wet, double amount) {
         return dry + amount * (wet - dry);
+    }
+
+    static bool IsDetectorActive(const models::DetectorFilterState& filter) {
+        return !filter.bypass && std::abs(filter.gainDb) >= 1.0e-12;
     }
 
     static std::array<BiquadBellFilter, 2> CreateDetectorFilters(
@@ -107,7 +111,7 @@ private:
     SmoothedParameter outputGain;
     SmoothedParameter mix;
     std::array<BiquadBellFilter, 2> detectorFilters;
-    std::array<bool, 2> detectorBypass{ false, false };
+    std::array<bool, 2> detectorActive{ false, false };
     long mode = settings::SaturatorOptions::DefaultMode;
     long detectorListen = 0;
 };

@@ -3,6 +3,19 @@ inlets = 6;
 outlets = 1;
 
 function SpectrumViewController() {
+    this.redrawScheduled = false;
+    this.redrawTask = new Task(this.FlushRedraw, this);
+}
+
+SpectrumViewController.prototype.RequestRedraw = function() {
+    if (this.redrawScheduled) return;
+    this.redrawScheduled = true;
+    this.redrawTask.schedule(0);
+}
+
+SpectrumViewController.prototype.FlushRedraw = function() {
+    this.redrawScheduled = false;
+    mgraphics.redraw();
 }
 
 mgraphics.init();

@@ -253,6 +253,15 @@ s ---message.bus.in
 r ---message.bus.out
 ```
 
+Cross-device coordination uses the unscoped `consolidator.host.bus` transport;
+it is intentionally distinct from the per-device `---message.bus.*` runtime
+bus. `HostDirectory` enumerates the Live set at startup and synchronizes
+incrementally through `host.query <requesterDeviceId>`,
+`host.announce <deviceId> <label...>`, and `host.leave <deviceId>`. An
+announcement updates only the addressed row; it must not cause another full
+Live set traversal. Future cross-host work must address stable Live device IDs
+on this bus and must not route through one device's `DeviceHost`.
+
 BusHub owns the single `consolidator.devicehost` instance. Persistence uses the
 separate scoped `---device.persistence.in/out` transport and never enters the
 runtime atom bus. The `---` prefix is mandatory so Live scopes names per device
@@ -323,6 +332,10 @@ For normal implementation work:
 
 When the user explicitly postpones builds or tests, perform the static checks
 and report that native binaries were not rebuilt.
+
+Use `.vscode/build-all.cmd` for native builds. Its runtime configuration is
+`RelWithDebInfo`; never copy Debug externals into the Max device for profiling
+or normal Live use.
 
 Native builds must be started only through the VS Code default task
 `Consolidator: Build All`, which executes `.vscode/build-all.cmd`. Do not invoke

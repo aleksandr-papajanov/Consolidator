@@ -16,5 +16,5 @@ if errorlevel 1 exit /b %errorlevel%
 "%CMAKE%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN%" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DCONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX=ON
 if errorlevel 1 exit /b %errorlevel%
 
-"%CMAKE%" --build "%BUILD_DIR%" --config Debug
+"%CMAKE%" --build "%BUILD_DIR%" --config RelWithDebInfo
 exit /b %errorlevel%
