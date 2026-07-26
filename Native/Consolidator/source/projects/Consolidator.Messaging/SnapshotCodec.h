@@ -86,10 +86,9 @@ public:
             ;
         WriteDetectorDefinitions(writer);
         writer
-            .Write(std::string{ "saturator" }).Write(static_cast<std::int64_t>(12))
+            .Write(std::string{ "saturator" }).Write(static_cast<std::int64_t>(11))
             .Write(std::string{ "input" }).Write(settings::SaturatorOptions::MinimumInputDb).Write(settings::SaturatorOptions::MaximumInputDb).Write(static_cast<std::int64_t>(0)).Write(settings::SaturatorOptions::DefaultInputDb)
             .Write(std::string{ "output" }).Write(settings::SaturatorOptions::MinimumOutputDb).Write(settings::SaturatorOptions::MaximumOutputDb).Write(static_cast<std::int64_t>(0)).Write(settings::SaturatorOptions::DefaultOutputDb)
-            .Write(std::string{ "mix" }).Write(settings::SaturatorOptions::MinimumMix).Write(settings::SaturatorOptions::MaximumMix).Write(static_cast<std::int64_t>(0)).Write(settings::SaturatorOptions::DefaultMix)
             .Write(std::string{ "mode" }).Write(static_cast<double>(0)).Write(static_cast<double>(settings::SaturatorOptions::ModeCount - 1)).Write(static_cast<std::int64_t>(0)).Write(static_cast<double>(settings::SaturatorOptions::DefaultMode))
             ;
         WriteDetectorDefinitions(writer);
@@ -196,7 +195,6 @@ public:
         atoms.emplace_back(snapshot.processor.saturator.bypass);
         atoms.emplace_back(snapshot.processor.saturator.inputDb);
         atoms.emplace_back(snapshot.processor.saturator.outputDb);
-        atoms.emplace_back(snapshot.processor.saturator.mix);
         atoms.emplace_back(static_cast<std::int64_t>(snapshot.processor.saturator.mode));
         for (const auto& filter : snapshot.processor.saturator.detectorFilters) {
             atoms.emplace_back(filter.bypass);
@@ -206,11 +204,15 @@ public:
         }
         atoms.emplace_back(static_cast<std::int64_t>(snapshot.processor.saturator.detectorListen));
         atoms.emplace_back(snapshot.processor.outputGain.gainDb);
+        atoms.emplace_back(snapshot.processor.inputGain.linkId);
+        atoms.emplace_back(snapshot.processor.compressor.linkId);
+        atoms.emplace_back(snapshot.processor.saturator.linkId);
+        atoms.emplace_back(snapshot.processor.outputGain.linkId);
         return atoms;
     }
 
     static std::optional<domain::DspSnapshot> DecodeDsp(const AtomList& atoms) {
-        constexpr std::size_t processorFieldCount = 32;
+        constexpr std::size_t processorFieldCount = 35;
         if (atoms.size() <= processorFieldCount ||
             !std::holds_alternative<std::string>(atoms[3]) ||
             std::get<std::string>(atoms[3]) != "dsp") return std::nullopt;
@@ -247,7 +249,6 @@ public:
         const auto saturatorBypass = reader.ReadBool();
         const auto saturatorInput = reader.ReadDouble();
         const auto saturatorOutput = reader.ReadDouble();
-        const auto saturatorMix = reader.ReadDouble();
         const auto saturatorMode = reader.ReadInt();
         std::array<models::DetectorFilterState, 2> saturatorFilters{};
         for (std::size_t index = 0; index < saturatorFilters.size(); ++index) {
@@ -264,15 +265,22 @@ public:
         }
         const auto saturatorDetectorListen = reader.ReadInt();
         const auto outputGain = reader.ReadDouble();
+        const auto inputGainLink = reader.ReadString();
+        const auto compressorLink = reader.ReadString();
+        const auto saturatorLink = reader.ReadString();
+        const auto outputGainLink = reader.ReadString();
         if (!inputGain || !compressorBypass || !attack || !release || !input || !output || !compressorMix || !compressorMode ||
             !compressorDetectorListen || *compressorDetectorListen < 0 || *compressorDetectorListen > 2 ||
-            !saturatorBypass || !saturatorInput || !saturatorOutput || !saturatorMix ||
+            !saturatorBypass || !saturatorInput || !saturatorOutput ||
             !saturatorMode || !saturatorDetectorListen ||
-            *saturatorDetectorListen < 0 || *saturatorDetectorListen > 2 || !outputGain || !reader.RequireEnd()) return std::nullopt;
+            *saturatorDetectorListen < 0 || *saturatorDetectorListen > 2 || !outputGain ||
+            !inputGainLink || !compressorLink || !saturatorLink || !outputGainLink ||
+            !reader.RequireEnd()) return std::nullopt;
 
         domain::DspSnapshot result;
         result.eq = std::move(*eq);
         result.processor.inputGain = { *inputGain };
+        result.processor.inputGain.linkId = *inputGainLink;
         result.processor.compressor.attackMs = *attack;
         result.processor.compressor.releaseMs = *release;
         result.processor.compressor.inputDb = *input;
@@ -282,14 +290,16 @@ public:
         result.processor.compressor.detectorFilters = compressorFilters;
         result.processor.compressor.detectorListen = static_cast<long>(*compressorDetectorListen);
         result.processor.compressor.bypass = *compressorBypass;
+        result.processor.compressor.linkId = *compressorLink;
         result.processor.saturator.inputDb = *saturatorInput;
         result.processor.saturator.outputDb = *saturatorOutput;
-        result.processor.saturator.mix = *saturatorMix;
         result.processor.saturator.mode = static_cast<long>(*saturatorMode);
         result.processor.saturator.detectorFilters = saturatorFilters;
         result.processor.saturator.detectorListen = static_cast<long>(*saturatorDetectorListen);
         result.processor.saturator.bypass = *saturatorBypass;
+        result.processor.saturator.linkId = *saturatorLink;
         result.processor.outputGain = { *outputGain };
+        result.processor.outputGain.linkId = *outputGainLink;
         if (const auto revision = std::get_if<std::int64_t>(&atoms[4])) result.revision = *revision;
         else return std::nullopt;
         return result;

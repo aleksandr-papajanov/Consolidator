@@ -17,6 +17,7 @@ public:
     const domain::GainState& State() const noexcept;
     domain::StoreRevision Revision() const noexcept;
     UpdateResult SetParameter(const domain::SetGainParameterCommand& command);
+    UpdateResult SetLink(const domain::SetProcessorLinkCommand& command);
     UpdateResult Replace(domain::GainState state, domain::StoreRevision revision);
     bool CanApplyFit(const domain::GainState& state) const noexcept;
     UpdateResult ApplyFit(domain::GainState state, domain::RequestId requestId);

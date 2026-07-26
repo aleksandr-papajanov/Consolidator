@@ -1,6 +1,11 @@
 autowatch = 1;
 inlets = 1;
 outlets = 1;
+
+// Inlet: float/int, list <ring> <value>, count, enabled, enable, disable,
+// outputValue, set, limits, indicator, clearIndicator, visualization, ringColor,
+// clearRingColor, primaryValue, secondaryValue, tertiaryValue, and defaults.
+// Outlet: list <ring> <normalizedValue>.
 mgraphics.init();
 include("JS/InterfaceVisualConfig.js");
 
@@ -42,6 +47,8 @@ function DialVisualization() {
 function DialControl() {
     this.values = [0.5];
     this.visualizations = [new DialVisualization()];
+    this.ringColors = [null];
+    this.limits = [{ minimum: 0.0, maximum: 1.0 }];
     this.activeIndex = 0;
     this.displayIndex = 0;
     this.isDragging = false;
@@ -68,8 +75,12 @@ DialControl.prototype.SetCount = function(count) {
     );
     var previousValues = this.values;
     var previousVisualizations = this.visualizations;
+    var previousRingColors = this.ringColors;
+    var previousLimits = this.limits;
     this.values = [];
     this.visualizations = [];
+    this.ringColors = [];
+    this.limits = [];
     for (var i = 0; i < nextCount; i++) {
         this.values.push(
             previousValues[i] === undefined
@@ -81,6 +92,8 @@ DialControl.prototype.SetCount = function(count) {
                 ? new DialVisualization()
                 : previousVisualizations[i]
         );
+        this.ringColors.push(previousRingColors[i] || null);
+        this.limits.push(previousLimits[i] || { minimum: 0.0, maximum: 1.0 });
     }
     if (this.activeIndex >= nextCount) this.activeIndex = nextCount - 1;
     mgraphics.redraw();
@@ -89,6 +102,8 @@ DialControl.prototype.SetCount = function(count) {
 DialControl.prototype.SetValue = function(index, value, shouldOutput) {
     if (index < 0 || index >= this.values.length) return;
     var nextValue = this.ClampValue(value);
+    var limits = this.limits[index];
+    nextValue = Math.max(limits.minimum, Math.min(limits.maximum, nextValue));
     if (nextValue === this.values[index] && !shouldOutput) return;
     this.values[index] = nextValue;
     if (shouldOutput) {
@@ -100,6 +115,15 @@ DialControl.prototype.SetValue = function(index, value, shouldOutput) {
     if (!shouldOutput) return;
     if (this.values.length === 1) outlet(0, nextValue);
     else outlet(0, [index + 1, nextValue]);
+};
+
+DialControl.prototype.SetLimits = function(index, minimum, maximum) {
+    var position = Number(index) - 1;
+    var nextMinimum = this.ClampValue(minimum);
+    var nextMaximum = this.ClampValue(maximum);
+    if (position < 0 || position >= this.limits.length || nextMinimum > nextMaximum) return;
+    this.limits[position] = { minimum: nextMinimum, maximum: nextMaximum };
+    this.SetValue(position, this.values[position], false);
 };
 
 DialControl.prototype.GetRadius = function(index, width, height) {
@@ -150,7 +174,6 @@ DialControl.prototype.PaintSignedVisualization = function(index, width, height) 
     if (!visualization || visualization.mode !== "signed"
         || visualization.value === 0) return;
     var value = visualization.value;
-
     var centerX = width * 0.5;
     var centerY = this.GetCenterY(width, height);
     var centerAngle = (DialOptions.startAngle + DialOptions.endAngle) * 0.5;
@@ -212,6 +235,7 @@ DialControl.prototype.BlendColor = function(left, right, amount) {
 };
 
 DialControl.prototype.GetRingValueColor = function(index) {
+    if (this.ringColors[index]) return this.ringColors[index];
     var visualization = this.visualizations[index];
     if (!visualization || visualization.mode !== "color") {
         return InterfaceVisualConfig.valueColor;
@@ -221,6 +245,23 @@ DialControl.prototype.GetRingValueColor = function(index) {
         InterfaceVisualConfig.alertColor,
         visualization.value
     );
+};
+
+DialControl.prototype.SetRingColor = function(index, red, green, blue, alpha) {
+    var position = Number(index) - 1;
+    if (position < 0 || position >= this.ringColors.length) return;
+    this.ringColors[position] = [
+        Number(red), Number(green), Number(blue),
+        alpha === undefined ? 1 : Number(alpha)
+    ];
+    mgraphics.redraw();
+};
+
+DialControl.prototype.ClearRingColor = function(index) {
+    var position = Number(index) - 1;
+    if (position < 0 || position >= this.ringColors.length) return;
+    this.ringColors[position] = null;
+    mgraphics.redraw();
 };
 
 DialControl.prototype.PaintRing = function(index, width, height) {
@@ -490,6 +531,10 @@ function set(index, value) {
     dialControl.SetIndexedValue(index, value);
 }
 
+function limits(index, minimum, maximum) {
+    dialControl.SetLimits(index, minimum, maximum);
+}
+
 function indicator(index, value) {
     dialControl.SetIndicator(index, value);
 }
@@ -500,6 +545,14 @@ function clearIndicator(index) {
 
 function visualization(index, mode, value) {
     dialControl.SetVisualization(index, mode, value);
+}
+
+function ringColor(index, red, green, blue, alpha) {
+    dialControl.SetRingColor(index, red, green, blue, alpha);
+}
+
+function clearRingColor(index) {
+    dialControl.ClearRingColor(index);
 }
 
 function list() {

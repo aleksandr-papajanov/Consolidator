@@ -6,6 +6,7 @@
 #include "Models/DetectorFilterState.h"
 
 #include <array>
+#include <string>
 
 namespace consolidator::models {
 
@@ -16,6 +17,7 @@ enum class GainStage {
 
 struct GainState {
     double gainDb = settings::GainOptions::DefaultGainDb;
+    std::string linkId;
 };
 
 struct CompressorState {
@@ -27,16 +29,17 @@ struct CompressorState {
     long mode = settings::CompressorOptions::DefaultMode;
     long detectorListen = 0;
     bool bypass = false;
+    std::string linkId;
     std::array<DetectorFilterState, 2> detectorFilters{ DetectorFilterState{ 1 }, DetectorFilterState{ 2 } };
 };
 
 struct SaturatorState {
     double inputDb = settings::SaturatorOptions::DefaultInputDb;
     double outputDb = settings::SaturatorOptions::DefaultOutputDb;
-    double mix = settings::SaturatorOptions::DefaultMix;
     long mode = settings::SaturatorOptions::DefaultMode;
     long detectorListen = 0;
     bool bypass = false;
+    std::string linkId;
     std::array<DetectorFilterState, 2> detectorFilters{ DetectorFilterState{ 1 }, DetectorFilterState{ 2 } };
 };
 

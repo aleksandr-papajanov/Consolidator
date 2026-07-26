@@ -1,6 +1,9 @@
 autowatch = 1;
 inlets = 1;
 outlets = 1;
+
+// Inlet: float/int, setValue, limits <minimum> <maximum>, enabled,
+// enable, disable, and outputValue. Outlet: normalized value.
 mgraphics.init();
 include("JS/InterfaceVisualConfig.js");
 
@@ -14,6 +17,8 @@ declareattribute("enabled", "getEnabled", "setEnabled", 1);
 
 function SliderControl() {
     this.value = 0.5;
+    this.minimum = 0.0;
+    this.maximum = 1.0;
     this.isDragging = false;
     this.enabled = true;
     this.lastX = 0.0;
@@ -25,10 +30,20 @@ SliderControl.prototype.ClampValue = function(value) {
 
 SliderControl.prototype.SetValue = function(value, shouldOutput) {
     var nextValue = this.ClampValue(value);
+    nextValue = Math.max(this.minimum, Math.min(this.maximum, nextValue));
     if (nextValue === this.value && !shouldOutput) return;
     this.value = nextValue;
     mgraphics.redraw();
     if (shouldOutput) outlet(0, this.value);
+};
+
+SliderControl.prototype.SetLimits = function(minimum, maximum) {
+    var nextMinimum = this.ClampValue(minimum);
+    var nextMaximum = this.ClampValue(maximum);
+    if (nextMinimum > nextMaximum) return;
+    this.minimum = nextMinimum;
+    this.maximum = nextMaximum;
+    this.SetValue(this.value, false);
 };
 
 SliderControl.prototype.GetGeometry = function() {
@@ -118,6 +133,10 @@ function disable() {
 
 function outputValue() {
     sliderControl.OutputValue();
+}
+
+function limits(minimum, maximum) {
+    sliderControl.SetLimits(minimum, maximum);
 }
 
 function paint() {

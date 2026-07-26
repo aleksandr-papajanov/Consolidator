@@ -24,7 +24,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.listen, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.set_link <bankId> <linkId|->, eq.select_bank, processor.set_link <device> <linkId|->, gain.*, compressor.*, saturator.*, analyzer.listen <0|1>, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
@@ -125,6 +125,7 @@ public:
             else {
                 PublishReadyState();
                 PublishAllSnapshots();
+                PublishPersistence();
             }
             return {};
         }
@@ -187,7 +188,14 @@ private:
             return;
         }
         try {
+            const auto isLinkCommand =
+                std::holds_alternative<domain::SetEqBankLinkCommand>(decoded.command) ||
+                std::holds_alternative<domain::SetProcessorLinkCommand>(decoded.command);
             host.Handle(decoded.command);
+            if (isLinkCommand) {
+                persistenceDirty = false;
+                PublishPersistence();
+            }
         }
         catch (const std::exception&) {
             debugOut.send("error", "host_command_failed");

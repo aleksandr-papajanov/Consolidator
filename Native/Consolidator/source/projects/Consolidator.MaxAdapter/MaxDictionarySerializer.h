@@ -60,6 +60,14 @@ private:
         for (const auto& key : dictionary.keys()) {
             const std::string name = static_cast<const char* const>(key);
             const auto atoms = static_cast<c74::min::atoms>(dictionary.at(key));
+            if (atoms.size() == 1 && c74::max::atomisdictionary(const_cast<c74::max::t_atom*>(
+                    static_cast<const c74::max::t_atom*>(&atoms.front())))) {
+                c74::min::dict nested{ atoms.front() };
+                if (IsArrayDictionary(nested)) {
+                    object[name] = ReadArray(nested);
+                    continue;
+                }
+            }
             if (atoms.size() == 1) object[name] = ReadAtom(atoms.front());
             else {
                 messaging::MessageArray values;
@@ -124,6 +132,9 @@ private:
         const std::string& key,
         const messaging::MessageArray& values
     ) {
+        auto* arrayObject = c74::max::dictionary_new();
+        c74::min::dict array{ arrayObject, false };
+        array[ArrayMarkerKey] = ArrayMarkerValue;
         c74::min::atoms atoms;
         atoms.reserve(values.size());
         for (const auto& value : values) {
@@ -132,11 +143,31 @@ private:
             else if (const auto number = value.As<double>()) atoms.push_back(*number);
             else if (const auto text = value.As<std::string>()) atoms.push_back(*text);
         }
-        auto* object = static_cast<c74::max::t_object*>(dictionary);
+        auto* object = static_cast<c74::max::t_object*>(array);
         c74::max::dictionary_appendatoms(
             reinterpret_cast<c74::max::t_dictionary*>(object),
-            c74::max::gensym(key.c_str()), static_cast<long>(atoms.size()),
+            c74::max::gensym(ArrayValuesKey), static_cast<long>(atoms.size()),
             atoms.empty() ? nullptr : &atoms[0]);
+        AppendDictionary(dictionary, key, arrayObject);
+    }
+
+    static bool IsArrayDictionary(c74::min::dict& dictionary) {
+        try {
+            const auto marker = static_cast<c74::min::atoms>(dictionary.at(ArrayMarkerKey));
+            return marker.size() == 1 && c74::max::atom_gettype(&marker.front()) == c74::max::A_SYM &&
+                std::string{ c74::max::atom_getsym(&marker.front())->s_name } == ArrayMarkerValue;
+        }
+        catch (...) {
+            return false;
+        }
+    }
+
+    static messaging::MessageArray ReadArray(c74::min::dict& dictionary) {
+        messaging::MessageArray values;
+        const auto atoms = static_cast<c74::min::atoms>(dictionary.at(ArrayValuesKey));
+        values.reserve(atoms.size());
+        for (const auto& atom : atoms) values.push_back(ReadAtom(atom));
+        return values;
     }
 
     static void AppendDictionary(
@@ -159,6 +190,10 @@ private:
         const auto name = std::string{ "consolidator.dictionary." } + std::to_string(++sequence);
         return c74::min::symbol{ name.c_str() };
     }
+
+    static constexpr const char* ArrayMarkerKey = "__consolidator_array__";
+    static constexpr const char* ArrayMarkerValue = "v1";
+    static constexpr const char* ArrayValuesKey = "values";
 };
 
 } // namespace consolidator::maxadapter

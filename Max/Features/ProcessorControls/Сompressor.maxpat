@@ -328,11 +328,30 @@
 				}
 
 			}
+, 			{
+				"box" : 				{
+					"id" : "compressor-processor-limits",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 490.625, 410.0, 170.0, 22.0 ],
+					"text" : "r ---processor.link.limits"
+				}
+
+			}
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "compressor-controller", 1 ],
 					"source" : [ "compressor-bus-in", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "compressor-controller", 0 ],
+					"source" : [ "compressor-processor-limits", 0 ]
 				}
 
 			}

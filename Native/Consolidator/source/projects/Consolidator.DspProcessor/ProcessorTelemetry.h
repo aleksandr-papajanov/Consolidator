@@ -45,6 +45,15 @@ public:
         return ++sampleCount >= consolidator::settings::AudioOptions::ProcessorTelemetryWindowSamples;
     }
 
+    bool IsSilent() const noexcept {
+        if (sampleCount == 0) return true;
+        const auto meanSquare = inputGainPreEnergy / (2.0 * static_cast<double>(sampleCount));
+        const auto threshold = std::pow(
+            10.0,
+            consolidator::settings::AudioOptions::SilenceThresholdDb / 10.0);
+        return meanSquare < threshold;
+    }
+
     ProcessorTelemetryFrame Finish() noexcept {
         ProcessorTelemetryFrame result;
         result.compressorReductionDb = sampleCount == 0

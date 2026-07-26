@@ -41,6 +41,12 @@ UpdateResult CompressorStore::SetParameter(const domain::SetCompressorParameterC
     return Commit(command.requestId);
 }
 
+UpdateResult CompressorStore::SetLink(const domain::SetProcessorLinkCommand& command) {
+    if (state.linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
+    state.linkId = command.linkId;
+    return Commit(command.requestId);
+}
+
 UpdateResult CompressorStore::SetMode(const domain::SetCompressorModeCommand& command) {
     if (command.mode < 0 || command.mode >= settings::CompressorOptions::ModeCount) return Reject("invalid_compressor_mode");
     if (state.mode == command.mode) return { UpdateStatus::Unchanged, {} };
@@ -90,7 +96,8 @@ UpdateResult CompressorStore::SetBypass(const domain::SetCompressorBypassCommand
 }
 
 UpdateResult CompressorStore::Reset(const domain::ResetCompressorCommand& command) {
-    const domain::CompressorState defaults;
+    auto defaults = domain::CompressorState{};
+    defaults.linkId = state.linkId;
     bool detectorChanged = false;
     for (std::size_t index = 0; index < state.detectorFilters.size(); ++index) {
         const auto& current = state.detectorFilters[index];
@@ -139,6 +146,7 @@ UpdateResult CompressorStore::ApplyFit(
     domain::CompressorState nextState,
     domain::RequestId requestId
 ) {
+    nextState.linkId = state.linkId;
     if (!CanApplyFit(nextState)) {
         return Reject("invalid_fit_compressor_state");
     }

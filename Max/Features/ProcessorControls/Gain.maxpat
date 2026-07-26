@@ -82,6 +82,17 @@
       },
       {
         "box": {
+          "id": "processor-limits",
+          "maxclass": "newobj",
+          "text": "r ---processor.link.limits",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [""],
+          "patching_rect": [180.0, 90.0, 165.0, 22.0]
+        }
+      },
+      {
+        "box": {
           "id": "message-bus-in",
           "maxclass": "newobj",
           "text": "s ---message.bus.in",
@@ -127,6 +138,12 @@
       {
         "patchline": {
           "source": ["message-bus-out", 0],
+          "destination": ["controller", 0]
+        }
+      },
+      {
+        "patchline": {
+          "source": ["processor-limits", 0],
           "destination": ["controller", 0]
         }
       },

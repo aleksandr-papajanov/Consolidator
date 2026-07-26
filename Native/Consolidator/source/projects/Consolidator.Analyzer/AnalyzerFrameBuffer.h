@@ -2,9 +2,11 @@
 
 #include "Audio/AnalyzerInputFrame.h"
 #include "Settings/AnalysisOptions.h"
+#include "Settings/AudioOptions.h"
 #include "Helpers/NumericHelper.h"
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 
 class AnalyzerFrameBuffer {
@@ -14,6 +16,13 @@ public:
         currentRight[writeIndex] = frame.current.right;
         referenceLeft[writeIndex] = frame.reference.left;
         referenceRight[writeIndex] = frame.reference.right;
+        maximumMagnitude = std::max({
+            maximumMagnitude,
+            std::abs(frame.current.left),
+            std::abs(frame.current.right),
+            std::abs(frame.reference.left),
+            std::abs(frame.reference.right)
+        });
     }
 
     bool Advance(int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize)) {
@@ -23,6 +32,14 @@ public:
 
     void Reset() {
         writeIndex = 0;
+        maximumMagnitude = 0.0;
+    }
+
+    bool IsSilent() const noexcept {
+        const auto threshold = std::pow(
+            10.0,
+            consolidator::settings::AudioOptions::SilenceThresholdDb / 20.0);
+        return maximumMagnitude < threshold;
     }
 
     int WriteIndex() const {
@@ -64,4 +81,5 @@ private:
     std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> referenceLeft{};
     std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> referenceRight{};
     int writeIndex = 0;
+    double maximumMagnitude = 0.0;
 };

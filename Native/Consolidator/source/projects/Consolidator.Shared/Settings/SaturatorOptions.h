@@ -10,9 +10,6 @@ public:
     static constexpr double MinimumOutputDb = -24.0;
     static constexpr double MaximumOutputDb = 24.0;
     static constexpr double DefaultOutputDb = 0.0;
-    static constexpr double MinimumMix = 0.0;
-    static constexpr double MaximumMix = 1.0;
-    static constexpr double DefaultMix = 1.0;
     static constexpr long ModeCount = 3;
     static constexpr long DefaultMode = 0;
 };

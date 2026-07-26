@@ -10,6 +10,11 @@
 
 namespace consolidator::domain {
 
+enum class AnalyzerViewMode {
+    Spectrum,
+    Analysis
+};
+
 using FilterState = models::FilterState;
 using EqBank = models::EqBank;
 using EqState = models::EqSnapshot;
@@ -27,6 +32,8 @@ struct AnalyzerState {
     std::uint64_t framesProcessed = 0;
     double progress = 0.0;
     std::string error;
+    bool viewVisible = false;
+    AnalyzerViewMode viewMode = AnalyzerViewMode::Spectrum;
 };
 
 struct ApproximatorState {

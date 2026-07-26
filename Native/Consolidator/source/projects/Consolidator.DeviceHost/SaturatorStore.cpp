@@ -27,16 +27,18 @@ UpdateResult SaturatorStore::SetParameter(const domain::SetSaturatorParameterCom
         destination = &state.outputDb;
         minimum = settings::SaturatorOptions::MinimumOutputDb;
         maximum = settings::SaturatorOptions::MaximumOutputDb;
-    } else if (command.parameter == "mix") {
-        destination = &state.mix;
-        minimum = settings::SaturatorOptions::MinimumMix;
-        maximum = settings::SaturatorOptions::MaximumMix;
     }
     if (!destination || !std::isfinite(command.value) || command.value < minimum || command.value > maximum) {
         return Reject("invalid_saturator_parameter");
     }
     if (*destination == command.value) return { UpdateStatus::Unchanged, {} };
     *destination = command.value;
+    return Commit(command.requestId);
+}
+
+UpdateResult SaturatorStore::SetLink(const domain::SetProcessorLinkCommand& command) {
+    if (state.linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
+    state.linkId = command.linkId;
     return Commit(command.requestId);
 }
 
@@ -89,7 +91,8 @@ UpdateResult SaturatorStore::SetDetectorListen(const domain::SetSaturatorDetecto
 }
 
 UpdateResult SaturatorStore::Reset(const domain::ResetSaturatorCommand& command) {
-    const domain::SaturatorState defaults;
+    auto defaults = domain::SaturatorState{};
+    defaults.linkId = state.linkId;
     bool detectorChanged = false;
     for (std::size_t index = 0; index < state.detectorFilters.size(); ++index) {
         const auto& current = state.detectorFilters[index];
@@ -98,7 +101,6 @@ UpdateResult SaturatorStore::Reset(const domain::ResetSaturatorCommand& command)
             current.frequencyHz != fallback.frequencyHz || current.q != fallback.q;
     }
     if (!detectorChanged && state.inputDb == defaults.inputDb && state.outputDb == defaults.outputDb &&
-        state.mix == defaults.mix &&
         state.mode == defaults.mode && state.detectorListen == defaults.detectorListen &&
         state.bypass == defaults.bypass) {
         return { UpdateStatus::Unchanged, {} };
@@ -114,7 +116,6 @@ UpdateResult SaturatorStore::Replace(domain::SaturatorState nextState, domain::S
         !std::isfinite(nextState.outputDb) ||
         nextState.outputDb < settings::SaturatorOptions::MinimumOutputDb ||
         nextState.outputDb > settings::SaturatorOptions::MaximumOutputDb ||
-        !std::isfinite(nextState.mix) || nextState.mix < settings::SaturatorOptions::MinimumMix || nextState.mix > settings::SaturatorOptions::MaximumMix ||
         nextState.mode < 0 || nextState.mode >= settings::SaturatorOptions::ModeCount) {
         return Reject("invalid_persisted_saturator_state");
     }
@@ -130,8 +131,7 @@ bool SaturatorStore::CanApplyFit(const domain::SaturatorState& nextState) const 
         std::isfinite(nextState.outputDb) &&
         nextState.outputDb >= settings::SaturatorOptions::MinimumOutputDb &&
         nextState.outputDb <= settings::SaturatorOptions::MaximumOutputDb &&
-        std::isfinite(nextState.mix) && nextState.mix >= settings::SaturatorOptions::MinimumMix &&
-        nextState.mix <= settings::SaturatorOptions::MaximumMix && nextState.mode >= 0 &&
+        nextState.mode >= 0 &&
         nextState.mode < settings::SaturatorOptions::ModeCount;
 }
 
@@ -139,11 +139,12 @@ UpdateResult SaturatorStore::ApplyFit(
     domain::SaturatorState nextState,
     domain::RequestId requestId
 ) {
+    nextState.linkId = state.linkId;
     if (!CanApplyFit(nextState)) {
         return Reject("invalid_fit_saturator_state");
     }
     if (state.inputDb == nextState.inputDb && state.outputDb == nextState.outputDb &&
-        state.mix == nextState.mix && state.mode == nextState.mode && state.bypass == nextState.bypass &&
+        state.mode == nextState.mode && state.bypass == nextState.bypass &&
         state.detectorFilters == nextState.detectorFilters) {
         return { UpdateStatus::Unchanged, {} };
     }

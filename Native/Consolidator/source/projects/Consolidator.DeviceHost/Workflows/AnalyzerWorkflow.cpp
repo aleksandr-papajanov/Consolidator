@@ -23,6 +23,15 @@ void AnalyzerWorkflow::Handle(const domain::ListenAnalyzerCommand& command) {
     });
 }
 
+void AnalyzerWorkflow::Handle(const domain::SetAnalyzerViewCommand& command) {
+    const auto changed = state.viewVisible != command.visible || state.viewMode != command.mode;
+    state.viewVisible = command.visible;
+    state.viewMode = command.mode;
+    if (changed) {
+        Publish(domain::AnalyzerViewChangedEvent{ state.viewVisible, state.viewMode });
+    }
+}
+
 const domain::AnalyzerState& AnalyzerWorkflow::State() const noexcept {
     return state;
 }

@@ -25,7 +25,6 @@ compressor bypass <0|1>
 compressor reset
 
 saturator input-output <1|2> <normalized>
-saturator mix <normalized>
 saturator mode <1..3>
 saturator detector <1|2> <gain|frequency|q|bypass> <normalized>
 saturator bypass <0|1>
@@ -59,6 +58,11 @@ makes the visualization approach red within the lowest part of the range.
 `smoothing` controls visual inertia.
 These UI transports never enter Host or the runtime atom bus.
 
+When a processor section is linked across device instances, its DialControl
+rings use the link-group color. BankManager sends `ringColor <ring> <rgba...>`
+and `clearRingColor <ring>` directly through `thispatcher`; this is local
+presentation state and does not enter Host.
+
 `consolidator.processorcontrols.detectorcurve.js` renders both detector bell
 filters in a compact view. It receives confirmed absolute detector values from
 the DSP snapshot through `thispatcher`, draws the individual responses and
@@ -91,7 +95,7 @@ script sendbox compressor.<mix|bypass> set <0..1>
 script sendbox compressor.mode set <1..3>
 script sendbox compressor.detector.<1|2>.<gain|frequency|q|bypass> set <0..1>
 script sendbox saturator.inputOutput set <1|2> <0..1>
-script sendbox saturator.<mix|bypass> set <0..1>
+script sendbox saturator.bypass set <0..1>
 script sendbox saturator.mode set <1..3>
 script sendbox saturator.detector.<1|2>.<gain|frequency|q|bypass> set <0..1>
 script sendbox output_gain.gain set <0..1>
@@ -110,7 +114,7 @@ Suggested stable varnames are `filter.<id>.<parameter>`,
 `input_gain.gain`, `compressor.attackRelease`, `compressor.inputOutput`,
 `compressor.mix`, `compressor.mode`, `compressor.control`,
 `compressor.detector.1`, `compressor.detector.2`, `saturator.inputOutput`,
-`saturator.mix`, `saturator.mode`,
+`saturator.mode`,
 `saturator.control`, `saturator.detector.1`, `saturator.detector.2`, and
 `output_gain.gain`.
 

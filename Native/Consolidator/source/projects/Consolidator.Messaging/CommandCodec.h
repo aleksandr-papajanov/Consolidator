@@ -137,6 +137,18 @@ public:
             else return Invalid("invalid_gain_stage", reader.Index());
             return Success(domain::SetGainParameterCommand{ { *requestId }, gainStage, *gainDb });
         }
+        if (*name == "processor.set_link") {
+            const auto device = reader.ReadString();
+            const auto linkId = reader.ReadString();
+            if (!device || !linkId || !reader.RequireEnd() ||
+                (*device != "input_gain" && *device != "compressor" &&
+                 *device != "saturator" && *device != "output_gain")) {
+                return Invalid("invalid_processor_set_link", reader.Index());
+            }
+            return Success(domain::SetProcessorLinkCommand{
+                { *requestId }, *device, *linkId == "-" ? std::string{} : *linkId
+            });
+        }
         if (*name == "compressor.set_parameter") {
             const auto parameter = reader.ReadString();
             const auto value = reader.ReadDouble();
@@ -207,6 +219,24 @@ public:
             const auto enabled = reader.ReadBool();
             if (!enabled || !reader.RequireEnd()) return Invalid("invalid_analyzer_listen", reader.Index());
             return Success(domain::ListenAnalyzerCommand{ { *requestId }, *enabled });
+        }
+        if (*name == "analyzer.set_view") {
+            const auto visible = reader.ReadBool();
+            const auto mode = reader.ReadString();
+            if (!visible || !mode || !reader.RequireEnd()) {
+                return Invalid("invalid_analyzer_set_view", reader.Index());
+            }
+            if (*mode == "spectrum") {
+                return Success(domain::SetAnalyzerViewCommand{
+                    { *requestId }, *visible, domain::AnalyzerViewMode::Spectrum
+                });
+            }
+            if (*mode == "analysis") {
+                return Success(domain::SetAnalyzerViewCommand{
+                    { *requestId }, *visible, domain::AnalyzerViewMode::Analysis
+                });
+            }
+            return Invalid("invalid_analyzer_view_mode", reader.Index());
         }
         if (*name == "fit.start") {
             const auto pointCount = reader.ReadInt();

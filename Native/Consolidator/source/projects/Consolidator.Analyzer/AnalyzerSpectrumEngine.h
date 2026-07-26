@@ -25,10 +25,11 @@ public:
     AnalyzerSpectrumResult Analyze(
         const AnalyzerFrameBuffer& frame,
         AnalyzerCurveBatch& curves,
+        bool writeCurves,
         bool accumulateDifference = false
     ) {
         AnalyzerSpectrumResult result;
-        AnalyzeInto(frame, curves, result, accumulateDifference);
+        AnalyzeInto(frame, curves, result, writeCurves, accumulateDifference);
         return result;
     }
 
@@ -36,6 +37,7 @@ public:
         const AnalyzerFrameBuffer& frame,
         AnalyzerCurveBatch& curves,
         AnalyzerSpectrumResult& result,
+        bool writeCurves,
         bool accumulateDifference = false
     ) {
         const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
@@ -52,7 +54,7 @@ public:
             frame.WriteIndex(),
             fftSize,
             result.current);
-        StoreCurves(result, curves, fftSize, accumulateDifference);
+        if (writeCurves) StoreCurves(result, curves, fftSize, accumulateDifference);
     }
 
     void AnalyzeReferenceInto(
@@ -72,7 +74,8 @@ public:
         const AnalyzerFrameBuffer& frame,
         const AnalyzerSignalSpectrum& reference,
         AnalyzerCurveBatch& curves,
-        AnalyzerSpectrumResult& result
+        AnalyzerSpectrumResult& result,
+        bool accumulateDifference
     ) {
         const int fftSize = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultFftSize);
         result.reference = reference;
@@ -82,7 +85,7 @@ public:
             frame.WriteIndex(),
             fftSize,
             result.current);
-        StoreCurves(result, curves, fftSize, false);
+        StoreCurves(result, curves, fftSize, accumulateDifference);
     }
 
 private:

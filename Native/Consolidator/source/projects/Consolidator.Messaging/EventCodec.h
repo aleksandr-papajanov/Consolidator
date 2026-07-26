@@ -48,6 +48,13 @@ public:
                     .Write(static_cast<std::int64_t>(value.curveDb.size()));
                 for (const auto valueDb : value.curveDb) writer.Write(valueDb);
             }
+            else if constexpr (std::is_same_v<Event, domain::AnalyzerViewChangedEvent>) {
+                writer.Write(std::string{ "analyzer.view_changed" })
+                    .Write(value.visible)
+                    .Write(std::string{
+                        value.mode == domain::AnalyzerViewMode::Spectrum ? "spectrum" : "analysis"
+                    });
+            }
             else if constexpr (std::is_same_v<Event, domain::OperationChangedEvent>) {
                 writer.Write(std::string{ "operation.changed" }).Write(value.operation)
                     .Write(static_cast<std::int64_t>(value.sessionId.value))
@@ -110,6 +117,24 @@ public:
             return Success(domain::FitRequestedEvent{
                 { *sessionId }, { *bankId }, std::move(curveDb)
             }, *eventId);
+        }
+        if (*name == "analyzer.view_changed") {
+            const auto visible = reader.ReadBool();
+            const auto mode = reader.ReadString();
+            if (!visible || !mode || !reader.RequireEnd()) {
+                return Invalid("invalid_analyzer_view_changed", reader.Index());
+            }
+            if (*mode == "spectrum") {
+                return Success(domain::AnalyzerViewChangedEvent{
+                    *visible, domain::AnalyzerViewMode::Spectrum
+                }, *eventId);
+            }
+            if (*mode == "analysis") {
+                return Success(domain::AnalyzerViewChangedEvent{
+                    *visible, domain::AnalyzerViewMode::Analysis
+                }, *eventId);
+            }
+            return Invalid("invalid_analyzer_view_mode", reader.Index());
         }
         if (*name == "operation.changed") {
             const auto operation = reader.ReadString();

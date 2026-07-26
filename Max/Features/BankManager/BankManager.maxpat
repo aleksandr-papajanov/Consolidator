@@ -63,8 +63,9 @@
           "id": "manager",
           "maxclass": "jsui",
           "numinlets": 2,
-          "numoutlets": 2,
+          "numoutlets": 3,
           "outlettype": [
+            "",
             "",
             ""
           ],
@@ -112,6 +113,21 @@
             22.0
           ],
           "text": "s consolidator.host.bus"
+        }
+      },
+      {
+        "box": {
+          "id": "processor-limits-send",
+          "maxclass": "newobj",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [
+            340.0,
+            235.0,
+            170.0,
+            22.0
+          ],
+          "text": "s ---processor.link.limits"
         }
       },
       {
@@ -299,6 +315,18 @@
           "destination": [
             "leave",
             0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "destination": [
+            "processor-limits-send",
+            0
+          ],
+          "source": [
+            "manager",
+            2
           ]
         }
       },

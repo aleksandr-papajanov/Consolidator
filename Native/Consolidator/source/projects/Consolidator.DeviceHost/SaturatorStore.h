@@ -16,6 +16,7 @@ public:
     const domain::SaturatorState& State() const noexcept;
     domain::StoreRevision Revision() const noexcept;
     UpdateResult SetParameter(const domain::SetSaturatorParameterCommand& command);
+    UpdateResult SetLink(const domain::SetProcessorLinkCommand& command);
     UpdateResult SetBypass(const domain::SetSaturatorBypassCommand& command);
     UpdateResult SetMode(const domain::SetSaturatorModeCommand& command);
     UpdateResult SetDetectorParameter(const domain::SetSaturatorDetectorParameterCommand& command);

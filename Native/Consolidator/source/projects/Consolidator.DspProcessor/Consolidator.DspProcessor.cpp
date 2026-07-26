@@ -124,9 +124,14 @@ public:
             return runtime.chain.ProcessSampleObservedStereo({ left, right }, observer);
         });
         if (telemetry.Advance()) {
-            telemetryFrames.ProducerValue() = telemetry.Finish();
-            telemetryFrames.Publish();
-            ScheduleTelemetryDelivery();
+            if (!telemetry.IsSilent()) {
+                telemetryFrames.ProducerValue() = telemetry.Finish();
+                telemetryFrames.Publish();
+                ScheduleTelemetryDelivery();
+            }
+            else {
+                telemetry.Reset();
+            }
         }
         return { output.left, output.right, eqInput.left, eqInput.right };
     }

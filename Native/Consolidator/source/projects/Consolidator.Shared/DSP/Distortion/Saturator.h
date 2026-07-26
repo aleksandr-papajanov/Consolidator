@@ -17,7 +17,6 @@ namespace consolidator::dsp {
 struct SaturatorSettings {
     double inputDb = settings::SaturatorOptions::DefaultInputDb;
     double outputDb = settings::SaturatorOptions::DefaultOutputDb;
-    double mix = settings::SaturatorOptions::DefaultMix;
     long mode = settings::SaturatorOptions::DefaultMode;
     std::array<models::DetectorFilterState, 2> detectorFilters{
         models::DetectorFilterState{ 1 }, models::DetectorFilterState{ 2 }
@@ -35,7 +34,6 @@ public:
           outputGain(
               helpers::NumericHelper::DecibelsToMagnitude(configuration.outputDb),
               settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
-          mix(configuration.mix, settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
           detectorFilters(CreateDetectorFilters(configuration.detectorFilters, configuration.sampleRate)),
           mode(configuration.mode), detectorListen(configuration.detectorListen) {
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
@@ -44,12 +42,11 @@ public:
     }
 
     double ProcessSample(double input) override {
-        const auto wet = helpers::NumericHelper::Clamp(mix.Next().value, 0.0, 1.0);
         const auto detectorInput = ProcessDetector(input);
         const auto wetInput = detectorListen > 0 ? detectorInput : input;
         const auto driven = wetInput * inputGain.Next().value;
         const auto processed = Shape(driven) * outputGain.Next().value;
-        return Mix(input, processed, wet);
+        return processed;
     }
 
     void Reset() override {}
@@ -65,7 +62,6 @@ public:
                 settings.outputDb,
                 settings::SaturatorOptions::MinimumOutputDb,
                 settings::SaturatorOptions::MaximumOutputDb)));
-        mix.SetTarget(settings.mix);
         mode = settings.mode;
         detectorListen = settings.detectorListen;
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
@@ -89,10 +85,6 @@ private:
         return input / (1.0 + std::abs(input));
     }
 
-    static double Mix(double dry, double wet, double amount) {
-        return dry + amount * (wet - dry);
-    }
-
     static bool IsDetectorActive(const models::DetectorFilterState& filter) {
         return !filter.bypass && std::abs(filter.gainDb) >= 1.0e-12;
     }
@@ -109,7 +101,6 @@ private:
 
     SmoothedParameter inputGain;
     SmoothedParameter outputGain;
-    SmoothedParameter mix;
     std::array<BiquadBellFilter, 2> detectorFilters;
     std::array<bool, 2> detectorActive{ false, false };
     long mode = settings::SaturatorOptions::DefaultMode;

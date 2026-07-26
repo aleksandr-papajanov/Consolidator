@@ -57,6 +57,12 @@ void DeviceHost::Handle(const domain::Command& command) {
                 auto& store = value.stage == domain::GainStage::Input ? inputGainStore : outputGainStore;
                 PublishResult(store.SetParameter(value), value.requestId);
             }
+            else if constexpr (std::is_same_v<Command, domain::SetProcessorLinkCommand>) {
+                if (value.device == "input_gain") PublishResult(inputGainStore.SetLink(value), value.requestId);
+                else if (value.device == "compressor") PublishResult(compressorStore.SetLink(value), value.requestId);
+                else if (value.device == "saturator") PublishResult(saturatorStore.SetLink(value), value.requestId);
+                else if (value.device == "output_gain") PublishResult(outputGainStore.SetLink(value), value.requestId);
+            }
             else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) PublishResult(compressorStore.SetParameter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetCompressorBypassCommand>) PublishResult(compressorStore.SetBypass(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetCompressorModeCommand>) PublishResult(compressorStore.SetMode(value), value.requestId);
@@ -70,6 +76,7 @@ void DeviceHost::Handle(const domain::Command& command) {
             else if constexpr (std::is_same_v<Command, domain::SetSaturatorDetectorListenCommand>) PublishResult(saturatorStore.SetDetectorListen(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetSaturatorCommand>) PublishResult(saturatorStore.Reset(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ListenAnalyzerCommand>) analyzerWorkflow.Handle(value);
+            else if constexpr (std::is_same_v<Command, domain::SetAnalyzerViewCommand>) analyzerWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::StartFitCommand> ||
                                std::is_same_v<Command, domain::CancelFitCommand> ||
                                std::is_same_v<Command, domain::ClearFitCommand> ||

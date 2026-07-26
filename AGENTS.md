@@ -113,13 +113,15 @@ Supported commands are:
 - `compressor.set_detector_listen <0|1|2>`
 - `compressor.set_bypass <0|1>`
 - `compressor.reset`
-- `saturator.set_parameter <input|output|mix> <absoluteValue>`
+- `saturator.set_parameter <input|output> <absoluteValue>`
+- `processor.set_link <input_gain|compressor|saturator|output_gain> <linkId|->`
 - `saturator.set_mode <0..2>`
 - `saturator.set_detector_parameter <1|2> <gain|frequency|q|bypass> <absoluteValue>`
 - `saturator.set_detector_listen <0|1|2>`
 - `saturator.set_bypass <0|1>`
 - `saturator.reset`
 - `analyzer.listen <0|1>`
+- `analyzer.set_view <0|1> <spectrum|analysis>`
 - `fit.start <pointCount> <curveDb...>`, `fit.cancel <sessionId>`, and `fit.clear`
 - `fit.complete <sessionId> <bankId> <loss> <filterCount> <filters...> <inputGain> <compressorBypass> <attack> <release> <input> <output> <saturatorBypass> <saturatorInput> <saturatorOutput> <outputGain>`
 - `fit.fail <sessionId> <error>`
@@ -183,11 +185,13 @@ are the stereo EQ-input tap after compressor and before the EQ banks. The
 `DspProcessor.maxpat` feature must pass all four signal outlets through in that
 same order before routing status, diagnostics, and telemetry.
 
-`consolidator.analyzer` receives the DSP tap after compressor and before the EQ
-banks, plus the unprocessed reference stereo. It publishes measured current, reference and
+`consolidator.analyzer` receives both the final post-EQ current signal and the
+DSP tap after compressor and before the EQ banks, plus the unprocessed reference stereo.
+It publishes measured post-EQ current, reference and
 difference curves, selected-bank filter curves, the total EQ response, and a
 rolling feature vector with global and standard-band metrics. It never adds a
-calculated EQ response to the measured candidate. The audio thread owns smoothing state and
+calculated EQ response to the measured current. Fit accumulation compares the
+pre-EQ tap with the reference and subtracts the ordered bank response. The audio thread owns smoothing state and
 accumulates the smoothed difference curve as a running mean for the duration of
 each active `analyzer.listen` session. Disabling Listen clears that accumulation.
 The audio thread
@@ -198,6 +202,16 @@ delivers the newest frame on Max's main thread; do not poll Analyzer with
 `qmetro`. Analyzer sends `curve_settings <minimumHz> <maximumHz> <pointCount>`
 on its visual outlet; SpectrumView must use that metadata instead of
 duplicating the native curve grid.
+
+`analyzer.set_view` is operational, non-persistent view demand. When the device
+is not the selected Live device, Analyzer view demand is disabled. In `spectrum`
+mode Analyzer produces FFT curves only; in `analysis` mode it produces the
+feature vector only. `analyzer.listen` is independent: it keeps the minimum FFT
+and fit-curve accumulation active even while the Analyzer view is hidden. A
+silent FFT window skips FFT post-processing, metric extraction, curve
+serialization, and Max delivery. Processor telemetry likewise suppresses silent
+windows before it reaches Max. Stateful audio DSP is never skipped merely
+because its input is silent.
 
 `consolidator.approximator` owns the EQ curve workflow only. Its UI controller
 caches the latest Analyzer `fit_curve` and sends it atomically in
@@ -228,14 +242,25 @@ its own hidden bank `0`; the link remains intact. The resulting default source
 values are local Join effects and must never be replicated as parameter edits.
 
 Analyzer visualization is split into independent responsive JSUI components.
-`consolidator.analyzer.spectrum.js` receives current spectrum, reference spectrum,
-difference, selected-bank filter curves, total EQ response, and Host snapshots;
-marker drag emits absolute `eq.set_parameter` commands and Alt changes Q.
-`consolidator.analyzer.analysis.js` receives feature vectors only.
+`consolidator.analyzer.view.js` is the single responsive JSUI for Analyzer
+visualization. It switches between spectrum and analysis pages without creating
+parallel canvases. It receives current spectrum, reference spectrum, fit curve,
+selected-bank filter curves, total EQ response, feature vectors, and Host
+snapshots; marker drag emits absolute `eq.set_parameter` commands and Alt changes Q.
 `consolidator.analyzer.processormeters.js` receives processor telemetry only.
 `consolidator.analyzer.gainmeters.js` receives Analyzer `gain_levels` only.
 The four boxes must remain independently resizable and composable in Max
 presentation; no component derives its drawing area from a sibling box.
+
+Analyzer JSUI only renders prepared values. Temporal smoothing, FFT sampling,
+curve aggregation, and metric extraction belong to C++; JS must not use
+gradients, curve interpolation, or per-frame data transformations for these
+views. Keep the root JSUI small and split state, geometry, rendering, and input
+into feature-local helper files.
+EQ snapshot-driven Analyzer filter visuals must coalesce on Max's main thread;
+do not synchronously rebuild and publish every filter curve for each parameter
+event. BankManager announcements are summary changes only. Continuous linked
+parameter traffic must not rebroadcast announcements or redraw every manager.
 
 `Max/Features/ProcessorControls/ProcessorControls.maxpat` is the single control
 surface for all EQ filters, compressor, and saturator. Max controls are created
@@ -263,11 +288,34 @@ r ---message.bus.out
 Cross-device coordination uses the unscoped `consolidator.host.bus` transport;
 it is intentionally distinct from the per-device `---message.bus.*` runtime
 bus. `BankManager` is its consumer and producer. Every instance announces a
-stable persisted `instanceId`, its label, active user bank, bank occupancy and
-link memberships. A peer announcement updates only that peer row and must not
-cause a Live-set traversal. Link updates carry `linkId`, source `instanceId`,
-and host-assigned monotonically increasing revision. A received remote update
-must apply in remote mode and never be broadcast again.
+runtime ID derived from its Live device object, its label, active user bank,
+bank occupancy and link memberships. The runtime ID must never come from
+persisted state: copying a device duplicates persistence but must create a
+separate peer row. A peer announcement updates only that peer row and must not
+cause a Live-set traversal. Link updates carry `linkId`, source runtime ID, and
+host-assigned monotonically increasing revision. A received remote update must
+apply in remote mode and never be broadcast again.
+
+BankManager may link one matching processor section across instances:
+`input_gain`, `compressor`, `saturator`, or `output_gain`. Processor links are
+stored on the corresponding processor state. BankManager maintains an explicit
+`ProcessorLinkGroup` model containing every participant's current absolute
+values. Refresh peer announcements synchronously before creating a group, then
+keep the model current with each accepted
+`link.processor_delta <linkId> <sourceRuntimeId> <revision> <device> <parameter> <delta>`.
+Continuous processor values travel only through `link.processor_delta`;
+`bank.announce` must not duplicate the same edit.
+Each participant retains its own absolute value. Validate a delta against every
+member before publishing it; otherwise restore the source and leave every peer
+unchanged. When link membership changes, BankManager derives the intersection
+of the remaining ranges once and sends fixed `processor_limits` through the
+scoped `---processor.link.limits` transport. Parameter snapshots and deltas
+must never recompute those limits. Unlink restores the full parameter range.
+Dial and slider controls enforce the fixed limits during the gesture; rollback
+is only a defensive consistency check. Processor links
+never mix with bank links or another processor type. Compressor links include
+attack, release, input, output, and mix; saturator links include input and
+output; gain links include gain.
 
 BusHub owns the single `consolidator.devicehost` instance. Persistence uses the
 separate scoped `---device.persistence.in/out` transport and never enters the
@@ -289,7 +337,7 @@ unrelated global functions.
 
 ## Persistence
 
-Persistence is the only Max Dictionary use in native runtime. Schema 12 stores
+Persistence is the only Max Dictionary use in native runtime. Schema 13 stores
 the fixed EQ banks, stable `instanceId`, input/output gain, compressor, and saturator state. The root device's
 `pattrstorage` sends recalled dictionaries directly to `---device.persistence.in`.
 DeviceHost validates the schema and complete
@@ -301,11 +349,20 @@ through the pattr inlet and must update storage without being emitted back as a
 restore. A `pattrstorage recall` is an external change and must still reach
 DeviceHost. Never create a persistence write-to-restore feedback loop.
 
+The root `pattrstorage` is the parameter-enabled Blob persistence boundary. It
+must retain `parameter_initial_enable` and `paraminitmode`; Blob visibility is
+not changed to implement persistence. After `persistence_ready`, DeviceHost
+synchronously publishes canonical state so defaults or restored state are
+written to slot `1` before Live serializes it.
+
 DeviceHost publishes persistence only after `persistence_ready`. The temporary
 Dictionary must travel synchronously through `---device.persistence.out` to the
 root `pattrstorage`; never delay a Dictionary name after its owner has
 gone out of scope. Persistence debounce happens before serialization; the
 timer callback creates and sends the temporary Dictionary synchronously.
+Bank and processor link membership is structural state: successful
+`eq.set_link` and `processor.set_link` commands publish persistence immediately
+instead of waiting for the normal parameter debounce.
 Never release a parent Max Dictionary after appending atoms or a nested
 dictionary. A nested dictionary transfers ownership to its parent after a
 successful append.

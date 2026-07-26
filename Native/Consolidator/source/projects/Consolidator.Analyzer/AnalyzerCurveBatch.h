@@ -129,6 +129,19 @@ public:
             differenceGeneration);
     }
 
+    void WriteFrame(
+        AnalyzerCurveFrame& frame,
+        const AnalyzerCurveBatch& differenceSource,
+        std::uint64_t differenceGeneration
+    ) const {
+        frame.Assign(
+            pendingCurrent,
+            pendingReference,
+            differenceSource.pendingDifference,
+            pendingCount,
+            differenceGeneration);
+    }
+
 private:
     static consolidator::dsp::Curve MakeCurve(
         int pointCount = static_cast<int>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount)

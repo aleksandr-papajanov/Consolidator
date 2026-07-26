@@ -42,7 +42,6 @@ public:
                 dsp::SaturatorSettings{
                     saturator.inputDb,
                     saturator.outputDb,
-                    saturator.mix,
                     saturator.mode,
                     saturator.detectorFilters,
                     saturator.detectorListen,

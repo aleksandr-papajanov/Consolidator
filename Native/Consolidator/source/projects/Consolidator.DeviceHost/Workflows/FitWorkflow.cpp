@@ -112,7 +112,6 @@ void FitWorkflow::Handle(const domain::CompleteFitCommand& command) {
     fitCommand.result.processor.compressor.mix = compressorStore.State().mix;
     fitCommand.result.processor.compressor.mode = compressorStore.State().mode;
     fitCommand.result.processor.compressor.detectorFilters = compressorStore.State().detectorFilters;
-    fitCommand.result.processor.saturator.mix = saturatorStore.State().mix;
     fitCommand.result.processor.saturator.mode = saturatorStore.State().mode;
     fitCommand.result.processor.saturator.detectorFilters = saturatorStore.State().detectorFilters;
     if (!std::isfinite(fitCommand.result.loss)) {

@@ -29,6 +29,14 @@ public:
         return true;
     }
 
+    void RefreshCurves() {
+        const auto* selectedBank = eqRuntime.Snapshot().SelectedBank();
+        banksThroughSelectedCurve = selectedBank
+            ? eqRuntime.BuildThroughBankCurve(selectedBank->bankId, sampleRate)
+            : consolidator::dsp::Curve{};
+        totalCurve = SumBanks();
+    }
+
     const std::string& SnapshotError() const {
         return snapshotError;
     }
@@ -43,13 +51,11 @@ public:
     }
 
     void PublishTotal(c74::min::outlet<>& outlet) const {
-        SendCurve(SumBanks(), outlet);
+        SendCurve(totalCurve, outlet);
     }
 
-    consolidator::dsp::Curve BanksThroughSelectedCurve() const {
-        const auto* selectedBank = eqRuntime.Snapshot().SelectedBank();
-        if (!selectedBank) return consolidator::dsp::Curve{};
-        return eqRuntime.BuildThroughBankCurve(selectedBank->bankId, sampleRate);
+    const consolidator::dsp::Curve& BanksThroughSelectedCurve() const {
+        return banksThroughSelectedCurve;
     }
 
 private:
@@ -65,7 +71,9 @@ private:
     ) const {
         const bool active = bankActive && state && !state->bypass;
         const auto values = state ? state->values : definition.DefaultValues();
-        auto curve = BuildFilterCurve(definition, values, active);
+        const auto curve = active
+            ? BuildFilterCurve(definition, values, true)
+            : consolidator::dsp::Curve{};
 
         const auto frequencyName = definition.type == consolidator::models::FilterType::Tilt
             ? "pivot" : "freq";
@@ -76,9 +84,15 @@ private:
         const double q = definition.Value(values, "q", 0.0);
         const double qMinimum = qParameter ? qParameter->range.minimum : 0.0;
         const double qMaximum = qParameter ? qParameter->range.maximum : 0.0;
+        const auto frequencyParameter = definition.FindParameter(frequencyName);
+        const auto gainParameter = definition.FindParameter("gain");
+        const double frequencyMinimum = frequencyParameter ? frequencyParameter->range.minimum : frequency;
+        const double frequencyMaximum = frequencyParameter ? frequencyParameter->range.maximum : frequency;
+        const double gainMinimum = gainParameter ? gainParameter->range.minimum : gain;
+        const double gainMaximum = gainParameter ? gainParameter->range.maximum : gain;
 
         c74::min::atoms output;
-        output.reserve(9 + curve.Values().size());
+        output.reserve(13 + (active ? curve.Values().size() : 0));
         output.push_back("filter_curve");
         output.push_back(definition.filterId);
         output.push_back(active ? 1 : 0);
@@ -88,7 +102,13 @@ private:
         output.push_back(q);
         output.push_back(qMinimum);
         output.push_back(qMaximum);
-        for (const auto value : curve.Values()) output.push_back(value);
+        output.push_back(frequencyMinimum);
+        output.push_back(frequencyMaximum);
+        output.push_back(gainMinimum);
+        output.push_back(gainMaximum);
+        if (active) {
+            for (const auto value : curve.Values()) output.push_back(value);
+        }
         outlet.send(output);
     }
 
@@ -140,5 +160,7 @@ private:
 
     double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
     consolidator::dsp::EqRuntime eqRuntime;
+    consolidator::dsp::Curve banksThroughSelectedCurve;
+    consolidator::dsp::Curve totalCurve;
     std::string snapshotError;
 };

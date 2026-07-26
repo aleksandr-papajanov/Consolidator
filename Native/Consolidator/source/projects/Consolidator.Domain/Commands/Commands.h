@@ -4,6 +4,7 @@
 #include "Models/ProcessorState.h"
 #include "Operations/OperationTypes.h"
 #include "Results/FitResult.h"
+#include "States/States.h"
 
 #include <cstddef>
 #include <string>
@@ -83,6 +84,12 @@ struct SetGainParameterCommand {
     double gainDb = 0.0;
 };
 
+struct SetProcessorLinkCommand {
+    RequestId requestId{};
+    std::string device;
+    std::string linkId;
+};
+
 struct SetCompressorParameterCommand {
     RequestId requestId{};
     std::string parameter;
@@ -152,6 +159,12 @@ struct ListenAnalyzerCommand {
     bool enabled = false;
 };
 
+struct SetAnalyzerViewCommand {
+    RequestId requestId{};
+    bool visible = false;
+    AnalyzerViewMode mode = AnalyzerViewMode::Spectrum;
+};
+
 struct StartFitCommand {
     RequestId requestId{};
     std::vector<double> curveDb;
@@ -190,6 +203,7 @@ using Command = std::variant<
     SetEqBankLinkCommand,
     SelectEqBankCommand,
     SetGainParameterCommand,
+    SetProcessorLinkCommand,
     SetCompressorParameterCommand,
     SetCompressorBypassCommand,
     SetCompressorModeCommand,
@@ -203,6 +217,7 @@ using Command = std::variant<
     SetSaturatorDetectorListenCommand,
     ResetSaturatorCommand,
     ListenAnalyzerCommand,
+    SetAnalyzerViewCommand,
     StartFitCommand,
     CancelFitCommand,
     ClearFitCommand,

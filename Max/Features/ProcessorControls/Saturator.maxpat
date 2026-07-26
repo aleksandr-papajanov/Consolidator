@@ -69,24 +69,6 @@
 , 			{
 				"box" : 				{
 					"border" : 0,
-					"embedstate" : [ [ "enabled", 1 ], [ "value", 1 ] ],
-					"filename" : "SliderControl.js",
-					"id" : "obj-10",
-					"maxclass" : "jsui",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"parameter_enable" : 0,
-					"patching_rect" : [ 140.0, 103.0, 70.0, 27.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 140.0, 103.0, 70.0, 27.0 ],
-					"varname" : "saturator.mix"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"border" : 0,
 					"embedstate" : [ [ "buttonModes", "toggle", "momentary", "toggle" ], [ "layout", "horizontal" ], [ "allowEmptySelection", 1 ], [ "enabled", 1 ], [ "count", 3 ], [ "loadingIndex", 0 ], [ "selectionMode", "custom" ], [ "labels", "B", "R", "L" ] ],
 					"filename" : "ButtonGroupControl.js",
 					"id" : "obj-11",
@@ -228,18 +210,6 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "saturator-prefix-mix",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 140.0, 170.0, 140.0, 22.0 ],
-					"text" : "prepend saturator mix"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "saturator-prefix-input-output",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -298,18 +268,30 @@
 				}
 
 			}
+, 			{
+				"box" : 				{
+					"id" : "saturator-processor-limits",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 480.0, 300.0, 170.0, 22.0 ],
+					"text" : "r ---processor.link.limits"
+				}
+
+			}
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
-					"destination" : [ "saturator-prefix-mix", 0 ],
-					"source" : [ "obj-10", 0 ]
+					"destination" : [ "saturator-prefix-control", 0 ],
+					"source" : [ "obj-11", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "saturator-prefix-control", 0 ],
-					"source" : [ "obj-11", 0 ]
+					"destination" : [ "saturator-controller", 0 ],
+					"source" : [ "saturator-processor-limits", 0 ]
 				}
 
 			}
@@ -394,13 +376,6 @@
 				"patchline" : 				{
 					"destination" : [ "saturator-controller", 0 ],
 					"source" : [ "saturator-prefix-input-output", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-controller", 0 ],
-					"source" : [ "saturator-prefix-mix", 0 ]
 				}
 
 			}

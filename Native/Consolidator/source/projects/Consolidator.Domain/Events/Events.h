@@ -2,6 +2,7 @@
 
 #include "Ids/DomainIds.h"
 #include "Operations/OperationTypes.h"
+#include "States/States.h"
 
 #include <string>
 #include <variant>
@@ -38,11 +39,17 @@ struct FitRequestedEvent {
     std::vector<double> curveDb;
 };
 
+struct AnalyzerViewChangedEvent {
+    bool visible = false;
+    AnalyzerViewMode mode = AnalyzerViewMode::Spectrum;
+};
+
 using Event = std::variant<
     HostInitializedEvent,
     StoreUpdatedEvent,
     CommandRejectedEvent,
     FitRequestedEvent,
+    AnalyzerViewChangedEvent,
     OperationChangedEvent
 >;
 

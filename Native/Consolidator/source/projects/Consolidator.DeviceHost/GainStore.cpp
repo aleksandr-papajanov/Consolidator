@@ -23,6 +23,12 @@ UpdateResult GainStore::SetParameter(const domain::SetGainParameterCommand& comm
     return Commit(command.requestId);
 }
 
+UpdateResult GainStore::SetLink(const domain::SetProcessorLinkCommand& command) {
+    if (state.linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
+    state.linkId = command.linkId;
+    return Commit(command.requestId);
+}
+
 UpdateResult GainStore::Replace(domain::GainState nextState, domain::StoreRevision nextRevision) {
     if (!std::isfinite(nextState.gainDb) ||
         nextState.gainDb < settings::GainOptions::MinimumGainDb ||
@@ -44,6 +50,7 @@ UpdateResult GainStore::ApplyFit(domain::GainState nextState, domain::RequestId 
     if (!CanApplyFit(nextState)) {
         return Reject("invalid_fit_gain_state");
     }
+    nextState.linkId = state.linkId;
     if (state.gainDb == nextState.gainDb) return { UpdateStatus::Unchanged, {} };
     state = nextState;
     return Commit(requestId);
