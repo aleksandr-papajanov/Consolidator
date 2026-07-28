@@ -79,6 +79,14 @@ input gain first, EQ filters in bank/filter order, compressor, saturator, and
 output gain. Execution order is topology metadata and is not persisted in EQ
 state.
 
+`Shared/Workflows/LatestWorkflowExecutor` is the sole generic background
+workflow primitive. It owns one worker, retains only the newest immutable task,
+and drops cancelled or stale completions. Feature code supplies pure work and a
+main-thread completion notifier; workers must never access Max, Live API,
+Dictionaries, outlets, or mutable Host stores. Only the main thread applies a
+workflow result atomically. Use it for fitting, persistence decoding, and DSP
+topology construction. Continuous control gestures never enter a workflow.
+
 ## Atom Protocol
 
 All non-audio runtime communication uses one of these atom families:
@@ -94,9 +102,13 @@ is no `target` field. Entity IDs are typed fields. Every variable-length array
 has an explicit count. Max may deliver a complete atom sequence as `list`; that
 is the same protocol message, not a fallback format.
 
-High-rate parameter commands do not publish per-value Host events. Local
-controllers provide the bounded live-link transport, while coalesced Host
-snapshots confirm canonical state. Snapshots never generate link edits.
+High-rate parameter commands publish only the short Host event
+`parameter.updated <revision> <device> <bankId> <filterId> <parameter> <absoluteValue>`.
+`StateTransport` routes it solely to the scoped DSP and Analyzer parameter
+channels. It never reaches the runtime event bus, UI controllers, BankManager,
+or persistence. Local controllers provide bounded live-link transport, while a
+debounced EQ or processor snapshot confirms canonical state after a gesture.
+Snapshots never generate link edits.
 Discrete bypass and reset operations use explicit bounded link messages; fit,
 restore, Join, and other local transactions are never inferred as gestures.
 
@@ -148,6 +160,8 @@ a contract changes.
   All user banks are part of the normal DSP stack.
 - A successful transaction increments the store revision exactly once.
 - Rejected and unchanged operations do not increment the revision.
+- Restore assigns every store a revision newer than the currently published
+  state; restore snapshots must never move revisions backwards.
 - Fit applies all returned filter values atomically to the bank captured when
   the fit started.
 - Runtime state, snapshots, persistence, graph edits, and DSP use absolute
@@ -168,15 +182,28 @@ a contract changes.
 
 `consolidator.devicehost` receives typed commands, publishes Host events, EQ and
 definition snapshots, and owns the private persistence Dictionary boundary.
-Store events are immediate. Repeated store commits coalesce into the latest EQ
-snapshot on the Max main thread, and persistence preparation uses a restartable
-100 ms debounce before serialization. It must not perform DSP or UI work.
+Store events are immediate. A continuous parameter commit emits only
+`parameter.updated`; DSP updates the matching existing stereo device target and
+Analyzer updates its local EQ visual model. It must not build or publish an EQ,
+processor, or DSP snapshot. After the restartable 100 ms persistence debounce,
+Host serializes persistence and publishes only the compact EQ or processor
+confirmation required to refresh canonical UI state. Structural changes publish
+the appropriate snapshots immediately. DeviceHost must not perform DSP or UI
+work. Dictionary conversion is main-thread-only; typed persistence decoding runs
+through `LatestWorkflowExecutor`, then `DeviceHost::Restore` and publication run
+on the main thread.
+`eq.select_bank` is DSP-independent unless EQ Solo is active; `eq.set_link`
+is always DSP-independent. Both publish EQ state for UI and Analyzer without a
+complete DSP snapshot.
 Static features do not register or perform startup handshakes. After the root
 device's deferred persistence restore, one `persistence_ready` message makes
 Host publish definitions, EQ, processor, and DSP snapshots exactly once.
 
-`consolidator.dspprocessor` receives complete DSP snapshots and builds the full
-chain in this fixed order: input gain, saturator, compressor, all EQ filters from
+`consolidator.dspprocessor` receives complete DSP snapshots only for startup,
+restore, and topology changes. It receives `parameter.updated` directly for a
+continuous target update and updates only the matching existing left/right DSP
+device, without rebuilding the chain. It builds the full chain in this fixed
+order: input gain, saturator, compressor, all EQ filters from
 every bank in ascending bank/filter ID order, then output gain. It knows nothing about selection, UI, persistence, Analyzer,
 or Approximator. It publishes bounded latest-value processor telemetry directly
 to Analyzer over the scoped `---processor.telemetry` transport. Telemetry
@@ -187,6 +214,9 @@ Its first two signal outlets are the final stereo output; outlets three and four
 are the stereo EQ-input tap after compressor and before the EQ banks. The
 `DspProcessor.maxpat` feature must pass all four signal outlets through in that
 same order before routing status, diagnostics, and telemetry.
+Topology construction is a latest-wins background workflow. Only a completed
+stereo chain is installed on the main thread; normal parameter target updates
+continue to update existing devices directly and never wait for topology work.
 
 `consolidator.analyzer` receives both the final post-EQ current signal and the
 DSP tap after compressor and before the EQ banks, plus the unprocessed reference stereo.
@@ -327,9 +357,13 @@ latest-state channels:
 ---state.definitions
 ---state.device
 ---state.analyzer
+---dsp.parameter
 ```
 
-Each feature subscribes only to the stores it consumes. Do not add a generic
+Each feature subscribes only to the stores it consumes. `---dsp.parameter`
+contains only `parameter.updated` events and is consumed by DspProcessor;
+`---state.analyzer` receives the same short event only so native Analyzer can
+update its visual EQ model. Do not add a generic
 snapshot receiver to a controller or reconnect state channels to the runtime
 event bus. `---state.dsp` is the complete chain state and is consumed only by
 DspProcessor. Approximator combines `---state.eq` and the compact
@@ -347,8 +381,10 @@ persisted state: copying a device duplicates persistence but must create a
 separate peer row. A peer announcement updates only that peer row and must not
 cause a Live-set traversal. `bank.announce` contains topology summaries only;
 it never carries filter or processor snapshots. Linked participants initialize
-their peer models with bounded `link.filter_state` and
-`link.processor_state` atoms followed by `link.state_end`. Link updates carry
+their peer models with one bounded `link.state` frame per linked bank only
+after startup, an explicit `bank.query`, or a changed link membership. Bank
+selection and ordinary snapshot confirmation publish only `bank.announce`,
+never a full linked-state replay. Link updates carry
 `linkId`, source runtime ID, and a monotonically increasing revision. A
 received remote update must apply in remote mode and never be broadcast again.
 Revisions are monotonic per source runtime ID and link; receivers track them by
@@ -365,8 +401,9 @@ intermediate values must never accumulate in the Max main-thread queue.
 SpectrumView marker edits use the same dispatcher and publish
 `eq_parameter_absolute_gesture`; BankManager resolves the named absolute value
 through the typed filter definition before broadcasting the normalized delta.
-`BankManager` broadcasts the relative delta immediately, while Host snapshots
-remain authoritative confirmation and must not publish that delta again.
+`BankManager` broadcasts the relative delta immediately. The receiving local
+Host commits the absolute target and emits a short `parameter.updated` event;
+the delayed canonical snapshot must not rebroadcast that delta.
 
 BankManager keeps the current absolute EQ and processor values only for linked
 participants. Refresh compact peer topology and linked state synchronously
@@ -374,11 +411,20 @@ before creating a group, then keep those models current with every accepted rela
 Continuous values travel only through delta messages; `bank.announce` must not
 duplicate the same edit. The gesture path must not rescan group members or
 recompute limits. It validates message shape and publishes the delta once;
-the fixed control limits established at `link.state_end` constrain the gesture.
+the fixed control limits established by `link.state` constrain the gesture.
 Dial and slider controls enforce the fixed limits during the gesture; rollback
 is not a second transport path. Compressor deltas include attack,
 release, threshold, output, and mix; saturator deltas include saturation and output; gain
 deltas include gain.
+
+Linked gestures have a separate scoped preview lane on
+`---link.control.state`: `eq_preview <bankId> <filterId> <parameterIndex>
+<absoluteValue>` and `processor_preview <device> <parameter> <absoluteValue>`.
+`BankManager` emits a preview immediately after updating its local linked model,
+both for source and remote deltas. UI controllers apply it directly without
+creating a Host command. A Host `parameter.updated` event updates DSP and
+Analyzer immediately; the delayed snapshot is canonical confirmation and must
+never be required for a remote linked control to visually track a gesture.
 
 BusHub owns the single `consolidator.devicehost` instance. Persistence uses the
 separate scoped `---device.persistence.in/out` transport and never enters the

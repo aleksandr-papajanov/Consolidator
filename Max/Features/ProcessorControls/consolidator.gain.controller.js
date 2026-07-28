@@ -217,6 +217,13 @@ GainController.prototype.HandleProcessorLimits = function(device, parameter, min
     this.ApplyProcessorLimits(device, parameter, minimum, maximum);
 };
 
+GainController.prototype.HandleProcessorPreview = function(device, parameter, absoluteValue) {
+    var expectedDevice = this.stage === "input" ? "input_gain" : "output_gain";
+    if (String(device) !== expectedDevice || String(parameter) !== "gain" ||
+        !this.definition) return;
+    this.SetGain(this.ToNormalizedGain(Number(absoluteValue)));
+};
+
 GainController.prototype.ApplyProcessorLimits = function(device, parameter, minimum, maximum) {
     var expectedDevice = this.stage === "input" ? "input_gain" : "output_gain";
     if (String(device) !== expectedDevice || String(parameter) !== "gain" || !this.definition) return;
@@ -266,6 +273,11 @@ function link_color(linkId, red, green, blue, alpha) {
 }
 
 function filter_limits() {}
+function eq_preview() {}
+function processor_preview(device, parameter, absoluteValue) {
+    if (inlet === 0) controller.HandleProcessorPreview(
+        String(device), String(parameter), Number(absoluteValue));
+}
 
 function snapshot() {
     if (inlet === 0) controller.HandleSnapshot(["snapshot"].concat(arrayfromargs(arguments)));
@@ -296,14 +308,14 @@ function msg_int(value) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "Commands: set_gain <0..1>, set_target <0..1>, rms <dB>, processor_telemetry <9 values>, processor_limits <device> gain <absoluteMinimum> <absoluteMaximum>, filter_limits (ignored), link_color <linkId|-> <rgba>, enabled <0|1>"
+        ? "Commands: set_gain <0..1>, set_target <0..1>, rms <dB>, processor_telemetry <9 values>, processor_limits <device> gain <absoluteMinimum> <absoluteMaximum>, processor_preview <input_gain|output_gain> gain <absoluteDb>, filter_limits and eq_preview (ignored), link_color <linkId|-> <rgba>, enabled <0|1>"
         : "DialControl output: <ring-index> <0..1>");
 }
 
 function outletassist(index) {
     assist([
         "Host command: gain.set_parameter <input|output> <absoluteDb>",
-        "DialControl commands: set, visualization, ringColor, clearRingColor, enabled",
+        "DialControl commands: set, visualization, ringColor, clearRingColor, enabled; processor_preview applies direct confirmed-link feedback",
         "Diagnostics: error <code>",
         "Input target level: target_level <absoluteDb>",
         "Live link gesture: processor_parameter_gesture <input_gain|output_gain> gain <normalizedValue>"

@@ -265,6 +265,23 @@ EqController.prototype.HandleFilterLimits = function(
     this.ApplyFilterLimits(this.pendingFilterLimits[key]);
 };
 
+EqController.prototype.HandleEqPreview = function(
+    bankId,
+    filterId,
+    parameterIndex,
+    absoluteValue
+) {
+    if (Number(bankId) !== this.selectedBankId) return;
+    var definition = this.filterDefinitions[Number(filterId)];
+    var parameter = definition && definition.parameters[Number(parameterIndex)];
+    if (!parameter) return;
+    var ring = this.ParameterRing(parameter);
+    if (!ring) return;
+    var attributes = ["primaryValue", "secondaryValue", "tertiaryValue"];
+    this.SendDialValue(Number(filterId), attributes[ring - 1],
+        this.ToNormalized(parameter, Number(absoluteValue)));
+};
+
 EqController.prototype.ApplyFilterLimits = function(limit) {
     var definition = this.filterDefinitions[limit.filterId];
     var parameter = definition && definition.parameters[limit.parameterIndex];
@@ -396,7 +413,7 @@ var controller = new EqController();
 
 function inletassist(index) {
     assist([
-        "Local: filter controls; link_color, filter_limits; processor_limits is ignored",
+        "Local: filter controls; link_color, filter_limits, eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>; processor_limits is ignored",
         "Host snapshot: definitions and EQ state"
     ][index] || "");
 }
@@ -404,7 +421,7 @@ function inletassist(index) {
 function outletassist(index) {
     assist([
         "Host commands: eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass, eq.set_chain_solo, eq.reset",
-        "thispatcher: script sendbox eq.filter.<id>.dial|control <attribute> <value>",
+        "thispatcher: script sendbox eq.filter.<id>.dial|control <attribute> <value>; previews apply directly to the selected dial",
         "Diagnostics: error <code>",
         "Link gestures: eq_parameter_gesture, eq_bypass_gesture, eq_filter_reset_gesture, eq_bank_reset_gesture"
     ][index] || "");
@@ -460,6 +477,12 @@ function link_color(linkId, red, green, blue, alpha) {
 function filter_limits(filterId, parameterIndex, minimum, maximum) {
     if (inlet === 0) controller.HandleFilterLimits(
         Number(filterId), Number(parameterIndex), Number(minimum), Number(maximum));
+}
+
+function eq_preview(bankId, filterId, parameterIndex, absoluteValue) {
+    if (inlet === 0) controller.HandleEqPreview(
+        Number(bankId), Number(filterId), Number(parameterIndex),
+        Number(absoluteValue));
 }
 
 function processor_limits() {}

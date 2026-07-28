@@ -29,8 +29,8 @@
           "maxclass": "newobj",
           "text": "js consolidator.statetransport.js",
           "numinlets": 1,
-          "numoutlets": 7,
-          "outlettype": ["", "", "", "", "", "", ""],
+          "numoutlets": 8,
+          "outlettype": ["", "", "", "", "", "", "", ""],
           "patching_rect": [80.0, 25.0, 210.0, 22.0]
         }
       },
@@ -103,6 +103,16 @@
           "numoutlets": 0,
           "patching_rect": [670.0, 100.0, 125.0, 22.0]
         }
+      },
+      {
+        "box": {
+          "id": "parameter",
+          "maxclass": "newobj",
+          "text": "s ---dsp.parameter",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [805.0, 100.0, 130.0, 22.0]
+        }
       }
     ],
     "lines": [
@@ -152,6 +162,12 @@
         "patchline": {
           "source": ["router", 6],
           "destination": ["analyzer", 0]
+        }
+      },
+      {
+        "patchline": {
+          "source": ["router", 7],
+          "destination": ["parameter", 0]
         }
       }
     ],

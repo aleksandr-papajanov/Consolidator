@@ -5,8 +5,7 @@ outlets = 3;
 // Inlet 0: Host definitions, processor_definitions, EQ, processor, and device snapshots.
 // Inlet 1: global bank/link messages: bank.query, bank.announce, bank.leave,
 // link.create, link.remove, link.join, link.filter_delta, link.filter_bypass,
-// link.filter_reset, link.bank_reset, link.filter_state,
-// link.processor_state, link.state_end, and link.processor_delta.
+// link.filter_reset, link.bank_reset, link.state, and link.processor_delta.
 // Outlet 0: Host commands: eq.select_bank, eq.join_banks, eq.commit_hidden,
 // eq.set_link, gain.set_parameter, compressor.set_parameter,
 // and saturator.set_parameter.
@@ -20,6 +19,9 @@ outlets = 3;
 // link.filter_delta: <linkId> <sourceId> <revision> <filterId> <parameterIndex> <normalizedDelta>.
 // link.filter_bypass: <linkId> <sourceId> <revision> <filterId> <0|1>.
 // link.processor_delta: <linkId> <sourceId> <revision> <device> <parameter> <normalizedDelta>.
+// link.state: <linkId> <sourceId> <revision> <bankId> <filterCount>
+// <filterId> <bypass> <valueCount> <values...>... <processorValueCount>
+// <device> <parameter> <absoluteValue>...
 
 mgraphics.init();
 mgraphics.relative_coords = 0;
@@ -167,6 +169,7 @@ BankManager.prototype.TryInitialize = function() {
     this.local.label = this.CurrentLabel();
     outlet(1, "bank.query", this.instanceId);
     this.PublishAnnouncement();
+    this.PublishLinkedState();
     return true;
 };
 
@@ -207,6 +210,11 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     if (!isFinite(revision) || selected < 1 || selected > 6 || bankCount !== 7) return false;
     var position = 9;
     var previousActiveLinkId = this.ActiveLinkId(this.local);
+    var previousLinkIds = {};
+    for (var previousIndex = 0; previousIndex < this.local.banks.length; previousIndex++) {
+        var previousLinkId = this.local.banks[previousIndex].linkId;
+        if (previousLinkId) previousLinkIds[previousIndex + 1] = previousLinkId;
+    }
     var banks = [];
     var systemBank = new BankSummary();
     for (var index = 0; index < bankCount; index++) {
@@ -251,10 +259,22 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     this.local.selectedBankId = selected;
     this.local.systemBank = systemBank;
     this.local.banks = banks;
-    if (previousActiveLinkId !== this.ActiveLinkId(this.local)) {
-        this.RebuildProcessorLinkGroups();
+    var changedLinkIds = {};
+    var linkTopologyChanged = false;
+    for (var bankIndex = 0; bankIndex < banks.length; bankIndex++) {
+        var previousLinkId = previousLinkIds[bankIndex + 1] || "";
+        var currentLinkId = banks[bankIndex].linkId || "";
+        if (previousLinkId === currentLinkId) continue;
+        linkTopologyChanged = true;
+        if (currentLinkId) changedLinkIds[currentLinkId] = true;
+    }
+    if (linkTopologyChanged) this.RebuildProcessorLinkGroups();
+    else if (previousActiveLinkId !== this.ActiveLinkId(this.local)) {
+        this.controlLinkSession = "";
+        this.RefreshControlLinkSession();
     }
     this.PublishAnnouncement();
+    this.PublishLinkedState(changedLinkIds);
     return true;
 };
 
@@ -342,7 +362,8 @@ BankManager.prototype.ParseProcessorSnapshot = function(values) {
     }
     if (shouldAnnounce) {
         this.controlLinkSession = "";
-        if (!this.PublishAnnouncement()) this.PublishLinkedState();
+        this.PublishAnnouncement();
+        this.PublishLinkedState();
     }
 };
 
@@ -538,6 +559,8 @@ BankManager.prototype.HandleEqParameterGesture = function(values) {
     };
     filter.values[parameterIndex] = DenormalizeParameter(normalized, definition);
     this.ApplyFilterDeltaToModel(update, this.instanceId);
+    this.PublishEqPreview(bankId, filterId, parameterIndex,
+        filter.values[parameterIndex]);
     outlet(1, "link.filter_delta", update.linkId, this.instanceId,
         this.NextLinkRevision(update.linkId), filterId, parameterIndex, delta);
 };
@@ -583,6 +606,7 @@ BankManager.prototype.HandleProcessorParameterGesture = function(values) {
 
     processor.values[parameter] = DenormalizeParameter(normalized, range);
     group.ApplyDelta(this.instanceId, parameter, delta, true, range);
+    this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
     outlet(1, "link.processor_delta", linkId, this.instanceId,
         this.NextLinkRevision(linkId), device, parameter, delta);
 };
@@ -617,6 +641,25 @@ BankManager.prototype.NextLinkRevision = function(linkId) {
     var next = (this.outgoingLinkRevisions[linkId] || 0) + 1;
     this.outgoingLinkRevisions[linkId] = next;
     return next;
+};
+
+BankManager.prototype.PublishEqPreview = function(
+    bankId,
+    filterId,
+    parameterIndex,
+    absoluteValue
+) {
+    outlet(2, "eq_preview", Number(bankId), Number(filterId),
+        Number(parameterIndex), Number(absoluteValue));
+};
+
+BankManager.prototype.PublishProcessorPreview = function(
+    device,
+    parameter,
+    absoluteValue
+) {
+    outlet(2, "processor_preview", String(device), String(parameter),
+        Number(absoluteValue));
 };
 
 BankManager.prototype.AcceptIncomingLinkRevision = function(
@@ -677,37 +720,48 @@ BankManager.prototype.PublishAnnouncement = function() {
     }
     this.lastAnnouncementState = state;
     outlet(1, "bank.announce", fields);
-    this.PublishLinkedState();
     return true;
 };
 
-BankManager.prototype.PublishLinkedState = function() {
+BankManager.prototype.PublishLinkedState = function(linkIds) {
     for (var bankIndex = 0; bankIndex < this.local.banks.length; bankIndex++) {
         var bank = this.local.banks[bankIndex];
-        if (!bank.linkId) continue;
+        if (!bank.linkId || (linkIds && !linkIds[bank.linkId])) continue;
+        var fields = [bank.linkId, this.instanceId, this.local.revision, bank.id];
+        var filters = [];
         for (var filterId in bank.filters) {
             if (!bank.filters.hasOwnProperty(filterId)) continue;
             var filter = bank.filters[filterId];
-            var fields = [
-                bank.linkId, this.instanceId,
-                this.local.revision, bank.id, Number(filterId),
-                filter.bypass ? 1 : 0, filter.values.length
-            ].concat(filter.values);
-            outlet(1, "link.filter_state", fields);
+            filters.push({ id: Number(filterId), bypass: filter.bypass, values: filter.values });
         }
+        fields.push(filters.length);
+        for (var filterIndex = 0; filterIndex < filters.length; filterIndex++) {
+            var filterState = filters[filterIndex];
+            fields.push(filterState.id, filterState.bypass ? 1 : 0, filterState.values.length);
+            for (var valueIndex = 0; valueIndex < filterState.values.length; valueIndex++) {
+                fields.push(filterState.values[valueIndex]);
+            }
+        }
+        var processorValues = [];
         for (var device in this.local.processors) {
             if (!this.local.processors.hasOwnProperty(device)) continue;
             var processor = this.local.processors[device];
             for (var parameter in processor.values) {
                 if (!processor.values.hasOwnProperty(parameter) ||
                     !isFinite(processor.values[parameter])) continue;
-                outlet(1, "link.processor_state", bank.linkId,
-                    this.instanceId, this.local.revision, device,
-                    parameter, processor.values[parameter]);
+                processorValues.push({
+                    device: device,
+                    parameter: parameter,
+                    value: processor.values[parameter]
+                });
             }
         }
-        outlet(1, "link.state_end", bank.linkId, this.instanceId,
-            this.local.revision);
+        fields.push(processorValues.length);
+        for (var processorIndex = 0; processorIndex < processorValues.length; processorIndex++) {
+            var processorState = processorValues[processorIndex];
+            fields.push(processorState.device, processorState.parameter, processorState.value);
+        }
+        outlet(1, "link.state", fields);
     }
 };
 
@@ -725,6 +779,7 @@ BankManager.prototype.ParseAnnouncement = function(values) {
     peer.selectedBankId = selected;
     peer.systemBank.occupied = Number(values[4]) !== 0;
     var position = 5;
+    var linkTopologyChanged = false;
     for (var index = 0; index < 6; index++) {
         var bankId = Number(values[position++]);
         var occupied = Number(values[position++]) !== 0;
@@ -732,78 +787,86 @@ BankManager.prototype.ParseAnnouncement = function(values) {
         if (bankId !== index + 1) return;
         if (peer.banks[index].linkId !== linkId) {
             peer.banks[index].filters = {};
+            linkTopologyChanged = true;
         }
         peer.banks[index].occupied = occupied;
         peer.banks[index].linkId = linkId;
     }
     this.peers[instanceId] = peer;
-    this.RebuildProcessorLinkGroups();
+    if (linkTopologyChanged) this.RebuildProcessorLinkGroups();
 };
 
-BankManager.prototype.ApplyLinkFilterState = function(values) {
-    if (values.length < 7) return;
+BankManager.prototype.ApplyLinkState = function(values) {
+    if (values.length < 6) return;
     var linkId = String(values[0]);
     var sourceId = String(values[1]);
+    var revision = Number(values[2]);
     var bankId = Number(values[3]);
-    var filterId = Number(values[4]);
-    var bypass = Number(values[5]) !== 0;
-    var valueCount = Number(values[6]);
+    var filterCount = Number(values[4]);
     var peer = this.peers[sourceId];
     if (!peer || sourceId === this.instanceId ||
-        !isFinite(bankId) || !isFinite(filterId) ||
-        !isFinite(valueCount) || valueCount < 0 ||
-        values.length !== 7 + valueCount) return;
+        !isFinite(revision) || !isFinite(bankId) ||
+        !isFinite(filterCount) || filterCount < 0) return;
     var bank = peer.banks[bankId - 1];
     if (!bank || bank.linkId !== linkId) return;
-    var filterValues = [];
-    for (var index = 0; index < valueCount; index++) {
-        var value = Number(values[7 + index]);
-        if (!isFinite(value)) return;
-        filterValues.push(value);
+    var position = 5;
+    var filters = {};
+    for (var filterIndex = 0; filterIndex < filterCount; filterIndex++) {
+        if (position + 2 >= values.length) return;
+        var filterId = Number(values[position++]);
+        var bypass = Number(values[position++]) !== 0;
+        var valueCount = Number(values[position++]);
+        if (!isFinite(filterId) || !isFinite(valueCount) || valueCount < 0 ||
+            position + valueCount > values.length) return;
+        var filterValues = [];
+        for (var valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+            var value = Number(values[position++]);
+            if (!isFinite(value)) return;
+            filterValues.push(value);
+        }
+        filters[filterId] = { bypass: bypass, values: filterValues };
     }
-    bank.filters[filterId] = {
-        bypass: bypass,
-        values: filterValues
-    };
-};
-
-BankManager.prototype.ApplyLinkProcessorState = function(values) {
-    if (values.length !== 6) return;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var device = String(values[3]);
-    var parameter = String(values[4]);
-    var value = Number(values[5]);
-    var peer = this.peers[sourceId];
-    if (!peer || sourceId === this.instanceId || !isFinite(value) ||
-        !this.HasLink(peer, linkId) || !peer.processors[device]) return;
-    peer.processors[device].values[parameter] = value;
+    if (position >= values.length) return;
+    var processorValueCount = Number(values[position++]);
+    if (!isFinite(processorValueCount) || processorValueCount < 0 ||
+        values.length !== position + processorValueCount * 3) return;
+    var processors = {};
+    for (var processorIndex = 0; processorIndex < processorValueCount; processorIndex++) {
+        var device = String(values[position++]);
+        var parameter = String(values[position++]);
+        var value = Number(values[position++]);
+        if (!isFinite(value) || !peer.processors[device]) return;
+        if (!processors[device]) processors[device] = {};
+        processors[device][parameter] = value;
+    }
+    bank.filters = filters;
+    for (var processorDevice in processors) {
+        if (!processors.hasOwnProperty(processorDevice)) continue;
+        var processor = peer.processors[processorDevice];
+        for (var processorParameter in processors[processorDevice]) {
+            processor.values[processorParameter] = processors[processorDevice][processorParameter];
+        }
+    }
+    if (this.ActiveLinkId(this.local) === linkId) {
+        this.controlLinkSession = "";
+        this.RefreshControlLinkSession();
+    }
 };
 
 BankManager.prototype.HandleGlobal = function(name, values) {
     var shouldRedraw = name !== "link.filter_delta" &&
         name !== "link.processor_delta" &&
-        name !== "link.filter_state" &&
-        name !== "link.processor_state" &&
-        name !== "link.state_end";
+        name !== "link.state";
     if (name === "bank.query") {
         if (String(values[0]) !== this.instanceId) {
             this.lastAnnouncementState = "";
             this.PublishAnnouncement();
+            this.PublishLinkedState();
         }
     } else if (name === "bank.announce") {
         this.ParseAnnouncement(values);
-    } else if (name === "link.filter_state") {
-        this.ApplyLinkFilterState(values);
-    } else if (name === "link.processor_state") {
-        this.ApplyLinkProcessorState(values);
-    } else if (name === "link.state_end") {
-        if (values.length === 3 &&
-            String(values[1]) !== this.instanceId &&
-            this.ActiveLinkId(this.local) === String(values[0])) {
-            this.controlLinkSession = "";
-            this.RefreshControlLinkSession();
-        }
+    } else if (name === "link.state") {
+        this.ApplyLinkState(values);
     } else if (name === "bank.leave") {
         this.RemovePeer(values);
     } else if (name === "link.create") {
@@ -850,6 +913,7 @@ BankManager.prototype.ApplyProcessorDelta = function(values) {
     }
     var processor = this.local.processors[device];
     if (!processor || !this.HasLink(this.local, linkId)) return;
+    this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
     this.SendProcessorValue(device, parameter, processor.values[parameter]);
 };
 
@@ -886,6 +950,8 @@ BankManager.prototype.ApplyFilterDelta = function(values) {
         delta: delta
     };
     this.ApplyFilterDeltaToModel(update, "");
+    this.PublishEqPreview(bank.id, filterId, parameterIndex,
+        filter.values[parameterIndex]);
     this.SendHostCommand("eq.set_parameter_index", [
         bank.id, filterId, parameterIndex, filter.values[parameterIndex]
     ]);
@@ -1090,7 +1156,6 @@ BankManager.prototype.HandleAction = function(action) {
     } else if (action === "commit") {
         this.SendHostCommand("eq.commit_hidden", [this.local.selectedBankId]);
     } else if (action === "link") {
-        outlet(1, "bank.query", this.instanceId);
         var members = [];
         for (var key in this.linkSelection) members.push(this.linkSelection[key]);
         if (members.length < 2) return;
@@ -1317,14 +1382,14 @@ var bankManager = new BankManager();
 function inletassist(index) {
     assist(index === 0
         ? "Local input: Host snapshots; eq_parameter_gesture, eq_parameter_absolute_gesture, eq_bypass_gesture, eq_filter_reset_gesture, eq_bank_reset_gesture, processor_parameter_gesture"
-        : "Global bus: bank.*, link.create, link.remove, link.join, link.filter_*, link.bank_reset, link.processor_*, link.state_end");
+        : "Global bus: bank.*, link.create, link.remove, link.join, link.filter_*, link.bank_reset, link.processor_*, link.state");
 }
 
 function outletassist(index) {
     assist([
         "Host commands: eq.select_bank, eq.join_banks, eq.commit_hidden, eq.set_link, gain.set_parameter, compressor.set_parameter, saturator.set_parameter",
-        "Global bus: bank.*, link.create, link.remove, link.join, link.filter_*, link.bank_reset, link.processor_*, link.state_end",
-        "Local link UI: link_color, processor_limits, filter_limits"
+        "Global bus: bank.*, link.create, link.remove, link.join, link.filter_*, link.bank_reset, link.processor_*, link.state",
+        "Local link UI: link_color, processor_limits, filter_limits, eq_preview, processor_preview"
     ][index] || "");
 }
 

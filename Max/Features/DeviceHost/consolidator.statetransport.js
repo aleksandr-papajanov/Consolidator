@@ -1,10 +1,15 @@
 autowatch = 1;
 inlets = 1;
-outlets = 7;
+outlets = 8;
 
 function StateTransport() {}
 
 StateTransport.prototype.RouteEvent = function(values) {
+    if (String(values[3]) === "parameter.updated") {
+        outlet(7, "event", values);
+        outlet(6, "event", values);
+        return;
+    }
     outlet(0, "event", values);
     outlet(6, "event", values);
 };
@@ -60,7 +65,8 @@ function outletassist(index) {
         "Filter and processor definition snapshots",
         "Device identity snapshots",
         "Processor state snapshots",
-        "Analyzer events and EQ snapshots"
+        "Analyzer events and EQ snapshots",
+        "Continuous Host parameter events for DSP"
     ][index] || "");
 }
 

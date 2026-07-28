@@ -673,6 +673,29 @@ ProcessorControlsController.prototype.HandleSnapshot = function(values) {
     else if (store === "processor") this.HandleProcessorSnapshot(values);
 };
 
+ProcessorControlsController.prototype.HandleProcessorPreview = function(
+    device,
+    parameter,
+    absoluteValue
+) {
+    device = String(device);
+    parameter = String(parameter);
+    if (device !== this.visualDevice) return;
+    var definition = this.FindParameter(this.processorDefinitions[device], parameter);
+    if (!definition) return;
+    var value = this.ToNormalized(definition, Number(absoluteValue));
+    if (device === "compressor") {
+        if (parameter === "threshold") this.SendValue(["compressor", "threshold-output", 1, value]);
+        else if (parameter === "output") this.SendValue(["compressor", "threshold-output", 2, value]);
+        else if (parameter === "attack") this.SendValue(["compressor", "attack-release", 1, value]);
+        else if (parameter === "release") this.SendValue(["compressor", "attack-release", 2, value]);
+        else if (parameter === "mix") this.SendValue(["compressor", "mix", value]);
+    } else if (device === "saturator") {
+        if (parameter === "saturation") this.SendValue(["saturator", "saturation-output", 1, value]);
+        else if (parameter === "output") this.SendValue(["saturator", "saturation-output", 2, value]);
+    }
+};
+
 ProcessorControlsController.prototype.SendOutputLevelIndicator = function() {
     if (this.visualDevice !== "compressor" && this.visualDevice !== "saturator") return;
     this.SendDialVisualization(2, "signed", this.outputLevelIndicator.Value());
@@ -719,7 +742,7 @@ var controller = new ProcessorControlsController();
 
 function inletassist(index) {
     assist([
-        "Normalized local input and link state: eq..., filter..., input_gain, output_gain, compressor..., saturator..., processor_limits, link_color; filter_limits is ignored",
+        "Normalized local input and link state: eq..., filter..., input_gain, output_gain, compressor..., saturator..., processor_limits, link_color, processor_preview <device> <parameter> <absoluteValue>; filter_limits and eq_preview are ignored",
         "Host input: filter/processor definitions and compact processor snapshots",
         "UI telemetry: target_level <absoluteDb>, processor_telemetry <9 values>"
     ][index] || "");
@@ -728,7 +751,7 @@ function inletassist(index) {
 function outletassist(index) {
     assist([
         "Host commands: eq.*, gain.set_parameter, compressor.*, saturator.*",
-        "thispatcher commands: script sendbox <stable-varname> <command...>",
+        "thispatcher commands: script sendbox <stable-varname> <command...>; processor_preview applies direct confirmed-link feedback",
         "Diagnostics: error <code>",
         "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue>"
     ][index] || "");
@@ -761,6 +784,11 @@ function link_color(linkId, red, green, blue, alpha) {
         String(linkId), Number(red), Number(green), Number(blue), Number(alpha));
 }
 function filter_limits() {}
+function eq_preview() {}
+function processor_preview(device, parameter, absoluteValue) {
+    if (inlet === 0) controller.HandleProcessorPreview(
+        String(device), String(parameter), Number(absoluteValue));
+}
 function list() {
     var values = arrayfromargs(arguments);
     if (inlet === 1 && values.length && String(values[0]) === "snapshot") controller.HandleSnapshot(values);
