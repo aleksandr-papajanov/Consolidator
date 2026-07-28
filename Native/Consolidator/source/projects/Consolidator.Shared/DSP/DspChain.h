@@ -7,6 +7,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -87,6 +89,20 @@ public:
             slot.bypass.SetTarget(registration.bypassed ? 1.0 : 0.0);
         }
         return true;
+    }
+
+    bool UpdateDevice(
+        std::string_view deviceId,
+        const IDspDeviceFactory& factory,
+        std::optional<bool> bypassed = std::nullopt
+    ) {
+        for (auto& slot : devices) {
+            if (slot->deviceId != deviceId || !factory.CanUpdate(*slot->device)) continue;
+            factory.Update(*slot->device);
+            if (bypassed) slot->bypass.SetTarget(*bypassed ? 1.0 : 0.0);
+            return true;
+        }
+        return false;
     }
 
 private:

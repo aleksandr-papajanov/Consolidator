@@ -6,6 +6,8 @@
 #include "DspDeviceRegistration.h"
 
 #include <utility>
+#include <optional>
+#include <string_view>
 
 namespace consolidator::dsp {
 
@@ -62,6 +64,15 @@ public:
     bool Update(const std::vector<DspDeviceRegistration>& registrations) {
         if (!left.CanUpdate(registrations) || !right.CanUpdate(registrations)) return false;
         return left.Update(registrations) && right.Update(registrations);
+    }
+
+    bool UpdateDevice(
+        std::string_view deviceId,
+        const IDspDeviceFactory& factory,
+        std::optional<bool> bypassed = std::nullopt
+    ) {
+        return left.UpdateDevice(deviceId, factory, bypassed) &&
+            right.UpdateDevice(deviceId, factory, bypassed);
     }
 
 private:

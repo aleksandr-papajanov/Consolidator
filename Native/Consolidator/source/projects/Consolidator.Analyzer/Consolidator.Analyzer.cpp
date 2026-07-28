@@ -278,6 +278,16 @@ private:
             SetViewState(view->visible, view->mode);
             return;
         }
+        if (const auto* parameter = std::get_if<domain::ParameterUpdatedEvent>(&decoded.event)) {
+            if (parameter->revision < latestEqRevision) return;
+            if (parameter->device == "eq" && filterVisuals.UpdateParameter(
+                parameter->bankId, parameter->filterId, parameter->parameter,
+                parameter->value)) {
+                latestEqRevision = parameter->revision;
+                ScheduleFilterVisualDelivery();
+            }
+            return;
+        }
         const auto* operation = std::get_if<domain::OperationChangedEvent>(&decoded.event);
         if (!operation) return;
         if (operation->operation == "analyzer.clear" &&
@@ -287,11 +297,16 @@ private:
     }
 
     void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
+        const auto revision = atoms && atoms->size() > 4
+            ? std::get_if<std::int64_t>(&(*atoms)[4]) : nullptr;
+        if (!revision || *revision < 0 ||
+            static_cast<domain::StoreRevision>(*revision) < latestEqRevision) return;
         const auto snapshot = atoms ? messaging::SnapshotCodec::DecodeEq(*atoms) : std::nullopt;
         if (!snapshot || !filterVisuals.SetSnapshot(*snapshot)) {
             debugOut.send("error", "invalid_eq_snapshot");
             return;
         }
+        latestEqRevision = static_cast<domain::StoreRevision>(*revision);
         if (!hostReadyPublished) {
             hostReadyPublished = true;
             statusOut.send("status", "host_ready");
@@ -374,6 +389,7 @@ private:
     bool filterVisualDeliveryScheduled = false;
     bool filterVisualsDirty = false;
     bool hostReadyPublished = false;
+    domain::StoreRevision latestEqRevision = 0;
     std::atomic<bool> differenceResetRequested{ false };
     std::atomic<std::uint64_t> differenceGeneration{ 0 };
     std::atomic<bool> audioActive{ false };

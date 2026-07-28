@@ -8,15 +8,14 @@
 #include "Settings/AnalysisOptions.h"
 #include "Settings/FilterOptions.h"
 #include "SnapshotCodec.h"
+#include "Workflows/LatestWorkflowExecutor.h"
 
 #include <algorithm>
-#include <atomic>
 #include <exception>
-#include <mutex>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <utility>
 #include <variant>
 
@@ -24,6 +23,25 @@ using namespace c74::min;
 using namespace consolidator;
 
 class ConsolidatorApproximator : public object<ConsolidatorApproximator> {
+private:
+    struct WorkerResult final {
+        domain::DspSnapshot snapshot;
+        double loss = 0.0;
+        long sessionId = 0;
+        long bankId = 0;
+        std::string error;
+        bool completed = false;
+        bool cancelled = false;
+    };
+
+    struct FitTask final {
+        dsp::Curve target;
+        domain::DspSnapshot snapshot;
+        std::map<long, models::FilterDefinition> definitions;
+        long sessionId = 0;
+        long bankId = 0;
+    };
+
 public:
     MIN_DESCRIPTION{ "Consolidator EQ curve matcher." };
     MIN_TAGS{ "eq, optimizer" };
@@ -47,6 +65,13 @@ public:
             return {};
         }
     };
+
+    ConsolidatorApproximator()
+        : fitExecutor(
+            [this](const FitTask& task, const workflows::WorkflowCancellation& cancellation) {
+                return RunFit(task, cancellation);
+            },
+            [this] { fitCompleted.set(); }) {}
 
     message<> list{
         this,
@@ -102,22 +127,7 @@ public:
         }
     };
 
-    ~ConsolidatorApproximator() override {
-        cancelRequested.store(true, std::memory_order_release);
-        if (worker.joinable()) worker.join();
-    }
-
 private:
-    struct WorkerResult final {
-        domain::DspSnapshot snapshot;
-        double loss = 0.0;
-        long sessionId = 0;
-        long bankId = 0;
-        std::string error;
-        bool completed = false;
-        bool cancelled = false;
-    };
-
     void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
         if (!atoms || atoms->size() < 5 ||
             !std::holds_alternative<std::string>((*atoms)[3]) ||
@@ -179,15 +189,15 @@ private:
             operation->status == domain::OperationStatus::Failed ||
             operation->status == domain::OperationStatus::Cancelled ||
             operation->status == domain::OperationStatus::Idle) {
-            cancelRequested.store(true, std::memory_order_release);
-            running.store(false, std::memory_order_release);
+            fitExecutor.Cancel();
+            running = false;
             activeSessionId = 0;
             UpdateReady();
         }
     }
 
     void StartFit(const domain::FitRequestedEvent& request) {
-        if (running.load(std::memory_order_acquire)) {
+        if (running) {
             SendFailure(static_cast<long>(request.sessionId.value), "fit_worker_busy");
             return;
         }
@@ -208,72 +218,78 @@ private:
         const auto bankId = static_cast<long>(request.bankId.value);
 
         activeSessionId = sessionId;
-        cancelRequested.store(false, std::memory_order_release);
-        running.store(true, std::memory_order_release);
+        running = true;
         SetReady(false);
         statusOut.send("status", "processing", "eq");
         debugOut.send("fit_started", sessionId, bankId);
 
-        if (worker.joinable()) worker.join();
-        worker = std::thread([this, target, snapshot, definitions, sessionId, bankId]() mutable {
-            WorkerResult result;
-            result.sessionId = sessionId;
-            result.bankId = bankId;
-            result.snapshot = snapshot;
-            try {
-                const auto fit = eqWorkflow.Run(target, snapshot, definitions);
-                result.snapshot = fit.snapshot;
-                result.loss = fit.loss;
-                result.completed = true;
-            }
-            catch (const std::exception& exception) {
-                result.cancelled = cancelRequested.load(std::memory_order_acquire);
-                if (!result.cancelled) result.error = exception.what();
-            }
-            catch (...) {
-                result.cancelled = cancelRequested.load(std::memory_order_acquire);
-                if (!result.cancelled) result.error = "curve_fit_failed";
-            }
-            {
-                std::lock_guard<std::mutex> lock(resultMutex);
-                pendingResult = std::move(result);
-            }
-            fitCompleted.set();
+        fitExecutor.Submit(latestRevision, {
+            std::move(target), std::move(snapshot), definitions, sessionId, bankId
         });
     }
 
     void DeliverResult() {
-        if (worker.joinable()) worker.join();
-        std::optional<WorkerResult> result;
-        {
-            std::lock_guard<std::mutex> lock(resultMutex);
-            result = std::move(pendingResult);
-            pendingResult.reset();
+        const auto completion = fitExecutor.TakeCompletion();
+        if (!completion) return;
+        running = false;
+        if (completion->error || !completion->result) {
+            SendFailure(activeSessionId, "curve_fit_failed");
+            return;
         }
+        auto result = std::move(*completion->result);
 
-        if (!result || result->cancelled) {
-            running.store(false, std::memory_order_release);
+        if (result.cancelled) {
             UpdateReady();
             return;
         }
-        if (!result->completed || !result->error.empty()) {
-            SendFailure(result->sessionId, result->error.empty() ? "curve_fit_failed" : result->error.c_str());
+        if (!result.completed || !result.error.empty()) {
+            SendFailure(result.sessionId, result.error.empty() ? "curve_fit_failed" : result.error.c_str());
             return;
         }
 
-        auto* bank = result->snapshot.eq.SelectedBank();
-        if (!bank || bank->bankId != result->bankId) {
-            SendFailure(result->sessionId, "invalid_fit_result");
+        auto* bank = result.snapshot.eq.SelectedBank();
+        if (!bank || bank->bankId != result.bankId) {
+            SendFailure(result.sessionId, "invalid_fit_result");
             return;
         }
 
-        debugOut.send("loss", result->loss);
+        debugOut.send("loss", result.loss);
         ApproximatorOutputs{ commandsOut, statusOut, debugOut }.SendFitResult(
-            bank->filters,
-            result->snapshot.processor,
-            result->sessionId,
+            bank->filters, result.snapshot.processor, result.sessionId,
             bank->bankId,
-            result->loss);
+            result.loss);
+    }
+
+    WorkerResult RunFit(
+        const FitTask& task,
+        const workflows::WorkflowCancellation& cancellation
+    ) {
+        WorkerResult result;
+        result.sessionId = task.sessionId;
+        result.bankId = task.bankId;
+        result.snapshot = task.snapshot;
+        if (cancellation.IsRequested()) {
+            result.cancelled = true;
+            return result;
+        }
+        try {
+            const auto fit = eqWorkflow.Run(task.target, task.snapshot, task.definitions);
+            result.cancelled = cancellation.IsRequested();
+            if (!result.cancelled) {
+                result.snapshot = fit.snapshot;
+                result.loss = fit.loss;
+                result.completed = true;
+            }
+        }
+        catch (const std::exception& exception) {
+            result.cancelled = cancellation.IsRequested();
+            if (!result.cancelled) result.error = exception.what();
+        }
+        catch (...) {
+            result.cancelled = cancellation.IsRequested();
+            if (!result.cancelled) result.error = "curve_fit_failed";
+        }
+        return result;
     }
 
     void SendFailure(long sessionId, const char* error) {
@@ -281,7 +297,7 @@ private:
     }
 
     void UpdateReady() {
-        SetReady(initialized && latestSnapshot && !running.load(std::memory_order_acquire));
+        SetReady(initialized && latestSnapshot && !running);
     }
 
     void SetReady(bool value, bool force = false) {
@@ -295,13 +311,10 @@ private:
     std::optional<domain::EqState> latestEq;
     std::optional<domain::ProcessorState> latestProcessor;
     domain::StoreRevision latestRevision = 0;
-    std::atomic<bool> cancelRequested{ false };
-    std::atomic<bool> running{ false };
-    std::thread worker;
-    std::mutex resultMutex;
-    std::optional<WorkerResult> pendingResult;
+    workflows::LatestWorkflowExecutor<FitTask, WorkerResult> fitExecutor;
     long activeSessionId = 0;
     bool initialized = false;
+    bool running = false;
     bool ready = false;
 };
 

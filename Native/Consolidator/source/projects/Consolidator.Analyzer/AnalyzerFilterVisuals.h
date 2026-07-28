@@ -29,6 +29,15 @@ public:
         return true;
     }
 
+    bool UpdateParameter(
+        long bankId,
+        long filterId,
+        const std::string& parameter,
+        double value
+    ) {
+        return eqRuntime.UpdateParameter(bankId, filterId, parameter, value);
+    }
+
     void RefreshCurves() {
         const auto* selectedBank = eqRuntime.Snapshot().SelectedBank();
         banksThroughSelectedCurve = selectedBank

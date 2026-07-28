@@ -21,6 +21,15 @@ struct StoreUpdatedEvent {
     RequestId requestId{};
 };
 
+struct ParameterUpdatedEvent {
+    StoreRevision revision = 0;
+    std::string device;
+    long bankId = 0;
+    long filterId = 0;
+    std::string parameter;
+    double value = 0.0;
+};
+
 struct CommandRejectedEvent {
     RequestId requestId{};
     std::string code;
@@ -48,6 +57,7 @@ struct AnalyzerViewChangedEvent {
 using Event = std::variant<
     HostInitializedEvent,
     StoreUpdatedEvent,
+    ParameterUpdatedEvent,
     CommandRejectedEvent,
     FitRequestedEvent,
     AnalyzerViewChangedEvent,

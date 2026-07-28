@@ -1,5 +1,6 @@
 #include "DeviceHost.h"
 
+#include <algorithm>
 #include <variant>
 #include <type_traits>
 #include <utility>
@@ -110,11 +111,12 @@ bool DeviceHost::Restore(
 ) {
     if (instanceId.empty()) return false;
     std::lock_guard<std::mutex> lock(mutex);
-    const auto eqResult = eqStore.Replace(std::move(eq), revision);
-    const auto inputGainResult = inputGainStore.Replace(processor.inputGain, 0);
-    const auto compressorResult = compressorStore.Replace(processor.compressor, 0);
-    const auto saturatorResult = saturatorStore.Replace(processor.saturator, 0);
-    const auto outputGainResult = outputGainStore.Replace(processor.outputGain, 0);
+    const auto restoreRevision = std::max(revision, Revision() + 1);
+    const auto eqResult = eqStore.Replace(std::move(eq), restoreRevision);
+    const auto inputGainResult = inputGainStore.Replace(processor.inputGain, restoreRevision);
+    const auto compressorResult = compressorStore.Replace(processor.compressor, restoreRevision);
+    const auto saturatorResult = saturatorStore.Replace(processor.saturator, restoreRevision);
+    const auto outputGainResult = outputGainStore.Replace(processor.outputGain, restoreRevision);
     const auto restored = eqResult.Accepted() && inputGainResult.Accepted() && compressorResult.Accepted() &&
         saturatorResult.Accepted() && outputGainResult.Accepted();
     if (restored) this->instanceId = std::move(instanceId);

@@ -30,6 +30,22 @@ public:
         return snapshot;
     }
 
+    bool UpdateParameter(
+        long bankId,
+        long filterId,
+        const std::string& parameter,
+        double value
+    ) {
+        auto* bank = snapshot.FindBank(bankId);
+        auto* filter = bank ? bank->FindFilter(filterId) : nullptr;
+        const auto definition = definitions.find(filterId);
+        if (!filter || definition == definitions.end()) return false;
+        const auto parameterIndex = definition->second.ParameterIndex(parameter);
+        if (!parameterIndex || *parameterIndex >= filter->values.size()) return false;
+        filter->values[*parameterIndex] = value;
+        return true;
+    }
+
     DspChainBuilder BuildAllBanks(double sampleRate) const {
         DspChainBuilder builder;
         AddAllBanks(builder, sampleRate, 0);

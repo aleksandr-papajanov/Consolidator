@@ -5,18 +5,30 @@
 #include "CommandCodec.h"
 #include "DeviceHost.h"
 #include "EventCodec.h"
+#include "Definitions/Definitions.h"
 #include "MaxDictionarySerializer.h"
 #include "PersistenceCodec.h"
 #include "SnapshotCodec.h"
+#include "Workflows/LatestWorkflowExecutor.h"
 
 #include <exception>
 #include <utility>
 #include <variant>
+#include <type_traits>
 
 using namespace c74::min;
 using namespace consolidator;
 
 class ConsolidatorDeviceHost : public object<ConsolidatorDeviceHost> {
+private:
+    struct RestoreTask final {
+        messaging::MessageObject state;
+    };
+
+    struct RestoreResult final {
+        persistence::PersistedDeviceState state;
+    };
+
 public:
     MIN_DESCRIPTION{ "Consolidator device state host." };
     MIN_TAGS{ "state, host, messaging" };
@@ -65,12 +77,21 @@ public:
         }
     };
 
+    queue<> restoreDelivery{
+        this,
+        MIN_FUNCTION {
+            DeliverRestore();
+            return {};
+        }
+    };
+
     timer<timer_options::defer_delivery> persistenceDelivery{
         this,
         MIN_FUNCTION {
             if (ready && persistenceDirty) {
                 persistenceDirty = false;
                 PublishPersistence();
+                PublishContinuousConfirmations();
             }
             return {};
         }
@@ -125,12 +146,8 @@ public:
         "Mark persistence as restored",
         MIN_FUNCTION {
             if (inlet != 1) debugOut.send("error", "invalid_persistence_inlet");
-            else {
-                if (!EnsureInitializedState()) return {};
-                PublishReadyState();
-                PublishAllSnapshots();
-                PublishPersistence();
-            }
+            else if (restorePending) persistenceReadyRequested = true;
+            else FinalizeInitialization();
             return {};
         }
     };
@@ -145,18 +162,12 @@ public:
                 return {};
             }
             const auto object = maxadapter::MaxDictionarySerializer::Deserialize<messaging::MessageObject>(args[0]);
-            const auto persisted = object ? persistence::PersistenceCodec::Deserialize(*object) : std::nullopt;
-            auto state = persisted.value_or(persistence::PersistenceCodec::Defaults());
-            if (!host.Restore(std::move(state.eq), state.processor, 0, state.instanceId)) {
-                auto defaults = persistence::PersistenceCodec::Defaults();
-                if (!host.Restore(std::move(defaults.eq), defaults.processor, 0, defaults.instanceId)) {
-                    debugOut.send("error", "persistence_defaults_failed");
-                    return {};
-                }
+            if (!object) {
+                debugOut.send("error", "invalid_restore");
+                return {};
             }
-            if (ready) {
-                PublishAllSnapshots();
-            }
+            restorePending = true;
+            restoreExecutor.Submit(0, { std::move(*object) });
             return {};
         }
     };
@@ -173,7 +184,16 @@ public:
             messaging::EventCodec::Send(event, { nextEventId++ }, [this](const messaging::AtomList& atoms) {
                 eventOut.send(maxadapter::AtomAdapter::Write(atoms));
             });
-        }) {
+        }),
+          restoreExecutor(
+              [](const RestoreTask& task, const workflows::WorkflowCancellation& cancellation) {
+                  if (cancellation.IsRequested()) return RestoreResult{};
+                  return RestoreResult{
+                      persistence::PersistenceCodec::Deserialize(task.state).value_or(
+                          persistence::PersistenceCodec::Defaults())
+                  };
+              },
+              [this] { restoreDelivery.set(); }) {
         statusOut.send("status", "initializing");
     }
 
@@ -193,6 +213,34 @@ private:
         return false;
     }
 
+    void FinalizeInitialization() {
+        persistenceReadyRequested = false;
+        if (!EnsureInitializedState()) return;
+        PublishReadyState();
+        PublishAllSnapshots();
+        PublishPersistence();
+    }
+
+    void DeliverRestore() {
+        const auto completion = restoreExecutor.TakeCompletion();
+        if (!completion || completion->error || !completion->result) {
+            restorePending = false;
+            debugOut.send("error", "invalid_restore");
+            if (persistenceReadyRequested) FinalizeInitialization();
+            return;
+        }
+
+        restorePending = false;
+        auto state = std::move(completion->result->state);
+        if (!host.Restore(std::move(state.eq), state.processor, 0, state.instanceId)) {
+            debugOut.send("error", "persistence_defaults_failed");
+            if (persistenceReadyRequested) FinalizeInitialization();
+            return;
+        }
+        if (ready) PublishAllSnapshots();
+        if (persistenceReadyRequested) FinalizeInitialization();
+    }
+
     void ApplyCommand(const std::optional<messaging::AtomList>& atoms) {
         if (!atoms) {
             debugOut.send("error", "invalid_atom");
@@ -208,17 +256,82 @@ private:
             return;
         }
         try {
+            const auto revisionBefore = host.Revision();
             const auto isLinkCommand =
                 std::holds_alternative<domain::SetEqBankLinkCommand>(decoded.command);
+            suppressContinuousStatePublication = IsContinuousParameterCommand(decoded.command);
+            suppressDspStatePublication = IsDspIndependentCommand(decoded.command);
             host.Handle(decoded.command);
+            suppressContinuousStatePublication = false;
+            suppressDspStatePublication = false;
+            if (host.Revision() != revisionBefore &&
+                IsContinuousParameterCommand(decoded.command)) {
+                PublishParameterUpdate(decoded.command, host.Revision());
+            }
             if (isLinkCommand) {
                 persistenceDirty = false;
                 PublishPersistence();
             }
         }
         catch (const std::exception&) {
+            suppressContinuousStatePublication = false;
+            suppressDspStatePublication = false;
             debugOut.send("error", "host_command_failed");
         }
+    }
+
+    static bool IsContinuousParameterCommand(const domain::Command& command) {
+        return std::holds_alternative<domain::SetEqParameterCommand>(command) ||
+            std::holds_alternative<domain::SetEqParameterIndexCommand>(command) ||
+            std::holds_alternative<domain::SetGainParameterCommand>(command) ||
+            std::holds_alternative<domain::SetCompressorParameterCommand>(command) ||
+            std::holds_alternative<domain::SetSaturatorParameterCommand>(command);
+    }
+
+    bool IsDspIndependentCommand(const domain::Command& command) const {
+        if (std::holds_alternative<domain::SetEqBankLinkCommand>(command)) return true;
+        return std::holds_alternative<domain::SelectEqBankCommand>(command) &&
+            !host.Eq().State().solo;
+    }
+
+    void PublishParameterUpdate(
+        const domain::Command& command,
+        domain::StoreRevision revision
+    ) {
+        const auto send = [this, revision](domain::ParameterUpdatedEvent update) {
+            update.revision = revision;
+            messaging::EventCodec::Send(
+                domain::Event{ std::move(update) }, { nextEventId++ },
+                [this](const messaging::AtomList& atoms) {
+                    eventOut.send(maxadapter::AtomAdapter::Write(atoms));
+                });
+        };
+        std::visit([&send](const auto& value) {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) {
+                send({ 0, "eq", static_cast<long>(value.bankId.value),
+                    static_cast<long>(value.filterId.value), value.parameter, value.value });
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetEqParameterIndexCommand>) {
+                const auto definition = domain::FilterDefinitions().find(
+                    static_cast<long>(value.filterId.value));
+                if (definition == domain::FilterDefinitions().end() ||
+                    value.parameterIndex >= definition->second.parameters.size()) return;
+                send({ 0, "eq", static_cast<long>(value.bankId.value),
+                    static_cast<long>(value.filterId.value),
+                    definition->second.parameters[value.parameterIndex].name, value.value });
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
+                send({ 0, value.stage == domain::GainStage::Input ? "input_gain" : "output_gain",
+                    0, 0, "gain", value.gainDb });
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) {
+                send({ 0, "compressor", 0, 0, value.parameter, value.value });
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorParameterCommand>) {
+                send({ 0, "saturator", 0, 0, value.parameter, value.value });
+            }
+        }, command);
     }
 
     void PublishReadyState() {
@@ -291,30 +404,48 @@ private:
             });
     }
 
+    void PublishContinuousConfirmations() {
+        if (continuousEqConfirmationDirty) PublishEqSnapshot();
+        if (continuousProcessorConfirmationDirty) PublishProcessorSnapshot();
+        continuousEqConfirmationDirty = false;
+        continuousProcessorConfirmationDirty = false;
+    }
+
     void ScheduleStatePublication(const std::string& storeName) {
         if (!ready) return;
 
-        if (storeName == "eq") eqSnapshotDirty = true;
-        else processorSnapshotDirty = true;
-        dspSnapshotDirty = true;
-        if (!stateDeliveryScheduled) {
-            stateDeliveryScheduled = true;
-            stateDelivery.set();
+        if (!suppressContinuousStatePublication) {
+            if (storeName == "eq") eqSnapshotDirty = true;
+            else processorSnapshotDirty = true;
+            if (!suppressDspStatePublication) dspSnapshotDirty = true;
+            if (!stateDeliveryScheduled) {
+                stateDeliveryScheduled = true;
+                stateDelivery.set();
+            }
         }
+        else if (storeName == "eq") continuousEqConfirmationDirty = true;
+        else continuousProcessorConfirmationDirty = true;
 
         persistenceDirty = true;
         persistenceDelivery.delay(PersistenceDebounceMilliseconds);
     }
 
     consolidator::host::DeviceHost host;
+    workflows::LatestWorkflowExecutor<RestoreTask, RestoreResult> restoreExecutor;
     static constexpr double PersistenceDebounceMilliseconds = 100.0;
     long nextEventId = 1;
     bool ready = false;
+    bool restorePending = false;
+    bool persistenceReadyRequested = false;
     bool stateDeliveryScheduled = false;
     bool eqSnapshotDirty = false;
     bool dspSnapshotDirty = false;
     bool processorSnapshotDirty = false;
     bool persistenceDirty = false;
+    bool suppressContinuousStatePublication = false;
+    bool suppressDspStatePublication = false;
+    bool continuousEqConfirmationDirty = false;
+    bool continuousProcessorConfirmationDirty = false;
 };
 
 MIN_EXTERNAL_CUSTOM(ConsolidatorDeviceHost, consolidator.devicehost);
