@@ -17,15 +17,13 @@ filter <filterId> reset
 input_gain <normalized>
 
 compressor attack-release <1|2> <normalized>
-compressor input-output <1|2> <normalized>
+compressor threshold-output <1|2> <normalized>
 compressor mix <normalized>
-compressor mode <1..3>
 compressor detector <1|2> <gain|frequency|q|bypass> <normalized>
 compressor bypass <0|1>
 compressor reset
 
-saturator input-output <1|2> <normalized>
-saturator mode <1..3>
+saturator saturation-output <1|2> <normalized>
 saturator detector <1|2> <gain|frequency|q|bypass> <normalized>
 saturator bypass <0|1>
 saturator reset
@@ -46,7 +44,7 @@ output second.
 The input gain target is published over the scoped
 `---input.gain.target` UI transport. Compressor and saturator controllers
 combine it with their measured output RMS from `---processor.telemetry` and
-draw the same signed indicator next to ring 2 of their `inputOutput` dials.
+draw the same signed indicator next to ring 2 of their primary/output dials.
 Compressor gain reduction is drawn on the output ring in the shared reduction
 color. Its arc starts at the current output position and extends backwards by
 the measured reduction.
@@ -90,13 +88,11 @@ script sendbox eq.bypass set <0|1>
 script sendbox filter.<filterId>.<parameter|bypass> set <0..1>
 script sendbox input_gain.gain set <0..1>
 script sendbox compressor.attackRelease set <1|2> <0..1>
-script sendbox compressor.inputOutput set <1|2> <0..1>
+script sendbox compressor.thresholdOutput set <1|2> <0..1>
 script sendbox compressor.<mix|bypass> set <0..1>
-script sendbox compressor.mode set <1..3>
 script sendbox compressor.detector.<1|2>.<gain|frequency|q|bypass> set <0..1>
-script sendbox saturator.inputOutput set <1|2> <0..1>
+script sendbox saturator.saturationOutput set <1|2> <0..1>
 script sendbox saturator.bypass set <0..1>
-script sendbox saturator.mode set <1..3>
 script sendbox saturator.detector.<1|2>.<gain|frequency|q|bypass> set <0..1>
 script sendbox output_gain.gain set <0..1>
 ```
@@ -105,16 +101,32 @@ Connect the controller's second outlet to `thispatcher`. The `set` message
 updates the corresponding control without feeding its value back into the
 command inlet.
 
+EQ, gain, compressor, and saturator controllers publish latest normalized
+continuous values from their dedicated final outlet to
+`s ---link.parameter.gesture`:
+
+```text
+eq_parameter_gesture <bankId> <filterId> <parameterIndex> <normalizedValue>
+processor_parameter_gesture <device> <parameter> <normalizedValue>
+eq_bypass_gesture <bankId> <filterId> <0|1>
+eq_filter_reset_gesture <bankId> <filterId>
+eq_bank_reset_gesture <bankId>
+```
+
+This scoped UI transport lets `BankManager` replicate linked changes
+immediately. It does not replace the absolute Host command or official state.
+Continuous updates are latest-value bounded to one value per parameter every
+16 ms so rapid gestures cannot create a stale Max main-thread backlog.
+
 Compressor and saturator activity is measured from processed audio by
 DspProcessor and displayed in SpectrumView. ProcessorControls does not render
 transfer functions or publish visual state.
 
 Suggested stable varnames are `filter.<id>.<parameter>`,
 `filter.<id>.bypass`, `filter.<id>.reset`, `eq.bypass`, `eq.reset`,
-`input_gain.gain`, `compressor.attackRelease`, `compressor.inputOutput`,
-`compressor.mix`, `compressor.mode`, `compressor.control`,
-`compressor.detector.1`, `compressor.detector.2`, `saturator.inputOutput`,
-`saturator.mode`,
+`input_gain.gain`, `compressor.attackRelease`, `compressor.thresholdOutput`,
+`compressor.mix`, `compressor.control`,
+`compressor.detector.1`, `compressor.detector.2`, `saturator.saturationOutput`,
 `saturator.control`, `saturator.detector.1`, `saturator.detector.2`, and
 `output_gain.gain`.
 

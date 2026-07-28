@@ -40,9 +40,8 @@ public:
             "saturator",
             std::make_shared<dsp::TypedDspDeviceFactory<dsp::Saturator, dsp::SaturatorSettings>>(
                 dsp::SaturatorSettings{
-                    saturator.inputDb,
+                    saturator.saturation,
                     saturator.outputDb,
-                    saturator.mode,
                     saturator.detectorFilters,
                     saturator.detectorListen,
                     sampleRate
@@ -59,10 +58,9 @@ public:
                 dsp::CompressorSettings{
                     compressor.attackMs,
                     compressor.releaseMs,
-                    compressor.inputDb,
+                    compressor.thresholdDb,
                     compressor.outputDb,
                     compressor.mix,
-                    compressor.mode,
                     compressor.detectorFilters,
                     compressor.detectorListen,
                     sampleRate

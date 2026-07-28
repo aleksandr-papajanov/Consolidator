@@ -3,13 +3,15 @@ inlets = 1;
 outlets = 1;
 
 // Inlet: float/int, setValue, limits <minimum> <maximum>, enabled,
-// enable, disable, and outputValue. Outlet: normalized value.
+// enable, disable, outputValue, displayRange, valueColor, and clearValueColor.
+// Outlet: normalized value.
 mgraphics.init();
 include("JS/InterfaceVisualConfig.js");
 
 var SliderOptions = {
     paddingRatio: 0.16,
-    dragSensitivity: 0.0
+    dragSensitivity: 0.0,
+    valueAreaRatio: 0.34
 };
 
 declareattribute("value", "getValue", "setValue", 1);
@@ -22,6 +24,8 @@ function SliderControl() {
     this.isDragging = false;
     this.enabled = true;
     this.lastX = 0.0;
+    this.displayRange = null;
+    this.valueColor = null;
 };
 
 SliderControl.prototype.ClampValue = function(value) {
@@ -52,10 +56,49 @@ SliderControl.prototype.GetGeometry = function() {
     return {
         width: size[0],
         height: size[1],
-        startX: padding,
+        startX: Math.max(padding, size[0] * SliderOptions.valueAreaRatio),
         endX: Math.max(padding, size[0] - padding),
         centerY: size[1] * 0.5
     };
+};
+
+SliderControl.prototype.SetDisplayRange = function(
+    minimum,
+    maximum,
+    logarithmic,
+    decimals,
+    suffix
+) {
+    this.displayRange = {
+        minimum: Number(minimum),
+        maximum: Number(maximum),
+        logarithmic: Number(logarithmic) !== 0,
+        decimals: Math.max(0, Math.floor(Number(decimals))),
+        suffix: suffix === undefined ? "" : String(suffix)
+    };
+    mgraphics.redraw();
+};
+
+SliderControl.prototype.FormatValue = function() {
+    if (!this.displayRange) return this.value.toFixed(2);
+    var range = this.displayRange;
+    var absolute = range.logarithmic && range.minimum > 0
+        ? range.minimum * Math.pow(range.maximum / range.minimum, this.value)
+        : range.minimum + this.value * (range.maximum - range.minimum);
+    return absolute.toFixed(range.decimals) + range.suffix;
+};
+
+SliderControl.prototype.SetValueColor = function(red, green, blue, alpha) {
+    this.valueColor = [
+        Number(red), Number(green), Number(blue),
+        alpha === undefined ? 1 : Number(alpha)
+    ];
+    mgraphics.redraw();
+};
+
+SliderControl.prototype.ClearValueColor = function() {
+    this.valueColor = null;
+    mgraphics.redraw();
 };
 
 SliderControl.prototype.Paint = function() {
@@ -71,12 +114,29 @@ SliderControl.prototype.Paint = function() {
     mgraphics.line_to(geometry.endX, geometry.centerY);
     mgraphics.stroke();
 
-    if (this.enabled) mgraphics.set_source_rgba(InterfaceVisualConfig.valueColor);
+    if (this.enabled) {
+        mgraphics.set_source_rgba(this.valueColor || InterfaceVisualConfig.valueColor);
+    }
     else mgraphics.set_source_rgba(InterfaceVisualConfig.trackColor);
     mgraphics.new_path();
     mgraphics.move_to(geometry.startX, geometry.centerY);
     mgraphics.line_to(valueX, geometry.centerY);
     mgraphics.stroke();
+
+    var text = this.FormatValue();
+    var fontSize = Math.max(
+        InterfaceVisualConfig.minimumTextFontSize,
+        Math.min(geometry.height * 0.48, geometry.startX * 0.28)
+    );
+    mgraphics.select_font_face("Arial");
+    mgraphics.set_font_size(fontSize);
+    mgraphics.set_source_rgba(InterfaceVisualConfig.textColor);
+    var textSize = mgraphics.text_measure(text);
+    mgraphics.move_to(
+        Math.max(0, geometry.startX - textSize[0] - SliderOptions.paddingRatio * geometry.height),
+        geometry.centerY + textSize[1] * 0.34
+    );
+    mgraphics.show_text(text);
 };
 
 SliderControl.prototype.HandleDrag = function(x) {
@@ -137,6 +197,19 @@ function outputValue() {
 
 function limits(minimum, maximum) {
     sliderControl.SetLimits(minimum, maximum);
+}
+
+function displayRange(minimum, maximum, logarithmic, decimals, suffix) {
+    sliderControl.SetDisplayRange(
+        minimum, maximum, logarithmic, decimals, suffix);
+}
+
+function valueColor(red, green, blue, alpha) {
+    sliderControl.SetValueColor(red, green, blue, alpha);
+}
+
+function clearValueColor() {
+    sliderControl.ClearValueColor();
 }
 
 function paint() {

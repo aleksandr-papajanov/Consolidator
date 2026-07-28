@@ -44,7 +44,7 @@
 					"patching_rect" : [ 140.0, 50.0, 70.0, 60.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 140.0, 50.0, 70.0, 60.0 ],
-					"varname" : "saturator.inputOutput"
+					"varname" : "saturator.saturationOutput"
 				}
 
 			}
@@ -87,24 +87,6 @@
 , 			{
 				"box" : 				{
 					"border" : 0,
-					"embedstate" : [ [ "buttonModes", "toggle", "toggle", "toggle" ], [ "layout", "vertical" ], [ "allowEmptySelection", 1 ], [ "enabled", 1 ], [ "count", 3 ], [ "loadingIndex", 0 ], [ "selectionMode", "single" ], [ "labels", "Tape", "Tube", "Dist" ], [ "selection", 0 ] ],
-					"filename" : "ButtonGroupControl.js",
-					"id" : "obj-12",
-					"maxclass" : "jsui",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"parameter_enable" : 0,
-					"patching_rect" : [ 90.0, 0.0, 40.0, 80.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 90.0, 0.0, 40.0, 80.0 ],
-					"varname" : "saturator.mode"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"border" : 0,
 					"embedstate" : [ [ "tertiaryIndicator", 0 ], [ "tertiaryValue", 0.342302673496236 ], [ "valueCount", 3 ], [ "enabled", 1 ], [ "primaryIndicator", 0 ], [ "secondaryValue", 0.566323334778673 ], [ "primaryValue", 0.5 ], [ "secondaryIndicator", 0 ] ],
 					"filename" : "DialControl.js",
 					"id" : "obj-13",
@@ -125,8 +107,8 @@
 					"id" : "saturator-controller",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 240.0, 380.0, 297.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "consolidator.processorcontrols.controller.js",
@@ -145,7 +127,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 480.0, 340.0, 130.0, 22.0 ],
-					"text" : "r ---message.bus.out"
+					"text" : "r ---state.processor"
 				}
 
 			}
@@ -198,25 +180,13 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "saturator-prefix-mode",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 90.0, 200.0, 140.0, 22.0 ],
-					"text" : "prepend saturator mode"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "saturator-prefix-input-output",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 0.0, 250.0, 180.0, 22.0 ],
-					"text" : "prepend saturator input-output"
+					"text" : "prepend saturator saturation-output"
 				}
 
 			}
@@ -276,7 +246,30 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 480.0, 300.0, 170.0, 22.0 ],
-					"text" : "r ---processor.link.limits"
+					"text" : "r ---link.control.state"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "saturator-gesture-send",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 240.0, 450.0, 175.0, 22.0 ],
+					"text" : "s ---link.parameter.gesture"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "saturator-definitions-receive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 480.0, 330.0, 145.0, 22.0 ],
+					"text" : "r ---state.definitions"
 				}
 
 			}
@@ -292,13 +285,6 @@
 				"patchline" : 				{
 					"destination" : [ "saturator-controller", 0 ],
 					"source" : [ "saturator-processor-limits", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-prefix-mode", 0 ],
-					"source" : [ "obj-12", 0 ]
 				}
 
 			}
@@ -381,13 +367,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "saturator-controller", 0 ],
-					"source" : [ "saturator-prefix-mode", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "saturator-controller", 2 ],
 					"source" : [ "saturator-target-level", 0 ]
 				}
@@ -397,6 +376,20 @@
 				"patchline" : 				{
 					"destination" : [ "saturator-controller", 2 ],
 					"source" : [ "saturator-telemetry", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "saturator-gesture-send", 0 ],
+					"source" : [ "saturator-controller", 3 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "saturator-controller", 1 ],
+					"source" : [ "saturator-definitions-receive", 0 ]
 				}
 
 			}

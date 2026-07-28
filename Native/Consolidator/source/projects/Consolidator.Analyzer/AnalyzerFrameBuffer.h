@@ -16,10 +16,13 @@ public:
         currentRight[writeIndex] = frame.current.right;
         referenceLeft[writeIndex] = frame.reference.left;
         referenceRight[writeIndex] = frame.reference.right;
-        maximumMagnitude = std::max({
-            maximumMagnitude,
+        maximumCurrentMagnitude = std::max({
+            maximumCurrentMagnitude,
             std::abs(frame.current.left),
-            std::abs(frame.current.right),
+            std::abs(frame.current.right)
+        });
+        maximumReferenceMagnitude = std::max({
+            maximumReferenceMagnitude,
             std::abs(frame.reference.left),
             std::abs(frame.reference.right)
         });
@@ -32,14 +35,24 @@ public:
 
     void Reset() {
         writeIndex = 0;
-        maximumMagnitude = 0.0;
+        maximumCurrentMagnitude = 0.0;
+        maximumReferenceMagnitude = 0.0;
     }
 
     bool IsSilent() const noexcept {
         const auto threshold = std::pow(
             10.0,
             consolidator::settings::AudioOptions::SilenceThresholdDb / 20.0);
-        return maximumMagnitude < threshold;
+        return maximumCurrentMagnitude < threshold &&
+            maximumReferenceMagnitude < threshold;
+    }
+
+    bool IsCurrentSilent() const noexcept {
+        return maximumCurrentMagnitude < SilenceThreshold();
+    }
+
+    bool IsReferenceSilent() const noexcept {
+        return maximumReferenceMagnitude < SilenceThreshold();
     }
 
     int WriteIndex() const {
@@ -81,5 +94,12 @@ private:
     std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> referenceLeft{};
     std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> referenceRight{};
     int writeIndex = 0;
-    double maximumMagnitude = 0.0;
+    static double SilenceThreshold() noexcept {
+        return std::pow(
+            10.0,
+            consolidator::settings::AudioOptions::SilenceThresholdDb / 20.0);
+    }
+
+    double maximumCurrentMagnitude = 0.0;
+    double maximumReferenceMagnitude = 0.0;
 };

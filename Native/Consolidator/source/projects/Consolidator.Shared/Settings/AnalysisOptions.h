@@ -11,7 +11,7 @@ struct AnalysisOptions final {
     static constexpr double DefaultLowFrequencySmoothing = 1.0;
     static constexpr double MaximumCurveSmoothing = 0.9997;
     static constexpr double LowFrequencySmoothingExponent = 2.5;
-    static constexpr double HighFrequencyTiltExponent = 1;
+    static constexpr double HighFrequencyTiltExponent = 0.0;
     static constexpr double SpectralSimilarityScaleDb = 12.0;
     static constexpr double HannWindowCoefficient = 0.5;
     static constexpr double HannWindowCoherentGain = 0.5;

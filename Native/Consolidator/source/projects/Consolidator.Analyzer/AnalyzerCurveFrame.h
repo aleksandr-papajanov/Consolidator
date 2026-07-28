@@ -45,10 +45,8 @@ public:
                 currentOut.send("clear_spectrum");
                 referenceOut.send("clear_spectrum");
             }
-            if (sendFitCurve) differenceOut.send("clear_fit_curve");
             if (sendAnalysis) analysisOut.send("clear_analysis");
             if (sendLevels) levelsOut.send("gain_levels", -120.0, -120.0, -120.0, -120.0, -120.0);
-            return;
         }
 
         c74::min::atoms currentAtoms;
@@ -70,7 +68,7 @@ public:
             }
         }
 
-        if (sendSpectrum) {
+        if (sendSpectrum && !silent) {
             currentOut.send(currentAtoms);
             referenceOut.send(referenceAtoms);
         }
@@ -78,8 +76,8 @@ public:
             fitCurveAtoms.insert(fitCurveAtoms.begin(), "fit_curve");
             differenceOut.send(fitCurveAtoms);
         }
-        if (sendAnalysis) features.Send(analysisOut);
-        if (sendLevels) {
+        if (sendAnalysis && !silent) features.Send(analysisOut);
+        if (sendLevels && !silent) {
             levelsOut.send(
                 "gain_levels",
                 gainLevels.inputPreDb,

@@ -1,9 +1,9 @@
 autowatch = 1;
 inlets = 3;
-outlets = 3;
+outlets = 4;
 include("../Shared/JS/TargetLevelIndicator.js");
 include("../Shared/JS/SaturationVisualization.js");
-include("../Shared/JS/LinkColors.js");
+include("../Shared/JS/LatestValueDispatcher.js");
 
 function ProcessorControlsController() {
     this.requestId = 0;
@@ -18,13 +18,50 @@ function ProcessorControlsController() {
     this.visualDevice = jsarguments.length > 1 ? String(jsarguments[1]) : "";
     this.outputLevelIndicator = new TargetLevelIndicator();
     this.saturationVisualization = new SaturationVisualization();
-    this.processorLinkIds = {};
     this.pendingProcessorLimits = {};
+    this.linkColor = null;
+    this.parameterDispatcher = new LatestValueDispatcher(
+        16, this.FlushParameterUpdate, this);
 }
 
 ProcessorControlsController.prototype.SendCommand = function(name, fields) {
     this.requestId += 1;
     outlet(0, "command", [1, "processor.controls", this.requestId, name].concat(fields || []));
+};
+
+ProcessorControlsController.prototype.SendParameterGesture = function(
+    device,
+    parameter,
+    normalized
+) {
+    outlet(3, "processor_parameter_gesture",
+        String(device), String(parameter),
+        Math.max(0, Math.min(1, Number(normalized))));
+};
+
+ProcessorControlsController.prototype.QueueParameterUpdate = function(
+    device,
+    parameter,
+    normalized,
+    commandName,
+    commandFields
+) {
+    this.parameterDispatcher.Enqueue(
+        String(device) + ":" + String(parameter),
+        {
+            device: String(device),
+            parameter: String(parameter),
+            normalized: Math.max(0, Math.min(1, Number(normalized))),
+            commandName: String(commandName),
+            commandFields: commandFields
+        }
+    );
+};
+
+ProcessorControlsController.prototype.FlushParameterUpdate = function(update) {
+    this.SendParameterGesture(
+        update.device, update.parameter, update.normalized);
+    this.SendCommand(update.commandName, update.commandFields);
 };
 
 ProcessorControlsController.prototype.ReadParameter = function(values, position) {
@@ -85,11 +122,99 @@ ProcessorControlsController.prototype.HandleProcessorDefinitions = function(valu
         }
         this.processorDefinitions[id] = { id: id, parameters: parameters };
     }
+    this.SendProcessorDisplayRanges();
+    this.HandleLinkColor(
+        this.linkColor ? "active" : "-",
+        this.linkColor ? this.linkColor[0] : 0,
+        this.linkColor ? this.linkColor[1] : 0,
+        this.linkColor ? this.linkColor[2] : 0,
+        this.linkColor ? this.linkColor[3] : 0);
     for (var key in this.pendingProcessorLimits) {
         if (!this.pendingProcessorLimits.hasOwnProperty(key)) continue;
         var limit = this.pendingProcessorLimits[key];
         this.ApplyProcessorLimits(
             limit.device, limit.parameter, limit.minimum, limit.maximum);
+    }
+};
+
+ProcessorControlsController.prototype.DisplaySpec = function(parameter) {
+    if (parameter === "attack" || parameter === "release") {
+        return { decimals: 1, suffix: " ms" };
+    }
+    if (parameter === "mix" || parameter === "saturation") {
+        return { decimals: 0, suffix: "%" };
+    }
+    if (parameter.indexOf("frequency") >= 0) {
+        return { decimals: 0, suffix: " Hz" };
+    }
+    if (parameter.indexOf(".q") >= 0) return { decimals: 2, suffix: "" };
+    if (parameter === "threshold" || parameter === "output" ||
+        parameter.indexOf(".gain") >= 0) {
+        return { decimals: 1, suffix: " dB" };
+    }
+    return { decimals: 2, suffix: "" };
+};
+
+ProcessorControlsController.prototype.SendDisplayRange = function(
+    varName,
+    ring,
+    definition,
+    parameterName,
+    isSlider
+) {
+    if (!definition) return;
+    var display = this.DisplaySpec(parameterName);
+    var minimum = definition.minimum;
+    var maximum = definition.maximum;
+    if (parameterName === "mix" || parameterName === "saturation") {
+        minimum *= 100;
+        maximum *= 100;
+    }
+    var command = ["script", "sendbox", varName, "displayRange"];
+    if (!isSlider) command.push(ring);
+    command.push(minimum, maximum, definition.logarithmic ? 1 : 0,
+        display.decimals, display.suffix);
+    outlet(1, command);
+};
+
+ProcessorControlsController.prototype.SendProcessorDisplayRanges = function() {
+    var compressor = this.processorDefinitions.compressor;
+    var saturator = this.processorDefinitions.saturator;
+    if (compressor) {
+        this.SendDisplayRange("compressor.thresholdOutput", 1,
+            this.FindParameter(compressor, "threshold"), "threshold", false);
+        this.SendDisplayRange("compressor.thresholdOutput", 2,
+            this.FindParameter(compressor, "output"), "output", false);
+        this.SendDisplayRange("compressor.attackRelease", 1,
+            this.FindParameter(compressor, "attack"), "attack", false);
+        this.SendDisplayRange("compressor.attackRelease", 2,
+            this.FindParameter(compressor, "release"), "release", false);
+        this.SendDisplayRange("compressor.mix", 0,
+            this.FindParameter(compressor, "mix"), "mix", true);
+    }
+    if (saturator) {
+        this.SendDisplayRange("saturator.saturationOutput", 1,
+            this.FindParameter(saturator, "saturation"), "saturation", false);
+        this.SendDisplayRange("saturator.saturationOutput", 2,
+            this.FindParameter(saturator, "output"), "output", false);
+    }
+    var devices = ["compressor", "saturator"];
+    for (var deviceIndex = 0; deviceIndex < devices.length; deviceIndex++) {
+        var device = devices[deviceIndex];
+        var definition = this.processorDefinitions[device];
+        if (!definition) continue;
+        for (var filterId = 1; filterId <= 2; filterId++) {
+            var varName = device + ".detector." + filterId;
+            this.SendDisplayRange(varName, 1,
+                this.FindParameter(definition, "detector." + filterId + ".gain"),
+                "detector.gain", false);
+            this.SendDisplayRange(varName, 2,
+                this.FindParameter(definition, "detector." + filterId + ".frequency"),
+                "detector.frequency", false);
+            this.SendDisplayRange(varName, 3,
+                this.FindParameter(definition, "detector." + filterId + ".q"),
+                "detector.q", false);
+        }
     }
 };
 
@@ -144,10 +269,11 @@ ProcessorControlsController.prototype.ApplyProcessorLimits = function(device, pa
     if (!definition) return;
     var minimumNormalized = Math.max(0, Math.min(1, this.ToNormalized(definition, minimum)));
     var maximumNormalized = Math.max(0, Math.min(1, this.ToNormalized(definition, maximum)));
-    if (parameter === "input" || parameter === "output") {
+    if (parameter === "threshold" || parameter === "saturation" || parameter === "output") {
+        var primaryName = device === "compressor" ? "threshold" : "saturation";
         outlet(1, [
-            "script", "sendbox", device + ".inputOutput", "limits",
-            parameter === "input" ? 1 : 2, minimumNormalized, maximumNormalized
+            "script", "sendbox", device + "." + primaryName + "Output", "limits",
+            parameter === primaryName ? 1 : 2, minimumNormalized, maximumNormalized
         ]);
         return;
     } else if (device === "compressor" && (parameter === "attack" || parameter === "release")) {
@@ -211,30 +337,42 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
         if (!gainParameter) return;
         var gainValue = Math.max(0, Math.min(1, Number(values[1])));
         this.RememberValue([device, "gain", gainValue]);
-        this.SendCommand("gain.set_parameter", [
-            device === "input_gain" ? "input" : "output",
-            this.ToAbsolute(gainParameter, gainValue)
-        ]);
+        this.QueueParameterUpdate(
+            device,
+            "gain",
+            gainValue,
+            "gain.set_parameter",
+            [
+                device === "input_gain" ? "input" : "output",
+                this.ToAbsolute(gainParameter, gainValue)
+            ]);
         return;
     }
 
     if (device === "compressor" || device === "saturator") {
         var processorAction = String(values[1]);
-        if (processorAction === "input-output" && values.length >= 4) {
-            var inputOutputIndex = Number(values[2]);
-            var inputOutputValue = Math.max(0, Math.min(1, Number(values[3])));
-            if (inputOutputIndex !== 1 && inputOutputIndex !== 2) return;
-            var inputOutputParameter = inputOutputIndex === 1 ? "input" : "output";
-            var inputOutputDefinition = this.FindParameter(
-                this.processorDefinitions[device], inputOutputParameter);
-            if (!inputOutputDefinition) {
-                outlet(2, "error", "missing_processor_definition", device, inputOutputParameter);
+        if ((processorAction === "threshold-output" ||
+            processorAction === "saturation-output") && values.length >= 4) {
+            var primaryOutputIndex = Number(values[2]);
+            var primaryOutputValue = Math.max(0, Math.min(1, Number(values[3])));
+            if (primaryOutputIndex !== 1 && primaryOutputIndex !== 2) return;
+            var primaryParameter = device === "compressor" ? "threshold" : "saturation";
+            var primaryOutputParameter = primaryOutputIndex === 1 ? primaryParameter : "output";
+            var primaryOutputDefinition = this.FindParameter(
+                this.processorDefinitions[device], primaryOutputParameter);
+            if (!primaryOutputDefinition) {
+                outlet(2, "error", "missing_processor_definition", device, primaryOutputParameter);
                 return;
             }
-            this.SendCommand(device + ".set_parameter", [
-                inputOutputParameter,
-                this.ToAbsolute(inputOutputDefinition, inputOutputValue)
-            ]);
+            this.QueueParameterUpdate(
+                device,
+                primaryOutputParameter,
+                primaryOutputValue,
+                device + ".set_parameter",
+                [
+                    primaryOutputParameter,
+                    this.ToAbsolute(primaryOutputDefinition, primaryOutputValue)
+                ]);
             return;
         }
         if (processorAction === "attack-release" && values.length >= 4) {
@@ -244,9 +382,15 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
             var attackReleaseParameter = attackReleaseIndex === 1 ? "attack" : "release";
             var attackReleaseDefinition = this.FindParameter(this.processorDefinitions.compressor, attackReleaseParameter);
             if (!attackReleaseDefinition) return;
-            this.SendCommand("compressor.set_parameter", [
-                attackReleaseParameter, this.ToAbsolute(attackReleaseDefinition, attackReleaseValue)
-            ]);
+            this.QueueParameterUpdate(
+                "compressor",
+                attackReleaseParameter,
+                attackReleaseValue,
+                "compressor.set_parameter",
+                [
+                    attackReleaseParameter,
+                    this.ToAbsolute(attackReleaseDefinition, attackReleaseValue)
+                ]);
             return;
         }
         if (processorAction === "detector" && values.length >= 5) {
@@ -268,10 +412,6 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
                 ]);
                 this.RememberValue([device, "detector", detectorId, detectorParameter, Number(values[4])]);
             }
-            return;
-        }
-        if (processorAction === "mode") {
-            this.SendCommand(device + ".set_mode", [Math.max(0, Math.floor(Number(values[2])) - 1)]);
             return;
         }
         if (processorAction === "control") {
@@ -303,11 +443,17 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
     var processorValue = Math.max(0, Math.min(1, Number(values[2])));
     this.RememberValue([device, name, processorValue]);
     var absolute = this.ToAbsolute(processorParameter, processorValue);
-    this.SendCommand(device + ".set_parameter", [name, absolute]);
+    this.QueueParameterUpdate(
+        device,
+        name,
+        processorValue,
+        device + ".set_parameter",
+        [name, absolute]);
 };
 
 ProcessorControlsController.prototype.ControlVarName = function(fields) {
-    if (String(fields[1]) === "input-output") return String(fields[0]) + ".inputOutput";
+    if (String(fields[1]) === "threshold-output") return "compressor.thresholdOutput";
+    if (String(fields[1]) === "saturation-output") return "saturator.saturationOutput";
     if (String(fields[1]) === "attack-release") return String(fields[0]) + ".attackRelease";
     if (String(fields[1]) === "detector") {
         return String(fields[0]) + ".detector." + Number(fields[2]);
@@ -324,7 +470,9 @@ ProcessorControlsController.prototype.RememberValue = function(fields) {
 
 ProcessorControlsController.prototype.ControlStateKey = function(fields) {
     var varName = this.ControlVarName(fields);
-    if (String(fields[1]) === "input-output" || String(fields[1]) === "attack-release") {
+    if (String(fields[1]) === "threshold-output" ||
+        String(fields[1]) === "saturation-output" ||
+        String(fields[1]) === "attack-release") {
         return varName + "." + Number(fields[2]);
     }
     if (String(fields[1]) === "detector") {
@@ -352,7 +500,9 @@ ProcessorControlsController.prototype.SendValue = function(fields) {
             return;
         }
     }
-    if (String(fields[1]) === "input-output" || String(fields[1]) === "attack-release") {
+    if (String(fields[1]) === "threshold-output" ||
+        String(fields[1]) === "saturation-output" ||
+        String(fields[1]) === "attack-release") {
         outlet(1, ["script", "sendbox", varName, "set", Number(fields[2]), value]);
         return;
     }
@@ -404,77 +554,66 @@ ProcessorControlsController.prototype.HandleEqSnapshot = function(values) {
     }
 };
 
-ProcessorControlsController.prototype.HandleDspSnapshot = function(values) {
+ProcessorControlsController.prototype.HandleProcessorSnapshot = function(values) {
     var count = values.length;
-    if (count < 35 || !this.processorDefinitions.input_gain ||
+    if (count < 29 || !this.processorDefinitions.input_gain ||
         !this.processorDefinitions.compressor || !this.processorDefinitions.saturator ||
         !this.processorDefinitions.output_gain) return;
     var inputGain = this.processorDefinitions.input_gain;
     var compressor = this.processorDefinitions.compressor;
     var saturator = this.processorDefinitions.saturator;
     var outputGain = this.processorDefinitions.output_gain;
-    var base = count - 35;
+    var base = count - 29;
     var inputGainNormalized = this.ToNormalized(this.FindParameter(inputGain, "gain"), values[base]);
-    var outputGainNormalized = this.ToNormalized(this.FindParameter(outputGain, "gain"), values[base + 30]);
+    var outputGainNormalized = this.ToNormalized(this.FindParameter(outputGain, "gain"), values[base + 28]);
     this.SendValue(["input_gain", "gain", inputGainNormalized]);
     var compressorBypass = Number(values[base + 1]);
     this.SendValue(["compressor", "attack-release", 1, this.ToNormalized(this.FindParameter(compressor, "attack"), values[base + 2])]);
     this.SendValue(["compressor", "attack-release", 2, this.ToNormalized(this.FindParameter(compressor, "release"), values[base + 3])]);
-    this.SendValue(["compressor", "input-output", 1, this.ToNormalized(this.FindParameter(compressor, "input"), values[base + 4])]);
-    this.SendValue(["compressor", "input-output", 2, this.ToNormalized(this.FindParameter(compressor, "output"), values[base + 5])]);
+    this.SendValue(["compressor", "threshold-output", 1, this.ToNormalized(this.FindParameter(compressor, "threshold"), values[base + 4])]);
+    this.SendValue(["compressor", "threshold-output", 2, this.ToNormalized(this.FindParameter(compressor, "output"), values[base + 5])]);
     this.SendValue(["compressor", "mix", Number(values[base + 6])]);
-    this.SendValue(["compressor", "mode", Number(values[base + 7]) + 1]);
-    this.SendDetectorSnapshot("compressor", values, base + 8);
-    var compressorListen = Number(values[base + 16]) !== 0;
-    var saturatorBypass = Number(values[base + 17]);
-    this.SendValue(["saturator", "input-output", 1,
-        this.ToNormalized(this.FindParameter(saturator, "input"), values[base + 18])]);
-    this.SendValue(["saturator", "input-output", 2,
-        this.ToNormalized(this.FindParameter(saturator, "output"), values[base + 19])]);
-    this.SendValue(["saturator", "mode", Number(values[base + 20]) + 1]);
-    this.SendDetectorSnapshot("saturator", values, base + 21);
-    var saturatorListen = Number(values[base + 29]) !== 0;
+    this.SendDetectorSnapshot("compressor", values, base + 7);
+    var compressorListen = Number(values[base + 15]) !== 0;
+    var saturatorBypass = Number(values[base + 16]);
+    this.SendValue(["saturator", "saturation-output", 1,
+        this.ToNormalized(this.FindParameter(saturator, "saturation"), values[base + 17])]);
+    this.SendValue(["saturator", "saturation-output", 2,
+        this.ToNormalized(this.FindParameter(saturator, "output"), values[base + 18])]);
+    this.SendDetectorSnapshot("saturator", values, base + 19);
+    var saturatorListen = Number(values[base + 27]) !== 0;
     this.SendProcessorControlState("compressor", compressorBypass, compressorListen);
     this.SendProcessorControlState("saturator", saturatorBypass, saturatorListen);
     this.SendValue(["output_gain", "gain", outputGainNormalized]);
-    this.ApplyProcessorLinkColors({
-        input_gain: String(values[count - 4]),
-        compressor: String(values[count - 3]),
-        saturator: String(values[count - 2]),
-        output_gain: String(values[count - 1])
-    });
 };
 
-ProcessorControlsController.prototype.LinkColor = function(linkId) {
-    var hash = 0;
-    for (var index = 0; index < linkId.length; index++) {
-        hash = ((hash << 5) - hash) + linkId.charCodeAt(index);
-    }
-    return ConsolidatorLinkColors[Math.abs(hash) % ConsolidatorLinkColors.length];
-};
-
-ProcessorControlsController.prototype.SendDialLinkColor = function(varName, ringCount, linkId) {
+ProcessorControlsController.prototype.SendDialLinkColor = function(varName, ringCount) {
     for (var ring = 1; ring <= ringCount; ring++) {
-        if (linkId) {
-            var color = this.LinkColor(linkId);
-            outlet(1, ["script", "sendbox", varName, "ringColor", ring].concat(color));
+        if (this.linkColor) {
+            outlet(1, ["script", "sendbox", varName, "ringColor", ring].concat(this.linkColor));
         } else {
             outlet(1, ["script", "sendbox", varName, "clearRingColor", ring]);
         }
     }
 };
 
-ProcessorControlsController.prototype.ApplyProcessorLinkColors = function(links) {
+ProcessorControlsController.prototype.HandleLinkColor = function(linkId, red, green, blue, alpha) {
+    this.linkColor = String(linkId) === "-"
+        ? null
+        : [Number(red), Number(green), Number(blue), Number(alpha)];
     var device = this.visualDevice;
     if (device !== "compressor" && device !== "saturator") return;
-    var linkId = links[device] === "-" ? "" : links[device];
-    if (this.processorLinkIds[device] === linkId) return;
-    this.processorLinkIds[device] = linkId;
     if (device === "compressor") {
-        this.SendDialLinkColor("compressor.inputOutput", 2, linkId);
-        this.SendDialLinkColor("compressor.attackRelease", 2, linkId);
+        this.SendDialLinkColor("compressor.thresholdOutput", 2);
+        this.SendDialLinkColor("compressor.attackRelease", 2);
+        if (this.linkColor) {
+            outlet(1, ["script", "sendbox", "compressor.mix", "valueColor"]
+                .concat(this.linkColor));
+        } else {
+            outlet(1, ["script", "sendbox", "compressor.mix", "clearValueColor"]);
+        }
     } else {
-        this.SendDialLinkColor("saturator.inputOutput", 2, linkId);
+        this.SendDialLinkColor("saturator.saturationOutput", 2);
     }
 };
 
@@ -531,7 +670,7 @@ ProcessorControlsController.prototype.HandleSnapshot = function(values) {
     if (store === "definitions") this.HandleFilterDefinitions(values);
     else if (store === "processor_definitions") this.HandleProcessorDefinitions(values);
     else if (store === "eq") this.HandleEqSnapshot(values);
-    else if (store === "dsp") this.HandleDspSnapshot(values);
+    else if (store === "processor") this.HandleProcessorSnapshot(values);
 };
 
 ProcessorControlsController.prototype.SendOutputLevelIndicator = function() {
@@ -544,7 +683,9 @@ ProcessorControlsController.prototype.SendDialVisualization = function(ring, mod
     outlet(1, [
         "script",
         "sendbox",
-        this.visualDevice + ".inputOutput",
+        this.visualDevice === "compressor"
+            ? "compressor.thresholdOutput"
+            : "saturator.saturationOutput",
         "visualization",
         ring,
         mode,
@@ -578,8 +719,8 @@ var controller = new ProcessorControlsController();
 
 function inletassist(index) {
     assist([
-        "Normalized local input and limits: eq..., filter..., input_gain, output_gain, compressor..., saturator..., processor_limits <device> <parameter> <absoluteMinimum> <absoluteMaximum>",
-        "Host input: definitions, processor_definitions, EQ, and DSP snapshots; events are ignored",
+        "Normalized local input and link state: eq..., filter..., input_gain, output_gain, compressor..., saturator..., processor_limits, link_color; filter_limits is ignored",
+        "Host input: filter/processor definitions and compact processor snapshots",
         "UI telemetry: target_level <absoluteDb>, processor_telemetry <9 values>"
     ][index] || "");
 }
@@ -588,7 +729,8 @@ function outletassist(index) {
     assist([
         "Host commands: eq.*, gain.set_parameter, compressor.*, saturator.*",
         "thispatcher commands: script sendbox <stable-varname> <command...>",
-        "Diagnostics: error <code>"
+        "Diagnostics: error <code>",
+        "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue>"
     ][index] || "");
 }
 
@@ -614,6 +756,11 @@ function processor_limits(device, parameter, minimum, maximum) {
     if (inlet === 0) controller.HandleProcessorLimits(
         String(device), String(parameter), Number(minimum), Number(maximum));
 }
+function link_color(linkId, red, green, blue, alpha) {
+    if (inlet === 0) controller.HandleLinkColor(
+        String(linkId), Number(red), Number(green), Number(blue), Number(alpha));
+}
+function filter_limits() {}
 function list() {
     var values = arrayfromargs(arguments);
     if (inlet === 1 && values.length && String(values[0]) === "snapshot") controller.HandleSnapshot(values);

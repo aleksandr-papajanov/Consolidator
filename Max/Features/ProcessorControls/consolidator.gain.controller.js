@@ -1,8 +1,8 @@
 autowatch = 1;
 inlets = 2;
-outlets = 4;
+outlets = 5;
+include("../Shared/JS/LatestValueDispatcher.js");
 include("../Shared/JS/TargetLevelIndicator.js");
-include("../Shared/JS/LinkColors.js");
 
 // Inlet 0: Host snapshots, set_gain <0..1>, set_target <0..1>, rms <dB>,
 // processor_telemetry <compressorReductionDb> <saturationNonlinearRatio>
@@ -22,9 +22,10 @@ function GainController(stage) {
     this.levelIndicator = new TargetLevelIndicator();
     this.definition = null;
     this.pendingGain = null;
+    this.parameterDispatcher = new LatestValueDispatcher(
+        16, this.FlushGain, this);
     this.pendingSnapshotGainDb = null;
     this.requestId = 0;
-    this.linkId = "";
     this.pendingLimits = null;
 }
 
@@ -77,6 +78,16 @@ GainController.prototype.SendGain = function(value) {
         return;
     }
     this.pendingGain = null;
+    this.parameterDispatcher.Enqueue(this.stage, {
+        normalized: normalized,
+        absolute: absolute
+    });
+};
+
+GainController.prototype.FlushGain = function(update) {
+    outlet(4, "processor_parameter_gesture",
+        this.stage === "input" ? "input_gain" : "output_gain",
+        "gain", update.normalized);
     this.requestId += 1;
     outlet(0, "command", [
         1,
@@ -84,7 +95,7 @@ GainController.prototype.SendGain = function(value) {
         this.requestId,
         "gain.set_parameter",
         this.stage,
-        absolute
+        update.absolute
     ]);
 };
 
@@ -159,6 +170,10 @@ GainController.prototype.HandleProcessorDefinitions = function(values) {
         outlet(2, "error", "missing_gain_definition", this.stage);
         return;
     }
+    outlet(1, "displayRange", 1, this.definition.minimum,
+        this.definition.maximum, 0, 1, " dB");
+    outlet(1, "displayRange", 2, TargetLevelIndicatorOptions.minimumDb,
+        TargetLevelIndicatorOptions.maximumDb, 0, 1, " dB");
     if (this.pendingSnapshotGainDb !== null) {
         this.SetGain(this.ToNormalizedGain(this.pendingSnapshotGainDb));
         this.pendingSnapshotGainDb = null;
@@ -173,12 +188,10 @@ GainController.prototype.HandleProcessorDefinitions = function(values) {
     }
 };
 
-GainController.prototype.HandleDspSnapshot = function(values) {
-    if (values.length < 35) return;
-    var base = values.length - 35;
-    var position = this.stage === "input" ? base : base + 30;
-    var linkPosition = this.stage === "input" ? values.length - 4 : values.length - 1;
-    this.SetLinkColor(String(values[linkPosition] || ""));
+GainController.prototype.HandleProcessorSnapshot = function(values) {
+    if (values.length < 29) return;
+    var base = values.length - 29;
+    var position = this.stage === "input" ? base : base + 28;
     if (!this.definition) {
         this.pendingSnapshotGainDb = Number(values[position]);
         return;
@@ -186,20 +199,12 @@ GainController.prototype.HandleDspSnapshot = function(values) {
     this.SetGain(this.ToNormalizedGain(values[position]));
 };
 
-GainController.prototype.SetLinkColor = function(linkId) {
-    var normalized = linkId === "-" ? "" : linkId;
-    if (this.linkId === normalized) return;
-    this.linkId = normalized;
-    if (!normalized) {
+GainController.prototype.SetLinkColor = function(linkId, red, green, blue, alpha) {
+    if (String(linkId) === "-") {
         outlet(1, "clearRingColor", 1);
         return;
     }
-    var hash = 0;
-    for (var index = 0; index < normalized.length; index++) {
-        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
-    }
-    var color = ConsolidatorLinkColors[Math.abs(hash) % ConsolidatorLinkColors.length];
-    outlet(1, ["ringColor", 1].concat(color));
+    outlet(1, "ringColor", 1, Number(red), Number(green), Number(blue), Number(alpha));
 };
 
 GainController.prototype.HandleProcessorLimits = function(device, parameter, minimum, maximum) {
@@ -224,7 +229,7 @@ GainController.prototype.HandleSnapshot = function(values) {
     if (values.length < 6 || String(values[0]) !== "snapshot") return;
     var store = String(values[3]);
     if (store === "processor_definitions") this.HandleProcessorDefinitions(values);
-    else if (store === "dsp") this.HandleDspSnapshot(values);
+    else if (store === "processor") this.HandleProcessorSnapshot(values);
 };
 
 var stageArgument = jsarguments.length > 1 ? String(jsarguments[1]) : "input";
@@ -255,6 +260,13 @@ function processor_limits(device, parameter, minimum, maximum) {
         String(device), String(parameter), Number(minimum), Number(maximum));
 }
 
+function link_color(linkId, red, green, blue, alpha) {
+    if (inlet === 0) controller.SetLinkColor(
+        String(linkId), Number(red), Number(green), Number(blue), Number(alpha));
+}
+
+function filter_limits() {}
+
 function snapshot() {
     if (inlet === 0) controller.HandleSnapshot(["snapshot"].concat(arrayfromargs(arguments)));
 }
@@ -284,7 +296,7 @@ function msg_int(value) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "Commands: set_gain <0..1>, set_target <0..1>, rms <dB>, processor_telemetry <9 values>, processor_limits <device> gain <absoluteMinimum> <absoluteMaximum>, enabled <0|1>"
+        ? "Commands: set_gain <0..1>, set_target <0..1>, rms <dB>, processor_telemetry <9 values>, processor_limits <device> gain <absoluteMinimum> <absoluteMaximum>, filter_limits (ignored), link_color <linkId|-> <rgba>, enabled <0|1>"
         : "DialControl output: <ring-index> <0..1>");
 }
 
@@ -293,7 +305,8 @@ function outletassist(index) {
         "Host command: gain.set_parameter <input|output> <absoluteDb>",
         "DialControl commands: set, visualization, ringColor, clearRingColor, enabled",
         "Diagnostics: error <code>",
-        "Input target level: target_level <absoluteDb>"
+        "Input target level: target_level <absoluteDb>",
+        "Live link gesture: processor_parameter_gesture <input_gain|output_gain> gain <normalizedValue>"
     ][index] || "");
 }
 

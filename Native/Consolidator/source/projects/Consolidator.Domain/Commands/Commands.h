@@ -84,12 +84,6 @@ struct SetGainParameterCommand {
     double gainDb = 0.0;
 };
 
-struct SetProcessorLinkCommand {
-    RequestId requestId{};
-    std::string device;
-    std::string linkId;
-};
-
 struct SetCompressorParameterCommand {
     RequestId requestId{};
     std::string parameter;
@@ -99,11 +93,6 @@ struct SetCompressorParameterCommand {
 struct SetCompressorBypassCommand {
     RequestId requestId{};
     bool bypass = false;
-};
-
-struct SetCompressorModeCommand {
-    RequestId requestId{};
-    long mode = 0;
 };
 
 struct SetCompressorDetectorParameterCommand {
@@ -133,11 +122,6 @@ struct SetSaturatorBypassCommand {
     bool bypass = false;
 };
 
-struct SetSaturatorModeCommand {
-    RequestId requestId{};
-    long mode = 0;
-};
-
 struct SetSaturatorDetectorParameterCommand {
     RequestId requestId{};
     long filterId = 1;
@@ -154,9 +138,8 @@ struct ResetSaturatorCommand {
     RequestId requestId{};
 };
 
-struct ListenAnalyzerCommand {
+struct ClearAnalyzerCommand {
     RequestId requestId{};
-    bool enabled = false;
 };
 
 struct SetAnalyzerViewCommand {
@@ -203,20 +186,17 @@ using Command = std::variant<
     SetEqBankLinkCommand,
     SelectEqBankCommand,
     SetGainParameterCommand,
-    SetProcessorLinkCommand,
     SetCompressorParameterCommand,
     SetCompressorBypassCommand,
-    SetCompressorModeCommand,
     SetCompressorDetectorParameterCommand,
     SetCompressorDetectorListenCommand,
     ResetCompressorCommand,
     SetSaturatorParameterCommand,
     SetSaturatorBypassCommand,
-    SetSaturatorModeCommand,
     SetSaturatorDetectorParameterCommand,
     SetSaturatorDetectorListenCommand,
     ResetSaturatorCommand,
-    ListenAnalyzerCommand,
+    ClearAnalyzerCommand,
     SetAnalyzerViewCommand,
     StartFitCommand,
     CancelFitCommand,

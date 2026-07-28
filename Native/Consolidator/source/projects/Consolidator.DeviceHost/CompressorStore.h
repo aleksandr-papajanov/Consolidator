@@ -17,9 +17,7 @@ public:
     const domain::CompressorState& State() const noexcept;
     domain::StoreRevision Revision() const noexcept;
     UpdateResult SetParameter(const domain::SetCompressorParameterCommand& command);
-    UpdateResult SetLink(const domain::SetProcessorLinkCommand& command);
     UpdateResult SetBypass(const domain::SetCompressorBypassCommand& command);
-    UpdateResult SetMode(const domain::SetCompressorModeCommand& command);
     UpdateResult SetDetectorParameter(const domain::SetCompressorDetectorParameterCommand& command);
     UpdateResult SetDetectorListen(const domain::SetCompressorDetectorListenCommand& command);
     UpdateResult Reset(const domain::ResetCompressorCommand& command);

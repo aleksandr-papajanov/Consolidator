@@ -16,7 +16,7 @@
 namespace consolidator::persistence {
 
 struct PersistedDeviceState {
-    long schemaVersion = 13;
+    long schemaVersion = 15;
     std::string instanceId;
     models::EqSnapshot eq;
     models::ProcessorState processor;
@@ -24,7 +24,7 @@ struct PersistedDeviceState {
 
 class PersistenceCodec final {
 public:
-    static constexpr long SchemaVersion = 13;
+    static constexpr long SchemaVersion = 15;
 
     static PersistedDeviceState Defaults() {
         PersistedDeviceState result{ SchemaVersion, GenerateInstanceId(), {}, {} };
@@ -56,22 +56,16 @@ public:
             { "eq.solo", state.eq.solo },
             { "bank_ids", std::move(bankIds) },
             { "input_gain.gain", state.processor.inputGain.gainDb },
-            { "input_gain.link_id", state.processor.inputGain.linkId },
             { "compressor.attack", state.processor.compressor.attackMs },
             { "compressor.release", state.processor.compressor.releaseMs },
-            { "compressor.input", state.processor.compressor.inputDb },
+            { "compressor.threshold", state.processor.compressor.thresholdDb },
             { "compressor.output", state.processor.compressor.outputDb },
             { "compressor.mix", state.processor.compressor.mix },
-            { "compressor.mode", static_cast<std::int64_t>(state.processor.compressor.mode) },
             { "compressor.bypass", state.processor.compressor.bypass },
-            { "compressor.link_id", state.processor.compressor.linkId },
-            { "saturator.input", state.processor.saturator.inputDb },
+            { "saturator.saturation", state.processor.saturator.saturation },
             { "saturator.output", state.processor.saturator.outputDb },
-            { "saturator.mode", static_cast<std::int64_t>(state.processor.saturator.mode) },
             { "saturator.bypass", state.processor.saturator.bypass },
-            { "saturator.link_id", state.processor.saturator.linkId },
-            { "output_gain.gain", state.processor.outputGain.gainDb },
-            { "output_gain.link_id", state.processor.outputGain.linkId }
+            { "output_gain.gain", state.processor.outputGain.gainDb }
         };
         for (std::size_t index = 0; index < 2; ++index) {
             const auto& compressorFilter = state.processor.compressor.detectorFilters[index];
@@ -124,44 +118,32 @@ public:
         result.eq.bypass = *eqBypass;
         result.eq.solo = *eqSolo;
         const auto inputGain = root.ReadDouble("input_gain.gain");
-        const auto inputGainLink = root.ReadString("input_gain.link_id");
         const auto attack = root.ReadDouble("compressor.attack");
         const auto release = root.ReadDouble("compressor.release");
-        const auto input = root.ReadDouble("compressor.input");
+        const auto threshold = root.ReadDouble("compressor.threshold");
         const auto output = root.ReadDouble("compressor.output");
         const auto compressorMix = root.ReadDouble("compressor.mix");
-        const auto compressorMode = root.ReadLong("compressor.mode");
         const auto compressorBypass = root.ReadBool("compressor.bypass");
-        const auto compressorLink = root.ReadString("compressor.link_id");
-        const auto saturatorInput = root.ReadDouble("saturator.input");
+        const auto saturation = root.ReadDouble("saturator.saturation");
         const auto saturatorOutput = root.ReadDouble("saturator.output");
-        const auto saturatorMode = root.ReadLong("saturator.mode");
         const auto saturatorBypass = root.ReadBool("saturator.bypass");
-        const auto saturatorLink = root.ReadString("saturator.link_id");
         const auto outputGain = root.ReadDouble("output_gain.gain");
-        const auto outputGainLink = root.ReadString("output_gain.link_id");
-        if (!inputGain || !inputGainLink || !attack || !release || !input || !output || !compressorMix || !compressorMode || !compressorBypass || !compressorLink ||
-            !saturatorInput || !saturatorOutput ||
-            !saturatorMode || !saturatorBypass || !saturatorLink || !outputGain || !outputGainLink) {
+        if (!inputGain || !attack || !release || !threshold || !output ||
+            !compressorMix || !compressorBypass || !saturation ||
+            !saturatorOutput || !saturatorBypass || !outputGain) {
             return std::nullopt;
         }
         result.processor.inputGain = { *inputGain };
-        result.processor.inputGain.linkId = *inputGainLink;
         result.processor.compressor.attackMs = *attack;
         result.processor.compressor.releaseMs = *release;
-        result.processor.compressor.inputDb = *input;
+        result.processor.compressor.thresholdDb = *threshold;
         result.processor.compressor.outputDb = *output;
         result.processor.compressor.mix = *compressorMix;
-        result.processor.compressor.mode = *compressorMode;
         result.processor.compressor.bypass = *compressorBypass;
-        result.processor.compressor.linkId = *compressorLink;
-        result.processor.saturator.inputDb = *saturatorInput;
+        result.processor.saturator.saturation = *saturation;
         result.processor.saturator.outputDb = *saturatorOutput;
-        result.processor.saturator.mode = *saturatorMode;
         result.processor.saturator.bypass = *saturatorBypass;
-        result.processor.saturator.linkId = *saturatorLink;
         result.processor.outputGain = { *outputGain };
-        result.processor.outputGain.linkId = *outputGainLink;
         for (std::size_t index = 0; index < 2; ++index) {
             auto& compressorFilter = result.processor.compressor.detectorFilters[index];
             auto& saturatorFilter = result.processor.saturator.detectorFilters[index];

@@ -24,7 +24,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.set_link <bankId> <linkId|->, eq.select_bank, processor.set_link <device> <linkId|->, gain.*, compressor.*, saturator.*, analyzer.listen <0|1>, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
@@ -52,11 +52,14 @@ public:
         this,
         MIN_FUNCTION {
             stateDeliveryScheduled = false;
-            if (ready && (eqSnapshotDirty || dspSnapshotDirty)) {
+            if (ready && (eqSnapshotDirty || dspSnapshotDirty ||
+                processorSnapshotDirty)) {
                 if (eqSnapshotDirty) PublishEqSnapshot();
                 if (dspSnapshotDirty) PublishDspSnapshot();
+                if (processorSnapshotDirty) PublishProcessorSnapshot();
                 eqSnapshotDirty = false;
                 dspSnapshotDirty = false;
+                processorSnapshotDirty = false;
             }
             return {};
         }
@@ -123,6 +126,7 @@ public:
         MIN_FUNCTION {
             if (inlet != 1) debugOut.send("error", "invalid_persistence_inlet");
             else {
+                if (!EnsureInitializedState()) return {};
                 PublishReadyState();
                 PublishAllSnapshots();
                 PublishPersistence();
@@ -159,20 +163,36 @@ public:
 
     ConsolidatorDeviceHost()
         : host([this](const domain::Event& event) {
+            if (const auto* updated = std::get_if<domain::StoreUpdatedEvent>(&event)) {
+                ScheduleStatePublication(updated->storeName);
+                return;
+            }
             if (const auto* rejected = std::get_if<domain::CommandRejectedEvent>(&event)) {
                 debugOut.send("error", rejected->code);
             }
             messaging::EventCodec::Send(event, { nextEventId++ }, [this](const messaging::AtomList& atoms) {
                 eventOut.send(maxadapter::AtomAdapter::Write(atoms));
             });
-            if (const auto* updated = std::get_if<domain::StoreUpdatedEvent>(&event)) {
-                ScheduleStatePublication(updated->storeName);
-            }
         }) {
         statusOut.send("status", "initializing");
     }
 
 private:
+    bool EnsureInitializedState() {
+        if (!host.InstanceId().empty()) return true;
+        auto defaults = persistence::PersistenceCodec::Defaults();
+        if (host.Restore(
+            std::move(defaults.eq),
+            defaults.processor,
+            0,
+            defaults.instanceId
+        )) {
+            return true;
+        }
+        debugOut.send("error", "persistence_defaults_failed");
+        return false;
+    }
+
     void ApplyCommand(const std::optional<messaging::AtomList>& atoms) {
         if (!atoms) {
             debugOut.send("error", "invalid_atom");
@@ -189,8 +209,7 @@ private:
         }
         try {
             const auto isLinkCommand =
-                std::holds_alternative<domain::SetEqBankLinkCommand>(decoded.command) ||
-                std::holds_alternative<domain::SetProcessorLinkCommand>(decoded.command);
+                std::holds_alternative<domain::SetEqBankLinkCommand>(decoded.command);
             host.Handle(decoded.command);
             if (isLinkCommand) {
                 persistenceDirty = false;
@@ -221,8 +240,10 @@ private:
             messaging::SnapshotCodec::EncodeDevice(host.InstanceId())));
         PublishEqSnapshot();
         PublishDspSnapshot();
+        PublishProcessorSnapshot();
         eqSnapshotDirty = false;
         dspSnapshotDirty = false;
+        processorSnapshotDirty = false;
     }
 
     void PublishEqSnapshot() {
@@ -238,6 +259,14 @@ private:
                     host.Saturator().State(), host.OutputGain().State()
                 }
             })));
+    }
+
+    void PublishProcessorSnapshot() {
+        eventOut.send(maxadapter::AtomAdapter::Write(
+            messaging::SnapshotCodec::EncodeProcessor({
+                host.InputGain().State(), host.Compressor().State(),
+                host.Saturator().State(), host.OutputGain().State()
+            }, host.Revision())));
     }
 
     void PublishDefinitions() {
@@ -266,6 +295,7 @@ private:
         if (!ready) return;
 
         if (storeName == "eq") eqSnapshotDirty = true;
+        else processorSnapshotDirty = true;
         dspSnapshotDirty = true;
         if (!stateDeliveryScheduled) {
             stateDeliveryScheduled = true;
@@ -283,6 +313,7 @@ private:
     bool stateDeliveryScheduled = false;
     bool eqSnapshotDirty = false;
     bool dspSnapshotDirty = false;
+    bool processorSnapshotDirty = false;
     bool persistenceDirty = false;
 };
 

@@ -21,8 +21,6 @@ var BankManagerTheme = {
         rowHeight: 49,
         squareSize: 16,
         squareGap: 2,
-        processorWidth: 20,
-        processorGap: 2,
         separatorWidth: 1,
         actionHeight: 22,
         actionGap: 4,
@@ -31,7 +29,6 @@ var BankManagerTheme = {
         currentLabelWeight: "bold",
         labelWeight: "normal",
         bankFontSize: 8,
-        processorFontSize: 6,
         bankFontWeight: "normal",
         actionFontSize: 8
     }

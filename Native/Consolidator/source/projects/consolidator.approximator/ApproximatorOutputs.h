@@ -45,10 +45,10 @@ public:
         output.push_back(processor.compressor.bypass ? 1L : 0L);
         output.push_back(processor.compressor.attackMs);
         output.push_back(processor.compressor.releaseMs);
-        output.push_back(processor.compressor.inputDb);
+        output.push_back(processor.compressor.thresholdDb);
         output.push_back(processor.compressor.outputDb);
         output.push_back(processor.saturator.bypass ? 1L : 0L);
-        output.push_back(processor.saturator.inputDb);
+        output.push_back(processor.saturator.saturation);
         output.push_back(processor.saturator.outputDb);
         output.push_back(processor.outputGain.gainDb);
         events.send(output);

@@ -22,7 +22,8 @@ device state, persistence, or message-bus routing.
   light marker unless a deliberate local override is documented here.
 - Line widths are absolute pixel values, not ratios of the control size.
 - Controls remain responsive to their own JSUI bounds.
-- Dial values are normalized to `0..1` at the UI boundary.
+- Dial and Slider values are normalized to `0..1` at the UI boundary. Their
+  labels use `displayRange` metadata to show absolute units.
 - Static control configuration is passed through `jsui` attributes and saved in
   the patcher. Messages remain available for runtime value changes and output.
 - Reuse existing interface components and models whenever their behavior fits.
@@ -74,6 +75,8 @@ Dial also supports multiple concentric values:
   by `-1..1` of the full sweep; `none` disables all visualization on the ring.
 - `enabled`: enables or disables pointer interaction;
 - `set <index> <value>`: sets one one-based dial value without output;
+- `displayRange <index> <minimum> <maximum> <logarithmic> <decimals> <suffix>`:
+  formats the normalized ring as an absolute value;
 - a single dial outputs a float;
 - multiple dials output `[index, value]` on every drag.
 
@@ -91,9 +94,11 @@ The dial normally displays only the first value. While editing the second or
 third value, it displays the active value and returns to the first value one
 second after the last change.
 
-`JS/SliderControl.js` is a horizontal normalized slider. Its track, active
-segment, and marker derive their positions from the current JSUI bounds. Its
-value is configured with the `value` attribute.
+`JS/SliderControl.js` is a horizontal normalized slider. Its absolute formatted
+value is drawn on the left and the track uses the remaining width. Its value is
+configured with the `value` attribute. `displayRange <minimum> <maximum>
+<logarithmic> <decimals> <suffix>` configures the label. `valueColor <rgba...>`
+and `clearValueColor` provide transient link-group presentation color.
 The `enabled` attribute and the `enable` / `disable` messages control pointer
 interaction.
 

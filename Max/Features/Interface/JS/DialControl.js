@@ -4,7 +4,7 @@ outlets = 1;
 
 // Inlet: float/int, list <ring> <value>, count, enabled, enable, disable,
 // outputValue, set, limits, indicator, clearIndicator, visualization, ringColor,
-// clearRingColor, primaryValue, secondaryValue, tertiaryValue, and defaults.
+// clearRingColor, displayRange, primaryValue, secondaryValue, tertiaryValue, and defaults.
 // Outlet: list <ring> <normalizedValue>.
 mgraphics.init();
 include("JS/InterfaceVisualConfig.js");
@@ -17,7 +17,7 @@ var DialOptions = {
     containerPaddingRatio: 0.05,
     arcBoundsHeightRatio: 1.72,
     ringGapRatio: 0.20,
-    ringLineWidthDecay: 0.8,
+    ringLineWidthDecay: 1.0,
     indicatorGap: 1.0,
     valuePaddingRatio: 0.56,
     dragSensitivity: 0.007
@@ -49,6 +49,7 @@ function DialControl() {
     this.visualizations = [new DialVisualization()];
     this.ringColors = [null];
     this.limits = [{ minimum: 0.0, maximum: 1.0 }];
+    this.displayRanges = [null];
     this.activeIndex = 0;
     this.displayIndex = 0;
     this.isDragging = false;
@@ -77,10 +78,12 @@ DialControl.prototype.SetCount = function(count) {
     var previousVisualizations = this.visualizations;
     var previousRingColors = this.ringColors;
     var previousLimits = this.limits;
+    var previousDisplayRanges = this.displayRanges;
     this.values = [];
     this.visualizations = [];
     this.ringColors = [];
     this.limits = [];
+    this.displayRanges = [];
     for (var i = 0; i < nextCount; i++) {
         this.values.push(
             previousValues[i] === undefined
@@ -94,6 +97,7 @@ DialControl.prototype.SetCount = function(count) {
         );
         this.ringColors.push(previousRingColors[i] || null);
         this.limits.push(previousLimits[i] || { minimum: 0.0, maximum: 1.0 });
+        this.displayRanges.push(previousDisplayRanges[i] || null);
     }
     if (this.activeIndex >= nextCount) this.activeIndex = nextCount - 1;
     mgraphics.redraw();
@@ -124,6 +128,36 @@ DialControl.prototype.SetLimits = function(index, minimum, maximum) {
     if (position < 0 || position >= this.limits.length || nextMinimum > nextMaximum) return;
     this.limits[position] = { minimum: nextMinimum, maximum: nextMaximum };
     this.SetValue(position, this.values[position], false);
+};
+
+DialControl.prototype.SetDisplayRange = function(
+    index,
+    minimum,
+    maximum,
+    logarithmic,
+    decimals,
+    suffix
+) {
+    var position = Number(index) - 1;
+    if (position < 0 || position >= this.displayRanges.length) return;
+    this.displayRanges[position] = {
+        minimum: Number(minimum),
+        maximum: Number(maximum),
+        logarithmic: Number(logarithmic) !== 0,
+        decimals: Math.max(0, Math.floor(Number(decimals))),
+        suffix: suffix === undefined ? "" : String(suffix)
+    };
+    mgraphics.redraw();
+};
+
+DialControl.prototype.FormatValue = function(index) {
+    var normalized = this.values[index];
+    var range = this.displayRanges[index];
+    if (!range) return normalized.toFixed(2);
+    var absolute = range.logarithmic && range.minimum > 0
+        ? range.minimum * Math.pow(range.maximum / range.minimum, normalized)
+        : range.minimum + normalized * (range.maximum - range.minimum);
+    return absolute.toFixed(range.decimals) + range.suffix;
 };
 
 DialControl.prototype.GetRadius = function(index, width, height) {
@@ -308,7 +342,7 @@ DialControl.prototype.PaintValues = function(width, height) {
     ));
     var lineHeight = fontSize * 1.15;
     var centerY = this.GetCenterY(width, height);
-    var text = this.values[this.displayIndex].toFixed(2);
+    var text = this.FormatValue(this.displayIndex);
     var textSize;
 
     mgraphics.select_font_face("Arial");
@@ -533,6 +567,11 @@ function set(index, value) {
 
 function limits(index, minimum, maximum) {
     dialControl.SetLimits(index, minimum, maximum);
+}
+
+function displayRange(index, minimum, maximum, logarithmic, decimals, suffix) {
+    dialControl.SetDisplayRange(
+        index, minimum, maximum, logarithmic, decimals, suffix);
 }
 
 function indicator(index, value) {

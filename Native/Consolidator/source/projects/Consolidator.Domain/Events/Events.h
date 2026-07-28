@@ -5,6 +5,7 @@
 #include "States/States.h"
 
 #include <string>
+#include <cstddef>
 #include <variant>
 #include <vector>
 

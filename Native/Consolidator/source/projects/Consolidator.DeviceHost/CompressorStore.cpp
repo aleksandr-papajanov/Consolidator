@@ -25,8 +25,8 @@ UpdateResult CompressorStore::SetParameter(const domain::SetCompressorParameterC
     else if (command.parameter == "release") {
         destination = &state.releaseMs; minimum = settings::CompressorOptions::MinimumReleaseMs; maximum = settings::CompressorOptions::MaximumReleaseMs;
     }
-    else if (command.parameter == "input") {
-        destination = &state.inputDb; minimum = settings::CompressorOptions::MinimumInputDb; maximum = settings::CompressorOptions::MaximumInputDb;
+    else if (command.parameter == "threshold") {
+        destination = &state.thresholdDb; minimum = settings::CompressorOptions::MinimumThresholdDb; maximum = settings::CompressorOptions::MaximumThresholdDb;
     }
     else if (command.parameter == "output") {
         destination = &state.outputDb; minimum = settings::CompressorOptions::MinimumOutputDb; maximum = settings::CompressorOptions::MaximumOutputDb;
@@ -38,19 +38,6 @@ UpdateResult CompressorStore::SetParameter(const domain::SetCompressorParameterC
     if (command.value < minimum || command.value > maximum) return Reject("compressor_value_out_of_range");
     if (*destination == command.value) return { UpdateStatus::Unchanged, {} };
     *destination = command.value;
-    return Commit(command.requestId);
-}
-
-UpdateResult CompressorStore::SetLink(const domain::SetProcessorLinkCommand& command) {
-    if (state.linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
-    state.linkId = command.linkId;
-    return Commit(command.requestId);
-}
-
-UpdateResult CompressorStore::SetMode(const domain::SetCompressorModeCommand& command) {
-    if (command.mode < 0 || command.mode >= settings::CompressorOptions::ModeCount) return Reject("invalid_compressor_mode");
-    if (state.mode == command.mode) return { UpdateStatus::Unchanged, {} };
-    state.mode = command.mode;
     return Commit(command.requestId);
 }
 
@@ -97,7 +84,6 @@ UpdateResult CompressorStore::SetBypass(const domain::SetCompressorBypassCommand
 
 UpdateResult CompressorStore::Reset(const domain::ResetCompressorCommand& command) {
     auto defaults = domain::CompressorState{};
-    defaults.linkId = state.linkId;
     bool detectorChanged = false;
     for (std::size_t index = 0; index < state.detectorFilters.size(); ++index) {
         const auto& current = state.detectorFilters[index];
@@ -106,8 +92,8 @@ UpdateResult CompressorStore::Reset(const domain::ResetCompressorCommand& comman
             current.frequencyHz != fallback.frequencyHz || current.q != fallback.q;
     }
     if (!detectorChanged && state.attackMs == defaults.attackMs && state.releaseMs == defaults.releaseMs &&
-        state.inputDb == defaults.inputDb && state.outputDb == defaults.outputDb &&
-        state.mix == defaults.mix && state.mode == defaults.mode &&
+        state.thresholdDb == defaults.thresholdDb && state.outputDb == defaults.outputDb &&
+        state.mix == defaults.mix &&
         state.detectorListen == defaults.detectorListen && state.bypass == defaults.bypass) {
         return { UpdateStatus::Unchanged, {} };
     }
@@ -118,10 +104,9 @@ UpdateResult CompressorStore::Reset(const domain::ResetCompressorCommand& comman
 UpdateResult CompressorStore::Replace(domain::CompressorState nextState, domain::StoreRevision nextRevision) {
     if (!std::isfinite(nextState.attackMs) || nextState.attackMs < settings::CompressorOptions::MinimumAttackMs || nextState.attackMs > settings::CompressorOptions::MaximumAttackMs ||
         !std::isfinite(nextState.releaseMs) || nextState.releaseMs < settings::CompressorOptions::MinimumReleaseMs || nextState.releaseMs > settings::CompressorOptions::MaximumReleaseMs ||
-        !std::isfinite(nextState.inputDb) || nextState.inputDb < settings::CompressorOptions::MinimumInputDb || nextState.inputDb > settings::CompressorOptions::MaximumInputDb ||
+        !std::isfinite(nextState.thresholdDb) || nextState.thresholdDb < settings::CompressorOptions::MinimumThresholdDb || nextState.thresholdDb > settings::CompressorOptions::MaximumThresholdDb ||
         !std::isfinite(nextState.outputDb) || nextState.outputDb < settings::CompressorOptions::MinimumOutputDb || nextState.outputDb > settings::CompressorOptions::MaximumOutputDb ||
-        !std::isfinite(nextState.mix) || nextState.mix < settings::CompressorOptions::MinimumMix || nextState.mix > settings::CompressorOptions::MaximumMix ||
-        nextState.mode < 0 || nextState.mode >= settings::CompressorOptions::ModeCount) {
+        !std::isfinite(nextState.mix) || nextState.mix < settings::CompressorOptions::MinimumMix || nextState.mix > settings::CompressorOptions::MaximumMix) {
         return Reject("invalid_persisted_compressor_state");
     }
     state = nextState;
@@ -136,23 +121,21 @@ bool CompressorStore::CanApplyFit(const domain::CompressorState& nextState) cons
         std::isfinite(nextState.releaseMs) &&
         nextState.releaseMs >= settings::CompressorOptions::MinimumReleaseMs &&
         nextState.releaseMs <= settings::CompressorOptions::MaximumReleaseMs &&
-        std::isfinite(nextState.inputDb) && nextState.inputDb >= settings::CompressorOptions::MinimumInputDb && nextState.inputDb <= settings::CompressorOptions::MaximumInputDb &&
+        std::isfinite(nextState.thresholdDb) && nextState.thresholdDb >= settings::CompressorOptions::MinimumThresholdDb && nextState.thresholdDb <= settings::CompressorOptions::MaximumThresholdDb &&
         std::isfinite(nextState.outputDb) && nextState.outputDb >= settings::CompressorOptions::MinimumOutputDb && nextState.outputDb <= settings::CompressorOptions::MaximumOutputDb &&
-        std::isfinite(nextState.mix) && nextState.mix >= settings::CompressorOptions::MinimumMix && nextState.mix <= settings::CompressorOptions::MaximumMix &&
-        nextState.mode >= 0 && nextState.mode < settings::CompressorOptions::ModeCount;
+        std::isfinite(nextState.mix) && nextState.mix >= settings::CompressorOptions::MinimumMix && nextState.mix <= settings::CompressorOptions::MaximumMix;
 }
 
 UpdateResult CompressorStore::ApplyFit(
     domain::CompressorState nextState,
     domain::RequestId requestId
 ) {
-    nextState.linkId = state.linkId;
     if (!CanApplyFit(nextState)) {
         return Reject("invalid_fit_compressor_state");
     }
     if (state.attackMs == nextState.attackMs && state.releaseMs == nextState.releaseMs &&
-        state.inputDb == nextState.inputDb && state.outputDb == nextState.outputDb && state.mix == nextState.mix &&
-        state.mode == nextState.mode && state.bypass == nextState.bypass &&
+        state.thresholdDb == nextState.thresholdDb && state.outputDb == nextState.outputDb && state.mix == nextState.mix &&
+        state.bypass == nextState.bypass &&
         state.detectorFilters == nextState.detectorFilters) {
         return { UpdateStatus::Unchanged, {} };
     }

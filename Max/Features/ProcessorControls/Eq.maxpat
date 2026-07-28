@@ -128,7 +128,7 @@
 					"patching_rect" : [ 370.0, 380.0, 45.454546809196472, 22.909091591835022 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 188.823537290096283, 80.000001668930054, 45.454546809196472, 22.909091591835022 ],
-					"varname" : "eq.filter.3.control[1]"
+					"varname" : "eq.filter.3.control"
 				}
 
 			}
@@ -146,7 +146,7 @@
 					"patching_rect" : [ 357.0, 330.0, 70.0, 60.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 180.000007510185242, 40.0, 63.101611196994781, 49.893046379089355 ],
-					"varname" : "eq.filter.3.dial[1]"
+					"varname" : "eq.filter.3.dial"
 				}
 
 			}
@@ -272,7 +272,7 @@
 					"patching_rect" : [ 210.0, 380.0, 45.454546809196472, 22.909091591835022 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 68.823532283306122, 80.000001668930054, 45.454546809196472, 22.909091591835022 ],
-					"varname" : "eq.filter.2.control[1]"
+					"varname" : "eq.filter.2.control"
 				}
 
 			}
@@ -290,7 +290,7 @@
 					"patching_rect" : [ 197.0, 330.0, 70.0, 60.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 60.000002503395081, 40.0, 60.106953620910645, 49.893046379089355 ],
-					"varname" : "eq.filter.2.dial[1]"
+					"varname" : "eq.filter.2.dial"
 				}
 
 			}
@@ -299,8 +299,8 @@
 					"id" : "obj-eq-controller",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 270.0, 770.0, 179.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "consolidator.eq.controller.js",
@@ -319,7 +319,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 430.0, 730.0, 145.0, 22.0 ],
-					"text" : "r ---message.bus.out"
+					"text" : "r ---state.eq"
 				}
 
 			}
@@ -536,6 +536,41 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 200.0, 520.0, 104.0, 22.0 ],
 					"text" : "prepend control 2"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-eq-link-control-state",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 590.0, 730.0, 145.0, 22.0 ],
+					"text" : "r ---link.control.state"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-eq-gesture-send",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 430.0, 880.0, 175.0, 22.0 ],
+					"text" : "s ---link.parameter.gesture"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-eq-definitions-receive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 430.0, 700.0, 145.0, 22.0 ],
+					"text" : "r ---state.definitions"
 				}
 
 			}
@@ -782,6 +817,27 @@
 				"patchline" : 				{
 					"destination" : [ "obj-eq-controller", 1 ],
 					"source" : [ "obj-eq-message-bus-out", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-eq-controller", 0 ],
+					"source" : [ "obj-eq-link-control-state", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-eq-gesture-send", 0 ],
+					"source" : [ "obj-eq-controller", 3 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-eq-controller", 1 ],
+					"source" : [ "obj-eq-definitions-receive", 0 ]
 				}
 
 			}

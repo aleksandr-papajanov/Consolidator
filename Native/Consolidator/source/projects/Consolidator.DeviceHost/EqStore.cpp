@@ -186,7 +186,6 @@ UpdateResult EqStore::SetBankLink(const domain::SetEqBankLinkCommand& command) {
     if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
     auto* bank = state.FindBank(*bankId);
     if (!bank) return Reject("invalid_user_bank");
-    if (!command.linkId.empty() && !IsUserBankEmpty(*bankId)) return Reject("linked_bank_not_empty");
     if (bank->linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
     bank->linkId = command.linkId;
     return Commit(command.requestId);

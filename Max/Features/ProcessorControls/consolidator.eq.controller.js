@@ -1,12 +1,17 @@
 autowatch = 1;
 inlets = 2;
-outlets = 3;
+outlets = 4;
+include("../Shared/JS/LatestValueDispatcher.js");
 
 function EqController() {
     this.requestId = 0;
     this.selectedBankId = 1;
     this.filterDefinitions = {};
     this.pendingDialValues = {};
+    this.linkColor = null;
+    this.pendingFilterLimits = {};
+    this.parameterDispatcher = new LatestValueDispatcher(
+        16, this.FlushParameterUpdate, this);
 }
 
 EqController.prototype.SendCommand = function(name, fields) {
@@ -56,8 +61,33 @@ EqController.prototype.HandleDefinitions = function(values) {
             filterId,
             this.FindParameter(definition, "q") ? 3 : (hasFrequency ? 2 : 1)
         );
+        this.SendDisplayRanges(filterId, definition);
     }
     this.FlushPendingDialValues();
+    this.ApplyLinkColor();
+    this.FlushFilterLimits();
+};
+
+EqController.prototype.ParameterDisplay = function(parameter) {
+    if (parameter.name === "gain") return { decimals: 1, suffix: " dB" };
+    if (parameter.name === "freq" || parameter.name === "pivot" ||
+        parameter.name === "frequency") return { decimals: 0, suffix: " Hz" };
+    if (parameter.name === "q") return { decimals: 2, suffix: "" };
+    return { decimals: 2, suffix: "" };
+};
+
+EqController.prototype.SendDisplayRanges = function(filterId, definition) {
+    for (var index = 0; index < definition.parameters.length; index++) {
+        var parameter = definition.parameters[index];
+        var ring = this.ParameterRing(parameter);
+        if (!ring) continue;
+        var display = this.ParameterDisplay(parameter);
+        outlet(1, [
+            "script", "sendbox", this.DialVarName(filterId), "displayRange",
+            ring, parameter.minimum, parameter.maximum,
+            parameter.logarithmic ? 1 : 0, display.decimals, display.suffix
+        ]);
+    }
 };
 
 EqController.prototype.FlushPendingDialValues = function() {
@@ -91,6 +121,56 @@ EqController.prototype.GetRingParameter = function(definition, ringIndex) {
     }
     if (ringIndex === 3) return this.FindParameter(definition, "q");
     return null;
+};
+
+EqController.prototype.ParameterIndex = function(definition, parameter) {
+    if (!definition || !parameter) return -1;
+    for (var index = 0; index < definition.parameters.length; index++) {
+        if (definition.parameters[index] === parameter) return index;
+    }
+    return -1;
+};
+
+EqController.prototype.SendParameterGesture = function(filterId, parameter, normalized) {
+    var definition = this.filterDefinitions[filterId];
+    var parameterIndex = this.ParameterIndex(definition, parameter);
+    if (parameterIndex < 0) return;
+    outlet(3, "eq_parameter_gesture",
+        this.selectedBankId, filterId, parameterIndex,
+        Math.max(0, Math.min(1, Number(normalized))));
+};
+
+EqController.prototype.QueueParameterUpdate = function(
+    bankId,
+    filterId,
+    parameter,
+    normalized
+) {
+    var definition = this.filterDefinitions[filterId];
+    var parameterIndex = this.ParameterIndex(definition, parameter);
+    if (parameterIndex < 0) return;
+    var value = Math.max(0, Math.min(1, Number(normalized)));
+    this.parameterDispatcher.Enqueue(
+        [bankId, filterId, parameterIndex].join(":"),
+        {
+            bankId: Number(bankId),
+            filterId: Number(filterId),
+            parameterIndex: parameterIndex,
+            parameter: parameter,
+            normalized: value
+        }
+    );
+};
+
+EqController.prototype.FlushParameterUpdate = function(update) {
+    outlet(3, "eq_parameter_gesture",
+        update.bankId, update.filterId, update.parameterIndex, update.normalized);
+    this.SendCommand("eq.set_parameter", [
+        update.bankId,
+        update.filterId,
+        update.parameter.name,
+        this.ToAbsolute(update.parameter, update.normalized)
+    ]);
 };
 
 EqController.prototype.ToAbsolute = function(parameter, normalized) {
@@ -133,6 +213,76 @@ EqController.prototype.SendControlValue = function(filterId, value) {
     outlet(1, ["script", "sendbox", this.ControlVarName(filterId), "selection", value ? 1 : 0]);
 };
 
+EqController.prototype.ParameterRing = function(parameter) {
+    if (!parameter) return 0;
+    if (parameter.name === "gain") return 1;
+    if (parameter.name === "freq" || parameter.name === "pivot" ||
+        parameter.name === "frequency") return 2;
+    if (parameter.name === "q") return 3;
+    return 0;
+};
+
+EqController.prototype.HandleLinkColor = function(linkId, red, green, blue, alpha) {
+    this.linkColor = String(linkId) === "-"
+        ? null
+        : [Number(red), Number(green), Number(blue), Number(alpha)];
+    this.ApplyLinkColor();
+};
+
+EqController.prototype.ApplyLinkColor = function() {
+    for (var filterId in this.filterDefinitions) {
+        if (!this.filterDefinitions.hasOwnProperty(filterId)) continue;
+        var definition = this.filterDefinitions[filterId];
+        var coloredRings = {};
+        for (var index = 0; index < definition.parameters.length; index++) {
+            var ring = this.ParameterRing(definition.parameters[index]);
+            if (!ring || coloredRings[ring]) continue;
+            coloredRings[ring] = true;
+            if (this.linkColor) {
+                outlet(1, ["script", "sendbox", this.DialVarName(filterId),
+                    "ringColor", ring].concat(this.linkColor));
+            } else {
+                outlet(1, ["script", "sendbox", this.DialVarName(filterId),
+                    "clearRingColor", ring]);
+            }
+        }
+    }
+};
+
+EqController.prototype.HandleFilterLimits = function(
+    filterId,
+    parameterIndex,
+    minimum,
+    maximum
+) {
+    var key = filterId + ":" + parameterIndex;
+    this.pendingFilterLimits[key] = {
+        filterId: Number(filterId),
+        parameterIndex: Number(parameterIndex),
+        minimum: Number(minimum),
+        maximum: Number(maximum)
+    };
+    this.ApplyFilterLimits(this.pendingFilterLimits[key]);
+};
+
+EqController.prototype.ApplyFilterLimits = function(limit) {
+    var definition = this.filterDefinitions[limit.filterId];
+    var parameter = definition && definition.parameters[limit.parameterIndex];
+    var ring = this.ParameterRing(parameter);
+    if (!parameter || !ring) return;
+    outlet(1, ["script", "sendbox", this.DialVarName(limit.filterId),
+        "limits", ring, this.ToNormalized(parameter, limit.minimum),
+        this.ToNormalized(parameter, limit.maximum)]);
+};
+
+EqController.prototype.FlushFilterLimits = function() {
+    for (var key in this.pendingFilterLimits) {
+        if (this.pendingFilterLimits.hasOwnProperty(key)) {
+            this.ApplyFilterLimits(this.pendingFilterLimits[key]);
+        }
+    }
+};
+
 EqController.prototype.HandleDial = function(filterId, ringIndex, normalized) {
     var definition = this.filterDefinitions[filterId];
     var parameter = this.GetRingParameter(definition, ringIndex);
@@ -140,24 +290,31 @@ EqController.prototype.HandleDial = function(filterId, ringIndex, normalized) {
         this.pendingDialValues[filterId + ":" + ringIndex] = Number(normalized);
         return;
     }
-    this.SendCommand("eq.set_parameter", [
-        this.selectedBankId,
-        filterId,
-        parameter.name,
-        this.ToAbsolute(parameter, normalized)
-    ]);
+    this.QueueParameterUpdate(
+        this.selectedBankId, filterId, parameter, normalized);
 };
 
 EqController.prototype.HandleControl = function(filterId, buttonIndex, value) {
     if (Number(buttonIndex) === 1) {
-        this.SendCommand("eq.set_bypass", [
-            this.selectedBankId,
-            filterId,
-            Number(value) ? 1 : 0
-        ]);
+        this.SendFilterBypass(filterId, value);
     } else if (Number(buttonIndex) === 2) {
-        this.SendCommand("eq.reset_filter", [this.selectedBankId, filterId]);
+        this.SendFilterReset(filterId);
     }
+};
+
+EqController.prototype.SendFilterBypass = function(filterId, value) {
+    var bypass = Number(value) ? 1 : 0;
+    outlet(3, "eq_bypass_gesture",
+        this.selectedBankId, filterId, bypass);
+    this.SendCommand("eq.set_bypass", [
+        this.selectedBankId, filterId, bypass
+    ]);
+};
+
+EqController.prototype.SendFilterReset = function(filterId) {
+    outlet(3, "eq_filter_reset_gesture",
+        this.selectedBankId, filterId);
+    this.SendCommand("eq.reset_filter", [this.selectedBankId, filterId]);
 };
 
 EqController.prototype.HandleGlobal = function(buttonIndex, value) {
@@ -168,6 +325,7 @@ EqController.prototype.HandleGlobal = function(buttonIndex, value) {
     } else if (action === 2) {
         this.SendCommand("eq.set_chain_solo", [isPressed]);
     } else if (action === 3 && isPressed) {
+        outlet(3, "eq_bank_reset_gesture", this.selectedBankId);
         this.SendCommand("eq.reset", [this.selectedBankId]);
     }
 };
@@ -177,15 +335,11 @@ EqController.prototype.HandleLocal = function(values) {
     var filterId = Number(values[0]);
     var action = String(values[1]);
     if (action === "reset") {
-        this.SendCommand("eq.reset_filter", [this.selectedBankId, filterId]);
+        this.SendFilterReset(filterId);
         return;
     }
     if (action === "bypass") {
-        this.SendCommand("eq.set_bypass", [
-            this.selectedBankId,
-            filterId,
-            Number(values[2]) ? 1 : 0
-        ]);
+        this.SendFilterBypass(filterId, values[2]);
         return;
     }
     var parameter = this.GetRingParameter(
@@ -194,12 +348,8 @@ EqController.prototype.HandleLocal = function(values) {
     );
     if (!parameter) parameter = this.FindParameter(this.filterDefinitions[filterId], action);
     if (!parameter) return;
-    this.SendCommand("eq.set_parameter", [
-        this.selectedBankId,
-        filterId,
-        parameter.name,
-        this.ToAbsolute(parameter, values[2])
-    ]);
+    this.QueueParameterUpdate(
+        this.selectedBankId, filterId, parameter, values[2]);
 };
 
 EqController.prototype.HandleEqSnapshot = function(values) {
@@ -246,7 +396,7 @@ var controller = new EqController();
 
 function inletassist(index) {
     assist([
-        "Local: <filterId> <gain|frequency|q|reset|bypass> <normalized-value>",
+        "Local: filter controls; link_color, filter_limits; processor_limits is ignored",
         "Host snapshot: definitions and EQ state"
     ][index] || "");
 }
@@ -255,7 +405,8 @@ function outletassist(index) {
     assist([
         "Host commands: eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass, eq.set_chain_solo, eq.reset",
         "thispatcher: script sendbox eq.filter.<id>.dial|control <attribute> <value>",
-        "Diagnostics: error <code>"
+        "Diagnostics: error <code>",
+        "Link gestures: eq_parameter_gesture, eq_bypass_gesture, eq_filter_reset_gesture, eq_bank_reset_gesture"
     ][index] || "");
 }
 
@@ -301,4 +452,15 @@ function snapshot() {
     if (inlet === 1) controller.HandleSnapshot(["snapshot"].concat(arrayfromargs(arguments)));
 }
 
+function link_color(linkId, red, green, blue, alpha) {
+    if (inlet === 0) controller.HandleLinkColor(
+        String(linkId), Number(red), Number(green), Number(blue), Number(alpha));
+}
+
+function filter_limits(filterId, parameterIndex, minimum, maximum) {
+    if (inlet === 0) controller.HandleFilterLimits(
+        Number(filterId), Number(parameterIndex), Number(minimum), Number(maximum));
+}
+
+function processor_limits() {}
 function event() {}

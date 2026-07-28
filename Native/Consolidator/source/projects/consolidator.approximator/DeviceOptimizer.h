@@ -93,8 +93,8 @@ public:
         Filter,
         CompressorAttack,
         CompressorRelease,
-        CompressorInput,
-        SaturatorInput,
+        CompressorThreshold,
+        SaturatorSaturation,
         SaturatorOutput
     };
 
@@ -124,11 +124,11 @@ public:
                 case ParameterKind::CompressorRelease:
                     snapshot.processor.compressor.releaseMs = value;
                     break;
-                case ParameterKind::CompressorInput:
-                    snapshot.processor.compressor.inputDb = value;
+                case ParameterKind::CompressorThreshold:
+                    snapshot.processor.compressor.thresholdDb = value;
                     break;
-                case ParameterKind::SaturatorInput:
-                    snapshot.processor.saturator.inputDb = value;
+                case ParameterKind::SaturatorSaturation:
+                    snapshot.processor.saturator.saturation = value;
                     break;
                 case ParameterKind::SaturatorOutput:
                     snapshot.processor.saturator.outputDb = value;
@@ -146,10 +146,10 @@ public:
                     return snapshot.processor.compressor.attackMs;
                 case ParameterKind::CompressorRelease:
                     return snapshot.processor.compressor.releaseMs;
-                case ParameterKind::CompressorInput:
-                    return snapshot.processor.compressor.inputDb;
-                case ParameterKind::SaturatorInput:
-                    return snapshot.processor.saturator.inputDb;
+                case ParameterKind::CompressorThreshold:
+                    return snapshot.processor.compressor.thresholdDb;
+                case ParameterKind::SaturatorSaturation:
+                    return snapshot.processor.saturator.saturation;
                 case ParameterKind::SaturatorOutput:
                     return snapshot.processor.saturator.outputDb;
             }
@@ -222,16 +222,16 @@ public:
                 ParameterRange{ consolidator::settings::CompressorOptions::MinimumReleaseMs,
                     consolidator::settings::CompressorOptions::MaximumReleaseMs,
                     ParameterScale::Logarithmic } });
-            result.push_back({ ParameterKind::CompressorInput, 0, 0,
-                ParameterRange{ consolidator::settings::CompressorOptions::MinimumInputDb,
-                    consolidator::settings::CompressorOptions::MaximumInputDb,
+            result.push_back({ ParameterKind::CompressorThreshold, 0, 0,
+                ParameterRange{ consolidator::settings::CompressorOptions::MinimumThresholdDb,
+                    consolidator::settings::CompressorOptions::MaximumThresholdDb,
                     ParameterScale::Linear } });
             return result;
         }
         if (scope == Scope::Saturation) {
-            result.push_back({ ParameterKind::SaturatorInput, 0, 0,
-                ParameterRange{ consolidator::settings::SaturatorOptions::MinimumInputDb,
-                    consolidator::settings::SaturatorOptions::MaximumInputDb,
+            result.push_back({ ParameterKind::SaturatorSaturation, 0, 0,
+                ParameterRange{ consolidator::settings::SaturatorOptions::MinimumSaturation,
+                    consolidator::settings::SaturatorOptions::MaximumSaturation,
                     ParameterScale::Linear } });
             result.push_back({ ParameterKind::SaturatorOutput, 0, 0,
                 ParameterRange{ consolidator::settings::SaturatorOptions::MinimumOutputDb,

@@ -137,18 +137,6 @@ public:
             else return Invalid("invalid_gain_stage", reader.Index());
             return Success(domain::SetGainParameterCommand{ { *requestId }, gainStage, *gainDb });
         }
-        if (*name == "processor.set_link") {
-            const auto device = reader.ReadString();
-            const auto linkId = reader.ReadString();
-            if (!device || !linkId || !reader.RequireEnd() ||
-                (*device != "input_gain" && *device != "compressor" &&
-                 *device != "saturator" && *device != "output_gain")) {
-                return Invalid("invalid_processor_set_link", reader.Index());
-            }
-            return Success(domain::SetProcessorLinkCommand{
-                { *requestId }, *device, *linkId == "-" ? std::string{} : *linkId
-            });
-        }
         if (*name == "compressor.set_parameter") {
             const auto parameter = reader.ReadString();
             const auto value = reader.ReadDouble();
@@ -159,11 +147,6 @@ public:
             const auto bypass = reader.ReadBool();
             if (!bypass || !reader.RequireEnd()) return Invalid("invalid_compressor_set_bypass", reader.Index());
             return Success(domain::SetCompressorBypassCommand{ { *requestId }, *bypass });
-        }
-        if (*name == "compressor.set_mode") {
-            const auto mode = reader.ReadInt();
-            if (!mode || *mode < 0 || !reader.RequireEnd()) return Invalid("invalid_compressor_mode", reader.Index());
-            return Success(domain::SetCompressorModeCommand{ { *requestId }, static_cast<long>(*mode) });
         }
         if (*name == "compressor.set_detector_parameter") {
             const auto filterId = reader.ReadInt();
@@ -193,11 +176,6 @@ public:
             if (!bypass || !reader.RequireEnd()) return Invalid("invalid_saturator_set_bypass", reader.Index());
             return Success(domain::SetSaturatorBypassCommand{ { *requestId }, *bypass });
         }
-        if (*name == "saturator.set_mode") {
-            const auto mode = reader.ReadInt();
-            if (!mode || *mode < 0 || !reader.RequireEnd()) return Invalid("invalid_saturator_mode", reader.Index());
-            return Success(domain::SetSaturatorModeCommand{ { *requestId }, static_cast<long>(*mode) });
-        }
         if (*name == "saturator.set_detector_parameter") {
             const auto filterId = reader.ReadInt();
             const auto parameter = reader.ReadString();
@@ -215,10 +193,9 @@ public:
         if (*name == "saturator.reset") return reader.RequireEnd()
             ? Success(domain::ResetSaturatorCommand{ { *requestId } })
             : Invalid("invalid_saturator_reset", reader.Index());
-        if (*name == "analyzer.listen") {
-            const auto enabled = reader.ReadBool();
-            if (!enabled || !reader.RequireEnd()) return Invalid("invalid_analyzer_listen", reader.Index());
-            return Success(domain::ListenAnalyzerCommand{ { *requestId }, *enabled });
+        if (*name == "analyzer.clear") {
+            if (!reader.RequireEnd()) return Invalid("invalid_analyzer_clear", reader.Index());
+            return Success(domain::ClearAnalyzerCommand{ { *requestId } });
         }
         if (*name == "analyzer.set_view") {
             const auto visible = reader.ReadBool();
@@ -296,14 +273,14 @@ public:
             const auto compressorBypass = reader.ReadBool();
             const auto attack = reader.ReadDouble();
             const auto release = reader.ReadDouble();
-            const auto input = reader.ReadDouble();
+            const auto threshold = reader.ReadDouble();
             const auto output = reader.ReadDouble();
             const auto saturatorBypass = reader.ReadBool();
-            const auto saturatorInput = reader.ReadDouble();
+            const auto saturation = reader.ReadDouble();
             const auto saturatorOutput = reader.ReadDouble();
             const auto outputGain = reader.ReadDouble();
-            if (!inputGain || !compressorBypass || !attack || !release || !input || !output ||
-                !saturatorBypass || !saturatorInput || !saturatorOutput || !outputGain) {
+            if (!inputGain || !compressorBypass || !attack || !release || !threshold || !output ||
+                !saturatorBypass || !saturation || !saturatorOutput || !outputGain) {
                 return Invalid("invalid_fit_complete", reader.Index());
             }
             if (*inputGain < settings::GainOptions::MinimumGainDb ||
@@ -314,12 +291,12 @@ public:
                 *attack > settings::CompressorOptions::MaximumAttackMs ||
                 *release < settings::CompressorOptions::MinimumReleaseMs ||
                 *release > settings::CompressorOptions::MaximumReleaseMs ||
-                *input < settings::CompressorOptions::MinimumInputDb ||
-                *input > settings::CompressorOptions::MaximumInputDb ||
+                *threshold < settings::CompressorOptions::MinimumThresholdDb ||
+                *threshold > settings::CompressorOptions::MaximumThresholdDb ||
                 *output < settings::CompressorOptions::MinimumOutputDb ||
                 *output > settings::CompressorOptions::MaximumOutputDb ||
-                *saturatorInput < settings::SaturatorOptions::MinimumInputDb ||
-                *saturatorInput > settings::SaturatorOptions::MaximumInputDb ||
+                *saturation < settings::SaturatorOptions::MinimumSaturation ||
+                *saturation > settings::SaturatorOptions::MaximumSaturation ||
                 *saturatorOutput < settings::SaturatorOptions::MinimumOutputDb ||
                 *saturatorOutput > settings::SaturatorOptions::MaximumOutputDb) {
                 return Invalid("invalid_fit_complete", reader.Index());
@@ -327,10 +304,10 @@ public:
             result.processor.inputGain = { *inputGain };
             result.processor.compressor.attackMs = *attack;
             result.processor.compressor.releaseMs = *release;
-            result.processor.compressor.inputDb = *input;
+            result.processor.compressor.thresholdDb = *threshold;
             result.processor.compressor.outputDb = *output;
             result.processor.compressor.bypass = *compressorBypass;
-            result.processor.saturator.inputDb = *saturatorInput;
+            result.processor.saturator.saturation = *saturation;
             result.processor.saturator.outputDb = *saturatorOutput;
             result.processor.saturator.bypass = *saturatorBypass;
             result.processor.outputGain = { *outputGain };

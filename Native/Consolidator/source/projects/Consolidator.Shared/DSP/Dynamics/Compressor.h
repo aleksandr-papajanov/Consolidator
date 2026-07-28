@@ -18,10 +18,9 @@ namespace consolidator::dsp {
 struct CompressorSettings {
     double attackMs = settings::CompressorOptions::DefaultAttackMs;
     double releaseMs = settings::CompressorOptions::DefaultReleaseMs;
-    double inputDb = settings::CompressorOptions::DefaultInputDb;
+    double thresholdDb = settings::CompressorOptions::DefaultThresholdDb;
     double outputDb = settings::CompressorOptions::DefaultOutputDb;
     double mix = settings::CompressorOptions::DefaultMix;
-    long mode = settings::CompressorOptions::DefaultMode;
     std::array<models::DetectorFilterState, 2> detectorFilters{
         models::DetectorFilterState{ 1 }, models::DetectorFilterState{ 2 }
     };
@@ -35,11 +34,10 @@ public:
         : sampleRate(settings.sampleRate),
           attackMs(settings.attackMs, SmoothingSamples(settings.sampleRate)),
           releaseMs(settings.releaseMs, SmoothingSamples(settings.sampleRate)),
-          inputDb(settings.inputDb, SmoothingSamples(settings.sampleRate)),
+          thresholdDb(settings.thresholdDb, SmoothingSamples(settings.sampleRate)),
           outputDb(settings.outputDb, SmoothingSamples(settings.sampleRate)),
           mix(settings.mix, SmoothingSamples(settings.sampleRate)),
           detectorFilters(CreateDetectorFilters(settings.detectorFilters, settings.sampleRate)),
-          mode(settings.mode),
           detectorListen(settings.detectorListen),
           attackCoefficient(TimeCoefficient(settings.attackMs)),
           releaseCoefficient(TimeCoefficient(settings.releaseMs)) {
@@ -51,17 +49,17 @@ public:
     double ProcessSample(double input) override {
         const auto attack = attackMs.Next();
         const auto release = releaseMs.Next();
-        const auto inputGain = helpers::NumericHelper::DecibelsToMagnitude(inputDb.Next().value);
+        const auto threshold = thresholdDb.Next().value;
         const auto outputGain = helpers::NumericHelper::DecibelsToMagnitude(outputDb.Next().value);
         const auto wet = helpers::NumericHelper::Clamp(mix.Next().value, 0.0, 1.0);
-        const auto compressorInput = input * inputGain;
+        const auto compressorInput = input;
 
         if (attack.changed) attackCoefficient = TimeCoefficient(attack.value);
         if (release.changed) releaseCoefficient = TimeCoefficient(release.value);
 
         const auto detectorInput = ProcessDetector(compressorInput);
         UpdateEnvelope(std::abs(detectorInput));
-        lastGainReductionDb = CalculateGainReductionDb();
+        lastGainReductionDb = CalculateGainReductionDb(threshold);
 
         const auto wetInput = detectorListen > 0 ? detectorInput : compressorInput;
         const auto compressed = wetInput * helpers::NumericHelper::DecibelsToMagnitude(lastGainReductionDb);
@@ -77,10 +75,9 @@ public:
     void UpdateSettings(const CompressorSettings& settings) {
         attackMs.SetTarget(settings.attackMs);
         releaseMs.SetTarget(settings.releaseMs);
-        inputDb.SetTarget(settings.inputDb);
+        thresholdDb.SetTarget(settings.thresholdDb);
         outputDb.SetTarget(settings.outputDb);
         mix.SetTarget(settings.mix);
-        mode = settings.mode;
         detectorListen = settings.detectorListen;
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
             detectorActive[index] = IsDetectorActive(settings.detectorFilters[index]);
@@ -102,9 +99,9 @@ private:
         envelope = coefficient * envelope + (1.0 - coefficient) * level;
     }
 
-    double CalculateGainReductionDb() const {
+    double CalculateGainReductionDb(double thresholdDb) const {
         const auto levelDb = helpers::NumericHelper::MagnitudeToDecibels(envelope);
-        const auto excessDb = levelDb - settings::CompressorOptions::ProcessingThresholdDb;
+        const auto excessDb = levelDb - thresholdDb;
         if (excessDb <= 0.0) return 0.0;
         return -excessDb * (1.0 - 1.0 / settings::CompressorOptions::FixedRatio);
     }
@@ -139,12 +136,11 @@ private:
     double sampleRate;
     SmoothedParameter attackMs;
     SmoothedParameter releaseMs;
-    SmoothedParameter inputDb;
+    SmoothedParameter thresholdDb;
     SmoothedParameter outputDb;
     SmoothedParameter mix;
     std::array<BiquadBellFilter, 2> detectorFilters;
     std::array<bool, 2> detectorActive{ false, false };
-    long mode = settings::CompressorOptions::DefaultMode;
     long detectorListen = 0;
     double envelope = 0.0;
     double attackCoefficient = 0.0;

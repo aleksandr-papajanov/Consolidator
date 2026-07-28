@@ -36,7 +36,7 @@
             140.0,
             22.0
           ],
-          "text": "r ---message.bus.out"
+          "text": "r ---state.eq"
         }
       },
       {
@@ -55,6 +55,24 @@
             22.0
           ],
           "text": "r consolidator.host.bus"
+        }
+      },
+      {
+        "box": {
+          "id": "gesture-receive",
+          "maxclass": "newobj",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            340.0,
+            20.0,
+            175.0,
+            22.0
+          ],
+          "text": "r ---link.parameter.gesture"
         }
       },
       {
@@ -127,7 +145,61 @@
             170.0,
             22.0
           ],
-          "text": "s ---processor.link.limits"
+          "text": "s ---link.control.state"
+        }
+      },
+      {
+        "box": {
+          "id": "dsp-state-receive",
+          "maxclass": "newobj",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            20.0,
+            325.0,
+            110.0,
+            22.0
+          ],
+          "text": "r ---state.processor"
+        }
+      },
+      {
+        "box": {
+          "id": "definitions-state-receive",
+          "maxclass": "newobj",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            140.0,
+            325.0,
+            145.0,
+            22.0
+          ],
+          "text": "r ---state.definitions"
+        }
+      },
+      {
+        "box": {
+          "id": "device-state-receive",
+          "maxclass": "newobj",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            295.0,
+            325.0,
+            115.0,
+            22.0
+          ],
+          "text": "r ---state.device"
         }
       },
       {
@@ -249,6 +321,18 @@
       {
         "patchline": {
           "destination": [
+            "manager",
+            0
+          ],
+          "source": [
+            "gesture-receive",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "destination": [
             "global-send",
             0
           ],
@@ -266,6 +350,42 @@
           ],
           "source": [
             "manager",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "destination": [
+            "manager",
+            0
+          ],
+          "source": [
+            "dsp-state-receive",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "destination": [
+            "manager",
+            0
+          ],
+          "source": [
+            "definitions-state-receive",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "destination": [
+            "manager",
+            0
+          ],
+          "source": [
+            "device-state-receive",
             0
           ]
         }

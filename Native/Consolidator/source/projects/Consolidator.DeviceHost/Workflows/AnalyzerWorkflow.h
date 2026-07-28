@@ -14,7 +14,7 @@ public:
 
     explicit AnalyzerWorkflow(EventHandler eventHandler = {});
 
-    void Handle(const domain::ListenAnalyzerCommand& command);
+    void Handle(const domain::ClearAnalyzerCommand& command);
     void Handle(const domain::SetAnalyzerViewCommand& command);
     const domain::AnalyzerState& State() const noexcept;
 

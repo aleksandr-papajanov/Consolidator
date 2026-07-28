@@ -7,7 +7,6 @@ function ApproximatorFeatureController() {
     this.fitCurve = [];
     this.fitting = false;
     this.nativeReady = false;
-    this.listenEnabled = false;
 }
 
 ApproximatorFeatureController.prototype.SendFit = function() {
@@ -27,10 +26,10 @@ ApproximatorFeatureController.prototype.SetFitCurve = function(values) {
     this.UpdateControl();
 };
 
-ApproximatorFeatureController.prototype.SetListen = function(value) {
-    this.listenEnabled = Number(value) !== 0;
+ApproximatorFeatureController.prototype.ClearFitCurve = function() {
+    this.fitCurve = [];
     this.requestId += 1;
-    outlet(0, "command", [1, "approximator.ui", this.requestId, "analyzer.listen", this.listenEnabled ? 1 : 0]);
+    outlet(0, "command", [1, "approximator.ui", this.requestId, "analyzer.clear"]);
     this.UpdateControl();
 };
 
@@ -46,19 +45,18 @@ ApproximatorFeatureController.prototype.UpdateControl = function() {
     outlet(2, "script", "sendbox", "approximator.match", "loadingIndex", this.fitting ? 1 : 0);
     outlet(2, "script", "sendbox", "approximator.match", "enabled",
         !this.fitting && this.nativeReady && this.fitCurve.length > 1 ? 1 : 0);
-    outlet(2, "script", "sendbox", "approximator.listen", "enabled", !this.fitting ? 1 : 0);
-    outlet(2, "script", "sendbox", "approximator.listen", "set", this.listenEnabled ? 1 : 0);
+    outlet(2, "script", "sendbox", "approximator.clear", "enabled", !this.fitting ? 1 : 0);
 };
 
 var controller = new ApproximatorFeatureController();
 
 function inletassist(index) {
-    assist(index === 0 ? "match 1 <0|1>; listen <0|1>" : "fit_curve <dB...> or native status");
+    assist(index === 0 ? "match 1 <0|1>; clear <0|1>" : "fit_curve <dB...> or native status");
 }
 
 function outletassist(index) {
     assist([
-        "command 1 approximator.ui <id> fit.start <pointCount> <curve...>; analyzer.listen <0|1>",
+        "command 1 approximator.ui <id> fit.start <pointCount> <curve...>; analyzer.clear",
         "status <state>",
         "thispatcher commands for Match EQ"
     ][index] || "");
@@ -70,8 +68,8 @@ setoutletassist(-1, outletassist);
 function match(index, value) {
     if (inlet === 0 && Number(index) === 1 && Number(value) !== 0) controller.SendFit();
 }
-function listen(value) {
-    if (inlet === 0) controller.SetListen(value);
+function clear(value) {
+    if (inlet === 0 && Number(value) !== 0) controller.ClearFitCurve();
 }
 function status(state) {
     if (inlet === 1) controller.SetStatus(state, arrayfromargs(arguments).slice(1));

@@ -7,17 +7,12 @@ namespace consolidator::host {
 AnalyzerWorkflow::AnalyzerWorkflow(EventHandler eventHandler)
     : eventHandler(std::move(eventHandler)) {}
 
-void AnalyzerWorkflow::Handle(const domain::ListenAnalyzerCommand& command) {
-    const auto nextStatus = command.enabled
-        ? domain::AnalyzerState::Status::Listening
-        : domain::AnalyzerState::Status::Idle;
-    const auto changed = state.status != nextStatus;
-    state.status = nextStatus;
-    if (command.enabled && changed) ++state.sessionId.value;
+void AnalyzerWorkflow::Handle(const domain::ClearAnalyzerCommand&) {
+    ++state.sessionId.value;
     Publish(domain::OperationChangedEvent{
-        "analyzer",
+        "analyzer.clear",
         state.sessionId,
-        command.enabled ? domain::OperationStatus::Capturing : domain::OperationStatus::Idle,
+        domain::OperationStatus::Completed,
         0.0,
         {}
     });

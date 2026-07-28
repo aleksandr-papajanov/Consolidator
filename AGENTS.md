@@ -94,6 +94,12 @@ is no `target` field. Entity IDs are typed fields. Every variable-length array
 has an explicit count. Max may deliver a complete atom sequence as `list`; that
 is the same protocol message, not a fallback format.
 
+High-rate parameter commands do not publish per-value Host events. Local
+controllers provide the bounded live-link transport, while coalesced Host
+snapshots confirm canonical state. Snapshots never generate link edits.
+Discrete bypass and reset operations use explicit bounded link messages; fit,
+restore, Join, and other local transactions are never inferred as gestures.
+
 Supported commands are:
 
 - `eq.set_parameter <bankId> <filterId> <parameter> <absoluteValue>`
@@ -107,23 +113,20 @@ Supported commands are:
 - `eq.set_link <bankId> <linkId|->`
 - `eq.select_bank <bankId>`
 - `gain.set_parameter <input|output> <absoluteGainDb>`
-- `compressor.set_parameter <attack|release|input|output|mix> <absoluteValue>`
-- `compressor.set_mode <0..2>`
+- `compressor.set_parameter <attack|release|threshold|output|mix> <absoluteValue>`
 - `compressor.set_detector_parameter <1|2> <gain|frequency|q|bypass> <absoluteValue>`
 - `compressor.set_detector_listen <0|1|2>`
 - `compressor.set_bypass <0|1>`
 - `compressor.reset`
-- `saturator.set_parameter <input|output> <absoluteValue>`
-- `processor.set_link <input_gain|compressor|saturator|output_gain> <linkId|->`
-- `saturator.set_mode <0..2>`
+- `saturator.set_parameter <saturation|output> <absoluteValue>`
 - `saturator.set_detector_parameter <1|2> <gain|frequency|q|bypass> <absoluteValue>`
 - `saturator.set_detector_listen <0|1|2>`
 - `saturator.set_bypass <0|1>`
 - `saturator.reset`
-- `analyzer.listen <0|1>`
+- `analyzer.clear`
 - `analyzer.set_view <0|1> <spectrum|analysis>`
 - `fit.start <pointCount> <curveDb...>`, `fit.cancel <sessionId>`, and `fit.clear`
-- `fit.complete <sessionId> <bankId> <loss> <filterCount> <filters...> <inputGain> <compressorBypass> <attack> <release> <input> <output> <saturatorBypass> <saturatorInput> <saturatorOutput> <outputGain>`
+- `fit.complete <sessionId> <bankId> <loss> <filterCount> <filters...> <inputGain> <compressorBypass> <attack> <release> <threshold> <output> <saturatorBypass> <saturation> <saturatorOutput> <outputGain>`
 - `fit.fail <sessionId> <error>`
 
 Every command inlet and outlet must document its complete accepted or produced
@@ -155,9 +158,9 @@ a contract changes.
   chain; placement is not part of filter state or definitions. Shelf and tilt
   Q values are fixed DSP settings and are not exposed as filter parameters.
 - `CompressorOptions` and `SaturatorOptions` are the only sources of processor
-  ranges and defaults, including mode, mix, and detector-filter state.
+  ranges and defaults, including mix and detector-filter state.
   `GainOptions` owns input/output gain range and default. Compressor ratio and
-  the temporary DSP threshold are fixed in `CompressorOptions`.
+  the compressor ratio is fixed in `CompressorOptions`.
 - `Max/Config/ConsolidatorSettings.json` contains presentation-only per-filter
   colors. Runtime parameter definitions and ranges never come from JSON.
 
@@ -170,7 +173,7 @@ snapshot on the Max main thread, and persistence preparation uses a restartable
 100 ms debounce before serialization. It must not perform DSP or UI work.
 Static features do not register or perform startup handshakes. After the root
 device's deferred persistence restore, one `persistence_ready` message makes
-Host publish definitions, EQ, and DSP snapshots exactly once.
+Host publish definitions, EQ, processor, and DSP snapshots exactly once.
 
 `consolidator.dspprocessor` receives complete DSP snapshots and builds the full
 chain in this fixed order: input gain, saturator, compressor, all EQ filters from
@@ -192,8 +195,9 @@ difference curves, selected-bank filter curves, the total EQ response, and a
 rolling feature vector with global and standard-band metrics. It never adds a
 calculated EQ response to the measured current. Fit accumulation compares the
 pre-EQ tap with the reference and subtracts the ordered bank response. The audio thread owns smoothing state and
-accumulates the smoothed difference curve as a running mean for the duration of
-each active `analyzer.listen` session. Disabling Listen clears that accumulation.
+accumulates the smoothed difference curve as a running mean whenever a reference
+signal is present. `analyzer.clear` clears that accumulation without disabling
+subsequent analysis.
 The audio thread
 publishes immutable `AnalyzerCurveFrame` values through a preallocated
 single-producer/single-consumer triple buffer. Its overflow policy is
@@ -203,15 +207,20 @@ delivers the newest frame on Max's main thread; do not poll Analyzer with
 on its visual outlet; SpectrumView must use that metadata instead of
 duplicating the native curve grid.
 
-`analyzer.set_view` is operational, non-persistent view demand. When the device
-is not the selected Live device, Analyzer view demand is disabled. In `spectrum`
+`analyzer.set_view` is operational, non-persistent view demand. When the
+device's owning track is not the selected Live track, Analyzer view demand is
+disabled. In `spectrum`
 mode Analyzer produces FFT curves only; in `analysis` mode it produces the
-feature vector only. `analyzer.listen` is independent: it keeps the minimum FFT
-and fit-curve accumulation active even while the Analyzer view is hidden. A
+feature vector only. Reference-driven fit-curve accumulation remains active
+while the Analyzer view is hidden. A
 silent FFT window skips FFT post-processing, metric extraction, curve
 serialization, and Max delivery. Processor telemetry likewise suppresses silent
 windows before it reaches Max. Stateful audio DSP is never skipped merely
 because its input is silent.
+Analyzer view demand is published only after the native Analyzer has accepted
+the first canonical EQ snapshot and emitted `status host_ready`. The controller
+may resolve Live track selection earlier, but it retains that state until Host
+and Analyzer readiness are confirmed instead of relying on startup timing.
 
 `consolidator.approximator` owns the EQ curve workflow only. Its UI controller
 caches the latest Analyzer `fit_curve` and sends it atomically in
@@ -220,8 +229,8 @@ caches the latest Analyzer `fit_curve` and sends it atomically in
 Approximator returns one `fit.complete` or `fit.fail`. It has no audio signal
 inlet, capture buffer, or offline dynamics/saturation workflow. `fit_curve` is
 the accumulated Analyzer difference at the EQ input minus the response of the
-ordered banks `1..selected`. `analyzer.listen` controls that Analyzer
-accumulation and is independent of the Approximator. Analyzer publishes only
+ordered banks `1..selected`. `analyzer.clear` resets that Analyzer accumulation
+and is independent of the Approximator. Analyzer publishes only
 the tagged `fit_curve` message through `---analyzer.curves`. Beam Search remains
 dormant infrastructure for future structural search. Only Host commits a fit
 result atomically.
@@ -233,13 +242,34 @@ the active bank. `Join` copies audible filters from the selected local user
 banks into hidden bank `0` and clears those source banks in one Store commit.
 `Commit` is available only for an empty user bank: Fit approximates hidden bank
 `0` into that user bank and clears bank `0` only after a successful atomic Host
-commit. Link selection accepts only empty user banks; each bank belongs to at
-most one Link group.
+commit. Link selection accepts occupied or empty user banks; each bank belongs
+to at most one Link group, and a group contains at most one bank per device
+instance.
 
 `link.join <linkId> <sourceDeviceId> <revision>` is a group command on the
 global host bus. Each participant joins its occupied bank(s) with that link into
 its own hidden bank `0`; the link remains intact. The resulting default source
 values are local Join effects and must never be replicated as parameter edits.
+
+A bank `linkId` is the only link-group identity. It links that bank's EQ filters
+together with the instance input gain, compressor, saturator, and output gain.
+There is no separate processor link state or processor link command. The
+selected local bank chooses the active processor-link context; selecting an
+unlinked bank restores default control colors and ranges.
+
+Linked continuous edits use deltas in each parameter definition's normalized
+coordinate so linear and logarithmic controls preserve the same relative
+gesture. EQ uses
+`link.filter_delta <linkId> <sourceRuntimeId> <revision> <filterId> <parameterIndex> <normalizedDelta>`
+and processors use
+`link.processor_delta <linkId> <sourceRuntimeId> <revision> <device> <parameter> <normalizedDelta>`.
+Only the global link transport uses normalized deltas; all Host commands,
+snapshots, stores, and DSP values remain absolute.
+BankManager computes hard control limits from all group members when the active
+link or membership changes and sends them over the scoped
+`---link.control.state` transport. It does not recalculate limits during a
+gesture. Remote deltas update the cached model of every group member before the
+local Host command is emitted, and they are never broadcast again.
 
 Analyzer visualization is split into independent responsive JSUI components.
 `consolidator.analyzer.view.js` is the single responsive JSUI for Analyzer
@@ -285,6 +315,29 @@ s ---message.bus.in
 r ---message.bus.out
 ```
 
+`---message.bus.in` carries typed commands to Host. `---message.bus.out`
+carries small Host events only. Full state never enters either runtime bus.
+`StateTransport` routes immutable Host snapshots to scoped, store-specific
+latest-state channels:
+
+```text
+---state.eq
+---state.dsp
+---state.processor
+---state.definitions
+---state.device
+---state.analyzer
+```
+
+Each feature subscribes only to the stores it consumes. Do not add a generic
+snapshot receiver to a controller or reconnect state channels to the runtime
+event bus. `---state.dsp` is the complete chain state and is consumed only by
+DspProcessor. Approximator combines `---state.eq` and the compact
+`---state.processor` snapshot. UI controllers and BankManager also consume the
+compact processor state. `---state.analyzer` contains
+only Analyzer events and EQ snapshots needed by the native Analyzer and
+SpectrumView.
+
 Cross-device coordination uses the unscoped `consolidator.host.bus` transport;
 it is intentionally distinct from the per-device `---message.bus.*` runtime
 bus. `BankManager` is its consumer and producer. Every instance announces a
@@ -292,30 +345,40 @@ runtime ID derived from its Live device object, its label, active user bank,
 bank occupancy and link memberships. The runtime ID must never come from
 persisted state: copying a device duplicates persistence but must create a
 separate peer row. A peer announcement updates only that peer row and must not
-cause a Live-set traversal. Link updates carry `linkId`, source runtime ID, and
-host-assigned monotonically increasing revision. A received remote update must
-apply in remote mode and never be broadcast again.
+cause a Live-set traversal. `bank.announce` contains topology summaries only;
+it never carries filter or processor snapshots. Linked participants initialize
+their peer models with bounded `link.filter_state` and
+`link.processor_state` atoms followed by `link.state_end`. Link updates carry
+`linkId`, source runtime ID, and a monotonically increasing revision. A
+received remote update must apply in remote mode and never be broadcast again.
+Revisions are monotonic per source runtime ID and link; receivers track them by
+`(linkId, sourceRuntimeId)`. A single revision counter shared by all members can
+reject valid edits from another participant.
 
-BankManager may link one matching processor section across instances:
-`input_gain`, `compressor`, `saturator`, or `output_gain`. Processor links are
-stored on the corresponding processor state. BankManager maintains an explicit
-`ProcessorLinkGroup` model containing every participant's current absolute
-values. Refresh peer announcements synchronously before creating a group, then
-keep the model current with each accepted
-`link.processor_delta <linkId> <sourceRuntimeId> <revision> <device> <parameter> <delta>`.
-Continuous processor values travel only through `link.processor_delta`;
-`bank.announce` must not duplicate the same edit.
-Each participant retains its own absolute value. Validate a delta against every
-member before publishing it; otherwise restore the source and leave every peer
-unchanged. When link membership changes, BankManager derives the intersection
-of the remaining ranges once and sends fixed `processor_limits` through the
-scoped `---processor.link.limits` transport. Parameter snapshots and deltas
-must never recompute those limits. Unlink restores the full parameter range.
+Continuous linked-control gestures use the scoped
+`---link.parameter.gesture` transport from local EQ, gain, compressor, and
+saturator controllers to `BankManager`. Controllers publish normalized
+`eq_parameter_gesture` or `processor_parameter_gesture` values before the
+corresponding absolute Host command. Continuous controller updates use a
+latest-value dispatcher capped at one update per parameter every 16 ms; stale
+intermediate values must never accumulate in the Max main-thread queue.
+SpectrumView marker edits use the same dispatcher and publish
+`eq_parameter_absolute_gesture`; BankManager resolves the named absolute value
+through the typed filter definition before broadcasting the normalized delta.
+`BankManager` broadcasts the relative delta immediately, while Host snapshots
+remain authoritative confirmation and must not publish that delta again.
+
+BankManager keeps the current absolute EQ and processor values only for linked
+participants. Refresh compact peer topology and linked state synchronously
+before creating a group, then keep those models current with every accepted relative delta.
+Continuous values travel only through delta messages; `bank.announce` must not
+duplicate the same edit. The gesture path must not rescan group members or
+recompute limits. It validates message shape and publishes the delta once;
+the fixed control limits established at `link.state_end` constrain the gesture.
 Dial and slider controls enforce the fixed limits during the gesture; rollback
-is only a defensive consistency check. Processor links
-never mix with bank links or another processor type. Compressor links include
-attack, release, input, output, and mix; saturator links include input and
-output; gain links include gain.
+is not a second transport path. Compressor deltas include attack,
+release, threshold, output, and mix; saturator deltas include saturation and output; gain
+deltas include gain.
 
 BusHub owns the single `consolidator.devicehost` instance. Persistence uses the
 separate scoped `---device.persistence.in/out` transport and never enters the
@@ -335,9 +398,16 @@ persistence, bank models, or interfeature routing. JavaScript domain helpers use
 classes with intent-revealing methods; do not build new files as collections of
 unrelated global functions.
 
+JavaScript features that require Live API identity use the shared idempotent
+`LiveApiInitializer`. They start it from `loadbang`, retry only until Live API
+becomes available, and stop permanently after success. Correct initialization
+must not depend on a single external `live.thisdevice -> deferlow` bang because
+Live can load devices on non-selected tracks lazily. Any retained external
+`initialize` message is an optional idempotent trigger, not the lifecycle owner.
+
 ## Persistence
 
-Persistence is the only Max Dictionary use in native runtime. Schema 13 stores
+Persistence is the only Max Dictionary use in native runtime. Schema 15 stores
 the fixed EQ banks, stable `instanceId`, input/output gain, compressor, and saturator state. The root device's
 `pattrstorage` sends recalled dictionaries directly to `---device.persistence.in`.
 DeviceHost validates the schema and complete
@@ -354,15 +424,20 @@ must retain `parameter_initial_enable` and `paraminitmode`; Blob visibility is
 not changed to implement persistence. After `persistence_ready`, DeviceHost
 synchronously publishes canonical state so defaults or restored state are
 written to slot `1` before Live serializes it.
+The source AMXD contains an empty factory Blob and the `pattr` object contains
+no embedded runtime `restore` value. If no valid per-instance Blob is recalled,
+DeviceHost creates typed defaults before publishing ready. Never save a test
+instance's runtime Dictionary into the source AMXD because every newly inserted
+device would inherit its parameters and link IDs.
 
 DeviceHost publishes persistence only after `persistence_ready`. The temporary
 Dictionary must travel synchronously through `---device.persistence.out` to the
 root `pattrstorage`; never delay a Dictionary name after its owner has
 gone out of scope. Persistence debounce happens before serialization; the
 timer callback creates and sends the temporary Dictionary synchronously.
-Bank and processor link membership is structural state: successful
-`eq.set_link` and `processor.set_link` commands publish persistence immediately
-instead of waiting for the normal parameter debounce.
+Bank link membership is structural state: successful `eq.set_link` commands
+publish persistence immediately instead of waiting for the normal parameter
+debounce.
 Never release a parent Max Dictionary after appending atoms or a nested
 dictionary. A nested dictionary transfers ownership to its parent after a
 successful append.

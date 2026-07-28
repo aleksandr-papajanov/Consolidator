@@ -53,8 +53,8 @@
           "maxclass": "newobj",
           "text": "js consolidator.gain.controller.js #1",
           "numinlets": 2,
-          "numoutlets": 4,
-          "outlettype": ["", "", "", ""],
+          "numoutlets": 5,
+          "outlettype": ["", "", "", "", ""],
           "patching_rect": [80.0, 140.0, 220.0, 22.0]
         }
       },
@@ -73,7 +73,7 @@
         "box": {
           "id": "message-bus-out",
           "maxclass": "newobj",
-          "text": "r ---message.bus.out",
+          "text": "r ---state.processor",
           "numinlets": 0,
           "numoutlets": 1,
           "outlettype": [""],
@@ -82,9 +82,20 @@
       },
       {
         "box": {
+          "id": "definitions-receive",
+          "maxclass": "newobj",
+          "text": "r ---state.definitions",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [""],
+          "patching_rect": [180.0, 75.0, 145.0, 22.0]
+        }
+      },
+      {
+        "box": {
           "id": "processor-limits",
           "maxclass": "newobj",
-          "text": "r ---processor.link.limits",
+          "text": "r ---link.control.state",
           "numinlets": 0,
           "numoutlets": 1,
           "outlettype": [""],
@@ -120,6 +131,16 @@
           "numoutlets": 0,
           "patching_rect": [225.0, 225.0, 135.0, 22.0]
         }
+      },
+      {
+        "box": {
+          "id": "gesture-send",
+          "maxclass": "newobj",
+          "text": "s ---link.parameter.gesture",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [80.0, 230.0, 175.0, 22.0]
+        }
       }
     ],
     "lines": [
@@ -138,6 +159,12 @@
       {
         "patchline": {
           "source": ["message-bus-out", 0],
+          "destination": ["controller", 0]
+        }
+      },
+      {
+        "patchline": {
+          "source": ["definitions-receive", 0],
           "destination": ["controller", 0]
         }
       },
@@ -175,6 +202,12 @@
         "patchline": {
           "source": ["controller", 3],
           "destination": ["target-send", 0]
+        }
+      },
+      {
+        "patchline": {
+          "source": ["controller", 4],
+          "destination": ["gesture-send", 0]
         }
       }
     ],

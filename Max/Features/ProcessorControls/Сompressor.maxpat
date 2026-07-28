@@ -44,7 +44,7 @@
 					"patching_rect" : [ 140.625, 9.6875, 70.0, 60.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 140.625, 9.6875, 70.0, 60.0 ],
-					"varname" : "compressor.inputOutput"
+					"varname" : "compressor.thresholdOutput"
 				}
 
 			}
@@ -105,24 +105,6 @@
 , 			{
 				"box" : 				{
 					"border" : 0,
-					"embedstate" : [ [ "buttonModes", "toggle", "momentary", "toggle" ], [ "layout", "vertical" ], [ "allowEmptySelection", 1 ], [ "enabled", 1 ], [ "count", 3 ], [ "loadingIndex", 0 ], [ "selectionMode", "single" ], [ "labels", 76, "Diss", "SSL" ], [ "selection", 0 ] ],
-					"filename" : "ButtonGroupControl.js",
-					"id" : "obj-6",
-					"maxclass" : "jsui",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"parameter_enable" : 0,
-					"patching_rect" : [ 90.625, 0.3125, 40.0, 80.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 90.625, 0.3125, 40.0, 80.0 ],
-					"varname" : "compressor.mode"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"border" : 0,
 					"embedstate" : [ [ "tertiaryIndicator", 0 ], [ "tertiaryValue", 0.342302673496236 ], [ "valueCount", 3 ], [ "enabled", 1 ], [ "primaryIndicator", 0 ], [ "secondaryValue", 0.566323334778673 ], [ "primaryValue", 0.5 ], [ "secondaryIndicator", 0 ] ],
 					"filename" : "DialControl.js",
 					"id" : "obj-2",
@@ -161,8 +143,8 @@
 					"id" : "compressor-controller",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 250.0, 490.9375, 313.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "consolidator.processorcontrols.controller.js",
@@ -181,7 +163,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 490.625, 450.3125, 130.0, 22.0 ],
-					"text" : "r ---message.bus.out"
+					"text" : "r ---state.processor"
 				}
 
 			}
@@ -234,18 +216,6 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "compressor-prefix-mode",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 90.625, 370.625, 152.0, 22.0 ],
-					"text" : "prepend compressor mode"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "compressor-prefix-mix",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -264,7 +234,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 300.0, 250.3125, 185.0, 22.0 ],
-					"text" : "prepend compressor input-output"
+					"text" : "prepend compressor threshold-output"
 				}
 
 			}
@@ -336,7 +306,30 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 490.625, 410.0, 170.0, 22.0 ],
-					"text" : "r ---processor.link.limits"
+					"text" : "r ---link.control.state"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "compressor-gesture-send",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 250.0, 560.0, 175.0, 22.0 ],
+					"text" : "s ---link.parameter.gesture"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "compressor-definitions-receive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 490.625, 440.0, 145.0, 22.0 ],
+					"text" : "r ---state.definitions"
 				}
 
 			}
@@ -420,13 +413,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "compressor-controller", 0 ],
-					"source" : [ "compressor-prefix-mode", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "compressor-controller", 2 ],
 					"source" : [ "compressor-target-level", 0 ]
 				}
@@ -469,13 +455,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "compressor-prefix-mode", 0 ],
-					"source" : [ "obj-6", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "compressor-prefix-mix", 0 ],
 					"source" : [ "obj-7", 0 ]
 				}
@@ -485,6 +464,20 @@
 				"patchline" : 				{
 					"destination" : [ "compressor-prefix-input-output", 0 ],
 					"source" : [ "obj-8", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "compressor-gesture-send", 0 ],
+					"source" : [ "compressor-controller", 3 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "compressor-controller", 1 ],
+					"source" : [ "compressor-definitions-receive", 0 ]
 				}
 
 			}

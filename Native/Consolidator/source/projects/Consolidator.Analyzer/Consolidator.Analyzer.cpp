@@ -49,7 +49,7 @@ public:
         "(anything) messages: curve_settings <minimumHz> <maximumHz> <pointCount>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> <curve...>"
     };
     outlet<> totalCurveOut{ this, "(list) summed response curve for all EQ banks in dB" };
-    outlet<> statusOut{ this, "(anything) status: status initializing|ready|processing|error <code>" };
+    outlet<> statusOut{ this, "(anything) status: status ready|host_ready" };
     outlet<> debugOut{ this, "(anything) diagnostics: error <code>" };
     outlet<> analysisOut{
         this,
@@ -181,18 +181,10 @@ public:
             { referenceLeftIn, referenceRightIn }
         };
 
-        const auto listenEnabled = differenceEnabled.load(std::memory_order_acquire);
         const auto viewVisible = analyzerViewVisible.load(std::memory_order_acquire);
         const auto viewMode = analyzerViewMode.load(std::memory_order_acquire);
         const auto sendSpectrum = viewVisible && viewMode == domain::AnalyzerViewMode::Spectrum;
         const auto sendAnalysis = viewVisible && viewMode == domain::AnalyzerViewMode::Analysis;
-        const auto writeCurves = sendSpectrum || listenEnabled;
-
-        if (!writeCurves && !sendAnalysis) {
-            capture.Reset();
-            fitCapture.Reset();
-            return {};
-        }
 
         capture.Write(frame);
         fitCapture.Write(fitFrame);
@@ -205,15 +197,17 @@ public:
                 curves.ResetDifference();
                 fitCurves.ResetDifference();
             }
-            if (!capture.IsSilent()) {
+            const auto visualActive = !capture.IsSilent();
+            const auto fitActive = !fitCapture.IsReferenceSilent();
+            if (visualActive || fitActive) {
                 audioActive.store(true, std::memory_order_release);
                 AnalyzerSpectrumResult spectra;
-                if (sendSpectrum || sendAnalysis) {
+                if (visualActive && (sendSpectrum || sendAnalysis)) {
                     spectra = spectrumEngine.Analyze(capture, curves, sendSpectrum, false);
                 }
-                if (listenEnabled) {
+                if (fitActive) {
                     AnalyzerSpectrumResult fitSpectra;
-                    if (sendSpectrum || sendAnalysis) {
+                    if (visualActive && (sendSpectrum || sendAnalysis)) {
                         spectrumEngine.AnalyzeCurrentWithReferenceInto(
                             fitCapture,
                             spectra.reference,
@@ -225,7 +219,7 @@ public:
                         spectrumEngine.Analyze(fitCapture, fitCurves, true, true);
                     }
                 }
-                if (sendSpectrum && listenEnabled) {
+                if (sendSpectrum && fitActive) {
                     curves.WriteFrame(
                         curveFrames.ProducerValue(),
                         fitCurves,
@@ -234,10 +228,10 @@ public:
                 else if (sendSpectrum) {
                     curves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
                 }
-                else if (listenEnabled) {
+                else if (fitActive) {
                     fitCurves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
                 }
-                if (sendAnalysis) {
+                if (visualActive && sendAnalysis) {
                     curveFrames.ProducerValue().SetFeatures(featurePipeline.Process(capture, spectra));
                 }
                 curveFrames.ProducerValue().SetGainLevels(ReadGainLevels());
@@ -266,11 +260,6 @@ private:
             static_cast<long>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount));
     }
 
-    void SetListenEnabled(bool enabled) {
-        if (differenceEnabled.exchange(enabled, std::memory_order_acq_rel) == enabled) return;
-        ResetDifferenceAccumulation();
-    }
-
     void ResetDifferenceAccumulation() {
         differenceGeneration.fetch_add(1, std::memory_order_acq_rel);
         differenceResetRequested.store(true, std::memory_order_release);
@@ -291,13 +280,8 @@ private:
         }
         const auto* operation = std::get_if<domain::OperationChangedEvent>(&decoded.event);
         if (!operation) return;
-        if (operation->operation == "analyzer") {
-            SetListenEnabled(operation->status == domain::OperationStatus::Capturing);
-            return;
-        }
-        if (operation->operation.rfind("fit.", 0) == 0 &&
-            operation->status == domain::OperationStatus::Completed &&
-            differenceEnabled.load(std::memory_order_acquire)) {
+        if (operation->operation == "analyzer.clear" &&
+            operation->status == domain::OperationStatus::Completed) {
             ResetDifferenceAccumulation();
         }
     }
@@ -307,6 +291,10 @@ private:
         if (!snapshot || !filterVisuals.SetSnapshot(*snapshot)) {
             debugOut.send("error", "invalid_eq_snapshot");
             return;
+        }
+        if (!hostReadyPublished) {
+            hostReadyPublished = true;
+            statusOut.send("status", "host_ready");
         }
         ScheduleFilterVisualDelivery();
     }
@@ -346,7 +334,7 @@ private:
                 analysisOut,
                 levelsOut,
                 IsSpectrumViewActive(),
-                differenceEnabled.load(std::memory_order_acquire),
+                true,
                 analyzerViewVisible.load(std::memory_order_acquire) &&
                     analyzerViewMode.load(std::memory_order_acquire) == domain::AnalyzerViewMode::Analysis,
                 analyzerViewVisible.load(std::memory_order_acquire));
@@ -385,9 +373,9 @@ private:
     std::atomic<bool> curveDeliveryScheduled{ false };
     bool filterVisualDeliveryScheduled = false;
     bool filterVisualsDirty = false;
+    bool hostReadyPublished = false;
     std::atomic<bool> differenceResetRequested{ false };
     std::atomic<std::uint64_t> differenceGeneration{ 0 };
-    std::atomic<bool> differenceEnabled{ false };
     std::atomic<bool> audioActive{ false };
     std::atomic<bool> analyzerViewVisible{ false };
     std::atomic<domain::AnalyzerViewMode> analyzerViewMode{ domain::AnalyzerViewMode::Spectrum };

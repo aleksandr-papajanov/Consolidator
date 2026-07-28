@@ -9,6 +9,7 @@
 #include "Settings/FilterOptions.h"
 #include "SnapshotCodec.h"
 
+#include <algorithm>
 #include <atomic>
 #include <exception>
 #include <mutex>
@@ -30,7 +31,7 @@ public:
 
     inlet<> commands{
         this,
-        "(message) snapshot 1 host dsp <revision> <state>; event 1 host <eventId> fit.requested <sessionId> <bankId> <pointCount> <curve...>"
+        "(message) snapshot 1 host eq|processor <revision> <state>; event 1 host <eventId> fit.requested <sessionId> <bankId> <pointCount> <curve...>"
     };
     outlet<> commandsOut{
         this,
@@ -54,7 +55,10 @@ public:
         MIN_FUNCTION {
             if (inlet != 0) return {};
             const auto atoms = maxadapter::AtomAdapter::Read(args);
-            if (messaging::AtomMessage::HasSnapshotStore(atoms, "dsp")) ApplySnapshot(atoms);
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq") ||
+                messaging::AtomMessage::HasSnapshotStore(atoms, "processor")) {
+                ApplySnapshot(atoms);
+            }
             else if (messaging::AtomMessage::HasCategory(atoms, "event")) ApplyEvent(atoms);
             return {};
         }
@@ -63,12 +67,15 @@ public:
     message<> snapshotMessage{
         this,
         "snapshot",
-        "Apply a complete DSP snapshot",
+        "Apply an EQ or processor state snapshot",
         MIN_FUNCTION {
             if (inlet != 0) return {};
             auto atoms = maxadapter::AtomAdapter::Read(args);
             if (atoms) atoms->insert(atoms->begin(), "snapshot");
-            if (messaging::AtomMessage::HasSnapshotStore(atoms, "dsp")) ApplySnapshot(atoms);
+            if (messaging::AtomMessage::HasSnapshotStore(atoms, "eq") ||
+                messaging::AtomMessage::HasSnapshotStore(atoms, "processor")) {
+                ApplySnapshot(atoms);
+            }
             return {};
         }
     };
@@ -112,14 +119,41 @@ private:
     };
 
     void ApplySnapshot(const std::optional<messaging::AtomList>& atoms) {
-        const auto snapshot = atoms ? messaging::SnapshotCodec::DecodeDsp(*atoms) : std::nullopt;
-        if (!snapshot || !snapshot->eq.SelectedBank()) {
-            debugOut.send("error", "invalid_dsp_snapshot");
+        if (!atoms || atoms->size() < 5 ||
+            !std::holds_alternative<std::string>((*atoms)[3]) ||
+            !std::holds_alternative<std::int64_t>((*atoms)[4])) {
+            debugOut.send("error", "invalid_fit_state_snapshot");
             return;
         }
 
-        latestSnapshot = *snapshot;
-        if (!initialized) {
+        const auto store = std::get<std::string>((*atoms)[3]);
+        const auto revision = static_cast<domain::StoreRevision>(
+            std::get<std::int64_t>((*atoms)[4]));
+        if (store == "eq") {
+            auto eq = messaging::SnapshotCodec::DecodeEq(*atoms);
+            if (!eq || !eq->SelectedBank()) {
+                debugOut.send("error", "invalid_eq_snapshot");
+                return;
+            }
+            latestEq = std::move(*eq);
+        } else if (store == "processor") {
+            auto processor = messaging::SnapshotCodec::DecodeProcessor(*atoms);
+            if (!processor) {
+                debugOut.send("error", "invalid_processor_snapshot");
+                return;
+            }
+            latestProcessor = std::move(*processor);
+        } else {
+            debugOut.send("error", "unsupported_fit_state_snapshot");
+            return;
+        }
+        latestRevision = std::max(latestRevision, revision);
+        if (latestEq && latestProcessor) {
+            latestSnapshot = domain::DspSnapshot{
+                latestRevision, *latestEq, *latestProcessor
+            };
+        }
+        if (!initialized && latestSnapshot) {
             initialized = true;
             statusOut.send("status", "initialized");
         }
@@ -258,6 +292,9 @@ private:
 
     EqMatchWorkflow eqWorkflow;
     std::optional<domain::DspSnapshot> latestSnapshot;
+    std::optional<domain::EqState> latestEq;
+    std::optional<domain::ProcessorState> latestProcessor;
+    domain::StoreRevision latestRevision = 0;
     std::atomic<bool> cancelRequested{ false };
     std::atomic<bool> running{ false };
     std::thread worker;

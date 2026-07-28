@@ -15,9 +15,8 @@
 namespace consolidator::dsp {
 
 struct SaturatorSettings {
-    double inputDb = settings::SaturatorOptions::DefaultInputDb;
+    double saturation = settings::SaturatorOptions::DefaultSaturation;
     double outputDb = settings::SaturatorOptions::DefaultOutputDb;
-    long mode = settings::SaturatorOptions::DefaultMode;
     std::array<models::DetectorFilterState, 2> detectorFilters{
         models::DetectorFilterState{ 1 }, models::DetectorFilterState{ 2 }
     };
@@ -28,14 +27,14 @@ struct SaturatorSettings {
 class Saturator final : public IDspDevice {
 public:
     explicit Saturator(SaturatorSettings configuration)
-        : inputGain(
-              helpers::NumericHelper::DecibelsToMagnitude(configuration.inputDb),
+        : saturation(
+              configuration.saturation,
               settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
           outputGain(
               helpers::NumericHelper::DecibelsToMagnitude(configuration.outputDb),
               settings::AudioOptions::ParameterSmoothingSamples(configuration.sampleRate)),
           detectorFilters(CreateDetectorFilters(configuration.detectorFilters, configuration.sampleRate)),
-          mode(configuration.mode), detectorListen(configuration.detectorListen) {
+          detectorListen(configuration.detectorListen) {
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
             detectorActive[index] = IsDetectorActive(configuration.detectorFilters[index]);
         }
@@ -44,25 +43,26 @@ public:
     double ProcessSample(double input) override {
         const auto detectorInput = ProcessDetector(input);
         const auto wetInput = detectorListen > 0 ? detectorInput : input;
-        const auto driven = wetInput * inputGain.Next().value;
-        const auto processed = Shape(driven) * outputGain.Next().value;
+        const auto amount = helpers::NumericHelper::Clamp(saturation.Next().value, 0.0, 1.0);
+        const auto drive = helpers::NumericHelper::DecibelsToMagnitude(
+            amount * settings::SaturatorOptions::MaximumDriveDb);
+        const auto shaped = std::tanh(wetInput * drive) / std::tanh(drive);
+        const auto processed = (wetInput + amount * (shaped - wetInput)) * outputGain.Next().value;
         return processed;
     }
 
     void Reset() override {}
 
     void UpdateSettings(const SaturatorSettings& settings) {
-        inputGain.SetTarget(helpers::NumericHelper::DecibelsToMagnitude(
-            helpers::NumericHelper::Clamp(
-                settings.inputDb,
-                settings::SaturatorOptions::MinimumInputDb,
-                settings::SaturatorOptions::MaximumInputDb)));
+        saturation.SetTarget(helpers::NumericHelper::Clamp(
+            settings.saturation,
+            settings::SaturatorOptions::MinimumSaturation,
+            settings::SaturatorOptions::MaximumSaturation));
         outputGain.SetTarget(helpers::NumericHelper::DecibelsToMagnitude(
             helpers::NumericHelper::Clamp(
                 settings.outputDb,
                 settings::SaturatorOptions::MinimumOutputDb,
                 settings::SaturatorOptions::MaximumOutputDb)));
-        mode = settings.mode;
         detectorListen = settings.detectorListen;
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
             detectorActive[index] = IsDetectorActive(settings.detectorFilters[index]);
@@ -79,12 +79,6 @@ private:
         return input;
     }
 
-    double Shape(double input) const {
-        if (mode == 0) return std::tanh(input);
-        if (mode == 1) return std::atan(input);
-        return input / (1.0 + std::abs(input));
-    }
-
     static bool IsDetectorActive(const models::DetectorFilterState& filter) {
         return !filter.bypass && std::abs(filter.gainDb) >= 1.0e-12;
     }
@@ -99,11 +93,10 @@ private:
         };
     }
 
-    SmoothedParameter inputGain;
+    SmoothedParameter saturation;
     SmoothedParameter outputGain;
     std::array<BiquadBellFilter, 2> detectorFilters;
     std::array<bool, 2> detectorActive{ false, false };
-    long mode = settings::SaturatorOptions::DefaultMode;
     long detectorListen = 0;
 };
 
