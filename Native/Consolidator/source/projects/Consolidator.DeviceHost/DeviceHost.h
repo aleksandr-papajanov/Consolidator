@@ -35,6 +35,7 @@ public:
         domain::StoreRevision revision,
         std::string instanceId);
     const std::string& InstanceId() const noexcept;
+    const std::string& LastRestoreError() const noexcept;
 
 private:
     void PublishResult(const UpdateResult& result, domain::RequestId requestId);
@@ -51,6 +52,7 @@ private:
     FitWorkflow fitWorkflow;
     EventHandler eventHandler;
     std::string instanceId;
+    std::string lastRestoreError;
     std::vector<domain::Event>* activeEvents = nullptr;
 };
 

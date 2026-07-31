@@ -90,6 +90,11 @@ public:
             if (!bankId || *bankId < 1 || !reader.RequireEnd()) return Invalid("invalid_eq_reset", reader.Index());
             return Success(domain::ResetEqChainCommand{ { *requestId }, { *bankId } });
         }
+        if (*name == "eq.reset_all") {
+            return reader.RequireEnd()
+                ? Success(domain::ResetAllEqBanksCommand{ { *requestId } })
+                : Invalid("invalid_eq_reset_all", reader.Index());
+        }
         if (*name == "eq.join_banks") {
             const auto count = reader.ReadInt();
             if (!count || *count < 1 || *count > 6) {
@@ -109,6 +114,11 @@ public:
             const auto bankId = reader.ReadInt();
             if (!bankId || *bankId < 1 || *bankId > 6 || !reader.RequireEnd()) return Invalid("invalid_eq_commit_hidden", reader.Index());
             return Success(domain::CommitHiddenEqBankCommand{ { *requestId }, { *bankId } });
+        }
+        if (*name == "eq.commit_all") {
+            return reader.RequireEnd()
+                ? Success(domain::CommitAllEqBanksCommand{ { *requestId } })
+                : Invalid("invalid_eq_commit_all", reader.Index());
         }
         if (*name == "eq.set_link") {
             const auto bankId = reader.ReadInt();
@@ -159,8 +169,9 @@ public:
         }
         if (*name == "compressor.set_detector_listen") {
             const auto filterId = reader.ReadInt();
-            if (!filterId || *filterId < 0 || *filterId > 2 || !reader.RequireEnd()) return Invalid("invalid_compressor_detector_listen", reader.Index());
-            return Success(domain::SetCompressorDetectorListenCommand{ { *requestId }, static_cast<long>(*filterId) });
+            const auto enabled = reader.ReadBool();
+            if (!filterId || !enabled || *filterId < 1 || *filterId > 2 || !reader.RequireEnd()) return Invalid("invalid_compressor_detector_listen", reader.Index());
+            return Success(domain::SetCompressorDetectorListenCommand{ { *requestId }, static_cast<long>(*filterId), *enabled });
         }
         if (*name == "compressor.reset") return reader.RequireEnd()
             ? Success(domain::ResetCompressorCommand{ { *requestId } })
@@ -187,8 +198,9 @@ public:
         }
         if (*name == "saturator.set_detector_listen") {
             const auto filterId = reader.ReadInt();
-            if (!filterId || *filterId < 0 || *filterId > 2 || !reader.RequireEnd()) return Invalid("invalid_saturator_detector_listen", reader.Index());
-            return Success(domain::SetSaturatorDetectorListenCommand{ { *requestId }, static_cast<long>(*filterId) });
+            const auto enabled = reader.ReadBool();
+            if (!filterId || !enabled || *filterId < 1 || *filterId > 2 || !reader.RequireEnd()) return Invalid("invalid_saturator_detector_listen", reader.Index());
+            return Success(domain::SetSaturatorDetectorListenCommand{ { *requestId }, static_cast<long>(*filterId), *enabled });
         }
         if (*name == "saturator.reset") return reader.RequireEnd()
             ? Success(domain::ResetSaturatorCommand{ { *requestId } })

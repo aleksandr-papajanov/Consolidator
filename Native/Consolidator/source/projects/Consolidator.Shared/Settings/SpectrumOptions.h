@@ -6,7 +6,6 @@ struct SpectrumOptions final {
     static constexpr double MinimumFrequencyHz = 20.0;
     static constexpr double MaximumFrequencyHz = 20000.0;
     static constexpr double DefaultSpectrumCalibrationDb = 30.0;
-    static constexpr double DefaultSpectrumTiltDb = 24.0;
     static constexpr double MinimumSpectrumDb = -120.0;
     static constexpr double MaximumSpectrumDb = 48.0;
     static constexpr double MinimumDifferenceDb = -60.0;

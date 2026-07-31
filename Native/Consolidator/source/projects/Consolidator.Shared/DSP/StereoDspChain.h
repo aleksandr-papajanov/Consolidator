@@ -37,12 +37,12 @@ public:
     audio::StereoSample ProcessSampleObservedStereo(audio::StereoSample input, Observer&& observer) {
         return {
             left.ProcessSampleObserved(input.left,
-                [&observer](std::size_t index, double deviceInput, double output, const DspDeviceTelemetry& telemetry) {
-                    observer(0, index, deviceInput, output, telemetry);
+                [&observer](std::size_t index, double deviceInput, double output, const DspDeviceTelemetry& telemetry, bool bypassed) {
+                    observer(0, index, deviceInput, output, telemetry, bypassed);
                 }),
             right.ProcessSampleObserved(input.right,
-                [&observer](std::size_t index, double deviceInput, double output, const DspDeviceTelemetry& telemetry) {
-                    observer(1, index, deviceInput, output, telemetry);
+                [&observer](std::size_t index, double deviceInput, double output, const DspDeviceTelemetry& telemetry, bool bypassed) {
+                    observer(1, index, deviceInput, output, telemetry, bypassed);
                 })
         };
     }

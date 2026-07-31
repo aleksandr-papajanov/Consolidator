@@ -17,7 +17,7 @@
 				"box" : 				{
 					"border" : 0,
 					"embedstate" : [ [ "enabled", 1 ], [ "allowEmptySelection", 1 ], [ "selectionMode", "custom" ], [ "count", 1 ], [ "loadingIndex", 0 ], [ "buttonModes", "momentary", "toggle", "toggle" ], [ "layout", "horizontal" ], [ "labels", "Match EQ" ] ],
-					"filename" : "ButtonGroupControl.js",
+					"filename" : "../../Shared/Interface/ButtonGroup/ButtonGroupControl.js",
 					"id" : "match-control",
 					"maxclass" : "jsui",
 					"numinlets" : 1,
@@ -25,7 +25,7 @@
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
 					"patching_rect" : [ 120.0, 230.0, 90.0, 30.0 ],
-					"presentation" : 1,
+					"presentation" : 0,
 					"presentation_rect" : [ 0.0, 0.0, 90.0, 30.0 ],
 					"varname" : "approximator.match"
 				}
@@ -35,7 +35,7 @@
 				"box" : 				{
 					"border" : 0,
 					"embedstate" : [ [ "enabled", 1 ], [ "mode", "momentary" ], [ "label", "Clear" ], [ "value", 0 ] ],
-					"filename" : "ButtonControl.js",
+					"filename" : "../../Shared/Interface/Button/ButtonControl.js",
 					"id" : "clear-control",
 					"maxclass" : "jsui",
 					"numinlets" : 1,
@@ -43,7 +43,7 @@
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
 					"patching_rect" : [ 220.0, 230.0, 90.0, 30.0 ],
-					"presentation" : 1,
+					"presentation" : 0,
 					"presentation_rect" : [ 100.0, 0.0, 90.0, 30.0 ],
 					"varname" : "approximator.clear"
 				}
@@ -82,11 +82,11 @@
 					"outlettype" : [ "", "", "" ],
 					"patching_rect" : [ 120.0, 330.0, 320.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "consolidator.approximator.controller.js",
+						"filename" : "Controllers/consolidator.approximator.controller.js",
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js consolidator.approximator.controller.js"
+					"text" : "js Controllers/consolidator.approximator.controller.js"
 				}
 
 			}

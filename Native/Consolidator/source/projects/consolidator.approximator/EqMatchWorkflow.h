@@ -2,6 +2,7 @@
 
 #include "ApproximatorFitResult.h"
 #include "EqOptimizer.h"
+#include "Events/Events.h"
 #include "DSP/Eq/EqRuntime.h"
 #include "Settings/AudioOptions.h"
 
@@ -10,16 +11,19 @@
 class EqMatchWorkflow final {
 public:
     ApproximatorFitResult Run(
-        const consolidator::dsp::Curve& residual,
+        const consolidator::dsp::Curve& curve,
         consolidator::domain::DspSnapshot snapshot,
-        const EqOptimizer::Definitions& definitions
+        const EqOptimizer::Definitions& definitions,
+        consolidator::domain::FitTargetKind targetKind
     ) const {
-        consolidator::dsp::EqRuntime runtime;
-        runtime.SetSnapshot(snapshot.eq);
-        const auto selectedBankResponse = runtime.BuildBankCurve(
-            snapshot.eq.selectedBankId,
-            consolidator::settings::AudioOptions::DefaultSampleRateHz);
-        const auto target = selectedBankResponse + residual;
+        auto target = curve;
+        if (targetKind == consolidator::domain::FitTargetKind::Residual) {
+            consolidator::dsp::EqRuntime runtime;
+            runtime.SetSnapshot(snapshot.eq);
+            target = runtime.BuildBankCurve(
+                snapshot.eq.selectedBankId,
+                consolidator::settings::AudioOptions::DefaultSampleRateHz) + curve;
+        }
         const auto fit = optimizer.Fit(target, definitions);
         ApplyFilterValues(snapshot, fit, definitions);
         return { std::move(snapshot), fit.loss };

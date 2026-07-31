@@ -88,20 +88,6 @@ public:
         return helpers::NumericHelper::Clamp(boosted, 0.0, maximumSmoothing);
     }
 
-    static double HighFrequencyWeight(
-        std::size_t index,
-        std::size_t pointCount,
-        double exponent = settings::AnalysisOptions::HighFrequencyTiltExponent
-    ) {
-        if (pointCount <= 1) {
-            return 0.0;
-        }
-
-        const double normalized = static_cast<double>(index) /
-            static_cast<double>(pointCount - 1);
-        return std::pow(std::max(0.0, normalized), exponent);
-    }
-
 private:
     void EnsureCompatible(const Curve& other) const {
         if (settings != other.settings) {

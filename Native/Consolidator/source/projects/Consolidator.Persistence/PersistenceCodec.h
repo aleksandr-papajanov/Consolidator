@@ -33,6 +33,9 @@ public:
              ++bankId) {
             models::EqBank bank;
             bank.bankId = bankId;
+            if (bankId == models::EqSnapshot::GlobalBankId) {
+                bank.linkId = models::EqSnapshot::GlobalLinkId;
+            }
             if (bankId != models::EqSnapshot::SystemBankId) {
                 for (const auto& [filterId, definition] : settings::FilterOptions::EqDefinitions()) {
                     bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });

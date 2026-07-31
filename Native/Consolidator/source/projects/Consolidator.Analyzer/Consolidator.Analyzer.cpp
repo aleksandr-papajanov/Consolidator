@@ -35,7 +35,7 @@ public:
     inlet<> referenceRight{ this, "(signal) reference right", "signal" };
     inlet<> eqInputLeft{ this, "(signal) pre-EQ current left used by fit", "signal" };
     inlet<> eqInputRight{ this, "(signal) pre-EQ current right used by fit", "signal" };
-    inlet<> commandsIn{ this, "(message) inputs: snapshot 1 host eq <revision> <selectedBank> <bankCount> <banks...>; event 1 host <eventId> operation.changed analyzer ...; analyzer.view_changed <visible> <spectrum|analysis>" };
+    inlet<> commandsIn{ this, "(message) inputs: snapshot 1 host eq <revision> <selectedBank> <bankCount> <banks...>; event 1 host <eventId> operation.changed analyzer ...; analyzer.view_changed <visible> <spectrum|analysis>; eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>" };
     inlet<> telemetryIn{
         this,
         "(anything) processor_telemetry <compressorReductionDb> <saturationNonlinearRatio> <saturationLevelDeltaDb> <inputPreDb> <inputPostDb> <outputPreDb> <outputPostDb> <compressorOutputDb> <saturatorOutputDb>"
@@ -46,7 +46,7 @@ public:
     outlet<> differenceOut{ this, "(anything) difference <dB...>; fit_curve <dB...>; clear_fit_curve" };
     outlet<> filterOut{
         this,
-        "(anything) messages: curve_settings <minimumHz> <maximumHz> <pointCount>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> <curve...>"
+        "(anything) curve_settings <minimumHz> <maximumHz> <pointCount> <minimumSpectrumDb> <maximumSpectrumDb>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> [<curve...>]"
     };
     outlet<> totalCurveOut{ this, "(list) summed response curve for all EQ banks in dB" };
     outlet<> statusOut{ this, "(anything) status: status ready|host_ready" };
@@ -131,6 +131,28 @@ public:
         MIN_FUNCTION { return {}; }
     };
 
+    message<> eqPreview{
+        this,
+        "eq_preview",
+        "Apply one local EQ visual preview",
+        MIN_FUNCTION {
+            if (inlet != 6 || args.size() != 4) return {};
+            const auto bankId = static_cast<long>(args[0]);
+            const auto filterId = static_cast<long>(args[1]);
+            const auto parameterIndex = static_cast<long>(args[2]);
+            const auto value = static_cast<double>(args[3]);
+            const auto selected = filterVisuals.Snapshot().SelectedBank();
+            if (!selected || bankId != selected->bankId || filterId < 1 || parameterIndex < 0) return {};
+            const auto definition = filterVisuals.Definition(filterId);
+            if (!definition || static_cast<std::size_t>(parameterIndex) >= definition->parameters.size()) return {};
+            if (filterVisuals.UpdateParameter(bankId, filterId,
+                definition->parameters[static_cast<std::size_t>(parameterIndex)].name, value)) {
+                ScheduleFilterVisualDelivery();
+            }
+            return {};
+        }
+    };
+
     message<> processorTelemetry{
         this,
         "processor_telemetry",
@@ -197,8 +219,11 @@ public:
                 curves.ResetDifference();
                 fitCurves.ResetDifference();
             }
-            const auto visualActive = !capture.IsSilent();
-            const auto fitActive = !fitCapture.IsReferenceSilent();
+            const auto currentActive = !capture.IsCurrentSilent();
+            const auto referenceActive = !capture.IsReferenceSilent();
+            const auto visualActive = currentActive || referenceActive;
+            const auto fitActive = !fitCapture.IsCurrentSilent() &&
+                !fitCapture.IsReferenceSilent();
             if (visualActive || fitActive) {
                 audioActive.store(true, std::memory_order_release);
                 AnalyzerSpectrumResult spectra;
@@ -223,13 +248,23 @@ public:
                     curves.WriteFrame(
                         curveFrames.ProducerValue(),
                         fitCurves,
-                        frameDifferenceGeneration);
+                        frameDifferenceGeneration,
+                        referenceActive,
+                        true);
                 }
                 else if (sendSpectrum) {
-                    curves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
+                    curves.WriteFrame(
+                        curveFrames.ProducerValue(),
+                        frameDifferenceGeneration,
+                        referenceActive,
+                        false);
                 }
                 else if (fitActive) {
-                    fitCurves.WriteFrame(curveFrames.ProducerValue(), frameDifferenceGeneration);
+                    fitCurves.WriteFrame(
+                        curveFrames.ProducerValue(),
+                        frameDifferenceGeneration,
+                        referenceActive,
+                        true);
                 }
                 if (visualActive && sendAnalysis) {
                     curveFrames.ProducerValue().SetFeatures(featurePipeline.Process(capture, spectra));
@@ -257,7 +292,9 @@ private:
             "curve_settings",
             consolidator::settings::SpectrumOptions::MinimumFrequencyHz,
             consolidator::settings::SpectrumOptions::MaximumFrequencyHz,
-            static_cast<long>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount));
+            static_cast<long>(consolidator::settings::AnalysisOptions::DefaultCurvePointCount),
+            consolidator::settings::SpectrumOptions::MinimumSpectrumDb,
+            consolidator::settings::SpectrumOptions::MaximumSpectrumDb);
     }
 
     void ResetDifferenceAccumulation() {
@@ -375,7 +412,7 @@ private:
         return result;
     }
 
-    static constexpr double FilterVisualFrameIntervalMilliseconds = 16.0;
+    static constexpr double FilterVisualFrameIntervalMilliseconds = 8.0;
 
     AnalyzerFrameBuffer capture;
     AnalyzerFrameBuffer fitCapture;

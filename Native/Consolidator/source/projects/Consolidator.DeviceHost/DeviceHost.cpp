@@ -24,9 +24,7 @@ DeviceHost::DeviceHost(EventHandler eventHandler)
         Publish(domain::StoreUpdatedEvent{ "output_gain", Revision(), requestId });
       }),
       analyzerWorkflow([this](domain::Event event) { Publish(std::move(event)); }),
-      fitWorkflow(
-          eqStore, inputGainStore, compressorStore, saturatorStore, outputGainStore,
-          [this](domain::Event event) { Publish(std::move(event)); }),
+      fitWorkflow(eqStore, [this](domain::Event event) { Publish(std::move(event)); }),
       eventHandler(std::move(eventHandler)) {}
 
 void DeviceHost::Handle(const domain::Command& command) {
@@ -54,8 +52,10 @@ void DeviceHost::Handle(const domain::Command& command) {
             else if constexpr (std::is_same_v<Command, domain::SetEqChainBypassCommand>) PublishResult(eqStore.SetChainBypass(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetEqChainSoloCommand>) PublishResult(eqStore.SetChainSolo(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetEqChainCommand>) PublishResult(eqStore.ResetChain(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::ResetAllEqBanksCommand>) PublishResult(eqStore.ResetAll(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::JoinEqBanksCommand>) PublishResult(eqStore.JoinBanks(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::CommitHiddenEqBankCommand>) fitWorkflow.Handle(value);
+            else if constexpr (std::is_same_v<Command, domain::CommitAllEqBanksCommand>) fitWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::SetEqBankLinkCommand>) PublishResult(eqStore.SetBankLink(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SelectEqBankCommand>) PublishResult(eqStore.SelectBank(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
@@ -109,7 +109,10 @@ bool DeviceHost::Restore(
     domain::StoreRevision revision,
     std::string instanceId
 ) {
-    if (instanceId.empty()) return false;
+    if (instanceId.empty()) {
+        lastRestoreError = "missing_instance_id";
+        return false;
+    }
     std::lock_guard<std::mutex> lock(mutex);
     const auto restoreRevision = std::max(revision, Revision() + 1);
     const auto eqResult = eqStore.Replace(std::move(eq), restoreRevision);
@@ -117,13 +120,33 @@ bool DeviceHost::Restore(
     const auto compressorResult = compressorStore.Replace(processor.compressor, restoreRevision);
     const auto saturatorResult = saturatorStore.Replace(processor.saturator, restoreRevision);
     const auto outputGainResult = outputGainStore.Replace(processor.outputGain, restoreRevision);
-    const auto restored = eqResult.Accepted() && inputGainResult.Accepted() && compressorResult.Accepted() &&
-        saturatorResult.Accepted() && outputGainResult.Accepted();
-    if (restored) this->instanceId = std::move(instanceId);
-    return restored;
+    if (!eqResult.Accepted()) {
+        lastRestoreError = eqResult.error;
+        return false;
+    }
+    if (!inputGainResult.Accepted()) {
+        lastRestoreError = inputGainResult.error;
+        return false;
+    }
+    if (!compressorResult.Accepted()) {
+        lastRestoreError = compressorResult.error;
+        return false;
+    }
+    if (!saturatorResult.Accepted()) {
+        lastRestoreError = saturatorResult.error;
+        return false;
+    }
+    if (!outputGainResult.Accepted()) {
+        lastRestoreError = outputGainResult.error;
+        return false;
+    }
+    this->instanceId = std::move(instanceId);
+    lastRestoreError.clear();
+    return true;
 }
 
 const std::string& DeviceHost::InstanceId() const noexcept { return instanceId; }
+const std::string& DeviceHost::LastRestoreError() const noexcept { return lastRestoreError; }
 
 void DeviceHost::Publish(domain::Event event) {
     if (activeEvents) activeEvents->push_back(std::move(event));

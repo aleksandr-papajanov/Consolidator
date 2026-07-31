@@ -41,6 +41,17 @@ public:
         outputGainPostEnergy += output * output;
     }
 
+    void ResetCompressor() noexcept {
+        compressorReductionDb = 0.0;
+        compressorOutputEnergy = 0.0;
+    }
+
+    void ResetSaturator() noexcept {
+        saturatorInputEnergy = 0.0;
+        saturatorOutputEnergy = 0.0;
+        saturatorCrossEnergy = 0.0;
+    }
+
     bool Advance() noexcept {
         return ++sampleCount >= consolidator::settings::AudioOptions::ProcessorTelemetryWindowSamples;
     }
@@ -84,11 +95,8 @@ public:
 
     void Reset() noexcept {
         sampleCount = 0;
-        compressorReductionDb = 0.0;
-        compressorOutputEnergy = 0.0;
-        saturatorInputEnergy = 0.0;
-        saturatorOutputEnergy = 0.0;
-        saturatorCrossEnergy = 0.0;
+        ResetCompressor();
+        ResetSaturator();
         inputGainPreEnergy = 0.0;
         inputGainPostEnergy = 0.0;
         outputGainPreEnergy = 0.0;

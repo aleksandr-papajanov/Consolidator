@@ -1,6 +1,6 @@
 autowatch = 1;
-inlets = 1;
-outlets = 8;
+inlets = 2;
+outlets = 9;
 
 function StateTransport() {}
 
@@ -23,13 +23,18 @@ StateTransport.prototype.RouteSnapshot = function(values) {
         outlet(6, "snapshot", values);
     } else if (store === "dsp") {
         outlet(2, "snapshot", values);
-    } else if (store === "definitions" ||
-        store === "processor_definitions") {
-        outlet(3, "snapshot", values);
     } else if (store === "device") {
         outlet(4, "snapshot", values);
     } else if (store === "processor") {
         outlet(5, "snapshot", values);
+    }
+};
+
+StateTransport.prototype.RouteAnalyzerUiState = function(name, values) {
+    if (String(name) === "eq_preview" && values.length === 4) {
+        outlet(8, "eq_preview", values);
+    } else if (String(name) === "filter_limits" && values.length === 5) {
+        outlet(8, "filter_limits", values);
     }
 };
 
@@ -53,8 +58,16 @@ function list() {
     }
 }
 
-function inletassist() {
-    assist("Host output: event or snapshot atom message");
+function anything() {
+    if (inlet === 1) {
+        stateTransport.RouteAnalyzerUiState(messagename, arrayfromargs(arguments));
+    }
+}
+
+function inletassist(index) {
+    assist(index === 0
+        ? "Host output: event or snapshot atom message"
+        : "Analyzer UI state: eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>; filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>");
 }
 
 function outletassist(index) {
@@ -62,11 +75,12 @@ function outletassist(index) {
         "Runtime events",
         "EQ state snapshots",
         "DSP state snapshots",
-        "Filter and processor definition snapshots",
+        "Unused",
         "Device identity snapshots",
         "Processor state snapshots",
         "Analyzer events and EQ snapshots",
-        "Continuous Host parameter events for DSP"
+        "Continuous Host parameter events for DSP",
+        "Analyzer UI: eq_preview and filter_limits"
     ][index] || "");
 }
 

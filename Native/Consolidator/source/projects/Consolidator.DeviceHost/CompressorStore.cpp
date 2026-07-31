@@ -53,6 +53,7 @@ UpdateResult CompressorStore::SetDetectorParameter(const domain::SetCompressorDe
         const auto nextValue = command.value != 0.0;
         if (filter.bypass == nextValue) return { UpdateStatus::Unchanged, {} };
         filter.bypass = nextValue;
+        if (nextValue) state.detectorListen &= ~(1L << (command.filterId - 1));
         return Commit(command.requestId);
     }
     if (command.parameter == "gain") destination = &filter.gainDb;
@@ -70,9 +71,12 @@ UpdateResult CompressorStore::SetDetectorParameter(const domain::SetCompressorDe
 }
 
 UpdateResult CompressorStore::SetDetectorListen(const domain::SetCompressorDetectorListenCommand& command) {
-    if (command.filterId < 0 || command.filterId > 2) return Reject("invalid_compressor_detector_listen");
-    if (state.detectorListen == command.filterId) return { UpdateStatus::Unchanged, {} };
-    state.detectorListen = command.filterId;
+    if (command.filterId < 1 || command.filterId > 2) return Reject("invalid_compressor_detector_listen");
+    if (state.detectorFilters[static_cast<std::size_t>(command.filterId - 1)].bypass) return { UpdateStatus::Unchanged, {} };
+    const auto mask = 1L << (command.filterId - 1);
+    const auto nextListen = command.enabled ? state.detectorListen | mask : state.detectorListen & ~mask;
+    if (state.detectorListen == nextListen) return { UpdateStatus::Unchanged, {} };
+    state.detectorListen = nextListen;
     return Commit(command.requestId);
 }
 

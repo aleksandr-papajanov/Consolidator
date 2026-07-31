@@ -46,17 +46,12 @@ public:
         double rawReferenceDb,
         double smoothing = consolidator::settings::AnalysisOptions::DefaultSpectrumSmoothing,
         double lowFrequencyAmount = consolidator::settings::AnalysisOptions::DefaultLowFrequencySmoothing,
-        double spectrumCalibrationDb = consolidator::settings::SpectrumOptions::DefaultSpectrumCalibrationDb,
-        double spectrumTiltDb = consolidator::settings::SpectrumOptions::DefaultSpectrumTiltDb
+        double spectrumCalibrationDb = consolidator::settings::SpectrumOptions::DefaultSpectrumCalibrationDb
     ) {
-        const double tiltWeight = consolidator::dsp::Curve::HighFrequencyWeight(
-            static_cast<std::size_t>(outputIndex),
-            static_cast<std::size_t>(pendingCount));
-        const double tiltOffset = spectrumTiltDb * tiltWeight;
-        const double currentDb = std::clamp(rawCurrentDb + spectrumCalibrationDb + tiltOffset,
+        const double currentDb = std::clamp(rawCurrentDb + spectrumCalibrationDb,
             consolidator::settings::SpectrumOptions::MinimumSpectrumDb,
             consolidator::settings::SpectrumOptions::MaximumSpectrumDb);
-        const double referenceDb = std::clamp(rawReferenceDb + spectrumCalibrationDb + tiltOffset,
+        const double referenceDb = std::clamp(rawReferenceDb + spectrumCalibrationDb,
             consolidator::settings::SpectrumOptions::MinimumSpectrumDb,
             consolidator::settings::SpectrumOptions::MaximumSpectrumDb);
         const double differenceDb = std::clamp(rawReferenceDb - rawCurrentDb,
@@ -120,26 +115,37 @@ public:
         pendingDifference.Clear();
     }
 
-    void WriteFrame(AnalyzerCurveFrame& frame, std::uint64_t differenceGeneration) const {
+    void WriteFrame(
+        AnalyzerCurveFrame& frame,
+        std::uint64_t differenceGeneration,
+        bool hasReference,
+        bool hasFitCurve
+    ) const {
         frame.Assign(
             pendingCurrent,
             pendingReference,
             pendingDifference,
             pendingCount,
-            differenceGeneration);
+            differenceGeneration,
+            hasReference,
+            hasFitCurve);
     }
 
     void WriteFrame(
         AnalyzerCurveFrame& frame,
         const AnalyzerCurveBatch& differenceSource,
-        std::uint64_t differenceGeneration
+        std::uint64_t differenceGeneration,
+        bool hasReference,
+        bool hasFitCurve
     ) const {
         frame.Assign(
             pendingCurrent,
             pendingReference,
             differenceSource.pendingDifference,
             pendingCount,
-            differenceGeneration);
+            differenceGeneration,
+            hasReference,
+            hasFitCurve);
     }
 
 private:

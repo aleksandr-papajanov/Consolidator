@@ -9,20 +9,17 @@ persistence and are never used for component commands or snapshots.
 command <version> <source> <requestId> <name> <fields...>
 ```
 
-The current commands are `eq.set_parameter`, `eq.set_bypass`, `eq.reset_filter`,
-`eq.set_chain_bypass`, `eq.reset`, `eq.add_bank`,
-`eq.remove_bank`, `eq.remove_banks`, `eq.set_banks_bypass`, `eq.solo_banks`,
-`eq.join_banks`, `eq.rename_bank`, `eq.select_bank`, `analyzer.listen`,
-`gain.set_parameter`,
-`compressor.set_parameter`, `compressor.set_bypass`, `compressor.reset`,
-`saturator.set_parameter <input|output|mix> <absoluteValue>`, `saturator.set_bypass`, `saturator.set_mode`, `saturator.set_detector_parameter`, `saturator.reset`,
-`fit.start <pointCount> <curveDb...>`, `fit.cancel`,
-`fit.clear`, `fit.complete`, and `fit.fail`. All processor and EQ
-values are absolute. `fit.complete` frames its filters and values with explicit
-counts, then appends input gain, compressor bypass/attack/release/input/output,
-saturator bypass/input/output, and output gain. Host commits the complete result as
-one fit transaction. `eq.add_bank` accepts an optional
-single name atom; when omitted, Host generates the deterministic bank name.
+The current commands are `eq.set_parameter`, `eq.set_bypass`,
+`eq.set_chain_bypass`, `eq.set_chain_solo`, `eq.reset`, `eq.reset_all`, `eq.join_banks`,
+`eq.commit_hidden`, `eq.commit_all`, `eq.set_link`, `eq.select_bank`,
+`gain.set_parameter`, `compressor.set_parameter`, `compressor.set_bypass`,
+`compressor.set_detector_parameter`, `compressor.set_detector_listen`,
+`compressor.reset`, `saturator.set_parameter`, `saturator.set_bypass`,
+`saturator.set_detector_parameter`, `saturator.set_detector_listen`,
+`saturator.reset`, `analyzer.clear`, `analyzer.set_view`, `fit.start`,
+`fit.cancel`, `fit.clear`, `fit.complete`, and `fit.fail`. All processor and EQ
+values are absolute. EQ fit results carry explicit filter counts and update only
+the EQ store; processor state is not part of an EQ fit transaction.
 
 ## Events
 
@@ -30,8 +27,16 @@ single name atom; when omitted, Host generates the deterministic bank name.
 event <version> host <eventId> <name> <fields...>
 ```
 
-Events include `host.initialized`, `store.updated`,
-`command.rejected`, and `operation.changed`.
+Events include `host.initialized`, `store.updated`, `parameter.updated`,
+`command.rejected`, `fit.requested`, `analyzer.view_changed`, and
+`operation.changed`. Fit requests are framed as:
+
+```text
+fit.requested <sessionId> <bankId> <residual|absolute> <pointCount> <curveDb...>
+```
+
+`residual` is combined with the current selected-bank response. `absolute` is
+already the complete target response and is fitted directly.
 
 ## EQ Snapshot
 
@@ -41,23 +46,11 @@ snapshot <version> host eq <revision> <selectedBank> <bankCount>
         <filterId> <bypass> <valueCount> <absoluteValue...>
 ```
 
-Bank and filter IDs are one-based. Counts frame every variable-length section.
+EQ has hidden system bank `0` and fixed user banks `1..6`; counts frame every
+variable-length section.
 The same atom sequence may arrive through Max as a `snapshot` selector or as a
 `list` whose first atom is `snapshot`; these are two Max deliveries of one
 protocol message, not two protocol formats.
-
-Filter definitions use a second snapshot family:
-
-```text
-snapshot <version> host definitions <revision> <filterCount>
-    <filterId> <type> <defaultBypass> <parameterCount>
-        <name> <minimum> <maximum> <scale> <defaultValue>
-```
-
-Processor definitions use `snapshot 1 host processor_definitions ...` and
-contain the absolute range, scale, and default for input gain, compressor
-attack/release/input/output/mix/mode plus detector filter definitions, saturator
-input/output/mix/mode plus detector filter definitions, and output gain.
 
 The audio endpoint receives the complete processing state:
 
@@ -71,9 +64,9 @@ snapshot 1 host dsp <revision> <EQ snapshot body...>
     <outputGainDb>
 ```
 
-Analyzer, SpectrumView, and Filter UI consume the EQ-only snapshot.
-`consolidator.dspprocessor` and `consolidator.approximator` consume the complete
-`dsp` snapshot so every fitted processor parameter has the same initial state.
+Analyzer and SpectrumView consume the EQ-only snapshot. DspProcessor consumes
+the complete DSP snapshot. Approximator receives compact EQ and processor
+snapshots only to construct its EQ result; it never applies processor values.
 
 ## Persistence
 
@@ -93,6 +86,5 @@ audio thread publishes immutable curve frames through a preallocated
 single-producer/single-consumer triple buffer. When the consumer is behind, a
 new frame replaces the previous unconsumed frame. A single coalesced Max queue
 callback forwards only the latest complete frame to SpectrumView. Approximator
-captures pre-DSP current and reference audio through scoped signal connections,
-then evaluates candidates offline; captured audio and candidates never pass
-through Host.
+receives one complete target curve in `fit.requested`; audio frames and fit
+candidates never pass through Host.

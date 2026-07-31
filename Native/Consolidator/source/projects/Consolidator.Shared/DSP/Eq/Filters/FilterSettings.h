@@ -19,21 +19,21 @@ struct BellFilterSettings {
 
 struct LowShelfFilterSettings {
     double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
-    double q = settings::EqOptions::DefaultFilterQ;
+    double q = 0.25;
     double gainDb = 0.0;
     double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 struct HighShelfFilterSettings {
     double frequencyHz = settings::EqOptions::DefaultFrequencyHz;
-    double q = settings::EqOptions::DefaultFilterQ;
+    double q = 0.25;
     double gainDb = 0.0;
     double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };
 
 struct TiltFilterSettings {
     double pivotHz = settings::EqOptions::DefaultFrequencyHz;
-    double q = settings::EqOptions::DefaultFilterQ;
+    double q = 0.25;
     double gainDb = 0.0;
     double sampleRate = settings::AudioOptions::DefaultSampleRateHz;
 };

@@ -18,7 +18,9 @@ public:
         const consolidator::dsp::Curve& nextReference,
         const consolidator::dsp::Curve& nextDifference,
         int nextPointCount,
-        std::uint64_t nextDifferenceGeneration
+        std::uint64_t nextDifferenceGeneration,
+        bool nextHasReference,
+        bool nextHasFitCurve
     ) {
         silent = false;
         current = nextCurrent;
@@ -26,6 +28,8 @@ public:
         difference = nextDifference;
         pointCount = nextPointCount;
         differenceGeneration = nextDifferenceGeneration;
+        hasReference = nextHasReference;
+        hasFitCurve = nextHasFitCurve;
     }
 
     void Send(
@@ -45,8 +49,10 @@ public:
                 currentOut.send("clear_spectrum");
                 referenceOut.send("clear_spectrum");
             }
+            if (sendFitCurve) differenceOut.send("clear_fit_curve");
             if (sendAnalysis) analysisOut.send("clear_analysis");
             if (sendLevels) levelsOut.send("gain_levels", -120.0, -120.0, -120.0, -120.0, -120.0);
+            return;
         }
 
         c74::min::atoms currentAtoms;
@@ -54,13 +60,15 @@ public:
         const auto& differenceValues = difference.Values();
         c74::min::atoms fitCurveAtoms;
 
-        if (sendSpectrum || sendFitCurve) {
+        if (sendSpectrum || (sendFitCurve && hasFitCurve)) {
             for (int index = 0; index < pointCount; ++index) {
                 if (sendSpectrum) {
                     currentAtoms.push_back(current.Values().at(static_cast<std::size_t>(index)));
-                    referenceAtoms.push_back(reference.Values().at(static_cast<std::size_t>(index)));
+                    if (hasReference) {
+                        referenceAtoms.push_back(reference.Values().at(static_cast<std::size_t>(index)));
+                    }
                 }
-                if (sendFitCurve) {
+                if (sendFitCurve && hasFitCurve) {
                     fitCurveAtoms.push_back(
                         differenceValues[static_cast<std::size_t>(index)]
                         - banksThroughSelectedCurve.Values().at(static_cast<std::size_t>(index)));
@@ -70,12 +78,14 @@ public:
 
         if (sendSpectrum && !silent) {
             currentOut.send(currentAtoms);
-            referenceOut.send(referenceAtoms);
+            if (hasReference) referenceOut.send(referenceAtoms);
+            else referenceOut.send("clear_spectrum");
         }
-        if (sendFitCurve) {
+        if (sendFitCurve && hasFitCurve) {
             fitCurveAtoms.insert(fitCurveAtoms.begin(), "fit_curve");
             differenceOut.send(fitCurveAtoms);
         }
+        else if (sendFitCurve) differenceOut.send("clear_fit_curve");
         if (sendAnalysis && !silent) features.Send(analysisOut);
         if (sendLevels && !silent) {
             levelsOut.send(
@@ -94,6 +104,8 @@ public:
 
     void MarkSilent() noexcept {
         silent = true;
+        hasReference = false;
+        hasFitCurve = false;
     }
 
     void SetGainLevels(consolidator::audio::GainLevelMetrics value) {
@@ -119,4 +131,6 @@ private:
     AnalysisFeatureFrame features;
     consolidator::audio::GainLevelMetrics gainLevels;
     bool silent = false;
+    bool hasReference = false;
+    bool hasFitCurve = false;
 };

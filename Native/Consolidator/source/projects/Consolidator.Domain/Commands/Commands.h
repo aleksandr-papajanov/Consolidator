@@ -57,6 +57,10 @@ struct ResetEqChainCommand {
     BankId bankId{};
 };
 
+struct ResetAllEqBanksCommand {
+    RequestId requestId{};
+};
+
 struct JoinEqBanksCommand {
     RequestId requestId{};
     std::vector<BankId> bankIds;
@@ -65,6 +69,10 @@ struct JoinEqBanksCommand {
 struct CommitHiddenEqBankCommand {
     RequestId requestId{};
     BankId bankId{};
+};
+
+struct CommitAllEqBanksCommand {
+    RequestId requestId{};
 };
 
 struct SetEqBankLinkCommand {
@@ -105,6 +113,7 @@ struct SetCompressorDetectorParameterCommand {
 struct SetCompressorDetectorListenCommand {
     RequestId requestId{};
     long filterId = 0;
+    bool enabled = false;
 };
 
 struct ResetCompressorCommand {
@@ -132,6 +141,7 @@ struct SetSaturatorDetectorParameterCommand {
 struct SetSaturatorDetectorListenCommand {
     RequestId requestId{};
     long filterId = 0;
+    bool enabled = false;
 };
 
 struct ResetSaturatorCommand {
@@ -181,8 +191,10 @@ using Command = std::variant<
     SetEqChainBypassCommand,
     SetEqChainSoloCommand,
     ResetEqChainCommand,
+    ResetAllEqBanksCommand,
     JoinEqBanksCommand,
     CommitHiddenEqBankCommand,
+    CommitAllEqBanksCommand,
     SetEqBankLinkCommand,
     SelectEqBankCommand,
     SetGainParameterCommand,

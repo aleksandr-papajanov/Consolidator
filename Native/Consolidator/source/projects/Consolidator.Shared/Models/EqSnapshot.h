@@ -34,6 +34,11 @@ struct EqSnapshot {
     static constexpr long SystemBankId = 0;
     static constexpr long FirstUserBankId = 1;
     static constexpr long LastUserBankId = 6;
+    static constexpr long IndividualBankId = 1;
+    static constexpr long FirstLinkableBankId = 2;
+    static constexpr long LastLinkableBankId = 5;
+    static constexpr long GlobalBankId = 6;
+    static constexpr const char* GlobalLinkId = "global.6";
     static constexpr long BankCount = LastUserBankId + 1;
 
     long selectedBankId = FirstUserBankId;

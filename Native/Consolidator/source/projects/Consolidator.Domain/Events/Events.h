@@ -43,9 +43,15 @@ struct OperationChangedEvent {
     std::string error;
 };
 
+enum class FitTargetKind {
+    Residual,
+    Absolute
+};
+
 struct FitRequestedEvent {
     SessionId sessionId{};
     BankId bankId{};
+    FitTargetKind targetKind = FitTargetKind::Residual;
     std::vector<double> curveDb;
 };
 

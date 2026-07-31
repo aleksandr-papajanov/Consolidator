@@ -9,7 +9,12 @@
       "modernui": 1
     },
     "classnamespace": "box",
-    "rect": [100.0, 100.0, 760.0, 260.0],
+    "rect": [
+      100.0,
+      100.0,
+      760.0,
+      260.0
+    ],
     "boxes": [
       {
         "box": {
@@ -18,8 +23,15 @@
           "index": 1,
           "numinlets": 0,
           "numoutlets": 1,
-          "outlettype": [""],
-          "patching_rect": [20.0, 20.0, 30.0, 30.0],
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            20.0,
+            20.0,
+            30.0,
+            30.0
+          ],
           "comment": "Host events and snapshots"
         }
       },
@@ -28,10 +40,25 @@
           "id": "router",
           "maxclass": "newobj",
           "text": "js consolidator.statetransport.js",
-          "numinlets": 1,
-          "numoutlets": 8,
-          "outlettype": ["", "", "", "", "", "", "", ""],
-          "patching_rect": [80.0, 25.0, 210.0, 22.0]
+          "numinlets": 2,
+          "numoutlets": 9,
+          "outlettype": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          "patching_rect": [
+            80.0,
+            25.0,
+            210.0,
+            22.0
+          ]
         }
       },
       {
@@ -41,7 +68,12 @@
           "text": "s ---message.bus.out",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [20.0, 100.0, 135.0, 22.0]
+          "patching_rect": [
+            20.0,
+            100.0,
+            135.0,
+            22.0
+          ]
         }
       },
       {
@@ -51,7 +83,12 @@
           "text": "s ---state.eq",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [165.0, 100.0, 100.0, 22.0]
+          "patching_rect": [
+            165.0,
+            100.0,
+            100.0,
+            22.0
+          ]
         }
       },
       {
@@ -61,17 +98,12 @@
           "text": "s ---state.dsp",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [275.0, 100.0, 105.0, 22.0]
-        }
-      },
-      {
-        "box": {
-          "id": "definitions",
-          "maxclass": "newobj",
-          "text": "s ---state.definitions",
-          "numinlets": 1,
-          "numoutlets": 0,
-          "patching_rect": [390.0, 100.0, 145.0, 22.0]
+          "patching_rect": [
+            275.0,
+            100.0,
+            105.0,
+            22.0
+          ]
         }
       },
       {
@@ -81,7 +113,12 @@
           "text": "s ---state.device",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [545.0, 100.0, 115.0, 22.0]
+          "patching_rect": [
+            545.0,
+            100.0,
+            115.0,
+            22.0
+          ]
         }
       },
       {
@@ -91,7 +128,12 @@
           "text": "s ---state.processor",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [670.0, 75.0, 135.0, 22.0]
+          "patching_rect": [
+            670.0,
+            75.0,
+            135.0,
+            22.0
+          ]
         }
       },
       {
@@ -101,7 +143,12 @@
           "text": "s ---state.analyzer",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [670.0, 100.0, 125.0, 22.0]
+          "patching_rect": [
+            670.0,
+            100.0,
+            125.0,
+            22.0
+          ]
         }
       },
       {
@@ -111,63 +158,167 @@
           "text": "s ---dsp.parameter",
           "numinlets": 1,
           "numoutlets": 0,
-          "patching_rect": [805.0, 100.0, 130.0, 22.0]
+          "patching_rect": [
+            805.0,
+            100.0,
+            130.0,
+            22.0
+          ]
+        }
+      },
+      {
+        "box": {
+          "id": "eq-preview",
+          "maxclass": "newobj",
+          "text": "r ---link.control.analyzer",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            300.0,
+            25.0,
+            145.0,
+            22.0
+          ]
+        }
+      },
+      {
+        "box": {
+          "id": "analyzer-ui",
+          "maxclass": "newobj",
+          "text": "s ---analyzer.ui",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [
+            670.0,
+            130.0,
+            120.0,
+            22.0
+          ]
         }
       }
     ],
     "lines": [
       {
         "patchline": {
-          "source": ["input", 0],
-          "destination": ["router", 0]
+          "source": [
+            "input",
+            0
+          ],
+          "destination": [
+            "router",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 0],
-          "destination": ["events", 0]
+          "source": [
+            "router",
+            0
+          ],
+          "destination": [
+            "events",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 1],
-          "destination": ["eq", 0]
+          "source": [
+            "router",
+            1
+          ],
+          "destination": [
+            "eq",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 2],
-          "destination": ["dsp", 0]
+          "source": [
+            "router",
+            2
+          ],
+          "destination": [
+            "dsp",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 3],
-          "destination": ["definitions", 0]
+          "source": [
+            "router",
+            4
+          ],
+          "destination": [
+            "device",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 4],
-          "destination": ["device", 0]
+          "source": [
+            "router",
+            5
+          ],
+          "destination": [
+            "processor",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 5],
-          "destination": ["processor", 0]
+          "source": [
+            "router",
+            6
+          ],
+          "destination": [
+            "analyzer",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 6],
-          "destination": ["analyzer", 0]
+          "source": [
+            "router",
+            7
+          ],
+          "destination": [
+            "parameter",
+            0
+          ]
         }
       },
       {
         "patchline": {
-          "source": ["router", 7],
-          "destination": ["parameter", 0]
+          "source": [
+            "eq-preview",
+            0
+          ],
+          "destination": [
+            "router",
+            1
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "router",
+            8
+          ],
+          "destination": [
+            "analyzer-ui",
+            0
+          ]
         }
       }
     ],

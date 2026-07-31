@@ -52,6 +52,9 @@ public:
                 writer.Write(std::string{ "fit.requested" })
                     .Write(static_cast<std::int64_t>(value.sessionId.value))
                     .Write(static_cast<std::int64_t>(value.bankId.value))
+                    .Write(std::string{
+                        value.targetKind == domain::FitTargetKind::Absolute ? "absolute" : "residual"
+                    })
                     .Write(static_cast<std::int64_t>(value.curveDb.size()));
                 for (const auto valueDb : value.curveDb) writer.Write(valueDb);
             }
@@ -127,11 +130,16 @@ public:
         if (*name == "fit.requested") {
             const auto sessionId = reader.ReadInt();
             const auto bankId = reader.ReadInt();
+            const auto targetKind = reader.ReadString();
             const auto pointCount = reader.ReadInt();
-            if (!sessionId || !bankId || !pointCount || *sessionId < 1 || *bankId < 1 ||
+            if (!sessionId || !bankId || !targetKind || !pointCount || *sessionId < 1 || *bankId < 1 ||
                 *pointCount < 2 || *pointCount > 4096) {
                 return Invalid("invalid_fit_requested", reader.Index());
             }
+            std::optional<domain::FitTargetKind> kind;
+            if (*targetKind == "absolute") kind = domain::FitTargetKind::Absolute;
+            else if (*targetKind == "residual") kind = domain::FitTargetKind::Residual;
+            else return Invalid("invalid_fit_requested", reader.Index());
             std::vector<double> curveDb;
             curveDb.reserve(static_cast<std::size_t>(*pointCount));
             for (long index = 0; index < *pointCount; ++index) {
@@ -141,7 +149,7 @@ public:
             }
             if (!reader.RequireEnd()) return Invalid("invalid_fit_requested", reader.Index());
             return Success(domain::FitRequestedEvent{
-                { *sessionId }, { *bankId }, std::move(curveDb)
+                { *sessionId }, { *bankId }, *kind, std::move(curveDb)
             }, *eventId);
         }
         if (*name == "analyzer.view_changed") {

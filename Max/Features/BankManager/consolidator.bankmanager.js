@@ -2,20 +2,21 @@ autowatch = 1;
 inlets = 2;
 outlets = 3;
 
-// Inlet 0: Host definitions, processor_definitions, EQ, processor, and device snapshots.
+// Inlet 0: Host EQ, processor, and device snapshots.
 // Inlet 1: global bank/link messages: bank.query, bank.announce, bank.leave,
-// link.create, link.remove, link.join, link.filter_delta, link.filter_bypass,
-// link.filter_reset, link.bank_reset, link.state, and link.processor_delta.
-// Outlet 0: Host commands: eq.select_bank, eq.join_banks, eq.commit_hidden,
-// eq.set_link, gain.set_parameter, compressor.set_parameter,
+// bank.reset_all, link.assign, link.detach, link.operation, link.filter_delta,
+// link.filter_bypass, link.state, and link.processor_delta.
+// Outlet 0: Host commands: eq.select_bank, eq.join_banks, eq.commit_all,
+// eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter,
 // and saturator.set_parameter.
 // Outlet 1: the complete global bank/link message set accepted by inlet 1.
-// Outlet 2: link_color, processor_limits, and filter_limits UI state.
+// Outlet 2: link_color, processor_limits, processor_preview, eq_preview, and filter_limits UI state.
 // Local gesture input also accepts eq_parameter_absolute_gesture
 // <bankId> <filterId> <parameter> <absoluteValue> from SpectrumView.
-// bank.announce: <instanceId> <label> <revision> <selectedBank>
+// bank.announce: <instanceId> <trackName> <trackOrder> <revision> <selectedBank>
 // <systemOccupied> <six bankId occupied linkId records>.
-// link.create: <linkId> <colorIndex> <count> <instanceId> <bank:N>...
+// link.assign|link.detach: <linkId> <instanceId> <bankId>.
+// link.operation: <linkId> <sourceId> <revision> <join|commit|reset|bypass> <bypass|-1>.
 // link.filter_delta: <linkId> <sourceId> <revision> <filterId> <parameterIndex> <normalizedDelta>.
 // link.filter_bypass: <linkId> <sourceId> <revision> <filterId> <0|1>.
 // link.processor_delta: <linkId> <sourceId> <revision> <device> <parameter> <normalizedDelta>.
@@ -26,11 +27,16 @@ outlets = 3;
 mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
-include("../Shared/JS/LinkColors.js");
-include("../Shared/JS/LiveApiInitializer.js");
-include("JS/BankManagerTheme.js");
-var BankManagerVisualOptions = BankManagerTheme.geometry;
-var BankManagerColors = BankManagerTheme.colors;
+include("../../Shared/Runtime/LiveApiInitializer.js");
+include("../../Shared/Runtime/ControlControllerBase.js");
+include("../../Shared/Interface/BankManager/BankManagerOptions.js");
+include("../../Shared/Interface/BankManager/BankManagerViewModel.js");
+include("../../Shared/Interface/BankManager/BankManagerRenderer.js");
+include("../../Shared/Interface/ButtonGroup/ButtonGroupLayout.js");
+include("../../Shared/Configuration/FilterDefinitions.js");
+var BankManagerVisualOptions = BankManagerOptions.geometry;
+var BankManagerColors = BankManagerOptions.colors;
+var bankGroupLayout = new ButtonGroupLayout();
 
 function NormalizeParameter(value, range) {
     var number = Number(value);
@@ -120,6 +126,7 @@ ProcessorLinkGroup.prototype.ApplyDelta = function(
 function InstanceSummary(id, label) {
     this.id = id;
     this.label = label;
+    this.trackOrder = Infinity;
     this.revision = 0;
     this.selectedBankId = 1;
     this.systemBank = new BankSummary();
@@ -138,67 +145,125 @@ function InstanceSummary(id, label) {
 }
 
 function BankManager() {
-    this.requestId = 0;
+    box.message("border", 0);
+    ControlControllerBase.call(this, "bankmanager.ui", null, this);
     this.instanceId = "";
     this.local = new InstanceSummary("", "Consolidator");
     this.peers = {};
-    this.linkSelection = {};
-    this.joinSelection = {};
+    this.focusedInstanceId = "";
+    this.focusedBankId = 1;
+    this.linkEditingEnabled = false;
+    this.clearAllConfirmationArmed = false;
+    this.clearAllConfirmationTask = new Task(this.ClearAllConfirmationExpired, this);
     this.linkRevision = 0;
     this.outgoingLinkRevisions = {};
     this.incomingLinkRevisions = {};
     this.filterDefinitions = {};
     this.processorRanges = {};
+    this.LoadDefinitions();
     this.processorLinkGroups = {};
     this.controlLinkSession = "";
-    this.scrollOffset = 0;
+    this.viewModel = new BankManagerViewModel();
+    this.renderer = new BankManagerRenderer();
     this.lastAnnouncementState = "";
     this.initializer = new LiveApiInitializer(
         this.TryInitialize, this, 50);
 }
+
+BankManager.prototype = Object.create(ControlControllerBase.prototype);
+BankManager.prototype.constructor = BankManager;
+
+BankManager.prototype.LoadDefinitions = function() {
+    var eqDefinitions = FilterDefinitionCatalog.Eq();
+    for (var filterId in eqDefinitions) {
+        if (!eqDefinitions.hasOwnProperty(filterId)) continue;
+        this.filterDefinitions[filterId] = eqDefinitions[filterId].parameters;
+    }
+    var processorDefinitions = FilterDefinitionCatalog.Processors();
+    for (var device in processorDefinitions) {
+        if (!processorDefinitions.hasOwnProperty(device)) continue;
+        this.processorRanges[device] = {};
+        var parameters = processorDefinitions[device].parameters;
+        for (var index = 0; index < parameters.length; index++) {
+            var parameter = parameters[index];
+            this.processorRanges[device][parameter.name] = {
+                minimum: parameter.minimum,
+                maximum: parameter.maximum,
+                logarithmic: parameter.logarithmic
+            };
+        }
+    }
+};
 
 BankManager.prototype.Initialize = function() {
     this.initializer.Start();
 };
 
 BankManager.prototype.TryInitialize = function() {
-    var instanceId = this.CurrentRuntimeInstanceId();
-    if (!instanceId) return false;
-    this.instanceId = instanceId;
+    var identity = this.CurrentRuntimeIdentity();
+    if (!identity) return false;
+    this.instanceId = identity.id;
     this.local.id = this.instanceId;
-    this.local.label = this.CurrentLabel();
+    this.local.label = identity.trackName;
+    this.local.trackOrder = identity.trackOrder;
+    this.SetFocusedBank(this.local, this.local.selectedBankId);
     outlet(1, "bank.query", this.instanceId);
     this.PublishAnnouncement();
     this.PublishLinkedState();
     return true;
 };
 
-BankManager.prototype.CurrentRuntimeInstanceId = function() {
+BankManager.prototype.CurrentRuntimeIdentity = function() {
     try {
         var device = new LiveAPI("this_device");
         var liveObjectId = Number(device.id);
-        return liveObjectId > 0 ? "live-device-" + String(liveObjectId) : "";
+        var parent = device.get("canonical_parent");
+        var trackId = Number(parent[1]);
+        if (liveObjectId <= 0 || trackId <= 0) return null;
+        var track = new LiveAPI("id " + trackId);
+        var trackName = String(track.get("name")[0] || "");
+        var trackOrder = this.TrackOrder(trackId);
+        if (!trackName || !isFinite(trackOrder)) return null;
+        return {
+            id: "live-device-" + String(liveObjectId),
+            trackName: trackName,
+            trackOrder: trackOrder
+        };
     } catch (error) {
-        return "";
+        return null;
     }
 };
 
-BankManager.prototype.CurrentLabel = function() {
-    try {
-        var device = new LiveAPI("this_device");
-        var parentId = Number(device.get("canonical_parent")[1]) || 0;
-        var parent = parentId > 0 ? new LiveAPI("id " + parentId) : null;
-        var parentName = parent ? String(parent.get("name")[0] || "Track") : "Track";
-        var deviceName = String(device.get("name")[0] || "Consolidator");
-        return parentName + " / " + deviceName;
-    } catch (error) {
-        return "Consolidator";
+BankManager.prototype.TrackOrder = function(trackId) {
+    var liveSet = new LiveAPI("live_set");
+    var tracksCount = Number(liveSet.getcount("tracks"));
+    if (isFinite(tracksCount) && tracksCount >= 0) {
+        for (var trackIndex = 0; trackIndex < tracksCount; trackIndex++) {
+            var track = new LiveAPI("live_set tracks " + trackIndex);
+            if (Number(track.id) === trackId) return trackIndex;
+        }
     }
+
+    var returnCount = Number(liveSet.getcount("return_tracks"));
+    if (isFinite(returnCount) && returnCount >= 0) {
+        for (var returnIndex = 0; returnIndex < returnCount; returnIndex++) {
+            var returnTrack = new LiveAPI("live_set return_tracks " + returnIndex);
+            if (Number(returnTrack.id) === trackId) {
+                return (isFinite(tracksCount) ? tracksCount : 0) + returnIndex;
+            }
+        }
+    }
+
+    var masterTrack = new LiveAPI("live_set master_track");
+    if (Number(masterTrack.id) === trackId) {
+        return (isFinite(tracksCount) ? tracksCount : 0)
+            + (isFinite(returnCount) ? returnCount : 0);
+    }
+    return NaN;
 };
 
 BankManager.prototype.SendHostCommand = function(name, fields) {
-    this.requestId += 1;
-    outlet(0, "command", [1, "bankmanager.ui", this.requestId, name].concat(fields || []));
+    this.SendCommand(name, fields);
 };
 
 BankManager.prototype.ParseEqSnapshot = function(values) {
@@ -256,9 +321,13 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     }
     if (position !== values.length) return false;
     this.local.revision = revision;
+    this.local.eqBypass = Number(values[6]) !== 0;
     this.local.selectedBankId = selected;
     this.local.systemBank = systemBank;
     this.local.banks = banks;
+    if (!this.focusedInstanceId || this.focusedInstanceId === this.instanceId) {
+        this.SetFocusedBank(this.local, selected);
+    }
     var changedLinkIds = {};
     var linkTopologyChanged = false;
     for (var bankIndex = 0; bankIndex < banks.length; bankIndex++) {
@@ -276,59 +345,6 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     this.PublishAnnouncement();
     this.PublishLinkedState(changedLinkIds);
     return true;
-};
-
-BankManager.prototype.ParseDefinitions = function(values) {
-    if (values.length < 6 || String(values[0]) !== "snapshot" || String(values[3]) !== "definitions") return;
-    var count = Number(values[5]);
-    var position = 6;
-    for (var index = 0; index < count; index++) {
-        if (position + 3 >= values.length) return;
-        var filterId = Number(values[position++]);
-        position++;
-        position++;
-        var parameterCount = Number(values[position++]);
-        var parameters = [];
-        for (var parameterIndex = 0; parameterIndex < parameterCount; parameterIndex++) {
-            if (position + 4 >= values.length) return;
-            parameters.push({
-                name: String(values[position++]),
-                minimum: Number(values[position++]),
-                maximum: Number(values[position++]),
-                logarithmic: Number(values[position++]) === 1
-            });
-            position += 1;
-        }
-        this.filterDefinitions[filterId] = parameters;
-    }
-    this.controlLinkSession = "";
-    this.RefreshControlLinkSession();
-};
-
-BankManager.prototype.ParseProcessorDefinitions = function(values) {
-    if (values.length < 6 || String(values[3]) !== "processor_definitions") return;
-    var count = Number(values[5]);
-    var position = 6;
-    this.processorRanges = {};
-    for (var index = 0; index < count; index++) {
-        var device = String(values[position++]);
-        var parameterCount = Number(values[position++]);
-        this.processorRanges[device] = {};
-        for (var parameterIndex = 0; parameterIndex < parameterCount; parameterIndex++) {
-            var name = String(values[position++]);
-            var minimum = Number(values[position++]);
-            var maximum = Number(values[position++]);
-            var logarithmic = Number(values[position++]) === 1;
-            position += 1;
-            this.processorRanges[device][name] = {
-                minimum: minimum,
-                maximum: maximum,
-                logarithmic: logarithmic
-            };
-        }
-    }
-    this.controlLinkSession = "";
-    this.RefreshControlLinkSession();
 };
 
 BankManager.prototype.ParseProcessorSnapshot = function(values) {
@@ -376,6 +392,34 @@ BankManager.prototype.ActiveBank = function(instance) {
 BankManager.prototype.ActiveLinkId = function(instance) {
     var bank = this.ActiveBank(instance);
     return bank ? bank.linkId : "";
+};
+
+BankManager.prototype.FocusedInstance = function() {
+    if (!this.focusedInstanceId || this.focusedInstanceId === this.instanceId) {
+        return this.local;
+    }
+    return this.peers[this.focusedInstanceId] || this.local;
+};
+
+BankManager.prototype.FocusedBank = function() {
+    var instance = this.FocusedInstance();
+    return instance && instance.banks[this.focusedBankId - 1]
+        ? instance.banks[this.focusedBankId - 1]
+        : null;
+};
+
+BankManager.prototype.IsFocusedBank = function(instance, bank) {
+    return Boolean(instance && bank &&
+        instance.id === this.FocusedInstance().id &&
+        bank.id === this.focusedBankId);
+};
+
+BankManager.prototype.SetFocusedBank = function(instance, bankId) {
+    if (!instance || !isFinite(bankId) || bankId < 1 || bankId > 6) return;
+    this.focusedInstanceId = instance.id;
+    this.focusedBankId = bankId;
+    if (!this.CanChangeFocusedBankLink()) this.linkEditingEnabled = false;
+    this.controlLinkSession = "";
 };
 
 BankManager.prototype.HasLink = function(instance, linkId) {
@@ -450,44 +494,40 @@ BankManager.prototype.LinkMemberIds = function(linkId) {
 
 BankManager.prototype.PublishFilterLimits = function(linkId, isLinked) {
     var source = this.ActiveBank(this.local);
+    if (!source) return;
     var members = isLinked ? this.LinkMembers(linkId) : [];
     for (var filterId in this.filterDefinitions) {
         if (!this.filterDefinitions.hasOwnProperty(filterId)) continue;
         var parameters = this.filterDefinitions[filterId];
-        for (var parameterIndex = 0; parameterIndex < parameters.length; parameterIndex++) {
+        var sourceFilter = source.filters[filterId];
+        if (!sourceFilter) continue;
+        for (var parameterIndex = 0;
+             parameterIndex < parameters.length;
+             ++parameterIndex) {
             var definition = parameters[parameterIndex];
-            var minimum = definition.minimum;
-            var maximum = definition.maximum;
-            var sourceFilter = source && source.filters[filterId];
-            var sourceValue = sourceFilter
-                ? NormalizeParameter(sourceFilter.values[parameterIndex], definition)
-                : NaN;
-            if (isLinked && isFinite(sourceValue)) {
-                var minimumDelta = -Infinity;
-                var maximumDelta = Infinity;
-                for (var memberIndex = 0; memberIndex < members.length; memberIndex++) {
-                    if (members[memberIndex].instance.id === this.instanceId) continue;
-                    var filter = members[memberIndex].bank.filters[filterId];
-                    var value = filter
-                        ? NormalizeParameter(filter.values[parameterIndex], definition)
-                        : NaN;
-                    if (!isFinite(value)) {
-                        minimumDelta = 0;
-                        maximumDelta = 0;
-                        break;
-                    }
-                    minimumDelta = Math.max(minimumDelta, -value);
-                    maximumDelta = Math.min(maximumDelta, 1 - value);
+            var sourceValue = NormalizeParameter(
+                sourceFilter.values[parameterIndex], definition);
+            if (!isFinite(sourceValue)) continue;
+            var minimumDelta = isLinked ? -Infinity : -sourceValue;
+            var maximumDelta = isLinked ? Infinity : 1 - sourceValue;
+            for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
+                if (members[memberIndex].instance.id === this.instanceId) continue;
+                var filter = members[memberIndex].bank.filters[filterId];
+                var value = filter
+                    ? NormalizeParameter(filter.values[parameterIndex], definition)
+                    : NaN;
+                if (!isFinite(value)) {
+                    minimumDelta = 0;
+                    maximumDelta = 0;
+                    break;
                 }
-                minimum = DenormalizeParameter(
-                    Math.max(0, sourceValue + minimumDelta),
-                    definition);
-                maximum = DenormalizeParameter(
-                    Math.min(1, sourceValue + maximumDelta),
-                    definition);
+                minimumDelta = Math.max(minimumDelta, -value);
+                maximumDelta = Math.min(maximumDelta, 1 - value);
             }
-            outlet(2, "filter_limits", Number(filterId), parameterIndex,
-                minimum, maximum);
+            outlet(2, "filter_limits", source.id, Number(filterId),
+                parameterIndex,
+                DenormalizeParameter(Math.max(0, sourceValue + minimumDelta), definition),
+                DenormalizeParameter(Math.min(1, sourceValue + maximumDelta), definition));
         }
     }
 };
@@ -497,9 +537,10 @@ BankManager.prototype.RefreshControlLinkSession = function() {
     var activeMembers = activeLinkId
         ? this.LinkMemberIds(activeLinkId)
         : [];
-    var signature = activeLinkId && activeMembers.length >= 2
+    var activeBank = this.ActiveBank(this.local);
+    var signature = (activeLinkId && activeMembers.length >= 2
         ? activeLinkId + ":" + activeMembers.join(",")
-        : "unlinked";
+        : "unlinked") + ":" + (activeBank ? activeBank.id : 0);
     if (this.controlLinkSession === signature) return;
     this.controlLinkSession = signature;
     var color = activeLinkId && activeMembers.length >= 2
@@ -533,38 +574,6 @@ BankManager.prototype.ParseDeviceSnapshot = function(values) {
     this.PublishAnnouncement();
 };
 
-BankManager.prototype.HandleEqParameterGesture = function(values) {
-    if (values.length !== 4) return;
-    var bankId = Number(values[0]);
-    var filterId = Number(values[1]);
-    var parameterIndex = Number(values[2]);
-    var normalized = Number(values[3]);
-    var bank = this.LocalBank(bankId);
-    var filter = bank && bank.filters[filterId];
-    var definition = (this.filterDefinitions[filterId] || [])[parameterIndex];
-    if (!bank || !bank.linkId || !filter || !definition ||
-        !isFinite(normalized) || parameterIndex < 0 ||
-        parameterIndex >= filter.values.length) return;
-
-    var previousNormalized = NormalizeParameter(
-        filter.values[parameterIndex], definition);
-    var delta = normalized - previousNormalized;
-    if (!isFinite(previousNormalized) || !isFinite(delta) || !delta) return;
-    var update = {
-        linkId: bank.linkId,
-        bankId: bankId,
-        filterId: filterId,
-        parameterIndex: parameterIndex,
-        delta: delta
-    };
-    filter.values[parameterIndex] = DenormalizeParameter(normalized, definition);
-    this.ApplyFilterDeltaToModel(update, this.instanceId);
-    this.PublishEqPreview(bankId, filterId, parameterIndex,
-        filter.values[parameterIndex]);
-    outlet(1, "link.filter_delta", update.linkId, this.instanceId,
-        this.NextLinkRevision(update.linkId), filterId, parameterIndex, delta);
-};
-
 BankManager.prototype.HandleEqAbsoluteParameterGesture = function(values) {
     if (values.length !== 4) return;
     var bankId = Number(values[0]);
@@ -576,13 +585,43 @@ BankManager.prototype.HandleEqAbsoluteParameterGesture = function(values) {
          parameterIndex < parameters.length;
          ++parameterIndex) {
         if (parameters[parameterIndex].name !== parameterName) continue;
-        var normalized = NormalizeParameter(
-            absolute, parameters[parameterIndex]);
-        if (isFinite(normalized)) {
-            this.HandleEqParameterGesture([
-                bankId, filterId, parameterIndex, normalized
-            ]);
-        }
+        var normalized = NormalizeParameter(absolute, parameters[parameterIndex]);
+        var bank = this.LocalBank(bankId);
+        var filter = bank && bank.filters[filterId];
+        if (!bank || !filter || !isFinite(normalized)) return;
+        this.PublishEqPreview(bankId, filterId, parameterIndex, absolute);
+        if (!bank.linkId) return;
+        var previousNormalized = NormalizeParameter(
+            filter.values[parameterIndex], parameters[parameterIndex]);
+        var delta = normalized - previousNormalized;
+        if (!isFinite(previousNormalized) || !isFinite(delta) || !delta) return;
+        var update = {
+            linkId: bank.linkId,
+            bankId: bankId,
+            filterId: filterId,
+            parameterIndex: parameterIndex,
+            delta: delta
+        };
+        filter.values[parameterIndex] = absolute;
+        this.ApplyFilterDeltaToModel(update, this.instanceId);
+        outlet(1, "link.filter_delta", update.linkId, this.instanceId,
+            this.NextLinkRevision(update.linkId), filterId, parameterIndex, delta);
+        return;
+    }
+};
+
+BankManager.prototype.HandleEqAbsoluteParameterPreview = function(values) {
+    if (values.length !== 4) return;
+    var absoluteValue = Number(values[3]);
+    if (!isFinite(absoluteValue)) return;
+    var filterId = Number(values[1]);
+    var parameterName = String(values[2]);
+    var parameters = this.filterDefinitions[filterId] || [];
+    for (var parameterIndex = 0;
+         parameterIndex < parameters.length;
+         ++parameterIndex) {
+        if (parameters[parameterIndex].name !== parameterName) continue;
+        this.PublishEqPreview(values[0], filterId, parameterIndex, absoluteValue);
         return;
     }
 };
@@ -609,32 +648,6 @@ BankManager.prototype.HandleProcessorParameterGesture = function(values) {
     this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
     outlet(1, "link.processor_delta", linkId, this.instanceId,
         this.NextLinkRevision(linkId), device, parameter, delta);
-};
-
-BankManager.prototype.HandleEqBypassGesture = function(values) {
-    if (values.length !== 3) return;
-    var bank = this.LocalBank(Number(values[0]));
-    var filterId = Number(values[1]);
-    var bypass = Number(values[2]) ? 1 : 0;
-    if (!bank || !bank.linkId || !bank.filters[filterId]) return;
-    this.PublishLinkBypass(bank.linkId, filterId, bypass);
-};
-
-BankManager.prototype.HandleEqFilterResetGesture = function(values) {
-    if (values.length !== 2) return;
-    var bank = this.LocalBank(Number(values[0]));
-    var filterId = Number(values[1]);
-    if (!bank || !bank.linkId || !bank.filters[filterId]) return;
-    outlet(1, "link.filter_reset", bank.linkId, this.instanceId,
-        this.NextLinkRevision(bank.linkId), filterId);
-};
-
-BankManager.prototype.HandleEqBankResetGesture = function(values) {
-    if (values.length !== 1) return;
-    var bank = this.LocalBank(Number(values[0]));
-    if (!bank || !bank.linkId) return;
-    outlet(1, "link.bank_reset", bank.linkId, this.instanceId,
-        this.NextLinkRevision(bank.linkId));
 };
 
 BankManager.prototype.NextLinkRevision = function(linkId) {
@@ -703,7 +716,8 @@ BankManager.prototype.PublishLinkBypass = function(linkId, filterId, bypass) {
 
 BankManager.prototype.PublishAnnouncement = function() {
     if (!this.instanceId || this.local.banks.length !== 6) return false;
-    var stateParts = [this.instanceId, this.local.label, this.local.selectedBankId,
+    var stateParts = [this.instanceId, this.local.label, this.local.trackOrder,
+        this.local.selectedBankId,
         this.local.systemBank.occupied ? 1 : 0];
     for (var stateIndex = 0; stateIndex < this.local.banks.length; stateIndex++) {
         stateParts.push(this.local.banks[stateIndex].occupied ? 1 : 0);
@@ -712,7 +726,8 @@ BankManager.prototype.PublishAnnouncement = function() {
     var state = stateParts.join("|");
     if (state === this.lastAnnouncementState) return false;
 
-    var fields = [this.instanceId, this.local.label, this.local.revision, this.local.selectedBankId,
+    var fields = [this.instanceId, this.local.label, this.local.trackOrder,
+        this.local.revision, this.local.selectedBankId,
         this.local.systemBank.occupied ? 1 : 0];
     for (var bankIndex = 0; bankIndex < this.local.banks.length; bankIndex++) {
         var bank = this.local.banks[bankIndex];
@@ -766,19 +781,21 @@ BankManager.prototype.PublishLinkedState = function(linkIds) {
 };
 
 BankManager.prototype.ParseAnnouncement = function(values) {
-    if (values.length !== 23) return;
+    if (values.length !== 24) return;
     var instanceId = String(values[0]);
     if (!instanceId || instanceId === this.instanceId) return;
-    var revision = Number(values[2]);
-    var selected = Number(values[3]);
-    if (!isFinite(revision) || selected < 1 || selected > 6) return;
+    var trackOrder = Number(values[2]);
+    var revision = Number(values[3]);
+    var selected = Number(values[4]);
+    if (!isFinite(trackOrder) || !isFinite(revision) || selected < 1 || selected > 6) return;
     var peer = this.peers[instanceId] || new InstanceSummary(instanceId, String(values[1]));
     if (revision < peer.revision) return;
     peer.label = String(values[1]);
+    peer.trackOrder = trackOrder;
     peer.revision = revision;
     peer.selectedBankId = selected;
-    peer.systemBank.occupied = Number(values[4]) !== 0;
-    var position = 5;
+    peer.systemBank.occupied = Number(values[5]) !== 0;
+    var position = 6;
     var linkTopologyChanged = false;
     for (var index = 0; index < 6; index++) {
         var bankId = Number(values[position++]);
@@ -865,24 +882,22 @@ BankManager.prototype.HandleGlobal = function(name, values) {
         }
     } else if (name === "bank.announce") {
         this.ParseAnnouncement(values);
+    } else if (name === "bank.reset_all") {
+        if (values.length === 1) this.SendHostCommand("eq.reset_all", []);
     } else if (name === "link.state") {
         this.ApplyLinkState(values);
     } else if (name === "bank.leave") {
         this.RemovePeer(values);
-    } else if (name === "link.create") {
-        this.ApplyLinkCreate(values);
-    } else if (name === "link.remove") {
-        this.ApplyLinkRemoval(values);
-    } else if (name === "link.join") {
-        this.ApplyLinkJoin(values);
+    } else if (name === "link.assign") {
+        this.ApplyLinkAssignment(values);
+    } else if (name === "link.detach") {
+        this.ApplyLinkDetachment(values);
+    } else if (name === "link.operation") {
+        this.ApplyLinkOperation(values);
     } else if (name === "link.filter_delta") {
         this.ApplyFilterDelta(values);
     } else if (name === "link.filter_bypass") {
         this.ApplyLinkBypass(values);
-    } else if (name === "link.filter_reset") {
-        this.ApplyLinkFilterReset(values);
-    } else if (name === "link.bank_reset") {
-        this.ApplyLinkBankReset(values);
     } else if (name === "link.processor_delta") {
         this.ApplyProcessorDelta(values);
     }
@@ -922,10 +937,10 @@ BankManager.prototype.RemovePeer = function(values) {
     var instanceId = String(values[0]);
     if (!instanceId || instanceId === this.instanceId) return;
     delete this.peers[instanceId];
-    this.RebuildProcessorLinkGroups();
-    for (var key in this.linkSelection) {
-        if (this.linkSelection[key].instanceId === instanceId) delete this.linkSelection[key];
+    if (this.focusedInstanceId === instanceId) {
+        this.SetFocusedBank(this.local, this.local.selectedBankId);
     }
+    this.RebuildProcessorLinkGroups();
 };
 
 BankManager.prototype.ApplyFilterDelta = function(values) {
@@ -988,258 +1003,37 @@ BankManager.prototype.FindLocalLinkedBank = function(linkId) {
     return null;
 };
 
-BankManager.prototype.ApplyLinkFilterReset = function(values) {
-    if (values.length !== 4) return;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var revision = Number(values[2]);
-    var filterId = Number(values[3]);
-    if (sourceId === this.instanceId || !isFinite(revision) ||
-        !isFinite(filterId)) return;
-    var bank = this.FindLocalLinkedBank(linkId);
-    if (bank && bank.filters[filterId] &&
-        this.AcceptIncomingLinkRevision(
-            linkId, sourceId, revision)) {
-        this.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
-    }
-};
-
-BankManager.prototype.ApplyLinkBankReset = function(values) {
-    if (values.length !== 3) return;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var revision = Number(values[2]);
-    if (sourceId === this.instanceId || !isFinite(revision)) return;
-    var bank = this.FindLocalLinkedBank(linkId);
-    if (bank && this.AcceptIncomingLinkRevision(
-        linkId, sourceId, revision)) {
-        this.SendHostCommand("eq.reset", [bank.id]);
-    }
-};
-
-BankManager.prototype.ApplyLinkCreate = function(values) {
-    if (values.length < 4) return;
-    var linkId = String(values[0]);
-    var count = Number(values[2]);
-    if (!linkId || !isFinite(count) || count < 2 || values.length !== 3 + count * 2) return;
-    for (var index = 0; index < count; index++) {
-        var instanceId = String(values[3 + index * 2]);
-        var entity = String(values[4 + index * 2]);
-        if (instanceId !== this.instanceId) continue;
-        if (entity.indexOf("bank:") === 0) {
-            var bankId = Number(entity.substring(5));
-            if (bankId >= 1 && bankId <= 6) this.SendHostCommand("eq.set_link", [bankId, linkId]);
-        }
-    }
-};
-
-BankManager.prototype.ApplyLinkRemoval = function(values) {
-    if (values.length < 1) return;
-    var linkId = String(values[0]);
-    for (var index = 0; index < this.local.banks.length; index++) {
-        if (this.local.banks[index].linkId === linkId) this.SendHostCommand("eq.set_link", [index + 1, "-"]);
-    }
-};
-
-BankManager.prototype.ApplyLinkJoin = function(values) {
-    if (values.length !== 3) return;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var revision = Number(values[2]);
-    if (!this.AcceptIncomingLinkRevision(
-        linkId, sourceId, revision)) return;
-
-    var bankIds = [];
-    for (var index = 0; index < this.local.banks.length; index++) {
-        var bank = this.local.banks[index];
-        if (bank.linkId === linkId && bank.occupied) bankIds.push(bank.id);
-    }
-    if (bankIds.length === 0) return;
-
-    this.SendHostCommand("eq.join_banks", [bankIds.length].concat(bankIds));
-};
-
-BankManager.prototype.SelectionKey = function(instanceId, entity) {
-    return String(instanceId) + ":" + String(entity);
-};
-
-BankManager.prototype.ToggleLinkSelection = function(instanceId, bankId) {
-    var entity = "bank:" + bankId;
-    var key = this.SelectionKey(instanceId, entity);
-    if (this.linkSelection[key]) delete this.linkSelection[key];
-    else this.linkSelection[key] = { instanceId: instanceId, entity: entity };
-};
-
-BankManager.prototype.CanCreateLinkFromSelection = function() {
-    var members = [];
-    for (var key in this.linkSelection) members.push(this.linkSelection[key]);
-    if (members.length < 2) return false;
-    var instances = {};
-    for (var index = 0; index < members.length; index++) {
-        var member = members[index];
-        var instance = member.instanceId === this.instanceId
-            ? this.local
-            : this.peers[member.instanceId];
-        if (!instance || member.entity.indexOf("bank:") !== 0 || instances[member.instanceId]) return false;
-        instances[member.instanceId] = true;
-        var bankId = Number(member.entity.substring(5));
-        var bank = instance.banks[bankId - 1];
-        if (!bank || bank.linkId) return false;
-    }
-    return true;
-};
-
-BankManager.prototype.SelectedLocalBankIds = function() {
-    var ids = [];
-    for (var key in this.joinSelection) ids.push(Number(this.joinSelection[key]));
-    if (ids.length === 0) ids.push(this.local.selectedBankId);
-    return ids.sort(function(left, right) { return left - right; });
-};
-
-BankManager.prototype.ToggleJoinSelection = function(bankId) {
-    var bank = this.LocalBank(bankId);
-    if (!bank || !bank.occupied) return;
-    if (this.joinSelection[bankId]) delete this.joinSelection[bankId];
-    else this.joinSelection[bankId] = bankId;
-};
-
-BankManager.prototype.ActionStates = function() {
-    var selected = this.SelectedLocalBankIds();
-    var join = false;
-    for (var index = 0; index < selected.length; index++) {
-        var bank = this.LocalBank(selected[index]);
-        if (!bank) {
-            join = false;
-            break;
-        }
-        if (bank.occupied) join = true;
-    }
-
-    var activeBank = this.LocalBank(this.local.selectedBankId);
-    var unlink = Boolean(activeBank && activeBank.linkId);
-    for (var selectionKey in this.linkSelection) {
-        var selection = this.linkSelection[selectionKey];
-        var instance = selection.instanceId === this.instanceId ? this.local : this.peers[selection.instanceId];
-        var bankId = Number(selection.entity.substring(5));
-        if (instance && instance.banks[bankId - 1] &&
-            instance.banks[bankId - 1].linkId) unlink = true;
-    }
-    return {
-        join: join,
-        commit: Boolean(this.local.systemBank && this.local.systemBank.occupied && activeBank &&
-            !activeBank.occupied && !activeBank.linkId),
-        link: this.CanCreateLinkFromSelection(),
-        unlink: unlink
-    };
-};
-
-BankManager.prototype.HandleAction = function(action) {
-    var states = this.ActionStates();
-    if (!states[action]) return;
-    var selected = this.SelectedLocalBankIds();
-    if (action === "join") {
-        var linked = {};
-        var localBankIds = [];
-        for (var index = 0; index < selected.length; index++) {
-            var selectedBank = this.LocalBank(selected[index]);
-            if (!selectedBank || !selectedBank.occupied) continue;
-            if (selectedBank.linkId) linked[selectedBank.linkId] = true;
-            else localBankIds.push(selectedBank.id);
-        }
-        for (var linkId in linked) {
-            outlet(1, "link.join", linkId, this.instanceId, this.NextLinkRevision(linkId));
-        }
-        if (localBankIds.length > 0) {
-            this.SendHostCommand("eq.join_banks", [localBankIds.length].concat(localBankIds));
-        }
-        this.joinSelection = {};
-    } else if (action === "commit") {
-        this.SendHostCommand("eq.commit_hidden", [this.local.selectedBankId]);
-    } else if (action === "link") {
-        var members = [];
-        for (var key in this.linkSelection) members.push(this.linkSelection[key]);
-        if (members.length < 2) return;
-        this.linkRevision += 1;
-        var linkId = String(this.instanceId) + "." + String(Date.now()) + "." + String(this.linkRevision);
-        var fields = [linkId, this.linkRevision % BankManagerColors.linkColors.length, members.length];
-        for (var index = 0; index < members.length; index++) fields.push(members[index].instanceId, members[index].entity);
-        outlet(1, "link.create", fields);
-        this.linkSelection = {};
-    } else if (action === "unlink") {
-        var removalLinks = {};
-        for (var selectionKey in this.linkSelection) {
-            var selection = this.linkSelection[selectionKey];
-            var selectedInstance = selection.instanceId === this.instanceId ? this.local : this.peers[selection.instanceId];
-            if (!selectedInstance) continue;
-            var selectedLink = (selectedInstance.banks[
-                Number(selection.entity.substring(5)) - 1
-            ] || {}).linkId;
-            if (selectedLink) removalLinks[selectedLink] = true;
-        }
-        if (!Object.keys(removalLinks).length) {
-            var bank = this.LocalBank(this.local.selectedBankId);
-            if (bank && bank.linkId) removalLinks[bank.linkId] = true;
-        }
-        for (var removalLink in removalLinks) outlet(1, "link.remove", removalLink);
-    }
-};
-
 BankManager.prototype.LocalBank = function(bankId) {
     return this.local.banks[bankId - 1] || null;
 };
 
 BankManager.prototype.Rows = function() {
-    var rows = [this.local];
-    var ids = Object.keys(this.peers).sort();
-    for (var index = 0; index < ids.length; index++) {
-        rows.push(this.peers[ids[index]]);
-    }
+    var rows = [this.local].concat(Object.keys(this.peers).map(function(id) {
+        return this.peers[id];
+    }, this));
+    rows.sort(function(left, right) {
+        if (left.trackOrder !== right.trackOrder) {
+            return left.trackOrder - right.trackOrder;
+        }
+        return left.id < right.id ? -1 : (left.id > right.id ? 1 : 0);
+    });
     return rows;
 };
 
 BankManager.prototype.BankStartX = function(width) {
     var options = BankManagerVisualOptions;
-    return options.padding;
+    return Math.max(
+        options.padding,
+        width - options.linkPanelWidth - this.BankColumnWidth(width) - options.columnGap - options.padding
+    );
 };
 
-BankManager.prototype.DrawSquare = function(instance, bank, x, y, local, interactive) {
+BankManager.prototype.BankColumnWidth = function(width) {
     var options = BankManagerVisualOptions;
-    var colors = BankManagerColors;
-    var selected = interactive && this.linkSelection[this.SelectionKey(instance.id, "bank:" + bank.id)] !== undefined;
-    var joinSelected = interactive && local && this.joinSelection[bank.id] !== undefined;
-    var isActive = interactive && local && bank.id === this.local.selectedBankId;
-    var activeLinkId = this.ActiveLinkId(this.local);
-    var isActiveLinkMember = Boolean(activeLinkId && bank.linkId === activeLinkId);
-    var systemOccupied = bank.id === 0 && bank.occupied;
-    var isInactive = !interactive || !bank.occupied;
-    var bankColor = bank.id === 0 ? colors.systemBank : colors.inactiveBank;
-    if (interactive && bank.occupied) bankColor = colors.bankDefault;
-    if (interactive && bank.linkId) {
-        bankColor = colors.linkColors[Math.abs(this.Hash(bank.linkId)) % colors.linkColors.length];
-    }
-    if (selected) bankColor = colors.linkSelection;
-    else if (joinSelected) bankColor = colors.joinSelection;
-    var textColor = interactive ? bankColor : colors.disabledText;
-    var isFilled = isActive || isActiveLinkMember || selected || joinSelected || systemOccupied;
-
-    if (isFilled) {
-        mgraphics.set_source_rgba(bankColor);
-        mgraphics.rectangle(x, y, options.squareSize, options.squareSize);
-        mgraphics.fill();
-        textColor = colors.background;
-    }
-    var inactiveColor = bank.id === 0 ? colors.systemBank : colors.inactiveBank;
-    mgraphics.set_source_rgba(isInactive && !selected && !joinSelected ? inactiveColor : bankColor);
-    mgraphics.set_line_width(options.bankLineWidth);
-    mgraphics.rectangle(x + 0.5, y + 0.5, options.squareSize - 1, options.squareSize - 1);
-    mgraphics.stroke();
-
-    mgraphics.set_source_rgba(textColor);
-    mgraphics.set_font_size(options.bankFontSize);
-    var label = String(bank.id);
-    var width = mgraphics.text_measure(label)[0];
-    mgraphics.move_to(x + (options.squareSize - width) * 0.5, y + options.squareSize * 0.67);
-    mgraphics.show_text(label);
+    return Math.min(
+        options.bankColumnWidth,
+        Math.max(1, width - options.padding * 2 - options.linkPanelWidth - options.columnGap)
+    );
 };
 
 BankManager.prototype.Hash = function(value) {
@@ -1248,148 +1042,324 @@ BankManager.prototype.Hash = function(value) {
     return hash;
 };
 
-BankManager.prototype.ActionY = function() {
-    var options = BankManagerVisualOptions;
-    return Math.max(options.padding, mgraphics.size[1] - options.actionHeight - options.padding);
-};
-
 BankManager.prototype.ContentHeight = function() {
-    return Math.max(0, this.ActionY() - BankManagerVisualOptions.padding);
+    return Math.max(0, mgraphics.size[1] - BankManagerVisualOptions.padding * 2);
 };
 
 BankManager.prototype.MaximumScrollOffset = function() {
-    return Math.max(0, this.Rows().length * BankManagerVisualOptions.rowHeight - this.ContentHeight());
+    this.viewModel.listView.SetItems(this.Rows());
+    return this.viewModel.listView.MaximumScrollOffset(
+        this.ContentHeight(), BankManagerVisualOptions.rowHeight);
 };
 
 BankManager.prototype.Scroll = function(delta) {
     var step = Number(delta);
     if (!isFinite(step) || step === 0) return;
-    this.scrollOffset = Math.max(0, Math.min(this.MaximumScrollOffset(),
-        this.scrollOffset - step * BankManagerVisualOptions.rowHeight));
+    this.viewModel.listView.SetItems(this.Rows());
+    this.viewModel.listView.Scroll(
+        step,
+        BankManagerVisualOptions.rowHeight,
+        this.ContentHeight()
+    );
     mgraphics.redraw();
 };
 
+BankManager.prototype.EditableLinkIds = function() {
+    var ids = [];
+    for (var index = 1; index <= BankManagerVisualOptions.linkGroupCount; ++index) {
+        ids.push("group." + String(index));
+    }
+    return ids;
+};
+
+BankManager.prototype.LinkColor = function(linkId) {
+    return BankManagerColors.linkColors[
+        Math.abs(this.Hash(String(linkId))) % BankManagerColors.linkColors.length
+    ];
+};
+
+BankManager.prototype.LinkPanelRect = function(width, height) {
+    var options = BankManagerVisualOptions;
+    return {
+        x: Math.max(0, width - options.linkPanelWidth),
+        y: options.padding + options.linkEditHeight + options.clearAllHeight + options.linkPanelGap * 2,
+        width: options.linkPanelWidth,
+        height: Math.max(1, height - options.padding * 2
+            - options.linkEditHeight - options.clearAllHeight - options.linkPanelGap * 2)
+    };
+};
+
+BankManager.prototype.ClearAllRect = function(width) {
+    var options = BankManagerVisualOptions;
+    return {
+        x: Math.max(0, width - options.linkPanelWidth),
+        y: options.padding + options.linkEditHeight + options.linkPanelGap,
+        width: options.linkPanelWidth,
+        height: options.clearAllHeight
+    };
+};
+
+BankManager.prototype.LinkEditRect = function(width) {
+    var options = BankManagerVisualOptions;
+    return {
+        x: Math.max(0, width - options.linkPanelWidth),
+        y: options.padding,
+        width: options.linkPanelWidth,
+        height: options.linkEditHeight
+    };
+};
+
+BankManager.prototype.IsPointInRect = function(x, y, rect) {
+    return x >= rect.x && x <= rect.x + rect.width &&
+        y >= rect.y && y <= rect.y + rect.height;
+};
+
+BankManager.prototype.ToggleLinkEditing = function() {
+    if (!this.CanChangeFocusedBankLink()) return;
+    this.linkEditingEnabled = !this.linkEditingEnabled;
+    mgraphics.redraw();
+};
+
+BankManager.prototype.ClearAllEqBanks = function() {
+    if (!this.instanceId) return;
+    if (!this.clearAllConfirmationArmed) {
+        this.clearAllConfirmationArmed = true;
+        this.clearAllConfirmationTask.cancel();
+        this.clearAllConfirmationTask.schedule(
+            BankManagerVisualOptions.clearAllConfirmTimeoutMs);
+        mgraphics.redraw();
+        return;
+    }
+    this.clearAllConfirmationTask.cancel();
+    this.clearAllConfirmationArmed = false;
+    outlet(1, "bank.reset_all", this.instanceId);
+    mgraphics.redraw();
+};
+
+BankManager.prototype.ClearAllConfirmationExpired = function() {
+    this.clearAllConfirmationArmed = false;
+    mgraphics.redraw();
+};
+
+BankManager.prototype.LinkGroupIndexAt = function(x, y, width, height) {
+    var layout = new ButtonGroupLayout();
+    return layout.IndexAt(
+        this.LinkPanelRect(width, height),
+        this.EditableLinkIds().length + 1,
+        x,
+        y,
+        BankManagerButtonGroupOptions.links
+    );
+};
+
+BankManager.prototype.FocusedLinkId = function() {
+    var bank = this.FocusedBank();
+    return bank ? bank.linkId : "";
+};
+
+BankManager.prototype.ActiveEditableLinkId = function() {
+    var linkId = this.FocusedLinkId();
+    return this.EditableLinkIds().indexOf(linkId) >= 0 ? linkId : "";
+};
+
+BankManager.prototype.CanChangeFocusedBankLink = function() {
+    var bank = this.FocusedBank();
+    return Boolean(bank && bank.id >= 2 && bank.id <= 5);
+};
+
+BankManager.prototype.CanAssignFocusedBankToLink = function(linkId) {
+    var instance = this.FocusedInstance();
+    var bank = this.FocusedBank();
+    var nextLinkId = this.NormalizeLinkId(linkId);
+    if (!instance || !bank || !this.CanChangeFocusedBankLink()) return false;
+    if (!nextLinkId) return Boolean(bank.linkId);
+    if (this.EditableLinkIds().indexOf(nextLinkId) < 0 || bank.linkId === nextLinkId) {
+        return false;
+    }
+    for (var index = 0; index < instance.banks.length; ++index) {
+        var candidate = instance.banks[index];
+        if (candidate.id !== bank.id && candidate.linkId === nextLinkId) return false;
+    }
+    return true;
+};
+
+BankManager.prototype.IsActiveGroupMember = function(bank) {
+    var linkId = this.FocusedLinkId();
+    return Boolean(linkId && bank && bank.linkId === linkId);
+};
+
+BankManager.prototype.CanEditBankInActiveGroup = function(instance, bank) {
+    var linkId = this.ActiveEditableLinkId();
+    if (!linkId || !instance || !bank || bank.id < 2 || bank.id > 5) return false;
+    if (bank.linkId === linkId) return true;
+    if (bank.linkId) return false;
+    for (var index = 0; index < instance.banks.length; ++index) {
+        if (instance.banks[index].id !== bank.id &&
+            instance.banks[index].linkId === linkId) return false;
+    }
+    return true;
+};
+
+BankManager.prototype.SetFocusedBankLink = function(linkId) {
+    var instance = this.FocusedInstance();
+    var bank = this.FocusedBank();
+    var nextLinkId = this.NormalizeLinkId(linkId);
+    if (!this.linkEditingEnabled || !instance || !bank ||
+        !this.CanAssignFocusedBankToLink(nextLinkId)) return;
+    if (instance.id === this.instanceId) {
+        this.SendHostCommand("eq.set_link", [bank.id, nextLinkId || "-"]);
+    } else if (nextLinkId) {
+        outlet(1, "link.assign", nextLinkId, instance.id, bank.id);
+    } else {
+        outlet(1, "link.detach", bank.linkId, instance.id, bank.id);
+    }
+};
+
+BankManager.prototype.ToggleBankInActiveGroup = function(instance, bank) {
+    var linkId = this.ActiveEditableLinkId();
+    if (!this.linkEditingEnabled || !linkId ||
+        !this.CanEditBankInActiveGroup(instance, bank)) return;
+    if (bank.linkId === linkId) {
+        outlet(1, "link.detach", linkId, instance.id, bank.id);
+    } else {
+        outlet(1, "link.assign", linkId, instance.id, bank.id);
+    }
+};
+
+BankManager.prototype.ApplyLinkAssignment = function(values) {
+    if (values.length !== 3) return;
+    var linkId = String(values[0]);
+    var instanceId = String(values[1]);
+    var bankId = Number(values[2]);
+    if (instanceId !== this.instanceId || this.EditableLinkIds().indexOf(linkId) < 0 ||
+        bankId < 2 || bankId > 5) return;
+    this.SendHostCommand("eq.set_link", [bankId, linkId]);
+};
+
+BankManager.prototype.ApplyLinkDetachment = function(values) {
+    if (values.length !== 3) return;
+    var linkId = String(values[0]);
+    var instanceId = String(values[1]);
+    var bankId = Number(values[2]);
+    if (instanceId !== this.instanceId || bankId < 2 || bankId > 5) return;
+    var bank = this.LocalBank(bankId);
+    if (bank && bank.linkId === linkId) this.SendHostCommand("eq.set_link", [bankId, "-"]);
+};
+
+BankManager.prototype.ExecuteOperation = function(action, bypass) {
+    var activeBank = this.ActiveBank(this.local);
+    if (!activeBank) return;
+    var linkId = activeBank.linkId;
+    if (linkId) {
+        outlet(1, "link.operation", linkId, this.instanceId,
+            this.NextLinkRevision(linkId), action, bypass === undefined ? -1 : bypass);
+        return;
+    }
+    this.ApplyOperation(action, activeBank.id, bypass);
+};
+
+BankManager.prototype.ApplyOperation = function(action, bankId, bypass) {
+    if (action === "join") {
+        this.SendHostCommand("eq.join_banks", [1, bankId]);
+    } else if (action === "commit") {
+        this.SendHostCommand("eq.commit_all", []);
+    } else if (action === "reset") {
+        this.SendHostCommand("eq.reset", [bankId]);
+    } else if (action === "bypass") {
+        this.SendHostCommand("eq.set_chain_bypass", [Number(bypass) !== 0 ? 1 : 0]);
+    }
+};
+
+BankManager.prototype.ApplyLinkOperation = function(values) {
+    if (values.length !== 5) return;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var revision = Number(values[2]);
+    var action = String(values[3]);
+    var bypass = Number(values[4]);
+    if (!isFinite(revision) || !this.AcceptIncomingLinkRevision(linkId, sourceId, revision)) return;
+    var bank = this.FindLocalLinkedBank(linkId);
+    if (bank) this.ApplyOperation(action, bank.id, bypass);
+};
+
 BankManager.prototype.Paint = function() {
-    var width = mgraphics.size[0];
-    var height = mgraphics.size[1];
-    var options = BankManagerVisualOptions;
-    var colors = BankManagerColors;
-    mgraphics.set_source_rgba(colors.background);
-    mgraphics.rectangle(0, 0, width, height);
-    mgraphics.fill();
-    mgraphics.select_font_face("Ableton Sans", "normal", "normal");
-    var rows = this.Rows();
-    var actionY = this.ActionY();
-    this.scrollOffset = Math.min(this.scrollOffset, this.MaximumScrollOffset());
-    var y = options.padding - this.scrollOffset;
-    for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-        if (y + options.rowHeight <= options.padding) {
-            y += options.rowHeight;
-            continue;
-        }
-        if (y >= actionY) break;
-        var instance = rows[rowIndex];
-        mgraphics.set_source_rgba(rowIndex === 0 ? colors.bankDefault : colors.instanceText);
-        mgraphics.select_font_face("Ableton Sans", "normal",
-            rowIndex === 0 ? options.currentLabelWeight : options.labelWeight);
-        mgraphics.set_font_size(options.labelFontSize);
-        mgraphics.move_to(options.padding, y + 13);
-        var bankStartX = this.BankStartX(width);
-        mgraphics.show_text(this.FitText(instance.label, width - options.padding * 2));
-        mgraphics.select_font_face("Ableton Sans", "normal", options.bankFontWeight);
-        var squareY = y + 23;
-        var displayedBanks = [instance.systemBank].concat(instance.banks);
-        for (var bankIndex = 0; bankIndex < displayedBanks.length; bankIndex++) {
-            var x = bankStartX + bankIndex * (options.squareSize + options.squareGap);
-            var interactive = displayedBanks[bankIndex].id !== 0;
-            this.DrawSquare(instance, displayedBanks[bankIndex], x, squareY, rowIndex === 0, interactive);
-        }
-        mgraphics.set_source_rgba(rowIndex === 0 ? colors.currentSeparator : colors.separator);
-        mgraphics.rectangle(options.padding, y + options.rowHeight - options.separatorWidth,
-            width - options.padding * 2, options.separatorWidth);
-        mgraphics.fill();
-        y += options.rowHeight;
-    }
-    this.DrawActions(width, actionY);
-};
-
-BankManager.prototype.DrawActions = function(width, y) {
-    var options = BankManagerVisualOptions;
-    var colors = BankManagerColors;
-    var labels = ["JOIN", "COMMIT", "LINK", "UNLINK"];
-    var actions = ["join", "commit", "link", "unlink"];
-    var states = this.ActionStates();
-    var buttonWidth = (width - BankManagerVisualOptions.padding * 2 - 3 * options.actionGap) / labels.length;
-    for (var index = 0; index < labels.length; index++) {
-        var x = BankManagerVisualOptions.padding + index * (buttonWidth + options.actionGap);
-        var enabled = states[actions[index]];
-        mgraphics.set_source_rgba(enabled ? colors.actionFill : colors.disabledFill);
-        mgraphics.rectangle(x, y, buttonWidth, BankManagerVisualOptions.actionHeight);
-        mgraphics.fill();
-        mgraphics.set_source_rgba(enabled ? colors.actionBorder : colors.disabledText);
-        mgraphics.set_line_width(1);
-        mgraphics.rectangle(x + .5, y + .5, buttonWidth - 1, BankManagerVisualOptions.actionHeight - 1);
-        mgraphics.stroke();
-        mgraphics.set_source_rgba(enabled ? colors.actionText : colors.disabledText);
-        mgraphics.set_font_size(BankManagerVisualOptions.actionFontSize);
-        var labelWidth = mgraphics.text_measure(labels[index])[0];
-        mgraphics.move_to(x + (buttonWidth - labelWidth) * .5, y + 14);
-        mgraphics.show_text(labels[index]);
-    }
-};
-
-BankManager.prototype.FitText = function(value, maximumWidth) {
-    var text = String(value);
-    while (text.length > 1 && mgraphics.text_measure(text)[0] > maximumWidth) text = text.substring(0, text.length - 1);
-    return text === value ? text : text.substring(0, Math.max(1, text.length - 3)) + "...";
+    this.renderer.Paint(this, mgraphics.size[0], mgraphics.size[1]);
 };
 
 BankManager.prototype.Click = function(x, y, ctrl, cmd, shift) {
     var options = BankManagerVisualOptions;
+    if (this.IsPointInRect(x, y, this.LinkEditRect(mgraphics.size[0]))) {
+        this.ToggleLinkEditing();
+        return;
+    }
+    if (this.IsPointInRect(x, y, this.ClearAllRect(mgraphics.size[0]))) {
+        this.ClearAllEqBanks();
+        return;
+    }
+    var groupIndex = this.LinkGroupIndexAt(x, y, mgraphics.size[0], mgraphics.size[1]);
+    if (groupIndex >= 0) {
+        this.SetFocusedBankLink(
+            groupIndex === 0 ? "" : this.EditableLinkIds()[groupIndex - 1]);
+        return;
+    }
     var rows = this.Rows();
-    var actionY = this.ActionY();
-    var rowIndex = Math.floor((y - options.padding + this.scrollOffset) / options.rowHeight);
-    if (y >= options.padding && y < actionY && rowIndex >= 0 && rowIndex < rows.length) {
-        var bankOffset = x - this.BankStartX(mgraphics.size[0]);
-        var bankIndex = Math.floor(bankOffset / (options.squareSize + options.squareGap));
+    var contentHeight = this.ContentHeight();
+    var rowIndex = Math.floor((y - options.padding + this.viewModel.listView.scrollOffset) / options.rowHeight);
+    if (y >= options.padding && y < contentHeight + options.padding && rowIndex >= 0 && rowIndex < rows.length) {
+        var instance = rows[rowIndex];
+        if (x < this.BankStartX(mgraphics.size[0])) {
+            this.SetFocusedBank(instance, instance.selectedBankId);
+            mgraphics.redraw();
+            return;
+        }
         var displayedBanks = [rows[rowIndex].systemBank].concat(rows[rowIndex].banks);
+        var squareY = Math.floor(options.padding + rowIndex * options.rowHeight
+            - this.viewModel.listView.scrollOffset
+            + (options.rowHeight - options.squareSize) * 0.5);
+        var bankIndex = bankGroupLayout.IndexAt(
+            {
+                x: this.BankStartX(mgraphics.size[0]),
+                y: squareY,
+                width: this.BankColumnWidth(mgraphics.size[0]),
+                height: options.squareSize
+            },
+            displayedBanks.length,
+            x,
+            y,
+            BankManagerButtonGroupOptions.banks
+        );
         if (bankIndex >= 0 && bankIndex < displayedBanks.length) {
-            var instance = rows[rowIndex];
             var bank = displayedBanks[bankIndex];
             if (bank.id === 0) return;
-            if (ctrl || cmd) {
-                if (!bank.linkId) {
-                    this.ToggleLinkSelection(instance.id, bank.id);
-                }
-            } else if (shift && rowIndex === 0) {
-                this.ToggleJoinSelection(bank.id);
-            } else if (rowIndex === 0) {
+            if (instance.id === this.instanceId) {
+                this.SetFocusedBank(instance, bank.id);
                 this.SendHostCommand("eq.select_bank", [bank.id]);
+            } else {
+                if (this.linkEditingEnabled && this.ActiveEditableLinkId()) {
+                    this.ToggleBankInActiveGroup(instance, bank);
+                } else {
+                    this.SetFocusedBank(instance, bank.id);
+                }
             }
             mgraphics.redraw();
             return;
         }
     }
-    if (y < actionY || y > actionY + options.actionHeight) return;
-    var buttonWidth = (mgraphics.size[0] - options.padding * 2 - 3 * options.actionGap) / 4;
-    var actionIndex = Math.floor((x - options.padding) / (buttonWidth + options.actionGap));
-    var actions = ["join", "commit", "link", "unlink"];
-    if (actionIndex >= 0 && actionIndex < actions.length) this.HandleAction(actions[actionIndex]);
 };
 
 var bankManager = new BankManager();
 
 function inletassist(index) {
     assist(index === 0
-        ? "Local input: Host snapshots; eq_parameter_gesture, eq_parameter_absolute_gesture, eq_bypass_gesture, eq_filter_reset_gesture, eq_bank_reset_gesture, processor_parameter_gesture"
-        : "Global bus: bank.*, link.create, link.remove, link.join, link.filter_*, link.bank_reset, link.processor_*, link.state");
+        ? "Local input: Host snapshots; eq_parameter_absolute_gesture, eq_parameter_absolute_preview, processor_parameter_gesture"
+        : "Global bus: bank.query, bank.announce, bank.leave, bank.reset_all, link.assign, link.detach, link.operation, link.filter_*, link.processor_*, link.state");
 }
 
 function outletassist(index) {
     assist([
-        "Host commands: eq.select_bank, eq.join_banks, eq.commit_hidden, eq.set_link, gain.set_parameter, compressor.set_parameter, saturator.set_parameter",
-        "Global bus: bank.*, link.create, link.remove, link.join, link.filter_*, link.bank_reset, link.processor_*, link.state",
-        "Local link UI: link_color, processor_limits, filter_limits, eq_preview, processor_preview"
+        "Host commands: eq.select_bank, eq.join_banks, eq.commit_all, eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter, saturator.set_parameter",
+        "Global bus: bank.query, bank.announce, bank.leave, bank.reset_all, link.assign, link.detach, link.operation, link.filter_*, link.processor_*, link.state",
+        "Local link UI: link_color, processor_limits, eq_preview, filter_limits, processor_preview"
     ][index] || "");
 }
 
@@ -1405,38 +1375,22 @@ function snapshot() {
     if (inlet === 0) {
         var values = ["snapshot"].concat(arrayfromargs(arguments));
         if (String(values[3]) === "eq") bankManager.ParseEqSnapshot(values);
-        else if (String(values[3]) === "definitions") bankManager.ParseDefinitions(values);
-        else if (String(values[3]) === "processor_definitions") bankManager.ParseProcessorDefinitions(values);
         else if (String(values[3]) === "processor") bankManager.ParseProcessorSnapshot(values);
         else if (String(values[3]) === "device") bankManager.ParseDeviceSnapshot(values);
         mgraphics.redraw();
     }
 }
 function event() {}
-function eq_parameter_gesture() {
-    if (inlet === 0) {
-        bankManager.HandleEqParameterGesture(arrayfromargs(arguments));
-    }
-}
 function eq_parameter_absolute_gesture() {
     if (inlet === 0) {
         bankManager.HandleEqAbsoluteParameterGesture(
             arrayfromargs(arguments));
     }
 }
-function eq_bypass_gesture() {
+function eq_parameter_absolute_preview() {
     if (inlet === 0) {
-        bankManager.HandleEqBypassGesture(arrayfromargs(arguments));
-    }
-}
-function eq_filter_reset_gesture() {
-    if (inlet === 0) {
-        bankManager.HandleEqFilterResetGesture(arrayfromargs(arguments));
-    }
-}
-function eq_bank_reset_gesture() {
-    if (inlet === 0) {
-        bankManager.HandleEqBankResetGesture(arrayfromargs(arguments));
+        bankManager.HandleEqAbsoluteParameterPreview(
+            arrayfromargs(arguments));
     }
 }
 function processor_parameter_gesture() {
@@ -1444,28 +1398,29 @@ function processor_parameter_gesture() {
         bankManager.HandleProcessorParameterGesture(arrayfromargs(arguments));
     }
 }
+function bank_action(action, value) {
+    if (inlet !== 0) return;
+    var name = String(action);
+    if (name !== "join" && name !== "commit" && name !== "reset" && name !== "bypass") return;
+    bankManager.ExecuteOperation(name, value);
+}
 function anything() {
     var values = arrayfromargs(arguments);
     if (inlet === 0 && messagename === "snapshot") {
         var snapshotValues = ["snapshot"].concat(values);
         if (String(snapshotValues[3]) === "eq") bankManager.ParseEqSnapshot(snapshotValues);
-        else if (String(snapshotValues[3]) === "definitions") bankManager.ParseDefinitions(snapshotValues);
-        else if (String(snapshotValues[3]) === "processor_definitions") bankManager.ParseProcessorDefinitions(snapshotValues);
         else if (String(snapshotValues[3]) === "processor") bankManager.ParseProcessorSnapshot(snapshotValues);
         else if (String(snapshotValues[3]) === "device") bankManager.ParseDeviceSnapshot(snapshotValues);
-    } else if (inlet === 0 && messagename === "eq_parameter_gesture") {
-        bankManager.HandleEqParameterGesture(values);
     } else if (inlet === 0 &&
         messagename === "eq_parameter_absolute_gesture") {
         bankManager.HandleEqAbsoluteParameterGesture(values);
-    } else if (inlet === 0 && messagename === "eq_bypass_gesture") {
-        bankManager.HandleEqBypassGesture(values);
-    } else if (inlet === 0 && messagename === "eq_filter_reset_gesture") {
-        bankManager.HandleEqFilterResetGesture(values);
-    } else if (inlet === 0 && messagename === "eq_bank_reset_gesture") {
-        bankManager.HandleEqBankResetGesture(values);
+    } else if (inlet === 0 &&
+        messagename === "eq_parameter_absolute_preview") {
+        bankManager.HandleEqAbsoluteParameterPreview(values);
     } else if (inlet === 0 && messagename === "processor_parameter_gesture") {
         bankManager.HandleProcessorParameterGesture(values);
+    } else if (inlet === 0 && messagename === "bank.action") {
+        bankManager.ExecuteOperation(String(values[0]), values[1]);
     } else if (inlet === 1) {
         bankManager.HandleGlobal(messagename, values);
     }
@@ -1474,8 +1429,6 @@ function list() {
     var values = arrayfromargs(arguments);
     if (inlet === 0 && values.length && String(values[0]) === "snapshot") {
         if (String(values[3]) === "eq") bankManager.ParseEqSnapshot(values);
-        else if (String(values[3]) === "definitions") bankManager.ParseDefinitions(values);
-        else if (String(values[3]) === "processor_definitions") bankManager.ParseProcessorDefinitions(values);
         else if (String(values[3]) === "processor") bankManager.ParseProcessorSnapshot(values);
         else if (String(values[3]) === "device") bankManager.ParseDeviceSnapshot(values);
     }

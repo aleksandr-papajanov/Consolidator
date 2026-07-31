@@ -2,13 +2,8 @@
 
 #include "AtomWriter.h"
 #include "AtomReader.h"
-#include "Definitions/Definitions.h"
 #include "States/States.h"
 #include "Snapshots/Snapshots.h"
-#include "Settings/CompressorOptions.h"
-#include "Settings/DetectorFilterOptions.h"
-#include "Settings/GainOptions.h"
-#include "Settings/SaturatorOptions.h"
 
 #include <cmath>
 #include <array>
@@ -100,9 +95,9 @@ class SnapshotCodec final {
         if (!inputGain || !compressorBypass || !attack || !release ||
             !threshold || !output || !compressorMix ||
             !compressorDetectorListen || *compressorDetectorListen < 0 ||
-            *compressorDetectorListen > 2 || !saturatorBypass ||
+            *compressorDetectorListen > 3 || !saturatorBypass ||
             !saturation || !saturatorOutput || !saturatorDetectorListen ||
-            *saturatorDetectorListen < 0 || *saturatorDetectorListen > 2 ||
+            *saturatorDetectorListen < 0 || *saturatorDetectorListen > 3 ||
             !outputGain || !reader.RequireEnd()) return std::nullopt;
 
         domain::ProcessorState result;
@@ -132,72 +127,6 @@ public:
         writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
             .Write(std::string{ "host" }).Write(std::string{ "device" })
             .Write(static_cast<std::int64_t>(1)).Write(std::move(instanceId));
-        return std::move(writer).Finish();
-    }
-
-    static AtomList EncodeDefinitions(const domain::FilterDefinitionCatalog& definitions) {
-        AtomWriter writer;
-        writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
-            .Write(std::string{ "host" }).Write(std::string{ "definitions" })
-            .Write(static_cast<std::int64_t>(1))
-            .Write(static_cast<std::int64_t>(definitions.size()));
-        for (const auto& [filterId, definition] : definitions) {
-            writer.Write(static_cast<std::int64_t>(filterId))
-                .Write(std::string{ models::FilterTypeName(definition.type) })
-                .Write(definition.defaultBypass)
-                .Write(static_cast<std::int64_t>(definition.parameters.size()));
-            for (const auto& parameter : definition.parameters) {
-                writer.Write(parameter.name)
-                    .Write(parameter.range.minimum)
-                    .Write(parameter.range.maximum)
-                    .Write(static_cast<std::int64_t>(parameter.range.scale))
-                    .Write(parameter.defaultValue);
-            }
-        }
-        return std::move(writer).Finish();
-    }
-
-    static void WriteDetectorDefinitions(AtomWriter& writer) {
-        const auto& definition = settings::DetectorFilterOptions::Definition();
-        for (long filterId = 1; filterId <= 2; ++filterId) {
-            for (const auto& parameter : definition.parameters) {
-                writer.Write(std::string{ "detector." } + std::to_string(filterId) + "." + parameter.name)
-                    .Write(parameter.range.minimum)
-                    .Write(parameter.range.maximum)
-                    .Write(static_cast<std::int64_t>(parameter.range.scale))
-                    .Write(parameter.defaultValue);
-            }
-            writer.Write(std::string{ "detector." } + std::to_string(filterId) + ".bypass")
-                .Write(0.0).Write(1.0)
-                .Write(static_cast<std::int64_t>(0)).Write(0.0);
-        }
-    }
-
-    static AtomList EncodeProcessorDefinitions() {
-        AtomWriter writer;
-        writer.Write(std::string{ "snapshot" }).Write(static_cast<std::int64_t>(1))
-            .Write(std::string{ "host" }).Write(std::string{ "processor_definitions" })
-            .Write(static_cast<std::int64_t>(1))
-            .Write(static_cast<std::int64_t>(4))
-            .Write(std::string{ "input_gain" }).Write(static_cast<std::int64_t>(1))
-            .Write(std::string{ "gain" }).Write(settings::GainOptions::MinimumGainDb).Write(settings::GainOptions::MaximumGainDb).Write(static_cast<std::int64_t>(0)).Write(settings::GainOptions::DefaultGainDb)
-            .Write(std::string{ "compressor" }).Write(static_cast<std::int64_t>(13))
-            .Write(std::string{ "attack" }).Write(settings::CompressorOptions::MinimumAttackMs).Write(settings::CompressorOptions::MaximumAttackMs).Write(static_cast<std::int64_t>(1)).Write(settings::CompressorOptions::DefaultAttackMs)
-            .Write(std::string{ "release" }).Write(settings::CompressorOptions::MinimumReleaseMs).Write(settings::CompressorOptions::MaximumReleaseMs).Write(static_cast<std::int64_t>(1)).Write(settings::CompressorOptions::DefaultReleaseMs)
-            .Write(std::string{ "threshold" }).Write(settings::CompressorOptions::MinimumThresholdDb).Write(settings::CompressorOptions::MaximumThresholdDb).Write(static_cast<std::int64_t>(0)).Write(settings::CompressorOptions::DefaultThresholdDb)
-            .Write(std::string{ "output" }).Write(settings::CompressorOptions::MinimumOutputDb).Write(settings::CompressorOptions::MaximumOutputDb).Write(static_cast<std::int64_t>(0)).Write(settings::CompressorOptions::DefaultOutputDb)
-            .Write(std::string{ "mix" }).Write(settings::CompressorOptions::MinimumMix).Write(settings::CompressorOptions::MaximumMix).Write(static_cast<std::int64_t>(0)).Write(settings::CompressorOptions::DefaultMix)
-            ;
-        WriteDetectorDefinitions(writer);
-        writer
-            .Write(std::string{ "saturator" }).Write(static_cast<std::int64_t>(10))
-            .Write(std::string{ "saturation" }).Write(settings::SaturatorOptions::MinimumSaturation).Write(settings::SaturatorOptions::MaximumSaturation).Write(static_cast<std::int64_t>(0)).Write(settings::SaturatorOptions::DefaultSaturation)
-            .Write(std::string{ "output" }).Write(settings::SaturatorOptions::MinimumOutputDb).Write(settings::SaturatorOptions::MaximumOutputDb).Write(static_cast<std::int64_t>(0)).Write(settings::SaturatorOptions::DefaultOutputDb)
-            ;
-        WriteDetectorDefinitions(writer);
-        writer
-            .Write(std::string{ "output_gain" }).Write(static_cast<std::int64_t>(1))
-            .Write(std::string{ "gain" }).Write(settings::GainOptions::MinimumGainDb).Write(settings::GainOptions::MaximumGainDb).Write(static_cast<std::int64_t>(0)).Write(settings::GainOptions::DefaultGainDb);
         return std::move(writer).Finish();
     }
 

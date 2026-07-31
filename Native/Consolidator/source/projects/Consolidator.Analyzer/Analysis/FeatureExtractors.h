@@ -371,7 +371,10 @@ private:
         if (comparedCount == 0) return 1.0;
         const auto rmsDifference = std::sqrt(
             squaredDifference / static_cast<double>(comparedCount));
-        return std::exp(
-            -rmsDifference / consolidator::settings::AnalysisOptions::SpectralSimilarityScaleDb);
+        const auto spectrumRange =
+            consolidator::settings::SpectrumOptions::MaximumSpectrumDb -
+            consolidator::settings::SpectrumOptions::MinimumSpectrumDb;
+        if (spectrumRange <= 0.0) return 0.0;
+        return std::exp(-rmsDifference / spectrumRange);
     }
 };

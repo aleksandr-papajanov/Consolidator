@@ -18,8 +18,8 @@ public:
             { 4, { 4, FilterType::Peak, { { "gain", { -15, 15, ParameterScale::Linear }, 0 }, { "freq", { 100, 8000, ParameterScale::Logarithmic }, 1000 }, { "q", { .2, 1, ParameterScale::Logarithmic }, 1 } }, false } },
             { 5, { 5, FilterType::Peak, { { "gain", { -15, 15, ParameterScale::Linear }, 0 }, { "freq", { 40, 18000, ParameterScale::Logarithmic }, 3000 }, { "q", { .2, 1, ParameterScale::Logarithmic }, 1 } }, false } },
             { 6, { 6, FilterType::Peak, { { "gain", { -15, 15, ParameterScale::Linear }, 0 }, { "freq", { 40, 18000, ParameterScale::Logarithmic }, 500 }, { "q", { 1, 7, ParameterScale::Logarithmic }, 3 } }, false, models::FilterScope::Eq } },
-            { 7, { 7, FilterType::Peak, { { "gain", { -24, 24, ParameterScale::Linear }, 0 }, { "frequency", { 20, 20000, ParameterScale::Logarithmic }, 1000 }, { "q", { .2, 8, ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Detector } },
-            { 8, { 8, FilterType::Peak, { { "gain", { -24, 24, ParameterScale::Linear }, 0 }, { "frequency", { 20, 20000, ParameterScale::Logarithmic }, 1000 }, { "q", { .2, 8, ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Detector } },
+            { 7, { 7, FilterType::Peak, { { "gain", { -24, 24, ParameterScale::Linear }, 0 }, { "frequency", { 20, 20000, ParameterScale::Logarithmic }, 200 }, { "q", { .2, 8, ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Detector } },
+            { 8, { 8, FilterType::Peak, { { "gain", { -24, 24, ParameterScale::Linear }, 0 }, { "frequency", { 20, 20000, ParameterScale::Logarithmic }, 4000 }, { "q", { .2, 8, ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Detector } },
             { 9, { 9, FilterType::Gain, { { "gain", { -15, 15, ParameterScale::Linear }, 0 } }, false, models::FilterScope::Eq } }
         };
         return definitions;

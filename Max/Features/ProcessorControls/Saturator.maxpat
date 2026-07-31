@@ -10,95 +10,53 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 519.0, 124.0, 600.0, 780.0 ],
+		"rect" : [ 679.0, 131.0, 600.0, 780.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 10.0, 10.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
 					"border" : 0,
-					"filename" : "consolidator.processorcontrols.detectorcurve.js",
+					"filename" : "./consolidator.processorcontrols.detectorcurve.js",
 					"id" : "saturator-detector-curve",
 					"maxclass" : "jsui",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 0.0, 0.0, 90.0, 50.0 ],
+					"patching_rect" : [ 0.0, 90.0, 110.0, 60.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 90.0, 50.0 ],
+					"presentation_rect" : [ 0.0, 90.0, 110.0, 60.0 ],
 					"varname" : "saturator.detectorCurve"
 				}
 
 			}
 , 			{
 				"box" : 				{
+					"id" : "saturator-detector-curve-command",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 0.0, 175.0, 120.0, 22.0 ],
+					"text" : "prepend saturator"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"border" : 0,
-					"embedstate" : [ [ "tertiaryIndicator", 0 ], [ "tertiaryValue", 0 ], [ "valueCount", 2 ], [ "enabled", 1 ], [ "primaryIndicator", 0.43551350983974 ], [ "secondaryValue", 0.5 ], [ "primaryValue", 0.5 ], [ "secondaryIndicator", -0.031877848458844 ] ],
-					"filename" : "DialControl.js",
+					"embedstate" : [ [ "primaryIndicator", 0 ], [ "autoMatchEnabled", 1 ], [ "primaryValue", 0 ], [ "secondaryIndicator", 0 ], [ "tertiaryValue", 0.02 ], [ "tertiaryIndicator", 0 ], [ "activityEnabled", 1 ], [ "valueCount", 3 ], [ "listenEnabled", 0 ], [ "secondaryValue", 0.5 ], [ "enabled", 1 ] ],
+					"filename" : "../../Shared/Interface/Dial/DialControl.js",
 					"id" : "obj-8",
 					"maxclass" : "jsui",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 140.0, 50.0, 70.0, 60.0 ],
+					"patching_rect" : [ 20.0, 20.0, 70.0, 60.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 140.0, 50.0, 70.0, 60.0 ],
+					"presentation_rect" : [ 20.0, 20.0, 70.0, 60.0 ],
 					"varname" : "saturator.saturationOutput"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"border" : 0,
-					"embedstate" : [ [ "tertiaryIndicator", 0 ], [ "tertiaryValue", 0.342302673496236 ], [ "valueCount", 3 ], [ "enabled", 1 ], [ "primaryIndicator", 0 ], [ "secondaryValue", 0.566323334778673 ], [ "primaryValue", 0.5 ], [ "secondaryIndicator", 0 ] ],
-					"filename" : "DialControl.js",
-					"id" : "obj-9",
-					"maxclass" : "jsui",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"parameter_enable" : 0,
-					"patching_rect" : [ 70.0, 120.0, 60.0, 50.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 70.0, 120.0, 60.0, 50.0 ],
-					"varname" : "saturator.detector.2"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"border" : 0,
-					"embedstate" : [ [ "buttonModes", "toggle", "momentary", "toggle" ], [ "layout", "horizontal" ], [ "allowEmptySelection", 1 ], [ "enabled", 1 ], [ "count", 3 ], [ "loadingIndex", 0 ], [ "selectionMode", "custom" ], [ "labels", "B", "R", "L" ] ],
-					"filename" : "ButtonGroupControl.js",
-					"id" : "obj-11",
-					"maxclass" : "jsui",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"parameter_enable" : 0,
-					"patching_rect" : [ 0.0, 50.0, 90.0, 30.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 50.0, 90.0, 30.0 ],
-					"varname" : "saturator.control"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"border" : 0,
-					"embedstate" : [ [ "tertiaryIndicator", 0 ], [ "tertiaryValue", 0.342302673496236 ], [ "valueCount", 3 ], [ "enabled", 1 ], [ "primaryIndicator", 0 ], [ "secondaryValue", 0.566323334778673 ], [ "primaryValue", 0.5 ], [ "secondaryIndicator", 0 ] ],
-					"filename" : "DialControl.js",
-					"id" : "obj-13",
-					"maxclass" : "jsui",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"parameter_enable" : 0,
-					"patching_rect" : [ 0.0, 120.0, 60.0, 50.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 120.0, 60.0, 50.0 ],
-					"varname" : "saturator.detector.1"
 				}
 
 			}
@@ -111,11 +69,11 @@
 					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 240.0, 380.0, 297.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "consolidator.processorcontrols.controller.js",
+						"filename" : "Controllers/consolidator.saturator.controller.js",
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "js consolidator.processorcontrols.controller.js saturator"
+					"text" : "js Controllers/consolidator.saturator.controller.js"
 				}
 
 			}
@@ -168,49 +126,13 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "saturator-prefix-control",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 0.0, 290.0, 150.0, 22.0 ],
-					"text" : "prepend saturator control"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "saturator-prefix-input-output",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 0.0, 250.0, 180.0, 22.0 ],
+					"patching_rect" : [ 0.0, 250.0, 197.0, 22.0 ],
 					"text" : "prepend saturator saturation-output"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "saturator-prefix-detector-1",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 30.0, 260.0, 180.0, 22.0 ],
-					"text" : "prepend saturator detector 1"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "saturator-prefix-detector-2",
-					"maxclass" : "newobj",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 160.0, 140.0, 180.0, 22.0 ],
-					"text" : "prepend saturator detector 2"
 				}
 
 			}
@@ -246,7 +168,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 480.0, 300.0, 170.0, 22.0 ],
-					"text" : "r ---link.control.state"
+					"text" : "r ---link.control.processor"
 				}
 
 			}
@@ -261,51 +183,11 @@
 				}
 
 			}
-, 			{
-				"box" : 				{
-					"id" : "saturator-definitions-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 480.0, 330.0, 145.0, 22.0 ],
-					"text" : "r ---state.definitions"
-				}
-
-			}
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
-					"destination" : [ "saturator-prefix-control", 0 ],
-					"source" : [ "obj-11", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-controller", 0 ],
-					"source" : [ "saturator-processor-limits", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-prefix-detector-1", 0 ],
-					"source" : [ "obj-13", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "saturator-prefix-input-output", 0 ],
 					"source" : [ "obj-8", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-prefix-detector-2", 0 ],
-					"source" : [ "obj-9", 0 ]
 				}
 
 			}
@@ -325,6 +207,13 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "saturator-gesture-send", 0 ],
+					"source" : [ "saturator-controller", 3 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "saturator-print", 0 ],
 					"source" : [ "saturator-controller", 2 ]
 				}
@@ -339,22 +228,15 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "saturator-controller", 0 ],
-					"source" : [ "saturator-prefix-control", 0 ]
+					"destination" : [ "saturator-detector-curve-command", 0 ],
+					"source" : [ "saturator-detector-curve", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "saturator-controller", 0 ],
-					"source" : [ "saturator-prefix-detector-1", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-controller", 0 ],
-					"source" : [ "saturator-prefix-detector-2", 0 ]
+					"source" : [ "saturator-detector-curve-command", 0 ]
 				}
 
 			}
@@ -362,6 +244,13 @@
 				"patchline" : 				{
 					"destination" : [ "saturator-controller", 0 ],
 					"source" : [ "saturator-prefix-input-output", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "saturator-controller", 0 ],
+					"source" : [ "saturator-processor-limits", 0 ]
 				}
 
 			}
@@ -376,20 +265,6 @@
 				"patchline" : 				{
 					"destination" : [ "saturator-controller", 2 ],
 					"source" : [ "saturator-telemetry", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-gesture-send", 0 ],
-					"source" : [ "saturator-controller", 3 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "saturator-controller", 1 ],
-					"source" : [ "saturator-definitions-receive", 0 ]
 				}
 
 			}

@@ -27,11 +27,15 @@ public:
     UpdateResult SetChainBypass(const domain::SetEqChainBypassCommand& command);
     UpdateResult SetChainSolo(const domain::SetEqChainSoloCommand& command);
     UpdateResult ResetChain(const domain::ResetEqChainCommand& command);
+    UpdateResult ResetAll(const domain::ResetAllEqBanksCommand& command);
     UpdateResult JoinBanks(const domain::JoinEqBanksCommand& command);
     UpdateResult SetBankLink(const domain::SetEqBankLinkCommand& command);
     UpdateResult SelectBank(const domain::SelectEqBankCommand& command);
     UpdateResult ApplyFitResult(const domain::CompleteFitCommand& command);
     UpdateResult ApplyCommitHiddenResult(const domain::CompleteFitCommand& command);
+    UpdateResult ApplyCommitAllResult(
+        const domain::CompleteFitCommand& command,
+        domain::StoreRevision expectedRevision);
 
     UpdateResult Replace(domain::EqState state, domain::StoreRevision revision);
 

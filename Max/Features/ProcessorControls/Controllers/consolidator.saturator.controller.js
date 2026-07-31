@@ -1,0 +1,54 @@
+autowatch = 1;
+inlets = 3;
+outlets = 4;
+
+include("../JS/ProcessorControllerBase.js");
+
+var controller = new ProcessorControllerBase("saturator");
+
+function inletassist(index) {
+    assist([
+        "Local saturator saturation-output <ring 1..3> <0..1>|active <0|1>|autoMatch <0|1>, detector_absolute, detector_listen <filterId> <0|1>; gain, limits, link color and processor preview commands",
+        "Host EQ and processor snapshots",
+        "target_level <absoluteDb>, processor_telemetry <9 values>"
+    ][index] || "");
+}
+
+function outletassist(index) {
+    assist([
+        "Host commands: eq.*, gain.set_parameter, saturator.*",
+        "UI: Dial set|active|activityEnabled|autoMatchEnabled|limits|displayRange|visualization|ringColor; processor preview",
+        "Diagnostics: error <code>",
+        "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue>"
+    ][index] || "");
+}
+
+setinletassist(-1, inletassist);
+setoutletassist(-1, outletassist);
+
+function filter() { if (inlet === 0) controller.HandleLocal(["filter"].concat(arrayfromargs(arguments))); }
+function input_gain() { if (inlet === 0) controller.HandleLocal(["input_gain"].concat(arrayfromargs(arguments))); }
+function saturator() { if (inlet === 0) controller.HandleLocal(["saturator"].concat(arrayfromargs(arguments))); }
+function output_gain() { if (inlet === 0) controller.HandleLocal(["output_gain"].concat(arrayfromargs(arguments))); }
+function snapshot() { if (inlet === 1) controller.HandleSnapshot(["snapshot"].concat(arrayfromargs(arguments))); }
+function event() {}
+function status() {}
+function target_level(value) { if (inlet === 2) controller.HandleTargetLevel(value); }
+function processor_telemetry() { if (inlet === 2) controller.HandleProcessorTelemetry(arrayfromargs(arguments)); }
+function processor_limits(device, parameter, minimum, maximum) {
+    if (inlet === 0) controller.HandleProcessorLimits(String(device), String(parameter), Number(minimum), Number(maximum));
+}
+function link_color(linkId, red, green, blue, alpha) {
+    if (inlet === 0) controller.HandleLinkColor(String(linkId), Number(red), Number(green), Number(blue), Number(alpha));
+}
+function processor_preview(device, parameter, absoluteValue) {
+    if (inlet === 0) controller.HandleProcessorPreview(String(device), String(parameter), Number(absoluteValue));
+}
+function list() {
+    var values = arrayfromargs(arguments);
+    if (inlet === 1 && values.length && String(values[0]) === "snapshot") controller.HandleSnapshot(values);
+}
+
+function loadbang() {
+    controller.Initialize();
+}

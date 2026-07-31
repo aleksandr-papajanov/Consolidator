@@ -211,7 +211,7 @@ foundation, не меняя работающий Max runtime.
 ## 2.5. `EqStore`
 
 - [ ] Инициализировать state из typed definitions/defaults.
-- [ ] Реализовать set parameter, reset filter, bank add/remove/rename/select.
+- [ ] Реализовать set parameter, bank add/remove/rename/select.
 - [ ] Реализовать batch apply для fit result одной транзакцией.
 - [ ] Валидировать IDs и clamp values через definitions.
 - [ ] Сохранять one-based IDs и ascending storage order.
@@ -342,7 +342,7 @@ Dictionary envelopes на Host/atoms. После этапа старого runti
 - [ ] Удалить `consolidator.filter.js`, если после перехода он остается только
   forwarding endpoint.
 - [ ] Controller преобразует normalized UI gestures в typed
-  `eq.set_parameter`/`eq.reset_filter` commands.
+  `eq.set_parameter` commands.
 - [ ] Definitions/ranges/defaults получать от Host; JSON читать только для
   layout/colors/scripting names.
 - [ ] Controls обновлять только confirmed Host update/snapshot.

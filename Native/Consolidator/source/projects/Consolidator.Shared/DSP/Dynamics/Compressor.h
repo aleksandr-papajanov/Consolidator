@@ -61,7 +61,9 @@ public:
         UpdateEnvelope(std::abs(detectorInput));
         lastGainReductionDb = CalculateGainReductionDb(threshold);
 
-        const auto wetInput = detectorListen > 0 ? detectorInput : compressorInput;
+        const auto wetInput = detectorListen != 0
+            ? ProcessListeningDetector(compressorInput)
+            : compressorInput;
         const auto compressed = wetInput * helpers::NumericHelper::DecibelsToMagnitude(lastGainReductionDb);
         return Mix(input, compressed * outputGain, wet);
     }
@@ -90,6 +92,15 @@ private:
     double ProcessDetector(double input) {
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
             if (detectorActive[index]) input = detectorFilters[index].ProcessSample(input);
+        }
+        return input;
+    }
+
+    double ProcessListeningDetector(double input) {
+        for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
+            if ((detectorListen & (1L << index)) != 0 && detectorActive[index]) {
+                input = detectorFilters[index].ProcessSample(input);
+            }
         }
         return input;
     }

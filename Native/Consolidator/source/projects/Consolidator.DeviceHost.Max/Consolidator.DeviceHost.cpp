@@ -36,7 +36,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.reset_filter, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes definitions, EQ, and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.reset_all, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.commit_all, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes EQ and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
@@ -45,7 +45,7 @@ public:
 
     outlet<> eventOut{
         this,
-        "(anything) events/snapshots: event 1 host <eventId> <name> <fields>; snapshot 1 host eq ...; snapshot 1 host definitions ..."
+        "(anything) events/snapshots: event 1 host <eventId> <name> <fields>; snapshot 1 host eq ..."
     };
     outlet<> statusOut{
         this,
@@ -134,7 +134,6 @@ public:
                 debugOut.send("error", "host_not_ready");
                 return {};
             }
-            PublishDefinitions();
             PublishAllSnapshots();
             return {};
         }
@@ -209,7 +208,7 @@ private:
         )) {
             return true;
         }
-        debugOut.send("error", "persistence_defaults_failed");
+        debugOut.send("error", "persistence_defaults_failed", host.LastRestoreError());
         return false;
     }
 
@@ -233,7 +232,9 @@ private:
         restorePending = false;
         auto state = std::move(completion->result->state);
         if (!host.Restore(std::move(state.eq), state.processor, 0, state.instanceId)) {
-            debugOut.send("error", "persistence_defaults_failed");
+            if (!EnsureInitializedState()) {
+                debugOut.send("error", "persistence_defaults_failed", host.LastRestoreError());
+            }
             if (persistenceReadyRequested) FinalizeInitialization();
             return;
         }
@@ -344,7 +345,6 @@ private:
                 [this](const messaging::AtomList& atoms) {
                     eventOut.send(maxadapter::AtomAdapter::Write(atoms));
                 });
-            PublishDefinitions();
         }
     }
 
@@ -380,13 +380,6 @@ private:
                 host.InputGain().State(), host.Compressor().State(),
                 host.Saturator().State(), host.OutputGain().State()
             }, host.Revision())));
-    }
-
-    void PublishDefinitions() {
-        eventOut.send(maxadapter::AtomAdapter::Write(
-            messaging::SnapshotCodec::EncodeDefinitions(domain::FilterDefinitions())));
-        eventOut.send(maxadapter::AtomAdapter::Write(
-            messaging::SnapshotCodec::EncodeProcessorDefinitions()));
     }
 
     void PublishPersistence() {

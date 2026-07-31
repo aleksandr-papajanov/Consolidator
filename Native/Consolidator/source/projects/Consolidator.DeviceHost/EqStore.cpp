@@ -6,6 +6,7 @@
 #include <limits>
 #include <optional>
 #include <set>
+#include <string>
 #include <utility>
 
 namespace consolidator::host {
@@ -17,6 +18,19 @@ std::optional<long> ToId(std::int64_t value) {
         return std::nullopt;
     }
     return static_cast<long>(value);
+}
+
+bool IsEditableLinkId(const std::string& value) {
+    if (value.size() < 7 || value.size() > 8 || value.compare(0, 6, "group.") != 0) {
+        return false;
+    }
+    const auto suffix = value.substr(6);
+    if (suffix.empty() || !std::all_of(suffix.begin(), suffix.end(),
+        [](char character) { return character >= '0' && character <= '9'; })) {
+        return false;
+    }
+    const auto groupId = std::stol(suffix);
+    return groupId >= 1 && groupId <= 10;
 }
 
 } // namespace
@@ -37,6 +51,9 @@ models::EqBank EqStore::CreateDefaultBank(long bankId) const {
     models::EqBank bank;
     bank.bankId = bankId;
     if (bankId == models::EqSnapshot::SystemBankId) return bank;
+    if (bankId == models::EqSnapshot::GlobalBankId) {
+        bank.linkId = models::EqSnapshot::GlobalLinkId;
+    }
     for (const auto& [filterId, definition] : definitions) {
         bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
     }
@@ -139,6 +156,18 @@ UpdateResult EqStore::ResetChain(const domain::ResetEqChainCommand& command) {
     return Commit(command.requestId);
 }
 
+UpdateResult EqStore::ResetAll(const domain::ResetAllEqBanksCommand& command) {
+    bool changed = false;
+    for (auto& bank : state.banks) {
+        const auto defaults = CreateDefaultBank(bank.bankId);
+        if (bank.filters == defaults.filters) continue;
+        bank.filters = defaults.filters;
+        changed = true;
+    }
+    if (!changed) return { UpdateStatus::Unchanged, {} };
+    return Commit(command.requestId);
+}
+
 UpdateResult EqStore::SelectBank(const domain::SelectEqBankCommand& command) {
     const auto bankId = ToId(command.bankId.value);
     if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
@@ -183,9 +212,20 @@ UpdateResult EqStore::JoinBanks(const domain::JoinEqBanksCommand& command) {
 
 UpdateResult EqStore::SetBankLink(const domain::SetEqBankLinkCommand& command) {
     const auto bankId = ToId(command.bankId.value);
-    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId)) return Reject("invalid_user_bank");
+    if (!bankId || *bankId < models::EqSnapshot::FirstLinkableBankId ||
+        *bankId > models::EqSnapshot::LastLinkableBankId ||
+        (!command.linkId.empty() && !IsEditableLinkId(command.linkId))) {
+        return Reject("invalid_linkable_bank");
+    }
     auto* bank = state.FindBank(*bankId);
     if (!bank) return Reject("invalid_user_bank");
+    if (!command.linkId.empty()) {
+        for (const auto& candidate : state.banks) {
+            if (candidate.bankId != *bankId && candidate.linkId == command.linkId) {
+                return Reject("duplicate_local_link_member");
+            }
+        }
+    }
     if (bank->linkId == command.linkId) return { UpdateStatus::Unchanged, {} };
     bank->linkId = command.linkId;
     return Commit(command.requestId);
@@ -212,14 +252,43 @@ UpdateResult EqStore::ApplyCommitHiddenResult(const domain::CompleteFitCommand& 
     const auto bankId = ToId(command.result.bankId.value);
     auto* systemBank = state.FindBank(models::EqSnapshot::SystemBankId);
     auto* targetBank = bankId ? state.FindBank(*bankId) : nullptr;
-    if (!bankId || !models::EqSnapshot::IsUserBankId(*bankId) || !systemBank || !targetBank ||
+    if (!bankId || *bankId != models::EqSnapshot::IndividualBankId || !systemBank || !targetBank ||
         systemBank->filters.empty() || !IsUserBankEmpty(*bankId)) {
         return Reject("invalid_commit_hidden");
     }
-    auto nextFilters = targetBank->filters;
     if (!ApplyFitFilters(*targetBank, command.result)) return Reject("invalid_fit_result");
-    if (targetBank->filters == nextFilters) return { UpdateStatus::Unchanged, {} };
     systemBank->filters.clear();
+    return Commit(command.requestId);
+}
+
+UpdateResult EqStore::ApplyCommitAllResult(
+    const domain::CompleteFitCommand& command,
+    domain::StoreRevision expectedRevision
+) {
+    if (revision != expectedRevision) return Reject("stale_commit_state");
+    const auto bankId = ToId(command.result.bankId.value);
+    if (!bankId || *bankId != models::EqSnapshot::IndividualBankId) {
+        return Reject("invalid_commit_all");
+    }
+
+    auto nextState = state;
+    auto* targetBank = nextState.FindBank(*bankId);
+    auto* systemBank = nextState.FindBank(models::EqSnapshot::SystemBankId);
+    if (!targetBank || !systemBank || !ApplyFitFilters(*targetBank, command.result)) {
+        return Reject("invalid_fit_result");
+    }
+
+    for (long userBankId = models::EqSnapshot::FirstUserBankId;
+         userBankId <= models::EqSnapshot::LastUserBankId;
+         ++userBankId) {
+        auto* bank = nextState.FindBank(userBankId);
+        if (!bank) return Reject("invalid_commit_all");
+        if (userBankId == *bankId) continue;
+        bank->filters = CreateDefaultBank(userBankId).filters;
+    }
+    systemBank->filters.clear();
+
+    state = std::move(nextState);
     return Commit(command.requestId);
 }
 
@@ -256,6 +325,11 @@ UpdateResult EqStore::Replace(domain::EqState nextState, domain::StoreRevision n
         auto* bank = nextState.FindBank(bankId);
         if (!bank || bank->bankId != bankId ||
             (bankId == models::EqSnapshot::SystemBankId && !bank->linkId.empty()) ||
+            (bankId == models::EqSnapshot::IndividualBankId && !bank->linkId.empty()) ||
+            (bankId == models::EqSnapshot::GlobalBankId && bank->linkId != models::EqSnapshot::GlobalLinkId) ||
+            (bankId >= models::EqSnapshot::FirstLinkableBankId &&
+                bankId <= models::EqSnapshot::LastLinkableBankId &&
+                !bank->linkId.empty() && !IsEditableLinkId(bank->linkId)) ||
             (models::EqSnapshot::IsUserBankId(bankId) && bank->filters.size() != definitions.size())) {
             return Reject("invalid_persisted_eq_state");
         }

@@ -6,11 +6,7 @@ mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-include("JS/AnalyzerView/AnalyzerViewConfig.js");
-include("JS/AnalyzerView/AnalyzerViewState.js");
-include("JS/AnalyzerView/AnalyzerViewGeometry.js");
-include("JS/AnalyzerView/AnalyzerViewRenderer.js");
-include("JS/AnalyzerView/AnalyzerViewController.js");
+include("../../Shared/Interface/Analyzer/AnalyzerViewController.js");
 
 var analyzerViewController = new AnalyzerViewController();
 
@@ -21,11 +17,16 @@ function feature_vector() { analyzerViewController.SetFeatureVector(arrayfromarg
 function filter_curve() { analyzerViewController.SetFilterCurve(arrayfromargs(arguments)); }
 function curve_settings() { analyzerViewController.SetCurveSettings(arrayfromargs(arguments)); }
 function fit_curve() { analyzerViewController.SetCurve("fitCurve", arrayfromargs(arguments)); }
-function clear_spectrum() { analyzerViewController.ClearSpectrum(); }
+function clear_spectrum() {
+    if (inlet === 0) analyzerViewController.ClearCurrentCurve();
+    else if (inlet === 1) analyzerViewController.ClearReferenceCurve();
+    else analyzerViewController.ClearSpectrum();
+}
 function clear_fit_curve() { analyzerViewController.ClearFitCurve(); }
 function clear_analysis() { analyzerViewController.ClearAnalysis(); }
 function mode(value) { analyzerViewController.SetMode(String(value)); }
 function onclick() { analyzerViewController.OnClick.apply(analyzerViewController, arguments); }
+function ondblclick() { analyzerViewController.OnDoubleClick.apply(analyzerViewController, arguments); }
 function ondrag() { analyzerViewController.OnDrag.apply(analyzerViewController, arguments); }
 function onmouseup() { analyzerViewController.OnMouseUp(); }
 
@@ -34,16 +35,18 @@ function inletassist(index) {
         "Current spectrum in dB",
         "Reference spectrum in dB",
         "fit_curve <dB...>",
-        "filter_curve <id> <active> <freq> <gain> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> <curve...>; curve_settings ...",
+        "filter_curve <id> <active> <freq> <gain> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> [<curve...>]; curve_settings ...",
         "Total EQ response in dB",
         "feature_vector <windowCount> <historySeconds> <metrics...>",
-        "snapshot 1 host eq ...; mode spectrum|analysis"
+        "snapshot 1 host eq ...; mode spectrum|analysis; curve_settings <minimumHz> <maximumHz> <pointCount> <minimumSpectrumDb> <maximumSpectrumDb>; UI range|B|R|JOIN|COMMIT|MATCH EQ|CLEAR"
     ];
     assist(descriptions[index] || "");
 }
 
 function outletassist(index) {
-    assist(index === 0 ? "command 1 spectrum <requestId> eq.set_parameter ..." : "");
+    assist(index === 0
+        ? "command 1 spectrum <requestId> eq.set_parameter|eq.set_bypass|eq.reset_filter; bank.action <join|commit|reset|bypass>"
+        : "");
 }
 
 setinletassist(-1, inletassist);

@@ -153,16 +153,25 @@ public:
                 std::size_t index,
                 double input,
                 double output,
-                const dsp::DspDeviceTelemetry& deviceTelemetry
+                const dsp::DspDeviceTelemetry& deviceTelemetry,
+                bool bypassed
             ) {
-                if (index == runtime.inputGainIndex) telemetry.ObserveInputGain(input, output);
-                else if (index == runtime.saturatorIndex) telemetry.ObserveSaturator(input, output);
+                if (index == runtime.inputGainIndex) {
+                    telemetry.ObserveInputGain(input, output);
+                }
+                else if (index == runtime.saturatorIndex) {
+                    if (bypassed) telemetry.ResetSaturator();
+                    else telemetry.ObserveSaturator(input, output);
+                }
                 else if (index == runtime.compressorIndex) {
-                    telemetry.ObserveCompressor(output, deviceTelemetry.gainReductionDb);
+                    if (bypassed) telemetry.ResetCompressor();
+                    else telemetry.ObserveCompressor(output, deviceTelemetry.gainReductionDb);
                     if (channel == 0) eqInput.left = output;
                     else eqInput.right = output;
                 }
-                else if (index == runtime.outputGainIndex) telemetry.ObserveOutputGain(input, output);
+                else if (index == runtime.outputGainIndex) {
+                    telemetry.ObserveOutputGain(input, output);
+                }
             };
             return runtime.chain.ProcessSampleObservedStereo({ left, right }, observer);
         });
@@ -287,7 +296,7 @@ private:
     }
 
     void DeliverTopology() {
-        const auto completion = topologyExecutor.TakeCompletion();
+        auto completion = topologyExecutor.TakeCompletion();
         if (!completion || completion->error || !completion->result ||
             !completion->result->runtime) {
             if (completion && completion->error) debugOut.send("error", "dsp_topology_failed");

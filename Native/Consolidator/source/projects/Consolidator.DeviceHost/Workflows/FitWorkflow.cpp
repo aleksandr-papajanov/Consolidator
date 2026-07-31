@@ -6,19 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
+#include <vector>
 
 namespace consolidator::host {
 
 FitWorkflow::FitWorkflow(
     EqStore& eqStore,
-    GainStore& inputGainStore,
-    CompressorStore& compressorStore,
-    SaturatorStore& saturatorStore,
-    GainStore& outputGainStore,
     EventHandler eventHandler
-) : eqStore(eqStore), inputGainStore(inputGainStore), compressorStore(compressorStore),
-    saturatorStore(saturatorStore), outputGainStore(outputGainStore),
-    eventHandler(std::move(eventHandler)) {}
+) : eqStore(eqStore), eventHandler(std::move(eventHandler)) {}
 
 void FitWorkflow::Handle(const domain::StartFitCommand& command) {
     if (state.status == domain::ApproximatorState::Status::Processing) {
@@ -33,9 +28,11 @@ void FitWorkflow::Handle(const domain::StartFitCommand& command) {
     ++state.sessionId.value;
     activeBankId = { eqStore.State().selectedBankId };
     commitHidden = false;
+    commitAll = false;
+    commitSourceRevision = 0;
     activeMode = domain::FitMode::Eq;
     Publish(domain::FitRequestedEvent{
-        state.sessionId, activeBankId, command.curveDb
+        state.sessionId, activeBankId, domain::FitTargetKind::Residual, command.curveDb
     });
 }
 
@@ -67,8 +64,45 @@ void FitWorkflow::Handle(const domain::CommitHiddenEqBankCommand& command) {
     ++state.sessionId.value;
     activeBankId = command.bankId;
     commitHidden = true;
+    commitAll = false;
+    commitSourceRevision = eqStore.Revision();
     activeMode = domain::FitMode::Eq;
-    Publish(domain::FitRequestedEvent{ state.sessionId, activeBankId, hiddenCurve.Values() });
+    Publish(domain::FitRequestedEvent{
+        state.sessionId, activeBankId, domain::FitTargetKind::Absolute, hiddenCurve.Values()
+    });
+}
+
+void FitWorkflow::Handle(const domain::CommitAllEqBanksCommand& command) {
+    if (state.status == domain::ApproximatorState::Status::Processing) {
+        Reject(command.requestId, "fit_in_progress");
+        return;
+    }
+
+    auto sourceState = eqStore.State();
+    sourceState.solo = false;
+    consolidator::dsp::EqRuntime runtime;
+    runtime.SetSnapshot(std::move(sourceState));
+    const auto fullCurve = runtime.BuildAllBanksCurve(
+        consolidator::settings::AudioOptions::DefaultSampleRateHz);
+    if (fullCurve.Values().empty() || std::all_of(fullCurve.Values().begin(), fullCurve.Values().end(),
+        [](double value) { return std::abs(value) < 1.0e-12; })) {
+        Reject(command.requestId, "empty_eq_chain");
+        return;
+    }
+
+    state.status = domain::ApproximatorState::Status::Processing;
+    state.progress = 0.0;
+    state.loss = 0.0;
+    state.error.clear();
+    ++state.sessionId.value;
+    activeBankId = { models::EqSnapshot::IndividualBankId };
+    commitHidden = false;
+    commitAll = true;
+    commitSourceRevision = eqStore.Revision();
+    activeMode = domain::FitMode::Eq;
+    Publish(domain::FitRequestedEvent{
+        state.sessionId, activeBankId, domain::FitTargetKind::Absolute, fullCurve.Values()
+    });
 }
 
 void FitWorkflow::Handle(const domain::CancelFitCommand& command) {
@@ -82,6 +116,8 @@ void FitWorkflow::Handle(const domain::CancelFitCommand& command) {
     state.status = domain::ApproximatorState::Status::Idle;
     activeBankId = {};
     commitHidden = false;
+    commitAll = false;
+    commitSourceRevision = 0;
     Publish(domain::OperationChangedEvent{
         operation, command.sessionId, domain::OperationStatus::Cancelled, 0.0, {}
     });
@@ -95,6 +131,8 @@ void FitWorkflow::Handle(const domain::ClearFitCommand&) {
     state.error.clear();
     activeBankId = {};
     commitHidden = false;
+    commitAll = false;
+    commitSourceRevision = 0;
     Publish(domain::OperationChangedEvent{
         operation, state.sessionId, domain::OperationStatus::Idle, 0.0, {}
     });
@@ -107,51 +145,30 @@ void FitWorkflow::Handle(const domain::CompleteFitCommand& command) {
         Reject(command.requestId, "stale_fit_result");
         return;
     }
-    auto fitCommand = command;
-    fitCommand.result.processor.compressor.outputDb = compressorStore.State().outputDb;
-    fitCommand.result.processor.compressor.mix = compressorStore.State().mix;
-    fitCommand.result.processor.compressor.detectorFilters = compressorStore.State().detectorFilters;
-    fitCommand.result.processor.saturator.detectorFilters = saturatorStore.State().detectorFilters;
-    if (!std::isfinite(fitCommand.result.loss)) {
+    if (!std::isfinite(command.result.loss)) {
         Fail(command.requestId, "invalid_fit_result", true);
         return;
     }
-    if (!inputGainStore.CanApplyFit(fitCommand.result.processor.inputGain) ||
-        !compressorStore.CanApplyFit(fitCommand.result.processor.compressor) ||
-        !saturatorStore.CanApplyFit(fitCommand.result.processor.saturator) ||
-        !outputGainStore.CanApplyFit(fitCommand.result.processor.outputGain)) {
-        Fail(command.requestId, "invalid_fit_processor_state", true);
-        return;
-    }
 
-    const auto result = commitHidden
-        ? eqStore.ApplyCommitHiddenResult(fitCommand)
-        : eqStore.ApplyFitResult(fitCommand);
+    const auto result = commitAll
+        ? eqStore.ApplyCommitAllResult(command, commitSourceRevision)
+        : commitHidden
+            ? eqStore.ApplyCommitHiddenResult(command)
+            : eqStore.ApplyFitResult(command);
     if (!result.Accepted()) {
         Fail(command.requestId, result.error, true);
-        return;
-    }
-    const auto inputGainResult = inputGainStore.ApplyFit(
-        fitCommand.result.processor.inputGain, command.requestId);
-    const auto compressorResult = compressorStore.ApplyFit(
-        fitCommand.result.processor.compressor, command.requestId);
-    const auto saturatorResult = saturatorStore.ApplyFit(
-        fitCommand.result.processor.saturator, command.requestId);
-    const auto outputGainResult = outputGainStore.ApplyFit(
-        fitCommand.result.processor.outputGain, command.requestId);
-    if (!inputGainResult.Accepted() || !compressorResult.Accepted() ||
-        !saturatorResult.Accepted() || !outputGainResult.Accepted()) {
-        Fail(command.requestId, "invalid_fit_processor_state", true);
         return;
     }
 
     const auto operation = domain::FitOperationName(activeMode);
     state.status = domain::ApproximatorState::Status::Completed;
     state.progress = 1.0;
-    state.loss = fitCommand.result.loss;
+    state.loss = command.result.loss;
     state.error.clear();
     activeBankId = {};
     commitHidden = false;
+    commitAll = false;
+    commitSourceRevision = 0;
     Publish(domain::OperationChangedEvent{
         operation, state.sessionId, domain::OperationStatus::Completed, 1.0, {}
     });
@@ -185,6 +202,8 @@ void FitWorkflow::Fail(
     state.error = error;
     activeBankId = {};
     commitHidden = false;
+    commitAll = false;
+    commitSourceRevision = 0;
     if (rejectCommand) Reject(requestId, error);
     Publish(domain::OperationChangedEvent{
         operation, state.sessionId, domain::OperationStatus::Failed, state.progress, error

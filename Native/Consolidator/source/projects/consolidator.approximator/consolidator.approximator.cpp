@@ -38,6 +38,7 @@ private:
         dsp::Curve target;
         domain::DspSnapshot snapshot;
         std::map<long, models::FilterDefinition> definitions;
+        domain::FitTargetKind targetKind = domain::FitTargetKind::Residual;
         long sessionId = 0;
         long bankId = 0;
     };
@@ -49,7 +50,7 @@ public:
 
     inlet<> commands{
         this,
-        "(message) snapshot 1 host eq|processor <revision> <state>; event 1 host <eventId> fit.requested <sessionId> <bankId> <pointCount> <curve...>"
+        "(message) snapshot 1 host eq|processor <revision> <state>; event 1 host <eventId> fit.requested <sessionId> <bankId> <residual|absolute> <pointCount> <curve...>"
     };
     outlet<> commandsOut{
         this,
@@ -224,7 +225,7 @@ private:
         debugOut.send("fit_started", sessionId, bankId);
 
         fitExecutor.Submit(latestRevision, {
-            std::move(target), std::move(snapshot), definitions, sessionId, bankId
+            std::move(target), std::move(snapshot), definitions, request.targetKind, sessionId, bankId
         });
     }
 
@@ -273,7 +274,7 @@ private:
             return result;
         }
         try {
-            const auto fit = eqWorkflow.Run(task.target, task.snapshot, task.definitions);
+            const auto fit = eqWorkflow.Run(task.target, task.snapshot, task.definitions, task.targetKind);
             result.cancelled = cancellation.IsRequested();
             if (!result.cancelled) {
                 result.snapshot = fit.snapshot;

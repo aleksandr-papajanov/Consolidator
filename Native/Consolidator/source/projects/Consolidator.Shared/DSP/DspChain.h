@@ -29,7 +29,7 @@ public:
 
     double ProcessSample(double input) override {
         return ProcessSampleObserved(input,
-            [](std::size_t, double, double, const DspDeviceTelemetry&) {});
+            [](std::size_t, double, double, const DspDeviceTelemetry&, bool) {});
     }
 
     template <typename Observer>
@@ -39,12 +39,12 @@ public:
             const auto deviceInput = input;
             const auto bypass = slot->bypass.Next();
             if (bypass.value >= 1.0 && !bypass.changed) {
-                observer(index++, deviceInput, input, {});
+                observer(index++, deviceInput, input, {}, true);
                 continue;
             }
             const auto processed = slot->device->ProcessSample(input);
             input = processed + (input - processed) * bypass.value;
-            observer(index++, deviceInput, input, slot->device->Telemetry());
+            observer(index++, deviceInput, input, slot->device->Telemetry(), false);
         }
         return input;
     }

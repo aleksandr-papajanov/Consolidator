@@ -50,6 +50,15 @@ public:
         return snapshotError;
     }
 
+    const consolidator::models::EqSnapshot& Snapshot() const {
+        return eqRuntime.Snapshot();
+    }
+
+    const consolidator::models::FilterDefinition* Definition(long filterId) const {
+        const auto definition = eqRuntime.Definitions().find(filterId);
+        return definition == eqRuntime.Definitions().end() ? nullptr : &definition->second;
+    }
+
     void PublishSelected(c74::min::outlet<>& outlet) const {
         const auto& snapshot = eqRuntime.Snapshot();
         const auto selected = snapshot.SelectedBank();

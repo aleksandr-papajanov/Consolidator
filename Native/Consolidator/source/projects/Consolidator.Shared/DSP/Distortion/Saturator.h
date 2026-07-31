@@ -42,12 +42,12 @@ public:
 
     double ProcessSample(double input) override {
         const auto detectorInput = ProcessDetector(input);
-        const auto wetInput = detectorListen > 0 ? detectorInput : input;
         const auto amount = helpers::NumericHelper::Clamp(saturation.Next().value, 0.0, 1.0);
         const auto drive = helpers::NumericHelper::DecibelsToMagnitude(
             amount * settings::SaturatorOptions::MaximumDriveDb);
-        const auto shaped = std::tanh(wetInput * drive) / std::tanh(drive);
-        const auto processed = (wetInput + amount * (shaped - wetInput)) * outputGain.Next().value;
+        const auto shaped = std::tanh(detectorInput * drive) / std::tanh(drive);
+        const auto nonlinearDelta = amount * (shaped - detectorInput);
+        const auto processed = (input + nonlinearDelta) * outputGain.Next().value;
         return processed;
     }
 
@@ -74,7 +74,9 @@ public:
 private:
     double ProcessDetector(double input) {
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
-            if (detectorActive[index]) input = detectorFilters[index].ProcessSample(input);
+            if (detectorActive[index]) {
+                input = detectorFilters[index].ProcessSample(input);
+            }
         }
         return input;
     }
