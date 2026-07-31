@@ -60,7 +60,10 @@ RoutingController.prototype.NormalizeItems = function(values) {
     if (items.length > 0 && String(items[0]) === "list") items.shift();
     if (items.length === 0 || String(items[0]) === "<none>") return [];
     var normalized = [];
-    for (var index = 0; index < items.length; index++) normalized.push(String(items[index]));
+    for (var index = 0; index < items.length; index++) {
+        var item = String(items[index]);
+        if (item) normalized.push(item);
+    }
     return normalized;
 };
 
@@ -79,8 +82,7 @@ RoutingController.prototype.FindSelection = function(state) {
 };
 
 RoutingController.prototype.SendItems = function(name, state) {
-    var items = state.items.length > 0 ? state.items : ["None"];
-    outlet(1, [name + "_items"].concat(items));
+    outlet(1, [name + "_items"].concat(state.items));
     outlet(1, name + "_enabled", state.items.length > 0 ? 1 : 0);
 };
 

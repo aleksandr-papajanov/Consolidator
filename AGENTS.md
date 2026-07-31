@@ -170,15 +170,21 @@ a contract changes.
 - Runtime state, snapshots, persistence, graph edits, and DSP use absolute
   values. Normalized `0..1` values exist only between Max controls and the
   Filter UI controller.
-- Native `FilterOptions` is the source for DSP, persistence, and Host validation.
-  Max uses the explicit mirrored `Max/Shared/Configuration/FilterDefinitions.js`
-  contract and never receives definitions through startup snapshots. All EQ filters belong to one ordered
-  chain; placement is not part of filter state or definitions. Shelf and tilt
-  Q values are fixed DSP settings and are not exposed as filter parameters.
-- `CompressorOptions` and `SaturatorOptions` are the only sources of processor
-  ranges and defaults, including mix and detector-filter state.
-  `GainOptions` owns input/output gain range and default. Compressor ratio and
-  the compressor ratio is fixed in `CompressorOptions`.
+- `Max/Shared/Configuration/FilterDefinitions.js` owns all UI parameter
+  definitions: ranges, scales, and defaults for EQ, gains, compressor, and
+  saturator controls. UI controllers validate and clamp user input before they
+  publish absolute commands. `consolidator.approximator` receives the static EQ
+  definitions directly from its controller through `definitions`; it does not
+  read `FilterTopology` for optimization ranges or defaults.
+  Native stores validate only command shape, known entities, state arity, and
+  finite numeric values. They do not duplicate UI range validation. Native
+  `FilterTopology` remains native DSP topology and bootstrap defaults.
+  All EQ filters belong to one ordered chain; placement is not part of filter
+  state or definitions. Shelf and tilt Q values are fixed DSP settings and are
+  not exposed as filter parameters.
+- `CompressorOptions`, `SaturatorOptions`, and `GainOptions` define DSP-internal
+  defaults and safety behavior; they are not a second UI validation contract.
+  Compressor ratio is fixed in `CompressorOptions`.
 - `Max/Config/ConsolidatorSettings.json` contains presentation-only per-filter
   colors. Runtime parameter definitions and ranges never come from JSON.
 
@@ -306,8 +312,9 @@ and processors use
 `link.processor_delta <linkId> <sourceRuntimeId> <revision> <device> <parameter> <normalizedDelta>`.
 Only the global link transport uses normalized deltas; all Host commands,
 snapshots, stores, and DSP values remain absolute.
-BankManager computes hard control limits from all group members when the active
-link, membership, or selected bank changes. Processor limits go over
+BankManager computes hard control limits from cached values of all group members
+only when the local user selects a bank. Link membership and `link.state` updates
+refresh the cache but never publish limits themselves. Processor limits go over
 `---link.control.processor`; EQ `filter_limits` go over
 `---link.control.analyzer` and are forwarded to SpectrumView through
 `---analyzer.ui`. Limits are never recalculated during a gesture. Remote deltas
@@ -429,7 +436,8 @@ before creating a group, then keep those models current with every accepted rela
 Continuous values travel only through delta messages; `bank.announce` must not
 duplicate the same edit. The gesture path must not rescan group members or
 recompute limits. It validates message shape and publishes the delta once; the
-fixed control limits established when link state changes constrain the gesture.
+fixed control limits established when the local user selected the bank constrain
+the gesture.
 Processor controls and SpectrumView markers enforce those fixed limits during
 the gesture; rollback is not a second transport path. Compressor deltas include attack,
 release, threshold, output, and mix; saturator deltas include saturation and output; gain

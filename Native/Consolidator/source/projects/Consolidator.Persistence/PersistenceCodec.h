@@ -3,7 +3,7 @@
 #include "Messaging/MessagePayload.h"
 #include "Models/EqSnapshot.h"
 #include "Models/ProcessorState.h"
-#include "Settings/FilterOptions.h"
+#include "Settings/FilterTopology.h"
 
 #include <cstdint>
 #include <cstddef>
@@ -37,7 +37,7 @@ public:
                 bank.linkId = models::EqSnapshot::GlobalLinkId;
             }
             if (bankId != models::EqSnapshot::SystemBankId) {
-                for (const auto& [filterId, definition] : settings::FilterOptions::EqDefinitions()) {
+                for (const auto& [filterId, definition] : settings::FilterTopology::EqDefinitions()) {
                     bank.filters.push_back({ filterId, definition.DefaultValues(), definition.defaultBypass });
                 }
             }

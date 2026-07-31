@@ -1,6 +1,4 @@
 #include "GainStore.h"
-#include "Settings/GainOptions.h"
-
 #include <cmath>
 #include <utility>
 
@@ -14,19 +12,13 @@ domain::StoreRevision GainStore::Revision() const noexcept { return revision; }
 
 UpdateResult GainStore::SetParameter(const domain::SetGainParameterCommand& command) {
     if (!std::isfinite(command.gainDb)) return Reject("invalid_gain_value");
-    if (command.gainDb < settings::GainOptions::MinimumGainDb ||
-        command.gainDb > settings::GainOptions::MaximumGainDb) {
-        return Reject("gain_value_out_of_range");
-    }
     if (state.gainDb == command.gainDb) return { UpdateStatus::Unchanged, {} };
     state.gainDb = command.gainDb;
     return Commit(command.requestId);
 }
 
 UpdateResult GainStore::Replace(domain::GainState nextState, domain::StoreRevision nextRevision) {
-    if (!std::isfinite(nextState.gainDb) ||
-        nextState.gainDb < settings::GainOptions::MinimumGainDb ||
-        nextState.gainDb > settings::GainOptions::MaximumGainDb) {
+    if (!std::isfinite(nextState.gainDb)) {
         return Reject("invalid_persisted_gain_state");
     }
     state = nextState;
@@ -35,9 +27,7 @@ UpdateResult GainStore::Replace(domain::GainState nextState, domain::StoreRevisi
 }
 
 bool GainStore::CanApplyFit(const domain::GainState& nextState) const noexcept {
-    return std::isfinite(nextState.gainDb) &&
-        nextState.gainDb >= settings::GainOptions::MinimumGainDb &&
-        nextState.gainDb <= settings::GainOptions::MaximumGainDb;
+    return std::isfinite(nextState.gainDb);
 }
 
 UpdateResult GainStore::ApplyFit(domain::GainState nextState, domain::RequestId requestId) {

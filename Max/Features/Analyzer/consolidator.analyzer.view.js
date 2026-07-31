@@ -35,7 +35,7 @@ function inletassist(index) {
         "Current spectrum in dB",
         "Reference spectrum in dB",
         "fit_curve <dB...>",
-        "filter_curve <id> <active> <freq> <gain> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> [<curve...>]; curve_settings ...",
+        "filter_curve <id> <active> <freq> <gain> <type> <q> [<curve...>]; curve_settings ...",
         "Total EQ response in dB",
         "feature_vector <windowCount> <historySeconds> <metrics...>",
         "snapshot 1 host eq ...; mode spectrum|analysis; curve_settings <minimumHz> <maximumHz> <pointCount> <minimumSpectrumDb> <maximumSpectrumDb>; UI range|B|R|JOIN|COMMIT|MATCH EQ|CLEAR"

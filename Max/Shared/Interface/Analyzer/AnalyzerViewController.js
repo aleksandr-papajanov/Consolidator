@@ -290,11 +290,17 @@ AnalyzerViewController.prototype.SetCurveSettings = function(values) {
 };
 
 AnalyzerViewController.prototype.SetFilterCurve = function(values) {
-    if (values.length < 12) return;
+    if (values.length < 6) return;
     var filterId = Number(values[0]);
     var active = Number(values[1]) !== 0;
-    var curve = values.slice(12).map(Number);
+    var curve = values.slice(6).map(Number);
     if (!isFinite(filterId) || (active && this.state.curveSettings.pointCount > 0 && curve.length !== this.state.curveSettings.pointCount)) return;
+    var definition = FilterDefinitionCatalog.Eq()[filterId];
+    if (!definition) return;
+    var frequencyParameter = String(values[4]) === "tilt" ? "pivot" : "freq";
+    var qLimit = this.DefinitionLimit(definition, "q");
+    var frequencyLimit = this.DefinitionLimit(definition, frequencyParameter);
+    var gainLimit = this.DefinitionLimit(definition, "gain");
     var item = {
         filterId: filterId,
         active: active,
@@ -302,12 +308,12 @@ AnalyzerViewController.prototype.SetFilterCurve = function(values) {
         gain: Number(values[3]),
         type: String(values[4]),
         q: Number(values[5]),
-        qMinimum: Number(values[6]),
-        qMaximum: Number(values[7]),
-        frequencyMinimum: Number(values[8]),
-        frequencyMaximum: Number(values[9]),
-        gainMinimum: Number(values[10]),
-        gainMaximum: Number(values[11])
+        qMinimum: qLimit.minimum,
+        qMaximum: qLimit.maximum,
+        frequencyMinimum: frequencyLimit.minimum,
+        frequencyMaximum: frequencyLimit.maximum,
+        gainMinimum: gainLimit.minimum,
+        gainMaximum: gainLimit.maximum
     };
     this.UpsertHandle(item);
     this.state.filterCurves[String(filterId)] = {
@@ -459,6 +465,16 @@ AnalyzerViewController.prototype.ParameterLimit = function(handle, parameterName
         ] || { minimum: minimum, maximum: maximum };
     }
     return { minimum: minimum, maximum: maximum };
+};
+
+AnalyzerViewController.prototype.DefinitionLimit = function(definition, parameterName) {
+    for (var index = 0; index < definition.parameters.length; ++index) {
+        var parameter = definition.parameters[index];
+        if (parameter.name === parameterName) {
+            return { minimum: Number(parameter.minimum), maximum: Number(parameter.maximum) };
+        }
+    }
+    return { minimum: 0, maximum: 0 };
 };
 
 AnalyzerViewController.prototype.SetFeatureVector = function(values) {

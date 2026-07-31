@@ -2,9 +2,8 @@
 
 #include "Filters/FilterSettings.h"
 #include "../../Models/DetectorFilterState.h"
-#include "../../Settings/DetectorFilterOptions.h"
-#include "../../Helpers/NumericHelper.h"
-
+#include "../../Settings/FilterTopology.h"
+#include <cmath>
 #include <string>
 
 namespace consolidator::dsp {
@@ -15,7 +14,7 @@ public:
         const models::DetectorFilterState& state,
         double sampleRate
     ) {
-        const auto& definition = settings::DetectorFilterOptions::Definition();
+        const auto& definition = settings::FilterTopology::DetectorDefinition(state.filterId);
         return {
             Value(state.frequencyHz, definition, "frequency"),
             Value(state.q, definition, "q"),
@@ -32,12 +31,7 @@ private:
     ) {
         const auto* parameter = definition.FindParameter(name);
         if (!parameter) return 0.0;
-        return helpers::NumericHelper::ClampFinite(
-            value,
-            parameter->range.minimum,
-            parameter->range.maximum,
-            parameter->defaultValue
-        );
+        return std::isfinite(value) ? value : parameter->defaultValue;
     }
 };
 

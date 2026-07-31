@@ -46,7 +46,7 @@ public:
     outlet<> differenceOut{ this, "(anything) difference <dB...>; fit_curve <dB...>; clear_fit_curve" };
     outlet<> filterOut{
         this,
-        "(anything) curve_settings <minimumHz> <maximumHz> <pointCount> <minimumSpectrumDb> <maximumSpectrumDb>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> <qMin> <qMax> <freqMin> <freqMax> <gainMin> <gainMax> [<curve...>]"
+        "(anything) curve_settings <minimumHz> <maximumHz> <pointCount> <minimumSpectrumDb> <maximumSpectrumDb>; filter_curve <filterId> <active> <frequencyHz> <gainDb> <type> <q> [<curve...>]"
     };
     outlet<> totalCurveOut{ this, "(list) summed response curve for all EQ banks in dB" };
     outlet<> statusOut{ this, "(anything) status: status ready|host_ready" };

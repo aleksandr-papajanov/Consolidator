@@ -4,7 +4,7 @@
 #include "../Curve/Curve.h"
 #include "../../Models/EqSnapshot.h"
 #include "../../Models/FilterDefinition.h"
-#include "../../Settings/FilterOptions.h"
+#include "../../Settings/FilterTopology.h"
 #include "EqFilterFactory.h"
 
 #include <map>
@@ -16,7 +16,7 @@ namespace consolidator::dsp {
 
 class EqRuntime final {
 public:
-    EqRuntime() : definitions(settings::FilterOptions::EqDefinitions()) {}
+    EqRuntime() : definitions(settings::FilterTopology::EqDefinitions()) {}
 
     void SetSnapshot(models::EqSnapshot snapshot) {
         this->snapshot = std::move(snapshot);

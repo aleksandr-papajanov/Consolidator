@@ -456,14 +456,22 @@ DialControl.prototype.PaintRing = function(index, width, height) {
     var centerX = width * 0.5;
     var centerY = this.GetCenterY(width, height);
     var radius = this.GetRadius(index, width, height);
-    var angle = DialOptions.startAngle
-        + (DialOptions.endAngle - DialOptions.startAngle) * this.values[index];
+    var sweep = DialOptions.endAngle - DialOptions.startAngle;
+    var limits = this.limits[index];
+    var minimumAngle = DialOptions.startAngle + sweep * limits.minimum;
+    var maximumAngle = DialOptions.startAngle + sweep * limits.maximum;
+    var angle = DialOptions.startAngle + sweep * this.values[index];
 
     mgraphics.set_line_width(this.GetRingLineWidth(index));
     mgraphics.set_line_cap("round");
-    mgraphics.set_source_rgba(InterfaceTheme.colors.track);
+    mgraphics.set_source_rgba(InterfaceTheme.colors.trackLimited);
     mgraphics.new_path();
     mgraphics.arc(centerX, centerY, radius, DialOptions.startAngle, DialOptions.endAngle);
+    mgraphics.stroke();
+
+    mgraphics.set_source_rgba(InterfaceTheme.colors.track);
+    mgraphics.new_path();
+    mgraphics.arc(centerX, centerY, radius, minimumAngle, maximumAngle);
     mgraphics.stroke();
 
     if (this.enabled && this.active) mgraphics.set_source_rgba(this.GetRingValueColor(index));

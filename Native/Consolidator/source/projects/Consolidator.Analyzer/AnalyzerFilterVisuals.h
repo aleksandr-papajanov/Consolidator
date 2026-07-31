@@ -98,19 +98,10 @@ private:
         const double frequency = definition.Value(values, frequencyName,
             consolidator::settings::EqOptions::DefaultFrequencyHz);
         const double gain = definition.Value(values, "gain", 0.0);
-        const auto qParameter = definition.FindParameter("q");
         const double q = definition.Value(values, "q", 0.0);
-        const double qMinimum = qParameter ? qParameter->range.minimum : 0.0;
-        const double qMaximum = qParameter ? qParameter->range.maximum : 0.0;
-        const auto frequencyParameter = definition.FindParameter(frequencyName);
-        const auto gainParameter = definition.FindParameter("gain");
-        const double frequencyMinimum = frequencyParameter ? frequencyParameter->range.minimum : frequency;
-        const double frequencyMaximum = frequencyParameter ? frequencyParameter->range.maximum : frequency;
-        const double gainMinimum = gainParameter ? gainParameter->range.minimum : gain;
-        const double gainMaximum = gainParameter ? gainParameter->range.maximum : gain;
 
         c74::min::atoms output;
-        output.reserve(13 + (active ? curve.Values().size() : 0));
+        output.reserve(7 + (active ? curve.Values().size() : 0));
         output.push_back("filter_curve");
         output.push_back(definition.filterId);
         output.push_back(active ? 1 : 0);
@@ -118,12 +109,6 @@ private:
         output.push_back(gain);
         output.push_back(std::string{ consolidator::models::FilterTypeName(definition.type) });
         output.push_back(q);
-        output.push_back(qMinimum);
-        output.push_back(qMaximum);
-        output.push_back(frequencyMinimum);
-        output.push_back(frequencyMaximum);
-        output.push_back(gainMinimum);
-        output.push_back(gainMaximum);
         if (active) {
             for (const auto value : curve.Values()) output.push_back(value);
         }

@@ -1,12 +1,12 @@
 #include "c74_min.h"
 
 #include "ApproximatorOutputs.h"
+#include "ApproximatorDefinitionCodec.h"
 #include "AtomAdapter.h"
 #include "AtomMessage.h"
 #include "EqMatchWorkflow.h"
 #include "EventCodec.h"
 #include "Settings/AnalysisOptions.h"
-#include "Settings/FilterOptions.h"
 #include "SnapshotCodec.h"
 #include "Workflows/LatestWorkflowExecutor.h"
 
@@ -50,7 +50,7 @@ public:
 
     inlet<> commands{
         this,
-        "(message) snapshot 1 host eq|processor <revision> <state>; event 1 host <eventId> fit.requested <sessionId> <bankId> <residual|absolute> <pointCount> <curve...>"
+        "(message) definitions <count> <id> <type> <bypass> <parameterCount> <name> <min> <max> <logarithmic> <default>...; snapshot 1 host eq|processor <revision> <state>; event 1 host <eventId> fit.requested <sessionId> <bankId> <residual|absolute> <pointCount> <curve...>"
     };
     outlet<> commandsOut{
         this,
@@ -124,6 +124,26 @@ public:
         "loadbang",
         MIN_FUNCTION {
             SetReady(false, true);
+            return {};
+        }
+    };
+
+    message<> definitionsMessage{
+        this,
+        "definitions",
+        "Receive static UI-owned EQ definitions: <count> <id> <type> <bypass> <parameterCount> <name> <min> <max> <logarithmic> <default>...",
+        MIN_FUNCTION {
+            if (inlet != 0) return {};
+            const auto atoms = maxadapter::AtomAdapter::Read(args);
+            const auto decoded = atoms
+                ? approximator::ApproximatorDefinitionCodec::Decode(*atoms)
+                : std::nullopt;
+            if (!decoded) {
+                debugOut.send("error", "invalid_fit_definitions");
+                return {};
+            }
+            definitions = *decoded;
+            UpdateReady();
             return {};
         }
     };
@@ -206,6 +226,10 @@ private:
             SendFailure(static_cast<long>(request.sessionId.value), "fit_snapshot_unavailable");
             return;
         }
+        if (definitions.empty()) {
+            SendFailure(static_cast<long>(request.sessionId.value), "fit_definitions_unavailable");
+            return;
+        }
         if (request.curveDb.size() != settings::AnalysisOptions::DefaultCurvePointCount) {
             SendFailure(static_cast<long>(request.sessionId.value), "invalid_fit_curve");
             return;
@@ -214,7 +238,6 @@ private:
         const auto target = dsp::Curve::FromValues(request.curveDb);
         auto snapshot = *latestSnapshot;
         snapshot.eq.selectedBankId = static_cast<long>(request.bankId.value);
-        const auto definitions = settings::FilterOptions::EqDefinitions();
         const auto sessionId = static_cast<long>(request.sessionId.value);
         const auto bankId = static_cast<long>(request.bankId.value);
 
@@ -298,7 +321,7 @@ private:
     }
 
     void UpdateReady() {
-        SetReady(initialized && latestSnapshot && !running);
+        SetReady(initialized && latestSnapshot && !definitions.empty() && !running);
     }
 
     void SetReady(bool value, bool force = false) {
@@ -311,6 +334,7 @@ private:
     std::optional<domain::DspSnapshot> latestSnapshot;
     std::optional<domain::EqState> latestEq;
     std::optional<domain::ProcessorState> latestProcessor;
+    EqOptimizer::Definitions definitions;
     domain::StoreRevision latestRevision = 0;
     workflows::LatestWorkflowExecutor<FitTask, WorkerResult> fitExecutor;
     long activeSessionId = 0;

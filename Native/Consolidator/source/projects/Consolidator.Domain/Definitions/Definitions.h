@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Models/FilterDefinition.h"
-#include "Settings/FilterOptions.h"
+#include "Settings/FilterTopology.h"
 
 #include <map>
 
@@ -15,7 +15,7 @@ using ParameterScale = models::ParameterScale;
 using FilterDefinitionCatalog = std::map<long, FilterDefinition>;
 
 inline const FilterDefinitionCatalog& FilterDefinitions() {
-    return settings::FilterOptions::EqDefinitions();
+    return settings::FilterTopology::EqDefinitions();
 }
 
 } // namespace consolidator::domain

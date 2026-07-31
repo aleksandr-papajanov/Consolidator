@@ -1,7 +1,8 @@
 autowatch = 1;
 inlets = 2;
-outlets = 3;
+outlets = 4;
 include("../../../Shared/Runtime/ControlControllerBase.js");
+include("../../../Shared/Configuration/FilterDefinitions.js");
 
 function ApproximatorFeatureController() {
     ControlControllerBase.call(this, "approximator.ui", null, this);
@@ -18,6 +19,36 @@ ApproximatorFeatureController.prototype.SendFit = function() {
     this.fitting = true;
     this.UpdateControl();
     this.SendCommand("fit.start", [this.fitCurve.length].concat(this.fitCurve));
+};
+
+ApproximatorFeatureController.prototype.SendDefinitions = function() {
+    var definitions = FilterDefinitionCatalog.Eq();
+    var ids = Object.keys(definitions).map(Number).sort(function(left, right) {
+        return left - right;
+    });
+    var values = [ids.length];
+
+    for (var index = 0; index < ids.length; index++) {
+        var definition = definitions[ids[index]];
+        values.push(
+            definition.id,
+            definition.type,
+            definition.defaultBypass ? 1 : 0,
+            definition.parameters.length
+        );
+        for (var parameterIndex = 0; parameterIndex < definition.parameters.length; parameterIndex++) {
+            var parameter = definition.parameters[parameterIndex];
+            values.push(
+                parameter.name,
+                parameter.minimum,
+                parameter.maximum,
+                parameter.logarithmic ? 1 : 0,
+                parameter.defaultValue
+            );
+        }
+    }
+
+    outlet(3, "definitions", values);
 };
 
 ApproximatorFeatureController.prototype.SetFitCurve = function(values) {
@@ -59,7 +90,8 @@ function outletassist(index) {
     assist([
         "command 1 approximator.ui <id> fit.start <pointCount> <curve...>; analyzer.clear",
         "status <state>",
-        "thispatcher commands for Match EQ"
+        "thispatcher commands for Match EQ",
+        "definitions <count> <id> <type> <bypass> <parameterCount> <name> <min> <max> <logarithmic> <default>..."
     ][index] || "");
 }
 
@@ -82,4 +114,7 @@ function anything() {
 }
 function list() {
     if (inlet === 1) controller.SetFitCurve(arrayfromargs(arguments));
+}
+function loadbang() {
+    controller.SendDefinitions();
 }

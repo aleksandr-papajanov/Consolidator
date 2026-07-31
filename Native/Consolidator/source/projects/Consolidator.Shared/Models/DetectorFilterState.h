@@ -1,16 +1,16 @@
 #pragma once
 
 #include "Models/FilterType.h"
-#include "Settings/DetectorFilterOptions.h"
+#include "Settings/FilterTopology.h"
 
 namespace consolidator::models {
 
 struct DetectorFilterState {
     DetectorFilterState(long id = 1)
         : filterId(id)
-        , gainDb(settings::DetectorFilterOptions::DefaultValue(id, "gain"))
-        , frequencyHz(settings::DetectorFilterOptions::DefaultValue(id, "frequency"))
-        , q(settings::DetectorFilterOptions::DefaultValue(id, "q")) {
+        , gainDb(settings::FilterTopology::DetectorDefaultValue(id, "gain"))
+        , frequencyHz(settings::FilterTopology::DetectorDefaultValue(id, "frequency"))
+        , q(settings::FilterTopology::DetectorDefaultValue(id, "q")) {
     }
 
     long filterId = 1;

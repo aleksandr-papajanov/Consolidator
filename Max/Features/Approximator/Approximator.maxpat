@@ -78,8 +78,8 @@
 					"id" : "controller",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 120.0, 330.0, 320.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"filename" : "Controllers/consolidator.approximator.controller.js",
@@ -303,6 +303,13 @@
 				"patchline" : 				{
 					"destination" : [ "native", 0 ],
 					"source" : [ "processor-state-receive", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "native", 0 ],
+					"source" : [ "controller", 3 ]
 				}
 
 			}

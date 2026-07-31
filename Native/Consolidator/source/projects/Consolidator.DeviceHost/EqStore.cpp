@@ -82,7 +82,6 @@ UpdateResult EqStore::SetParameter(const domain::SetEqParameterCommand& command)
     const auto parameterIndex = definition->ParameterIndex(command.parameter);
     const auto* parameter = definition->FindParameter(command.parameter);
     if (!parameterIndex || !parameter || !std::isfinite(command.value) ||
-        command.value < parameter->range.minimum || command.value > parameter->range.maximum ||
         *parameterIndex >= filter->values.size()) {
         return Reject("invalid_parameter");
     }
@@ -100,9 +99,7 @@ UpdateResult EqStore::SetParameterAtIndex(const domain::SetEqParameterIndexComma
         command.parameterIndex >= filter->values.size()) {
         return Reject("invalid_parameter_index");
     }
-    const auto& parameter = definition->parameters[command.parameterIndex];
-    if (!std::isfinite(command.value) || command.value < parameter.range.minimum ||
-        command.value > parameter.range.maximum) {
+    if (!std::isfinite(command.value)) {
         return Reject("invalid_parameter");
     }
     if (filter->values[command.parameterIndex] == command.value) return { UpdateStatus::Unchanged, {} };
@@ -304,8 +301,7 @@ bool EqStore::ApplyFitFilters(models::EqBank& bank, const domain::FitResult& res
         if (!definition || destination == nextFilters.end() || candidate.values.size() != definition->parameters.size()) return false;
         for (std::size_t index = 0; index < candidate.values.size(); ++index) {
             const auto value = candidate.values[index];
-            const auto& range = definition->parameters[index].range;
-            if (!std::isfinite(value) || value < range.minimum || value > range.maximum) return false;
+            if (!std::isfinite(value)) return false;
         }
         destination->values = candidate.values;
         destination->bypass = candidate.bypass;
@@ -344,8 +340,7 @@ UpdateResult EqStore::Replace(domain::EqState nextState, domain::StoreRevision n
             }
             for (std::size_t index = 0; index < filter.values.size(); ++index) {
                 const auto value = filter.values[index];
-                const auto& range = definition->second.parameters[index].range;
-                if (!std::isfinite(value) || value < range.minimum || value > range.maximum) {
+                if (!std::isfinite(value)) {
                     return Reject("invalid_persisted_eq_state");
                 }
             }

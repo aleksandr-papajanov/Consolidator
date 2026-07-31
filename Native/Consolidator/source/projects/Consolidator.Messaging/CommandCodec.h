@@ -3,10 +3,7 @@
 #include "AtomReader.h"
 #include "AtomWriter.h"
 #include "Commands/Commands.h"
-#include "Settings/CompressorOptions.h"
-#include "Settings/GainOptions.h"
-#include "Settings/SaturatorOptions.h"
-
+#include <cmath>
 #include <optional>
 #include <limits>
 #include <string>
@@ -295,22 +292,10 @@ public:
                 !saturatorBypass || !saturation || !saturatorOutput || !outputGain) {
                 return Invalid("invalid_fit_complete", reader.Index());
             }
-            if (*inputGain < settings::GainOptions::MinimumGainDb ||
-                *inputGain > settings::GainOptions::MaximumGainDb ||
-                *outputGain < settings::GainOptions::MinimumGainDb ||
-                *outputGain > settings::GainOptions::MaximumGainDb ||
-                *attack < settings::CompressorOptions::MinimumAttackMs ||
-                *attack > settings::CompressorOptions::MaximumAttackMs ||
-                *release < settings::CompressorOptions::MinimumReleaseMs ||
-                *release > settings::CompressorOptions::MaximumReleaseMs ||
-                *threshold < settings::CompressorOptions::MinimumThresholdDb ||
-                *threshold > settings::CompressorOptions::MaximumThresholdDb ||
-                *output < settings::CompressorOptions::MinimumOutputDb ||
-                *output > settings::CompressorOptions::MaximumOutputDb ||
-                *saturation < settings::SaturatorOptions::MinimumSaturation ||
-                *saturation > settings::SaturatorOptions::MaximumSaturation ||
-                *saturatorOutput < settings::SaturatorOptions::MinimumOutputDb ||
-                *saturatorOutput > settings::SaturatorOptions::MaximumOutputDb) {
+            if (!std::isfinite(*inputGain) || !std::isfinite(*outputGain) ||
+                !std::isfinite(*attack) || !std::isfinite(*release) ||
+                !std::isfinite(*threshold) || !std::isfinite(*output) ||
+                !std::isfinite(*saturation) || !std::isfinite(*saturatorOutput)) {
                 return Invalid("invalid_fit_complete", reader.Index());
             }
             result.processor.inputGain = { *inputGain };

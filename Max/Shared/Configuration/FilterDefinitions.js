@@ -11,11 +11,11 @@ var FilterDefinitionCatalog = {
             ] },
             3: { id: 3, type: "highshelf", defaultBypass: false, parameters: [
                 { name: "gain", minimum: -15, maximum: 15, logarithmic: false, defaultValue: 0 },
-                { name: "freq", minimum: 800, maximum: 18000, logarithmic: true, defaultValue: 8000 }
+                { name: "freq", minimum: 1000, maximum: 18000, logarithmic: true, defaultValue: 8000 }
             ] },
-            4: FilterDefinitionCatalog.Peak(4, 1000),
-            5: FilterDefinitionCatalog.Peak(5, 3000),
-            6: FilterDefinitionCatalog.Peak(6, 500),
+            4: FilterDefinitionCatalog.Peak(4, 100, 8000, 1000, 0.2, 1, 1),
+            5: FilterDefinitionCatalog.Peak(5, 40, 18000, 3000, 0.2, 1, 1),
+            6: FilterDefinitionCatalog.Peak(6, 40, 18000, 500, 1, 7, 3),
             9: { id: 9, type: "gain", defaultBypass: false, parameters: [
                 { name: "gain", minimum: -15, maximum: 15, logarithmic: false, defaultValue: 0 }
             ] }
@@ -63,11 +63,19 @@ var FilterDefinitionCatalog = {
         };
     },
 
-    Peak: function(id, frequencyDefault) {
+    Peak: function(
+        id,
+        frequencyMinimum,
+        frequencyMaximum,
+        frequencyDefault,
+        qMinimum,
+        qMaximum,
+        qDefault
+    ) {
         return { id: id, type: "peak", defaultBypass: false, parameters: [
             { name: "gain", minimum: -15, maximum: 15, logarithmic: false, defaultValue: 0 },
-            { name: "freq", minimum: 40, maximum: 18000, logarithmic: true, defaultValue: frequencyDefault },
-            { name: "q", minimum: id === 6 ? 1 : 0.2, maximum: id === 6 ? 7 : 1, logarithmic: true, defaultValue: id === 6 ? 3 : 1 }
+            { name: "freq", minimum: frequencyMinimum, maximum: frequencyMaximum, logarithmic: true, defaultValue: frequencyDefault },
+            { name: "q", minimum: qMinimum, maximum: qMaximum, logarithmic: true, defaultValue: qDefault }
         ] };
     },
 

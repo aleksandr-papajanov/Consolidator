@@ -42,7 +42,7 @@ public:
 
     double ProcessSample(double input) override {
         const auto detectorInput = ProcessDetector(input);
-        const auto amount = helpers::NumericHelper::Clamp(saturation.Next().value, 0.0, 1.0);
+        const auto amount = saturation.Next().value;
         const auto drive = helpers::NumericHelper::DecibelsToMagnitude(
             amount * settings::SaturatorOptions::MaximumDriveDb);
         const auto shaped = std::tanh(detectorInput * drive) / std::tanh(drive);
@@ -54,15 +54,8 @@ public:
     void Reset() override {}
 
     void UpdateSettings(const SaturatorSettings& settings) {
-        saturation.SetTarget(helpers::NumericHelper::Clamp(
-            settings.saturation,
-            settings::SaturatorOptions::MinimumSaturation,
-            settings::SaturatorOptions::MaximumSaturation));
-        outputGain.SetTarget(helpers::NumericHelper::DecibelsToMagnitude(
-            helpers::NumericHelper::Clamp(
-                settings.outputDb,
-                settings::SaturatorOptions::MinimumOutputDb,
-                settings::SaturatorOptions::MaximumOutputDb)));
+        saturation.SetTarget(settings.saturation);
+        outputGain.SetTarget(helpers::NumericHelper::DecibelsToMagnitude(settings.outputDb));
         detectorListen = settings.detectorListen;
         for (std::size_t index = 0; index < detectorFilters.size(); ++index) {
             detectorActive[index] = IsDetectorActive(settings.detectorFilters[index]);

@@ -163,9 +163,12 @@ function BankManager() {
     this.LoadDefinitions();
     this.processorLinkGroups = {};
     this.controlLinkSession = "";
+    this.hasCanonicalEqSnapshot = false;
     this.viewModel = new BankManagerViewModel();
     this.renderer = new BankManagerRenderer();
     this.lastAnnouncementState = "";
+    this.trackNameObserver = null;
+    this.trackId = 0;
     this.initializer = new LiveApiInitializer(
         this.TryInitialize, this, 50);
 }
@@ -206,6 +209,7 @@ BankManager.prototype.TryInitialize = function() {
     this.local.id = this.instanceId;
     this.local.label = identity.trackName;
     this.local.trackOrder = identity.trackOrder;
+    this.ObserveTrackName(identity.trackId);
     this.SetFocusedBank(this.local, this.local.selectedBankId);
     outlet(1, "bank.query", this.instanceId);
     this.PublishAnnouncement();
@@ -226,12 +230,30 @@ BankManager.prototype.CurrentRuntimeIdentity = function() {
         if (!trackName || !isFinite(trackOrder)) return null;
         return {
             id: "live-device-" + String(liveObjectId),
+            trackId: trackId,
             trackName: trackName,
             trackOrder: trackOrder
         };
     } catch (error) {
         return null;
     }
+};
+
+BankManager.prototype.ObserveTrackName = function(trackId) {
+    if (this.trackId === trackId && this.trackNameObserver) return;
+    this.trackId = trackId;
+    this.trackNameObserver = new LiveAPI(
+        BankManagerTrackNameChanged, "id " + trackId);
+    this.trackNameObserver.property = "name";
+};
+
+BankManager.prototype.HandleTrackNameChanged = function(values) {
+    if (values.length !== 2 || String(values[0]) !== "name") return;
+    var trackName = String(values[1] || "");
+    if (!trackName || trackName === this.local.label) return;
+    this.local.label = trackName;
+    this.PublishAnnouncement();
+    mgraphics.redraw();
 };
 
 BankManager.prototype.TrackOrder = function(trackId) {
@@ -274,7 +296,7 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     var bankCount = Number(values[8]);
     if (!isFinite(revision) || selected < 1 || selected > 6 || bankCount !== 7) return false;
     var position = 9;
-    var previousActiveLinkId = this.ActiveLinkId(this.local);
+    var previousSelectedBankId = this.local.selectedBankId;
     var previousLinkIds = {};
     for (var previousIndex = 0; previousIndex < this.local.banks.length; previousIndex++) {
         var previousLinkId = this.local.banks[previousIndex].linkId;
@@ -325,9 +347,6 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     this.local.selectedBankId = selected;
     this.local.systemBank = systemBank;
     this.local.banks = banks;
-    if (!this.focusedInstanceId || this.focusedInstanceId === this.instanceId) {
-        this.SetFocusedBank(this.local, selected);
-    }
     var changedLinkIds = {};
     var linkTopologyChanged = false;
     for (var bankIndex = 0; bankIndex < banks.length; bankIndex++) {
@@ -338,10 +357,11 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
         if (currentLinkId) changedLinkIds[currentLinkId] = true;
     }
     if (linkTopologyChanged) this.RebuildProcessorLinkGroups();
-    else if (previousActiveLinkId !== this.ActiveLinkId(this.local)) {
-        this.controlLinkSession = "";
-        this.RefreshControlLinkSession();
+    if ((!this.focusedInstanceId || this.focusedInstanceId === this.instanceId) &&
+        (!this.hasCanonicalEqSnapshot || previousSelectedBankId !== selected)) {
+        this.SetFocusedBank(this.local, selected);
     }
+    this.hasCanonicalEqSnapshot = true;
     this.PublishAnnouncement();
     this.PublishLinkedState(changedLinkIds);
     return true;
@@ -420,6 +440,7 @@ BankManager.prototype.SetFocusedBank = function(instance, bankId) {
     this.focusedBankId = bankId;
     if (!this.CanChangeFocusedBankLink()) this.linkEditingEnabled = false;
     this.controlLinkSession = "";
+    if (instance.id === this.instanceId) this.RefreshControlLinkSession();
 };
 
 BankManager.prototype.HasLink = function(instance, linkId) {
@@ -463,7 +484,6 @@ BankManager.prototype.RebuildProcessorLinkGroups = function() {
         }
     }
     this.processorLinkGroups = groups;
-    this.RefreshControlLinkSession();
 };
 
 BankManager.prototype.ProcessorLinkGroup = function(linkId, device) {
@@ -864,10 +884,6 @@ BankManager.prototype.ApplyLinkState = function(values) {
             processor.values[processorParameter] = processors[processorDevice][processorParameter];
         }
     }
-    if (this.ActiveLinkId(this.local) === linkId) {
-        this.controlLinkSession = "";
-        this.RefreshControlLinkSession();
-    }
 };
 
 BankManager.prototype.HandleGlobal = function(name, values) {
@@ -922,10 +938,6 @@ BankManager.prototype.ApplyProcessorDelta = function(values) {
     if (!this.AcceptIncomingLinkRevision(
         linkId, sourceId, revision)) return;
     group.ApplyDelta(sourceId, parameter, delta, false, range);
-    if (this.ActiveLinkId(this.local) !== linkId) {
-        this.controlLinkSession = "";
-        this.RefreshControlLinkSession();
-    }
     var processor = this.local.processors[device];
     if (!processor || !this.HasLink(this.local, linkId)) return;
     this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
@@ -1348,6 +1360,13 @@ BankManager.prototype.Click = function(x, y, ctrl, cmd, shift) {
 };
 
 var bankManager = new BankManager();
+
+function BankManagerTrackNameChanged() {
+    var values = arguments.length === 1 && arguments[0] instanceof Array
+        ? arguments[0]
+        : arrayfromargs(arguments);
+    bankManager.HandleTrackNameChanged(values);
+}
 
 function inletassist(index) {
     assist(index === 0
