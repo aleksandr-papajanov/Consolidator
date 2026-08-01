@@ -26,6 +26,9 @@ implement JSUI input dispatch directly.
   limits, detector previews, and SpectrumView ghost-filter previews.
 - `JS/BankManagerSnapshotReader.js`: validation and decoding of EQ and
   processor Host snapshots into feature models.
+- `JS/BankManagerSnapshotCoordinator.js`: applies decoded snapshots, refreshes
+  the derived link graph, publishes topology summaries, and refreshes scoped
+  control presentation after canonical state changes.
 - `JS/BankManagerLiveIdentity.js`: Live API device identity, track order, and
   track-name observation.
 - `JS/BankManagerMessageRouter.js`: Max selector/list routing to BankManager

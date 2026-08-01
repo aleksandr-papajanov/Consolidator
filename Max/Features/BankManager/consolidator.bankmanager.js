@@ -43,6 +43,7 @@ include("JS/BankManagerMath.js");
 include("JS/BankManagerModels.js");
 include("JS/BankManagerLiveIdentity.js");
 include("JS/BankManagerSnapshotReader.js");
+include("JS/BankManagerSnapshotCoordinator.js");
 include("JS/BankManagerUiController.js");
 include("JS/BankManagerMessageRouter.js");
 include("JS/BankManagerDefinitions.js");
@@ -75,6 +76,7 @@ function BankManager() {
     this.processorRanges = this.definitions.processorRanges;
     this.processorDefaults = this.definitions.processorDefaults;
     this.snapshotReader = new BankManagerSnapshotReader(this.filterDefinitions);
+    this.snapshotCoordinator = new BankManagerSnapshotCoordinator(this);
     this.linkGraph = new BankManagerLinkGraph(this);
     this.layout = new BankManagerLayout();
     this.operations = new BankManagerOperations(this);
@@ -129,69 +131,11 @@ BankManager.prototype.SendHostCommand = function(name, fields) {
 };
 
 BankManager.prototype.ParseEqSnapshot = function(values) {
-    var state = this.snapshotReader.ReadEq(values);
-    if (!state) return false;
-    var previousSelectedBankId = this.local.selectedBankId;
-    var previousLinkIds = {};
-    for (var previousIndex = 0; previousIndex < this.local.banks.length; previousIndex++) {
-        var previousLinkId = this.local.banks[previousIndex].linkId;
-        if (previousLinkId) previousLinkIds[previousIndex + 1] = previousLinkId;
-    }
-    this.local.revision = state.revision;
-    this.local.eqBypass = state.bypass;
-    this.local.selectedBankId = state.selectedBankId;
-    this.local.systemBank = state.systemBank;
-    this.local.banks = state.banks;
-    var changedLinkIds = {};
-    var linkTopologyChanged = false;
-    for (var bankIndex = 0; bankIndex < state.banks.length; bankIndex++) {
-        var previousLinkId = previousLinkIds[bankIndex + 1] || "";
-        var currentLinkId = state.banks[bankIndex].linkId || "";
-        if (previousLinkId === currentLinkId) continue;
-        linkTopologyChanged = true;
-        if (currentLinkId) changedLinkIds[currentLinkId] = true;
-    }
-    if (linkTopologyChanged) {
-        this.RebuildProcessorLinkGroups();
-        if (this.selection.focusedInstanceId === this.instanceId) {
-            this.controlLinkSession = "";
-            this.RefreshControlLinkSession();
-        }
-    }
-    if ((!this.selection.focusedInstanceId ||
-        this.selection.focusedInstanceId === this.instanceId) &&
-        (!this.hasCanonicalEqSnapshot || previousSelectedBankId !== state.selectedBankId)) {
-        this.SetFocusedBank(this.local, state.selectedBankId);
-    }
-    this.hasCanonicalEqSnapshot = true;
-    this.PublishAnnouncement();
-    this.PublishLinkedState(changedLinkIds);
-    if (this.pendingLinkedStatePublish) {
-        this.pendingLinkedStatePublish = false;
-        this.PublishLinkedState();
-    }
-    var activeLinkId = this.ActiveLinkId(this.local);
-    this.PublishLinkedFilterPreviews(
-        activeLinkId,
-        activeLinkId && this.LinkMemberIds(activeLinkId).length >= 2
-    );
-    return true;
+    return this.snapshotCoordinator.ApplyEq(values);
 };
 
 BankManager.prototype.ParseProcessorSnapshot = function(values) {
-    var processors = this.snapshotReader.ReadProcessor(values);
-    if (!processors) return;
-    var shouldAnnounce = !isFinite(
-        this.local.processors.input_gain.values.gain);
-    for (var device in processors) {
-        if (!processors.hasOwnProperty(device)) continue;
-        this.local.processors[device].values = processors[device].values;
-    }
-    if (shouldAnnounce) {
-        this.controlLinkSession = "";
-        this.PublishAnnouncement();
-        this.PublishLinkedState();
-    }
+    return this.snapshotCoordinator.ApplyProcessor(values);
 };
 
 BankManager.prototype.ActiveBank = function(instance) {
