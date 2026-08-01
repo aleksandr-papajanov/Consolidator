@@ -22,6 +22,8 @@ implement JSUI input dispatch directly.
 - `JS/BankManagerLinkTransport.js`: global bank announcements, linked-state
   frames, relative parameter deltas, discrete linked filter operations, and
   the local preview lane for linked controls.
+- `JS/BankManagerLinkPresentation.js`: linked-control colors, fixed control
+  limits, detector previews, and SpectrumView ghost-filter previews.
 - `JS/BankManagerSnapshotReader.js`: validation and decoding of EQ and
   processor Host snapshots into feature models.
 - `JS/BankManagerLiveIdentity.js`: Live API device identity, track order, and

@@ -51,6 +51,7 @@ include("JS/BankManagerSelection.js");
 include("JS/BankManagerLayout.js");
 include("JS/BankManagerOperations.js");
 include("JS/BankManagerLinkTransport.js");
+include("JS/BankManagerLinkPresentation.js");
 var BankManagerVisualOptions = BankManagerOptions.geometry;
 var BankManagerColors = BankManagerOptions.colors;
 var bankGroupLayout = new ButtonGroupLayout();
@@ -78,6 +79,7 @@ function BankManager() {
     this.layout = new BankManagerLayout();
     this.operations = new BankManagerOperations(this);
     this.linkTransport = new BankManagerLinkTransport(this);
+    this.linkPresentation = new BankManagerLinkPresentation(this);
     this.controlLinkSession = "";
     this.pendingLinkedStatePublish = false;
     this.hasCanonicalEqSnapshot = false;
@@ -755,6 +757,18 @@ BankManager.prototype.HandleProcessorParameterGesture = function(values) {
 
 BankManager.prototype.HandleProcessorDetectorReset = function(values) {
     this.linkTransport.HandleDetectorReset(values);
+};
+
+BankManager.prototype.PublishFilterLimits = function(linkId, isLinked) {
+    this.linkPresentation.PublishFilterLimits(linkId, isLinked);
+};
+
+BankManager.prototype.PublishLinkedDetectorPreviews = function(linkId, isLinked) {
+    this.linkPresentation.PublishDetectorPreviews(linkId, isLinked);
+};
+
+BankManager.prototype.PublishLinkedFilterPreviews = function(linkId, isLinked) {
+    this.linkPresentation.PublishFilterPreviews(linkId, isLinked);
 };
 
 var bankManager = new BankManager();
