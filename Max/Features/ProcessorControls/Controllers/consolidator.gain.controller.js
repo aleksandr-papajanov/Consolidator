@@ -326,6 +326,9 @@ function msg_int(value) {
     if (inlet === 1) controller.HandleDial([1, value]);
 }
 
+// The scoped processor link channel is shared with detector controllers.
+function detector_link_preview() {}
+
 function levelMatch(value) {
     if (inlet === 1) controller.HandleLevelMatch(value);
 }
