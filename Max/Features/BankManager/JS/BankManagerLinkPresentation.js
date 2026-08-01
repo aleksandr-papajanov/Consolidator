@@ -2,6 +2,43 @@ function BankManagerLinkPresentation(manager) {
     this.manager = manager;
 }
 
+BankManagerLinkPresentation.prototype.RefreshControlSession = function() {
+    var manager = this.manager;
+    var activeLinkId = manager.ActiveLinkId(manager.local);
+    var activeMembers = activeLinkId ? manager.LinkMemberIds(activeLinkId) : [];
+    var activeBank = manager.ActiveBank(manager.local);
+    var signature = (activeLinkId && activeMembers.length >= 2
+        ? activeLinkId + ":" + activeMembers.join(",")
+        : "unlinked") + ":" + (activeBank ? activeBank.id : 0);
+    if (manager.controlLinkSession === signature) return;
+    manager.controlLinkSession = signature;
+    var color = activeLinkId ? manager.LinkColor(activeLinkId) : null;
+    outlet(2, "link_color", activeLinkId && color ? activeLinkId : "-",
+        color ? color[0] : 0, color ? color[1] : 0,
+        color ? color[2] : 0, color ? color[3] : 0);
+    for (var device in manager.local.processors) {
+        if (!manager.local.processors.hasOwnProperty(device)) continue;
+        var processor = manager.local.processors[device];
+        var definitions = manager.processorRanges[device] || {};
+        var group = activeLinkId ? manager.ProcessorLinkGroup(activeLinkId, device) : null;
+        var memberIds = group ? Object.keys(group.members).sort() : [];
+        var isLinked = activeLinkId && memberIds.length >= 2;
+        for (var parameter in processor.values) {
+            if (!processor.values.hasOwnProperty(parameter) || !definitions[parameter]) continue;
+            var range = definitions[parameter];
+            var effective = isLinked
+                ? group.EffectiveRange(manager.instanceId, parameter, range)
+                : range;
+            outlet(2, "processor_limits", device, parameter,
+                effective.minimum, effective.maximum);
+        }
+    }
+    var isLinkedSession = activeMembers.length >= 2;
+    this.PublishFilterLimits(activeLinkId, isLinkedSession);
+    this.PublishFilterPreviews(activeLinkId, isLinkedSession);
+    this.PublishDetectorPreviews(activeLinkId, isLinkedSession);
+};
+
 BankManagerLinkPresentation.prototype.PublishFilterLimits = function(linkId, isLinked) {
     var manager = this.manager;
     var source = manager.ActiveBank(manager.local);

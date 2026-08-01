@@ -17,13 +17,14 @@ implement JSUI input dispatch directly.
   peer-row ordering.
 - `JS/BankManagerLayout.js`: bank-list geometry, link-panel layout, hit-testing,
   editable group identifiers, and link colors.
-- `JS/BankManagerOperations.js`: discrete link assignment and Join/Commit/Reset/
-  Bypass transactions, including their global replication.
+- `JS/BankManagerOperations.js`: discrete link assignment, filter resets, and
+  Join/Commit/Reset/Bypass transactions, including their global replication.
 - `JS/BankManagerLinkTransport.js`: global bank announcements, linked-state
   frames, relative parameter deltas, discrete linked filter operations, and
   the local preview lane for linked controls.
 - `JS/BankManagerLinkPresentation.js`: linked-control colors, fixed control
-  limits, detector previews, and SpectrumView ghost-filter previews.
+  limits, the selected-bank control session, detector previews, and
+  SpectrumView ghost-filter previews.
 - `JS/BankManagerSnapshotReader.js`: validation and decoding of EQ and
   processor Host snapshots into feature models.
 - `JS/BankManagerSnapshotCoordinator.js`: applies decoded snapshots, refreshes

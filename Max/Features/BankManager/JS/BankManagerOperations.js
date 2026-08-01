@@ -73,3 +73,40 @@ BankManagerOperations.prototype.ApplyLinked = function(values) {
     }
     this.Apply(action, bank.id, bypass);
 };
+
+BankManagerOperations.prototype.ResetFilter = function(bankId, filterId) {
+    var manager = this.manager;
+    var bank = manager.LocalBank(bankId);
+    if (!bank || !isFinite(filterId)) return;
+    if (!bank.linkId) {
+        this.ResetFilterModel(bank, filterId);
+        manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
+        return;
+    }
+    this.ResetLinkedFilterModels(bank.linkId, filterId);
+    manager.PublishLinkedFilterPreviews(bank.linkId, true);
+    manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
+    outlet(1, "link.filter_reset", bank.linkId, manager.instanceId,
+        manager.NextLinkRevision(bank.linkId), filterId);
+};
+
+BankManagerOperations.prototype.ResetLinkedFilterModels = function(linkId, filterId) {
+    var manager = this.manager;
+    var members = manager.LinkMembers(linkId);
+    for (var index = 0; index < members.length; ++index) {
+        this.ResetFilterModel(members[index].bank, filterId);
+    }
+};
+
+BankManagerOperations.prototype.ResetFilterModel = function(bank, filterId) {
+    var manager = this.manager;
+    var filter = bank && bank.filters[filterId];
+    var parameters = manager.filterDefinitions[filterId];
+    if (!filter || !parameters) return;
+    var values = [];
+    for (var index = 0; index < parameters.length; ++index) {
+        values.push(Number(parameters[index].defaultValue));
+    }
+    filter.values = values;
+    filter.bypass = Boolean(manager.filterDefaultBypass[filterId]);
+};

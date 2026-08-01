@@ -248,39 +248,7 @@ BankManager.prototype.LinkMemberIds = function(linkId) {
 };
 
 BankManager.prototype.RefreshControlLinkSession = function() {
-    var activeLinkId = this.ActiveLinkId(this.local);
-    var activeMembers = activeLinkId
-        ? this.LinkMemberIds(activeLinkId)
-        : [];
-    var activeBank = this.ActiveBank(this.local);
-    var signature = (activeLinkId && activeMembers.length >= 2
-        ? activeLinkId + ":" + activeMembers.join(",")
-        : "unlinked") + ":" + (activeBank ? activeBank.id : 0);
-    if (this.controlLinkSession === signature) return;
-    this.controlLinkSession = signature;
-    var color = activeLinkId ? this.LinkColor(activeLinkId) : null;
-    outlet(2, "link_color", activeLinkId && color ? activeLinkId : "-",
-        color ? color[0] : 0, color ? color[1] : 0,
-        color ? color[2] : 0, color ? color[3] : 0);
-    for (var device in this.local.processors) {
-        if (!this.local.processors.hasOwnProperty(device)) continue;
-        var processor = this.local.processors[device];
-        var definitions = this.processorRanges[device] || {};
-        var group = activeLinkId ? this.ProcessorLinkGroup(activeLinkId, device) : null;
-        var memberIds = group ? Object.keys(group.members).sort() : [];
-        var isLinked = activeLinkId && memberIds.length >= 2;
-        for (var parameter in processor.values) {
-            if (!processor.values.hasOwnProperty(parameter) || !definitions[parameter]) continue;
-            var range = definitions[parameter];
-            var effective = isLinked
-                ? group.EffectiveRange(this.instanceId, parameter, range)
-                : range;
-            outlet(2, "processor_limits", device, parameter, effective.minimum, effective.maximum);
-        }
-    }
-    this.PublishFilterLimits(activeLinkId, activeMembers.length >= 2);
-    this.PublishLinkedFilterPreviews(activeLinkId, activeMembers.length >= 2);
-    this.PublishLinkedDetectorPreviews(activeLinkId, activeMembers.length >= 2);
+    this.linkPresentation.RefreshControlSession();
 };
 
 BankManager.prototype.ParseDeviceSnapshot = function(values) {
@@ -290,37 +258,15 @@ BankManager.prototype.ParseDeviceSnapshot = function(values) {
 };
 
 BankManager.prototype.ExecuteFilterReset = function(bankId, filterId) {
-    var bank = this.LocalBank(bankId);
-    if (!bank || !isFinite(filterId)) return;
-    if (!bank.linkId) {
-        this.ResetFilterModel(bank, filterId);
-        this.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
-        return;
-    }
-    this.ResetLinkedFilterModels(bank.linkId, filterId);
-    this.PublishLinkedFilterPreviews(bank.linkId, true);
-    this.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
-    outlet(1, "link.filter_reset", bank.linkId, this.instanceId,
-        this.NextLinkRevision(bank.linkId), filterId);
+    this.operations.ResetFilter(bankId, filterId);
 };
 
 BankManager.prototype.ResetLinkedFilterModels = function(linkId, filterId) {
-    var members = this.LinkMembers(linkId);
-    for (var index = 0; index < members.length; ++index) {
-        this.ResetFilterModel(members[index].bank, filterId);
-    }
+    this.operations.ResetLinkedFilterModels(linkId, filterId);
 };
 
 BankManager.prototype.ResetFilterModel = function(bank, filterId) {
-    var filter = bank && bank.filters[filterId];
-    var parameters = this.filterDefinitions[filterId];
-    if (!filter || !parameters) return;
-    var values = [];
-    for (var index = 0; index < parameters.length; ++index) {
-        values.push(Number(parameters[index].defaultValue));
-    }
-    filter.values = values;
-    filter.bypass = Boolean(this.filterDefaultBypass[filterId]);
+    this.operations.ResetFilterModel(bank, filterId);
 };
 
 BankManager.prototype.FindLocalLinkedBank = function(linkId) {
