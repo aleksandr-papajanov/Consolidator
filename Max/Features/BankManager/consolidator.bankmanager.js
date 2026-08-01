@@ -341,6 +341,7 @@ BankManager.prototype.ClearAllEqBanks = function() {
     }
     this.clearAllConfirmationTask.cancel();
     this.clearAllConfirmationArmed = false;
+    this.ResetAllBankModels();
     outlet(1, "bank.reset_all", this.instanceId);
     mgraphics.redraw();
 };
@@ -348,6 +349,11 @@ BankManager.prototype.ClearAllEqBanks = function() {
 BankManager.prototype.ClearAllConfirmationExpired = function() {
     this.clearAllConfirmationArmed = false;
     mgraphics.redraw();
+};
+
+BankManager.prototype.ResetAllBankModels = function() {
+    this.operations.ResetAllModels();
+    this.linkPresentation.ClearPreviews();
 };
 
 BankManager.prototype.LinkGroupIndexAt = function(x, y, width, height) {

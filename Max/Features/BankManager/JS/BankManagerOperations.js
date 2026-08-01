@@ -110,3 +110,22 @@ BankManagerOperations.prototype.ResetFilterModel = function(bank, filterId) {
     filter.values = values;
     filter.bypass = Boolean(manager.filterDefaultBypass[filterId]);
 };
+
+BankManagerOperations.prototype.ResetAllModels = function() {
+    var manager = this.manager;
+    var instances = [manager.local];
+    for (var instanceId in manager.peers) {
+        if (manager.peers.hasOwnProperty(instanceId)) {
+            instances.push(manager.peers[instanceId]);
+        }
+    }
+    for (var instanceIndex = 0; instanceIndex < instances.length; ++instanceIndex) {
+        var instance = instances[instanceIndex];
+        instance.systemBank.filters = {};
+        instance.systemBank.occupied = false;
+        for (var bankIndex = 0; bankIndex < instance.banks.length; ++bankIndex) {
+            instance.banks[bankIndex].filters = {};
+            instance.banks[bankIndex].occupied = false;
+        }
+    }
+};

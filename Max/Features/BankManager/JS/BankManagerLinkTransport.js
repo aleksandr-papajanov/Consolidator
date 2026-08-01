@@ -449,7 +449,10 @@ BankManagerLinkTransport.prototype.HandleGlobal = function(name, values) {
     } else if (name === "bank.announce") {
         this.ParseAnnouncement(values);
     } else if (name === "bank.reset_all") {
-        if (values.length === 1) manager.SendHostCommand("eq.reset_all", []);
+        if (values.length === 1) {
+            manager.ResetAllBankModels();
+            manager.SendHostCommand("eq.reset_all", []);
+        }
     } else if (name === "link.state") {
         this.ApplyLinkedState(values);
     } else if (name === "bank.leave") {

@@ -133,3 +133,9 @@ BankManagerLinkPresentation.prototype.PublishFilterPreviews = function(linkId, i
         }
     }
 };
+
+BankManagerLinkPresentation.prototype.ClearPreviews = function() {
+    outlet(2, "eq_link_preview", "-");
+    outlet(2, "detector_link_preview", "compressor", "-");
+    outlet(2, "detector_link_preview", "saturator", "-");
+};
