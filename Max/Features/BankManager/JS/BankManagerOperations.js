@@ -124,8 +124,27 @@ BankManagerOperations.prototype.ResetAllModels = function() {
         instance.systemBank.filters = {};
         instance.systemBank.occupied = false;
         for (var bankIndex = 0; bankIndex < instance.banks.length; ++bankIndex) {
-            instance.banks[bankIndex].filters = {};
-            instance.banks[bankIndex].occupied = false;
+            this.ResetBankModel(instance.banks[bankIndex]);
         }
+    }
+};
+
+BankManagerOperations.prototype.ResetBankModel = function(bank) {
+    var manager = this.manager;
+    bank.filters = {};
+    bank.occupied = false;
+    for (var filterId in manager.filterDefinitions) {
+        if (!manager.filterDefinitions.hasOwnProperty(filterId)) continue;
+        var parameters = manager.filterDefinitions[filterId];
+        var values = [];
+        for (var parameterIndex = 0;
+             parameterIndex < parameters.length;
+             ++parameterIndex) {
+            values.push(Number(parameters[parameterIndex].defaultValue));
+        }
+        bank.filters[filterId] = {
+            bypass: Boolean(manager.filterDefaultBypass[filterId]),
+            values: values
+        };
     }
 };

@@ -65,6 +65,11 @@ ApproximatorFeatureController.prototype.ClearFitCurve = function() {
     this.UpdateControl();
 };
 
+ApproximatorFeatureController.prototype.ClearRemoteFitCurve = function() {
+    this.fitCurve = [];
+    this.UpdateControl();
+};
+
 ApproximatorFeatureController.prototype.SetStatus = function(state, values) {
     if (state === "ready") this.nativeReady = Number(values[0]) !== 0;
     if (state === "processing") this.fitting = true;
@@ -110,6 +115,9 @@ function status(state) {
 function anything() {
     var values = arrayfromargs(arguments);
     if (inlet === 1 && messagename === "fit_curve") controller.SetFitCurve(["fit_curve"].concat(values));
+    else if (inlet === 1 && messagename === "clear_fit_curve") {
+        controller.ClearRemoteFitCurve();
+    }
     else if (inlet === 1) controller.SetStatus(messagename, values);
 }
 function list() {
