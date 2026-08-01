@@ -6,6 +6,8 @@ AnalysisViewModel.prototype.Build = function(state) {
         scaleIndex: state.scaleIndex,
         eqBypass: state.eqBypass,
         operationAvailability: state.operationAvailability,
+        linkId: state.linkId,
+        linkColor: state.linkColor,
         analysis: state.analysis
     };
 };

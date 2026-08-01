@@ -66,6 +66,7 @@ ApproximatorFeatureController.prototype.ClearFitCurve = function() {
 };
 
 ApproximatorFeatureController.prototype.ClearRemoteFitCurve = function() {
+    if (this.fitCurve.length === 0) return;
     this.fitCurve = [];
     this.UpdateControl();
 };
