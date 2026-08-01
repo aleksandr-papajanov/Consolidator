@@ -139,6 +139,8 @@ Supported commands are:
 - `saturator.set_detector_listen <filterId> <0|1>`
 - `saturator.set_bypass <0|1>`
 - `saturator.reset`
+- `history.begin <operationId>`, `history.end <operationId>`, `history.undo`,
+  `history.redo`, and internal `history.restore <operationId> <undo|redo>`
 - `analyzer.clear`
 - `analyzer.set_view <0|1> <spectrum|analysis>`
 - `fit.start <pointCount> <curveDb...>`, `fit.cancel <sessionId>`, and `fit.clear`
@@ -148,6 +150,17 @@ Supported commands are:
 Every command inlet and outlet must document its complete accepted or produced
 command list. Update the Min descriptions and JS `assist()` callbacks whenever
 a contract changes.
+
+`DeviceHost` owns a bounded local undo/redo history. `history.begin/end` delimit an
+operation identified by a unique `operationId`; every changed transaction stores one
+complete pre-change state. For a linked operation, BankManager coordinates the same
+operation ID across every participating Host. Undo and redo restore each Host's own
+stored snapshot through `history.restore`; no inverse parameter deltas are computed.
+Discrete local mutations create a
+single history entry automatically. `history.undo` and `history.redo` restore
+all owned stores atomically and republish their canonical snapshots. History UI
+submits at most one undo or redo command at a time and remains disabled until
+the mandatory `history.changed` confirmation from Host.
 
 ## State Rules
 

@@ -1,6 +1,7 @@
 #include "DeviceHost.h"
 
 #include <algorithm>
+#include <optional>
 #include <variant>
 #include <type_traits>
 #include <utility>
@@ -39,6 +40,16 @@ void DeviceHost::Handle(const domain::Command& command) {
             ) : active(active) { active = &events; }
             ~EventBatchGuard() { active = nullptr; }
         } eventBatch{ activeEvents, events };
+        const auto undoable = IsUndoableCommand(command);
+        const auto isHistoryNavigation =
+            std::holds_alternative<domain::UndoHistoryCommand>(command) ||
+            std::holds_alternative<domain::RedoHistoryCommand>(command);
+        const auto revisionBefore = Revision();
+        const auto couldUndo = history.CanUndo();
+        const auto couldRedo = history.CanRedo();
+        auto stateBefore = undoable && !history.InTransaction()
+            ? std::optional{ CaptureHistoryState() }
+            : std::optional<DeviceHistoryState>{};
         std::visit([this](const auto& value) {
             using Command = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) {
@@ -76,6 +87,37 @@ void DeviceHost::Handle(const domain::Command& command) {
             else if constexpr (std::is_same_v<Command, domain::SetSaturatorDetectorParameterCommand>) PublishResult(saturatorStore.SetDetectorParameter(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::SetSaturatorDetectorListenCommand>) PublishResult(saturatorStore.SetDetectorListen(value), value.requestId);
             else if constexpr (std::is_same_v<Command, domain::ResetSaturatorCommand>) PublishResult(saturatorStore.Reset(value), value.requestId);
+            else if constexpr (std::is_same_v<Command, domain::BeginHistoryCommand>) {
+                const auto linkId = ActiveLinkId();
+                if (history.Begin(CaptureHistoryState(), Revision(), value.operationId, linkId)) {
+                    Publish(domain::HistoryBeganEvent{ value.operationId, linkId });
+                }
+            }
+            else if constexpr (std::is_same_v<Command, domain::EndHistoryCommand>) {
+                const auto linkId = ActiveLinkId();
+                const auto wasActive = history.IsTransaction(value.operationId);
+                history.End(Revision(), value.operationId);
+                if (wasActive) Publish(domain::HistoryEndedEvent{ value.operationId, linkId });
+            }
+            else if constexpr (std::is_same_v<Command, domain::UndoHistoryCommand>) {
+                if (const auto restore = history.Undo(CaptureHistoryState())) {
+                    if (RestoreHistoryState(std::move(restore->state), value.requestId)) {
+                        Publish(domain::HistoryRestoredEvent{ true, restore->operationId, restore->linkId });
+                    }
+                }
+            }
+            else if constexpr (std::is_same_v<Command, domain::RedoHistoryCommand>) {
+                if (const auto restore = history.Redo(CaptureHistoryState())) {
+                    if (RestoreHistoryState(std::move(restore->state), value.requestId)) {
+                        Publish(domain::HistoryRestoredEvent{ false, restore->operationId, restore->linkId });
+                    }
+                }
+            }
+            else if constexpr (std::is_same_v<Command, domain::RestoreHistoryOperationCommand>) {
+                if (const auto restore = history.Restore(value.operationId, value.isUndo, CaptureHistoryState())) {
+                    RestoreHistoryState(std::move(restore->state), value.requestId);
+                }
+            }
             else if constexpr (std::is_same_v<Command, domain::ClearAnalyzerCommand>) analyzerWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::SetAnalyzerViewCommand>) analyzerWorkflow.Handle(value);
             else if constexpr (std::is_same_v<Command, domain::StartFitCommand> ||
@@ -84,6 +126,12 @@ void DeviceHost::Handle(const domain::Command& command) {
                                std::is_same_v<Command, domain::CompleteFitCommand> ||
                                std::is_same_v<Command, domain::FailFitCommand>) fitWorkflow.Handle(value);
         }, command);
+        if (stateBefore && Revision() != revisionBefore && !history.InTransaction()) {
+            history.Record(std::move(*stateBefore));
+        }
+        if (isHistoryNavigation || history.CanUndo() != couldUndo || history.CanRedo() != couldRedo) {
+            PublishHistoryState();
+        }
     }
     Dispatch(events);
 }
@@ -141,12 +189,78 @@ bool DeviceHost::Restore(
         return false;
     }
     this->instanceId = std::move(instanceId);
+    history.Clear();
     lastRestoreError.clear();
     return true;
 }
 
 const std::string& DeviceHost::InstanceId() const noexcept { return instanceId; }
 const std::string& DeviceHost::LastRestoreError() const noexcept { return lastRestoreError; }
+
+DeviceHistoryState DeviceHost::CaptureHistoryState() const {
+    return {
+        eqStore.State(),
+        { inputGainStore.State(), compressorStore.State(), saturatorStore.State(), outputGainStore.State() }
+    };
+}
+
+std::string DeviceHost::ActiveLinkId() const {
+    const auto& state = eqStore.State();
+    const auto bank = state.FindBank(state.selectedBankId);
+    return bank ? bank->linkId : std::string{};
+}
+
+bool DeviceHost::RestoreHistoryState(DeviceHistoryState state, domain::RequestId requestId) {
+    const auto revision = Revision() + 1;
+    const auto eqResult = eqStore.Replace(std::move(state.eq), revision);
+    const auto inputResult = inputGainStore.Replace(std::move(state.processor.inputGain), revision);
+    const auto compressorResult = compressorStore.Replace(std::move(state.processor.compressor), revision);
+    const auto saturatorResult = saturatorStore.Replace(std::move(state.processor.saturator), revision);
+    const auto outputResult = outputGainStore.Replace(std::move(state.processor.outputGain), revision);
+    if (!eqResult.Accepted() || !inputResult.Accepted() || !compressorResult.Accepted() ||
+        !saturatorResult.Accepted() || !outputResult.Accepted()) {
+        Publish(domain::CommandRejectedEvent{ requestId, "history_restore_failed" });
+        return false;
+    }
+    const auto currentRevision = Revision();
+    Publish(domain::StoreUpdatedEvent{ "eq", currentRevision, requestId });
+    Publish(domain::StoreUpdatedEvent{ "input_gain", currentRevision, requestId });
+    Publish(domain::StoreUpdatedEvent{ "compressor", currentRevision, requestId });
+    Publish(domain::StoreUpdatedEvent{ "saturator", currentRevision, requestId });
+    Publish(domain::StoreUpdatedEvent{ "output_gain", currentRevision, requestId });
+    return true;
+}
+
+bool DeviceHost::IsUndoableCommand(const domain::Command& command) {
+    return std::visit([](const auto& value) {
+        using Command = std::decay_t<decltype(value)>;
+        return std::is_same_v<Command, domain::SetEqParameterCommand> ||
+            std::is_same_v<Command, domain::SetEqBypassCommand> ||
+            std::is_same_v<Command, domain::ResetEqFilterCommand> ||
+            std::is_same_v<Command, domain::SetEqChainBypassCommand> ||
+            std::is_same_v<Command, domain::SetEqChainSoloCommand> ||
+            std::is_same_v<Command, domain::ResetEqChainCommand> ||
+            std::is_same_v<Command, domain::ResetAllEqBanksCommand> ||
+            std::is_same_v<Command, domain::JoinEqBanksCommand> ||
+            std::is_same_v<Command, domain::SetEqBankLinkCommand> ||
+            std::is_same_v<Command, domain::SetGainParameterCommand> ||
+            std::is_same_v<Command, domain::SetCompressorParameterCommand> ||
+            std::is_same_v<Command, domain::SetCompressorBypassCommand> ||
+            std::is_same_v<Command, domain::SetCompressorDetectorParameterCommand> ||
+            std::is_same_v<Command, domain::SetCompressorDetectorListenCommand> ||
+            std::is_same_v<Command, domain::ResetCompressorCommand> ||
+            std::is_same_v<Command, domain::SetSaturatorParameterCommand> ||
+            std::is_same_v<Command, domain::SetSaturatorBypassCommand> ||
+            std::is_same_v<Command, domain::SetSaturatorDetectorParameterCommand> ||
+            std::is_same_v<Command, domain::SetSaturatorDetectorListenCommand> ||
+            std::is_same_v<Command, domain::ResetSaturatorCommand> ||
+            std::is_same_v<Command, domain::CompleteFitCommand>;
+    }, command);
+}
+
+void DeviceHost::PublishHistoryState() {
+    Publish(domain::HistoryChangedEvent{ history.CanUndo(), history.CanRedo() });
+}
 
 void DeviceHost::Publish(domain::Event event) {
     if (activeEvents) activeEvents->push_back(std::move(event));

@@ -202,6 +202,35 @@ public:
         if (*name == "saturator.reset") return reader.RequireEnd()
             ? Success(domain::ResetSaturatorCommand{ { *requestId } })
             : Invalid("invalid_saturator_reset", reader.Index());
+        if (*name == "history.begin") {
+            const auto operationId = reader.ReadString();
+            return operationId && !operationId->empty() && reader.RequireEnd()
+                ? Success(domain::BeginHistoryCommand{ { *requestId }, *operationId })
+                : Invalid("invalid_history_begin", reader.Index());
+        }
+        if (*name == "history.end") {
+            const auto operationId = reader.ReadString();
+            return operationId && !operationId->empty() && reader.RequireEnd()
+                ? Success(domain::EndHistoryCommand{ { *requestId }, *operationId })
+                : Invalid("invalid_history_end", reader.Index());
+        }
+        if (*name == "history.undo") return reader.RequireEnd()
+            ? Success(domain::UndoHistoryCommand{ { *requestId } })
+            : Invalid("invalid_history_undo", reader.Index());
+        if (*name == "history.redo") return reader.RequireEnd()
+            ? Success(domain::RedoHistoryCommand{ { *requestId } })
+            : Invalid("invalid_history_redo", reader.Index());
+        if (*name == "history.restore") {
+            const auto operationId = reader.ReadString();
+            const auto action = reader.ReadString();
+            if (!operationId || !action || operationId->empty() || !reader.RequireEnd() ||
+                (*action != "undo" && *action != "redo")) {
+                return Invalid("invalid_history_restore", reader.Index());
+            }
+            return Success(domain::RestoreHistoryOperationCommand{
+                { *requestId }, *operationId, *action == "undo"
+            });
+        }
         if (*name == "analyzer.clear") {
             if (!reader.RequireEnd()) return Invalid("invalid_analyzer_clear", reader.Index());
             return Success(domain::ClearAnalyzerCommand{ { *requestId } });

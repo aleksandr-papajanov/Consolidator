@@ -6,6 +6,8 @@ function ControlControllerBase(source, flushCallback, owner) {
     this.parameterDispatcher = flushCallback
         ? new LatestValueDispatcher(16, flushCallback, owner || this)
         : null;
+    this.historyOperation = 0;
+    this.activeHistoryOperationId = "";
 }
 
 ControlControllerBase.prototype.ClampNormalized = function(value) {
@@ -15,6 +17,27 @@ ControlControllerBase.prototype.ClampNormalized = function(value) {
 ControlControllerBase.prototype.SendCommand = function(name, fields) {
     this.requestId += 1;
     outlet(0, "command", [1, this.source, this.requestId, name].concat(fields || []));
+};
+
+ControlControllerBase.prototype.HandleHistoryGesture = function(phase) {
+    if (String(phase) === "begin") {
+        if (this.activeHistoryOperationId) return;
+        this.historyOperation += 1;
+        this.activeHistoryOperationId = this.source + "." +
+            new Date().getTime() + "." + this.historyOperation;
+        this.SendCommand("history.begin", [this.activeHistoryOperationId]);
+        return;
+    }
+    if (String(phase) !== "end" || !this.activeHistoryOperationId) return;
+    this.FlushPendingParameters();
+    this.SendCommand("history.end", [this.activeHistoryOperationId]);
+    this.activeHistoryOperationId = "";
+};
+
+ControlControllerBase.prototype.FlushPendingParameters = function() {
+    if (!this.parameterDispatcher || !this.parameterDispatcher.scheduled) return;
+    this.parameterDispatcher.task.cancel();
+    this.parameterDispatcher.Flush();
 };
 
 ControlControllerBase.prototype.ToAbsolute = function(definition, normalized) {

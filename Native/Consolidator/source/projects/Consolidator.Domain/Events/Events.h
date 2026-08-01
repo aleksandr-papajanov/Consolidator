@@ -35,6 +35,27 @@ struct CommandRejectedEvent {
     std::string code;
 };
 
+struct HistoryChangedEvent {
+    bool canUndo = false;
+    bool canRedo = false;
+};
+
+struct HistoryRestoredEvent {
+    bool isUndo = false;
+    std::string operationId;
+    std::string linkId;
+};
+
+struct HistoryBeganEvent {
+    std::string operationId;
+    std::string linkId;
+};
+
+struct HistoryEndedEvent {
+    std::string operationId;
+    std::string linkId;
+};
+
 struct OperationChangedEvent {
     std::string operation;
     SessionId sessionId{};
@@ -65,6 +86,10 @@ using Event = std::variant<
     StoreUpdatedEvent,
     ParameterUpdatedEvent,
     CommandRejectedEvent,
+    HistoryChangedEvent,
+    HistoryRestoredEvent,
+    HistoryBeganEvent,
+    HistoryEndedEvent,
     FitRequestedEvent,
     AnalyzerViewChangedEvent,
     OperationChangedEvent

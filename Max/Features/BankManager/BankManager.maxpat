@@ -51,6 +51,18 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "runtime-events-receive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 340.0, 45.0, 165.0, 22.0 ],
+					"text" : "r ---message.bus.out"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"border" : 0,
 					"filename" : "consolidator.bankmanager.js",
 					"id" : "manager",
@@ -367,6 +379,13 @@
 				"patchline" : 				{
 					"destination" : [ "manager", 0 ],
 					"source" : [ "gesture-receive", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "manager", 0 ],
+					"source" : [ "runtime-events-receive", 0 ]
 				}
 
 			}

@@ -1,5 +1,6 @@
 function BankManagerLinkTransport(manager) {
     this.manager = manager;
+    this.remoteHistoryOperations = {};
 }
 
 BankManagerLinkTransport.prototype.NextRevision = function(linkId) {
@@ -14,6 +15,70 @@ BankManagerLinkTransport.prototype.PublishEqPreview = function(
 ) {
     outlet(2, "eq_preview", Number(bankId), Number(filterId),
         Number(parameterIndex), Number(absoluteValue));
+};
+
+BankManagerLinkTransport.prototype.HandleHistoryEvent = function(values) {
+    var manager = this.manager;
+    if (values.length < 4 || Number(values[0]) !== 1 ||
+        String(values[1]) !== "host") return;
+    var name = String(values[3]);
+    if (name === "history.began" || name === "history.ended") {
+        if (values.length !== 6) return;
+        var operationId = String(values[4]);
+        var linkId = String(values[5]);
+        if (!operationId) return;
+        var phase = name === "history.began" ? "begin" : "end";
+        if (this.remoteHistoryOperations[operationId] === phase) {
+            delete this.remoteHistoryOperations[operationId];
+            return;
+        }
+        if (linkId === "-") return;
+        outlet(1, name === "history.began" ? "link.history_begin" : "link.history_end",
+            linkId, manager.instanceId, operationId);
+        return;
+    }
+    if (name !== "history.restored" || values.length !== 7) return;
+    var action = String(values[4]);
+    var restoredOperationId = String(values[5]);
+    var restoredLinkId = String(values[6]);
+    if (!restoredOperationId || restoredLinkId === "-" ||
+        (action !== "undo" && action !== "redo")) return;
+    outlet(1, "link.history_restore", restoredLinkId, manager.instanceId,
+        restoredOperationId, action);
+};
+
+BankManagerLinkTransport.prototype.ApplyHistoryBegin = function(values) {
+    if (values.length !== 3) return;
+    var manager = this.manager;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var operationId = String(values[2]);
+    if (sourceId === manager.instanceId || !operationId || !manager.FindLocalLinkedBank(linkId)) return;
+    this.remoteHistoryOperations[operationId] = "begin";
+    manager.SendHostCommand("history.begin", [operationId]);
+};
+
+BankManagerLinkTransport.prototype.ApplyHistoryEnd = function(values) {
+    if (values.length !== 3) return;
+    var manager = this.manager;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var operationId = String(values[2]);
+    if (sourceId === manager.instanceId || !operationId || !manager.FindLocalLinkedBank(linkId)) return;
+    this.remoteHistoryOperations[operationId] = "end";
+    manager.SendHostCommand("history.end", [operationId]);
+};
+
+BankManagerLinkTransport.prototype.ApplyHistoryRestore = function(values) {
+    if (values.length !== 4) return;
+    var manager = this.manager;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var operationId = String(values[2]);
+    var action = String(values[3]);
+    if (sourceId === manager.instanceId || !operationId ||
+        (action !== "undo" && action !== "redo") || !manager.FindLocalLinkedBank(linkId)) return;
+    manager.SendHostCommand("history.restore", [operationId, action]);
 };
 
 BankManagerLinkTransport.prototype.PublishProcessorPreview = function(
@@ -528,6 +593,12 @@ BankManagerLinkTransport.prototype.HandleGlobal = function(name, values) {
         this.ApplyProcessorBypass(values);
     } else if (name === "link.processor_detector_reset") {
         this.ApplyDetectorReset(values);
+    } else if (name === "link.history_begin") {
+        this.ApplyHistoryBegin(values);
+    } else if (name === "link.history_end") {
+        this.ApplyHistoryEnd(values);
+    } else if (name === "link.history_restore") {
+        this.ApplyHistoryRestore(values);
     }
     if (shouldRedraw) mgraphics.redraw();
 };

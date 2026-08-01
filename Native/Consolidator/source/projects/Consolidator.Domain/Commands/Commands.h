@@ -148,6 +148,30 @@ struct ResetSaturatorCommand {
     RequestId requestId{};
 };
 
+struct BeginHistoryCommand {
+    RequestId requestId{};
+    std::string operationId;
+};
+
+struct EndHistoryCommand {
+    RequestId requestId{};
+    std::string operationId;
+};
+
+struct UndoHistoryCommand {
+    RequestId requestId{};
+};
+
+struct RedoHistoryCommand {
+    RequestId requestId{};
+};
+
+struct RestoreHistoryOperationCommand {
+    RequestId requestId{};
+    std::string operationId;
+    bool isUndo = false;
+};
+
 struct ClearAnalyzerCommand {
     RequestId requestId{};
 };
@@ -208,6 +232,11 @@ using Command = std::variant<
     SetSaturatorDetectorParameterCommand,
     SetSaturatorDetectorListenCommand,
     ResetSaturatorCommand,
+    BeginHistoryCommand,
+    EndHistoryCommand,
+    UndoHistoryCommand,
+    RedoHistoryCommand,
+    RestoreHistoryOperationCommand,
     ClearAnalyzerCommand,
     SetAnalyzerViewCommand,
     StartFitCommand,

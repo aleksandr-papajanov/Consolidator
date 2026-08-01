@@ -197,7 +197,9 @@ function AnalyzerViewController() {
         dragStart: null,
         curveSettings: { minimumHz: 20, maximumHz: 20000, pointCount: 0 },
         analysis: { metrics: [], bands: [], windowCount: 0, historySeconds: 0 },
-        requestId: 0
+        requestId: 0,
+        historyOperation: 0,
+        activeHistoryOperationId: ""
     };
     this.viewModel = new AnalyzerViewModel();
     this.redrawPending = false;
@@ -648,6 +650,10 @@ AnalyzerViewController.prototype.OnClick = function(x, y, button, cmd, shift, ca
     }
     this.state.dragHandleId = handle ? handle.filterId : null;
     if (!handle) return;
+    this.state.historyOperation += 1;
+    this.state.activeHistoryOperationId = "spectrum." +
+        new Date().getTime() + "." + this.state.historyOperation;
+    this.SendAnalyzerCommand("history.begin", [this.state.activeHistoryOperationId]);
     var frequencyParameter = handle.type === "tilt" ? "pivot" : "freq";
     var qLimit = this.ParameterLimit(
         handle, "q", handle.qMinimum, handle.qMaximum);
@@ -798,8 +804,12 @@ AnalyzerViewController.prototype.OnDrag = function(x, y, button, cmd, shift, cap
 };
 
 AnalyzerViewController.prototype.OnMouseUp = function() {
+    if (this.state.dragHandleId !== null && this.state.activeHistoryOperationId) {
+        this.SendAnalyzerCommand("history.end", [this.state.activeHistoryOperationId]);
+    }
     this.state.dragHandleId = null;
     this.state.dragStart = null;
+    this.state.activeHistoryOperationId = "";
 };
 
 AnalyzerViewController.prototype.FindHandle = function(filterId) {

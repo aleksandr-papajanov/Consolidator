@@ -4,6 +4,7 @@
 #include "GainStore.h"
 #include "CompressorStore.h"
 #include "SaturatorStore.h"
+#include "DeviceHistory.h"
 #include "Workflows/AnalyzerWorkflow.h"
 #include "Workflows/FitWorkflow.h"
 #include "Events/Events.h"
@@ -38,6 +39,11 @@ public:
     const std::string& LastRestoreError() const noexcept;
 
 private:
+    DeviceHistoryState CaptureHistoryState() const;
+    std::string ActiveLinkId() const;
+    bool RestoreHistoryState(DeviceHistoryState state, domain::RequestId requestId);
+    static bool IsUndoableCommand(const domain::Command& command);
+    void PublishHistoryState();
     void PublishResult(const UpdateResult& result, domain::RequestId requestId);
     void Publish(domain::Event event);
     void Dispatch(const std::vector<domain::Event>& events) const;
@@ -48,6 +54,7 @@ private:
     CompressorStore compressorStore;
     SaturatorStore saturatorStore;
     GainStore outputGainStore;
+    DeviceHistory history;
     AnalyzerWorkflow analyzerWorkflow;
     FitWorkflow fitWorkflow;
     EventHandler eventHandler;

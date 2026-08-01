@@ -36,7 +36,7 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.reset_all, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.commit_all, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes EQ and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.reset_all, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.commit_all, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, history.begin <operationId>, history.end <operationId>, history.undo, history.redo, history.restore <operationId> <undo|redo>, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes EQ and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
@@ -260,11 +260,18 @@ private:
             const auto revisionBefore = host.Revision();
             const auto isLinkCommand =
                 std::holds_alternative<domain::SetEqBankLinkCommand>(decoded.command);
+            const auto isHistoryRestore =
+                std::holds_alternative<domain::UndoHistoryCommand>(decoded.command) ||
+                std::holds_alternative<domain::RedoHistoryCommand>(decoded.command) ||
+                std::holds_alternative<domain::RestoreHistoryOperationCommand>(decoded.command);
             suppressContinuousStatePublication = IsContinuousParameterCommand(decoded.command);
             suppressDspStatePublication = IsDspIndependentCommand(decoded.command);
             host.Handle(decoded.command);
             suppressContinuousStatePublication = false;
             suppressDspStatePublication = false;
+            if (isHistoryRestore && host.Revision() != revisionBefore) {
+                PublishAllSnapshots();
+            }
             if (host.Revision() != revisionBefore &&
                 IsContinuousParameterCommand(decoded.command)) {
                 PublishParameterUpdate(decoded.command, host.Revision());

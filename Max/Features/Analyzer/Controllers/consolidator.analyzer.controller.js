@@ -22,29 +22,35 @@ AnalyzerController.prototype = Object.create(ControlControllerBase.prototype);
 AnalyzerController.prototype.constructor = AnalyzerController;
 
 AnalyzerController.prototype.ForwardCommand = function(name, values) {
+    var commandValues = name === "command" ? values
+        : name === "list" && String(values[0]) === "command"
+            ? values.slice(1) : null;
+    if (commandValues) {
+        var commandName = String(commandValues[3]);
+        if (commandName === "history.end") this.FlushPendingParameters();
+        if (commandName === "eq.set_parameter" && commandValues.length === 8) {
+            outlet(2, "eq_parameter_absolute_preview",
+                Number(commandValues[4]), Number(commandValues[5]),
+                String(commandValues[6]), Number(commandValues[7]));
+            this.parameterDispatcher.Enqueue(
+                [commandValues[4], commandValues[5], commandValues[6]].join(":"),
+                commandValues.slice(0)
+            );
+            return;
+        }
+        if (commandName === "eq.reset_filter" && commandValues.length === 6) {
+            outlet(2, "eq_filter_reset", Number(commandValues[4]), Number(commandValues[5]));
+            return;
+        }
+        if (commandName === "eq.set_bypass" && commandValues.length >= 6) {
+            outlet(0, "command", commandValues);
+            return;
+        }
+        outlet(0, "command", commandValues);
+        return;
+    }
     if (name === "bank.action") {
         outlet(2, "bank.action", values);
-        return;
-    }
-    if (name === "command" && values.length === 8 &&
-        String(values[3]) === "eq.set_parameter") {
-        outlet(2, "eq_parameter_absolute_preview",
-            Number(values[4]), Number(values[5]),
-            String(values[6]), Number(values[7]));
-        this.parameterDispatcher.Enqueue(
-            [values[4], values[5], values[6]].join(":"),
-            values.slice(0)
-        );
-        return;
-    }
-    if (name === "command" && values.length === 6 &&
-        String(values[3]) === "eq.reset_filter") {
-        outlet(2, "eq_filter_reset", Number(values[4]), Number(values[5]));
-        return;
-    }
-    if (name === "command" && values.length >= 6 &&
-        String(values[3]) === "eq.set_bypass") {
-        outlet(0, "command", values);
         return;
     }
     outlet(0, name, values);
@@ -174,7 +180,7 @@ function inletassist(index) {
 
 function outletassist(index) {
     assist(index === 0
-        ? "command 1 analyzer <requestId> analyzer.set_view <visible> <spectrum|analysis>; fit.start <pointCount> <curve...>; analyzer.clear; eq.set_parameter, eq.set_bypass, eq.reset_filter; bank.action <join|commit|reset|bypass> <optional 0|1>"
+        ? "command 1 analyzer <requestId> analyzer.set_view <visible> <spectrum|analysis>; fit.start <pointCount> <curve...>; analyzer.clear; history.begin <operationId>, history.end <operationId>; eq.set_parameter, eq.set_bypass, eq.reset_filter; bank.action <join|commit|reset|bypass> <optional 0|1>"
         : (index === 1
             ? "mode spectrum|analysis for the unified Analyzer View"
             : "eq_parameter_absolute_preview|eq_parameter_absolute_gesture <bankId> <filterId> <parameter> <absoluteValue>; eq_filter_reset <bankId> <filterId>"));

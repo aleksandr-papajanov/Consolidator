@@ -48,6 +48,23 @@ public:
                 writer.Write(std::string{ "command.rejected" })
                     .Write(static_cast<std::int64_t>(value.requestId.value)).Write(value.code);
             }
+            else if constexpr (std::is_same_v<Event, domain::HistoryChangedEvent>) {
+                writer.Write(std::string{ "history.changed" })
+                    .Write(value.canUndo).Write(value.canRedo);
+            }
+            else if constexpr (std::is_same_v<Event, domain::HistoryRestoredEvent>) {
+                writer.Write(std::string{ "history.restored" })
+                    .Write(std::string{ value.isUndo ? "undo" : "redo" })
+                    .Write(value.operationId).Write(value.linkId.empty() ? "-" : value.linkId);
+            }
+            else if constexpr (std::is_same_v<Event, domain::HistoryBeganEvent>) {
+                writer.Write(std::string{ "history.began" }).Write(value.operationId)
+                    .Write(value.linkId.empty() ? "-" : value.linkId);
+            }
+            else if constexpr (std::is_same_v<Event, domain::HistoryEndedEvent>) {
+                writer.Write(std::string{ "history.ended" }).Write(value.operationId)
+                    .Write(value.linkId.empty() ? "-" : value.linkId);
+            }
             else if constexpr (std::is_same_v<Event, domain::FitRequestedEvent>) {
                 writer.Write(std::string{ "fit.requested" })
                     .Write(static_cast<std::int64_t>(value.sessionId.value))
@@ -126,6 +143,38 @@ public:
             const auto code = reader.ReadString();
             if (!requestId || !code || *requestId < 1 || code->empty() || !reader.RequireEnd()) return Invalid("invalid_command_rejected", reader.Index());
             return Success(domain::CommandRejectedEvent{ { *requestId }, *code }, *eventId);
+        }
+        if (*name == "history.changed") {
+            const auto canUndo = reader.ReadBool();
+            const auto canRedo = reader.ReadBool();
+            if (!canUndo || !canRedo || !reader.RequireEnd()) {
+                return Invalid("invalid_history_changed", reader.Index());
+            }
+            return Success(domain::HistoryChangedEvent{ *canUndo, *canRedo }, *eventId);
+        }
+        if (*name == "history.restored") {
+            const auto action = reader.ReadString();
+            const auto operationId = reader.ReadString();
+            const auto linkId = reader.ReadString();
+            if (!action || !operationId || !linkId || operationId->empty() || !reader.RequireEnd() ||
+                (*action != "undo" && *action != "redo")) {
+                return Invalid("invalid_history_restored", reader.Index());
+            }
+            return Success(domain::HistoryRestoredEvent{
+                *action == "undo", *operationId, *linkId == "-" ? "" : *linkId
+            }, *eventId);
+        }
+        if (*name == "history.began" || *name == "history.ended") {
+            const auto operationId = reader.ReadString();
+            const auto linkId = reader.ReadString();
+            if (!operationId || !linkId || operationId->empty() || !reader.RequireEnd()) {
+                return Invalid("invalid_history_operation", reader.Index());
+            }
+            const auto normalizedLinkId = *linkId == "-" ? "" : *linkId;
+            if (*name == "history.began") {
+                return Success(domain::HistoryBeganEvent{ *operationId, normalizedLinkId }, *eventId);
+            }
+            return Success(domain::HistoryEndedEvent{ *operationId, normalizedLinkId }, *eventId);
         }
         if (*name == "fit.requested") {
             const auto sessionId = reader.ReadInt();

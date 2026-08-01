@@ -27,7 +27,13 @@ function clear_analysis() { analyzerViewController.ClearAnalysis(); }
 function mode(value) { analyzerViewController.SetMode(String(value)); }
 function onclick() { analyzerViewController.OnClick.apply(analyzerViewController, arguments); }
 function ondblclick() { analyzerViewController.OnDoubleClick.apply(analyzerViewController, arguments); }
-function ondrag() { analyzerViewController.OnDrag.apply(analyzerViewController, arguments); }
+function ondrag(x, y, button, cmd, shift, capslock, option) {
+    if (Number(button) === 0) {
+        analyzerViewController.OnMouseUp();
+        return;
+    }
+    analyzerViewController.OnDrag(x, y, button, cmd, shift, capslock, option);
+}
 function onmouseup() { analyzerViewController.OnMouseUp(); }
 function notifydeleted() { analyzerViewController.Dispose(); }
 
