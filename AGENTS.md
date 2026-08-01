@@ -87,6 +87,10 @@ Dictionaries, outlets, or mutable Host stores. Only the main thread applies a
 workflow result atomically. Use it for fitting, persistence decoding, and DSP
 topology construction. Continuous control gestures never enter a workflow.
 
+`Max/Shared/Runtime/LinkRevisionTracker.js` owns per-link outgoing revisions
+and independent incoming update/operation revision streams. Reuse it for any
+global link transport; do not duplicate revision maps in feature controllers.
+
 ## Atom Protocol
 
 All non-audio runtime communication uses one of these atom families:
