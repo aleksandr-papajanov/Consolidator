@@ -10,7 +10,7 @@ BankManagerOperations.prototype.Assign = function(values) {
     var bankId = Number(values[2]);
     if (instanceId !== manager.instanceId ||
         manager.EditableLinkIds().indexOf(linkId) < 0 || bankId < 2 || bankId > 5) return;
-    manager.SendHostCommand("eq.set_link", [bankId, linkId]);
+    manager.QueueLinkMutation(manager.local, manager.LocalBank(bankId), linkId);
 };
 
 BankManagerOperations.prototype.Detach = function(values) {
@@ -21,7 +21,7 @@ BankManagerOperations.prototype.Detach = function(values) {
     var bankId = Number(values[2]);
     if (instanceId !== manager.instanceId || bankId < 2 || bankId > 5) return;
     var bank = manager.LocalBank(bankId);
-    if (bank && bank.linkId === linkId) manager.SendHostCommand("eq.set_link", [bankId, "-"]);
+    if (bank && bank.linkId === linkId) manager.QueueLinkMutation(manager.local, bank, "");
 };
 
 BankManagerOperations.prototype.Execute = function(action, bypass) {
@@ -35,7 +35,6 @@ BankManagerOperations.prototype.Execute = function(action, bypass) {
     if (action === "join" || action === "commit") manager.pendingLinkedStatePublish = true;
     if (action === "reset") {
         manager.ResetLinkedBankModels(bank.linkId);
-        manager.PublishLinkedFilterPreviews(bank.linkId, true);
     }
     this.Apply(action, bank.id, bypass);
     outlet(1, "link.operation", bank.linkId, manager.instanceId,
@@ -67,7 +66,6 @@ BankManagerOperations.prototype.ApplyLinked = function(values) {
     if (!bank) return;
     if (action === "reset") {
         manager.ResetLinkedBankModels(linkId);
-        manager.PublishLinkedFilterPreviews(linkId, true);
     } else if (action === "join" || action === "commit") {
         manager.pendingLinkedStatePublish = true;
     }
@@ -84,7 +82,6 @@ BankManagerOperations.prototype.ResetFilter = function(bankId, filterId) {
         return;
     }
     this.ResetLinkedFilterModels(bank.linkId, filterId);
-    manager.PublishLinkedFilterPreviews(bank.linkId, true);
     manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
     outlet(1, "link.filter_reset", bank.linkId, manager.instanceId,
         manager.NextLinkRevision(bank.linkId), filterId);

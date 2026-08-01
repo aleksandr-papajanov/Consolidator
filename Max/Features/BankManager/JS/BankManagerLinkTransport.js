@@ -308,13 +308,11 @@ BankManagerLinkTransport.prototype.ApplyProcessorDelta = function(values) {
     var group = manager.ProcessorLinkGroup(linkId, device);
     var range = manager.processorRanges[device] && manager.processorRanges[device][parameter];
     if (!group || !range || !manager.linkRevisions.AcceptUpdate(linkId, sourceId, revision)) return;
+    if (!manager.local.processors[device] ||
+        !manager.HasLink(manager.local, linkId)) return;
     group.ApplyDelta(sourceId, parameter, delta, false, range);
     var processor = manager.local.processors[device];
-    if (!processor || !manager.HasLink(manager.local, linkId)) return;
     this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
-    if (parameter.indexOf("detector.") === 0) {
-        manager.PublishLinkedDetectorPreviews(linkId, true);
-    }
     manager.SendProcessorValue(device, parameter, processor.values[parameter]);
 };
 
@@ -333,7 +331,6 @@ BankManagerLinkTransport.prototype.ApplyDetectorReset = function(values) {
     if (!manager.HasLink(manager.local, linkId)) return;
     manager.ResetDetectorModels(linkId, device, filterId);
     manager.SendDetectorReset(device, filterId);
-    manager.PublishLinkedDetectorPreviews(linkId, true);
 };
 
 BankManagerLinkTransport.prototype.RemovePeer = function(values) {
@@ -370,7 +367,6 @@ BankManagerLinkTransport.prototype.ApplyFilterDelta = function(values) {
     this.ApplyFilterDeltaToModel(update, "");
     this.PublishEqPreview(bank.id, filterId, parameterIndex,
         filter.values[parameterIndex]);
-    manager.PublishChangedFilterPreviews(linkId, filterId);
     manager.SendHostCommand("eq.set_parameter_index", [
         bank.id, filterId, parameterIndex, filter.values[parameterIndex]
     ]);
@@ -393,7 +389,6 @@ BankManagerLinkTransport.prototype.ApplyFilterBypass = function(values) {
         var filter = members[index].bank.filters[filterId];
         if (filter) filter.bypass = bypass !== 0;
     }
-    manager.PublishLinkedFilterPreviews(linkId, true);
     manager.SendHostCommand("eq.set_bypass", [localBank.id, filterId, bypass]);
 };
 
@@ -409,7 +404,6 @@ BankManagerLinkTransport.prototype.ApplyFilterReset = function(values) {
     var bank = manager.FindLocalLinkedBank(linkId);
     if (!bank) return;
     manager.ResetLinkedFilterModels(linkId, filterId);
-    manager.PublishLinkedFilterPreviews(linkId, true);
     manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
 };
 
@@ -437,7 +431,6 @@ BankManagerLinkTransport.prototype.HandleEqGesture = function(values) {
             parameterIndex: parameterIndex, delta: delta };
         filter.values[parameterIndex] = absolute;
         this.ApplyFilterDeltaToModel(update, manager.instanceId);
-        manager.PublishChangedFilterPreviews(update.linkId, filterId);
         outlet(1, "link.filter_delta", update.linkId, manager.instanceId,
             this.NextRevision(update.linkId), filterId, parameterIndex, delta);
         return;
@@ -476,9 +469,6 @@ BankManagerLinkTransport.prototype.HandleProcessorGesture = function(values) {
     processor.values[parameter] = BankManagerMath.Denormalize(normalized, range);
     group.ApplyDelta(manager.instanceId, parameter, delta, true, range);
     this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
-    if (parameter.indexOf("detector.") === 0) {
-        manager.PublishLinkedDetectorPreviews(linkId, true);
-    }
     outlet(1, "link.processor_delta", linkId, manager.instanceId,
         this.NextRevision(linkId), device, parameter, delta);
 };
@@ -495,7 +485,6 @@ BankManagerLinkTransport.prototype.HandleDetectorReset = function(values) {
     var isLinked = Boolean(group && Object.keys(group.members).length >= 2);
     manager.ResetDetectorModels(isLinked ? linkId : "", device, filterId);
     manager.SendDetectorReset(device, filterId);
-    manager.PublishLinkedDetectorPreviews(linkId, isLinked);
     if (!isLinked) return;
     outlet(1, "link.processor_detector_reset", linkId, manager.instanceId,
         this.NextRevision(linkId), device, filterId);

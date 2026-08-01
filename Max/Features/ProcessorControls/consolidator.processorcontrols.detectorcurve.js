@@ -61,11 +61,6 @@ function reset(filterId) {
     detectorCurveViewModel.Reset(filterId);
     mgraphics.redraw();
 }
-function detector_link_preview() {
-    detectorCurveViewModel.SetLinkedPreview(arrayfromargs(arguments));
-    mgraphics.redraw();
-}
-
 function onresize() {
     mgraphics.redraw();
 }
@@ -84,7 +79,7 @@ function ondrag(x, y, button, mod1, shift, caps, option) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; definition, listen, limits, preview, detector_link_preview, link_color; output detector_absolute or detector_listen"
+        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; definition, listen, limits, preview, link_color; output detector_absolute or detector_listen"
         : "");
 }
 

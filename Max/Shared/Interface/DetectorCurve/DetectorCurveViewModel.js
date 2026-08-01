@@ -51,7 +51,6 @@ function DetectorCurveViewModel() {
     this.filters = [];
     this.listenFilters = {};
     this.linkColor = null;
-    this.linkedFilters = {};
     this.EnsureFilter(1);
     this.EnsureFilter(2);
 }
@@ -65,7 +64,6 @@ DetectorCurveViewModel.prototype.SetLinkColor = function(
 ) {
     if (String(linkId) === "-") {
         this.linkColor = null;
-        this.linkedFilters = {};
         return;
     }
     this.linkColor = [
@@ -93,25 +91,6 @@ DetectorCurveViewModel.prototype.Reset = function(filterId) {
     if (!filter) return;
     filter.Reset();
     this.listenFilters[Number(filterId)] = false;
-};
-
-DetectorCurveViewModel.prototype.SetLinkedPreview = function(values) {
-    if (!values.length || String(values[0]) === "-") {
-        this.linkedFilters = {};
-        return;
-    }
-    if (values.length !== 7) return;
-    var sourceId = String(values[1]);
-    var filterId = Number(values[2]);
-    if (!sourceId || !isFinite(filterId)) return;
-    this.linkedFilters[sourceId + ":" + filterId] = {
-        sourceId: sourceId,
-        filterId: filterId,
-        enabled: Number(values[3]) !== 0,
-        gainDb: Number(values[4]),
-        frequencyHz: Number(values[5]),
-        q: Number(values[6])
-    };
 };
 
 DetectorCurveViewModel.prototype.EnsureFilter = function(filterId) {

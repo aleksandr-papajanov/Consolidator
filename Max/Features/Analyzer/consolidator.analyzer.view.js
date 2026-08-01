@@ -42,7 +42,7 @@ function inletassist(index) {
         "Current spectrum in dB",
         "Reference spectrum in dB",
         "fit_curve <dB...>",
-        "filter_curve <id> <active> <freq> <gain> <type> <q> [<curve...>]; link_color <linkId|-> <r> <g> <b> <a>; eq_link_preview <linkId> <sourceId> <filterId> <active> <freq> <gain> <q> <type>; curve_settings ...",
+        "filter_curve <id> <active> <freq> <gain> <type> <q> [<curve...>]; link_color <linkId|-> <r> <g> <b> <a>; curve_settings ...",
         "Total EQ response in dB",
         "feature_vector <windowCount> <historySeconds> <metrics...>",
         "snapshot 1 host eq ...; mode spectrum|analysis; curve_settings <minimumHz> <maximumHz> <pointCount> <minimumSpectrumDb> <maximumSpectrumDb>; top UI FFT|ANALYSIS|RANGE; bottom UI B|R|JOIN|COMMIT|MATCH EQ|CLEAR"

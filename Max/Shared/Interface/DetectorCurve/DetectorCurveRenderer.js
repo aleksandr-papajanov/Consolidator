@@ -144,26 +144,6 @@ DetectorCurveRenderer.prototype.PaintMarker = function(model, index, width, plot
     else mgraphics.fill();
 };
 
-DetectorCurveRenderer.prototype.PaintLinkedMarkers = function(model, width, plotHeight) {
-    var options = detectorCurveOptions;
-    var color = InterfaceTheme.colors.textInactive;
-    for (var key in model.linkedFilters) {
-        if (!model.linkedFilters.hasOwnProperty(key)) continue;
-        var filter = model.linkedFilters[key];
-        if (!filter.enabled || !isFinite(filter.frequencyHz) || !isFinite(filter.gainDb)) continue;
-        var x = this.FrequencyToX(filter.frequencyHz, width);
-        var y = this.DbToY(filter.gainDb, plotHeight);
-        this.SetColor([color[0], color[1], color[2], color[3] * options.linkedMarkerOpacity]);
-        mgraphics.set_line_width(options.linkedMarkerLineWidth);
-        var radius = options.linkedMarkerRadius;
-        mgraphics.move_to(x - radius, y - radius);
-        mgraphics.line_to(x + radius, y + radius);
-        mgraphics.move_to(x + radius, y - radius);
-        mgraphics.line_to(x - radius, y + radius);
-        mgraphics.stroke();
-    }
-};
-
 DetectorCurveRenderer.prototype.Paint = function(model) {
     var options = detectorCurveOptions;
     var size = mgraphics.size;
@@ -173,7 +153,6 @@ DetectorCurveRenderer.prototype.Paint = function(model) {
     this.PaintCurve(model, 0, width, plotHeight, false);
     this.PaintCurve(model, 1, width, plotHeight, false);
     this.PaintCurve(model, 0, width, plotHeight, true);
-    this.PaintLinkedMarkers(model, width, plotHeight);
     this.PaintMarker(model, 0, width, plotHeight);
     this.PaintMarker(model, 1, width, plotHeight);
 };

@@ -370,9 +370,11 @@ only when the local user selects a bank. Link membership and `link.state` update
 refresh the cache but never publish limits themselves. Processor limits go over
 `---link.control.processor`; EQ `filter_limits` go over
 `---link.control.analyzer` and are forwarded to SpectrumView through
-`---analyzer.ui`. Limits are never recalculated during a gesture. Remote deltas
-update the cached model of every group member before the local Host command is
-emitted, and they are never broadcast again.
+`---analyzer.ui`. Limits are never recalculated during a gesture. The gesture
+source updates its complete linked cache before it broadcasts the delta. Each
+remote receiver updates only its own local member before its Host command;
+selecting a linked bank derives limits from the existing cache; it never queries
+peers. Remote deltas are never broadcast again.
 
 Analyzer visualization is split into independent responsive JSUI components.
 `consolidator.analyzer.view.js` is the single responsive JSUI for Analyzer
@@ -444,7 +446,7 @@ DspProcessor. Approximator combines `---state.eq` and the compact
 `---state.processor` snapshot. UI controllers and BankManager also consume the
 compact processor state. `---state.analyzer` contains only Analyzer events and
 EQ snapshots needed by the native Analyzer and SpectrumView. `---analyzer.ui`
-carries only short SpectrumView-local `eq_preview`, `eq_link_preview`, `filter_limits`, and
+carries only short SpectrumView-local `eq_preview`, `filter_limits`, and
 `link_color` updates;
 it never enters the native Analyzer.
 
@@ -504,7 +506,6 @@ carries `eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>` and
 `filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>` to
 SpectrumView. `---link.control.processor` carries
 `processor_preview <device> <parameter> <absoluteValue>`,
-`detector_link_preview <device> <linkId|-> [sourceRuntimeId filterId enabled gain frequency q]`,
 and processor control state. `BankManager` emits a preview immediately after updating its local
 linked model, both for source and remote deltas. UI controllers apply it
 directly without creating a Host command. A Host `parameter.updated` event
@@ -575,9 +576,11 @@ Dictionary must travel synchronously through `---device.persistence.out` to the
 root `pattrstorage`; never delay a Dictionary name after its owner has
 gone out of scope. Persistence debounce happens before serialization; the
 timer callback creates and sends the temporary Dictionary synchronously.
-Bank link membership is structural state: successful `eq.set_link` commands
-publish persistence immediately instead of waiting for the normal parameter
-debounce.
+Bank link membership is structural state. Link mutations are dispatched one at
+a time through BankManager's cooperative main-thread queue; each Host still
+commits atomically. They use the normal persistence debounce so a batch writes
+one final persistence Dictionary rather than synchronously serializing every
+member mutation.
 Never release a parent Max Dictionary after appending atoms or a nested
 dictionary. A nested dictionary transfers ownership to its parent after a
 successful append.

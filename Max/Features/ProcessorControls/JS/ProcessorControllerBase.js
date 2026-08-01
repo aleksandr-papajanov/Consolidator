@@ -1034,25 +1034,6 @@ ProcessorControlsController.prototype.HandleProcessorPreview = function(
     }
 };
 
-ProcessorControlsController.prototype.HandleDetectorLinkPreview = function(
-    device,
-    linkId,
-    sourceId,
-    filterId,
-    enabled,
-    gainDb,
-    frequencyHz,
-    q
-) {
-    if (String(device) !== this.visualDevice) return;
-    var fields = [];
-    for (var index = 1; index < arguments.length; ++index) {
-        fields.push(arguments[index]);
-    }
-    outlet(1, ["script", "sendbox", device + ".detectorCurve",
-        "detector_link_preview"].concat(fields));
-};
-
 ProcessorControlsController.prototype.SendOutputLevelIndicator = function() {
     if (this.visualDevice !== "compressor" && this.visualDevice !== "saturator") return;
     var display = this.telemetry.DisplayProcessorLevel(this.visualDevice);

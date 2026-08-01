@@ -11,8 +11,8 @@ outlets = 3;
 // eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter,
 // and saturator.set_parameter.
 // Outlet 1: the complete global bank/link message set accepted by inlet 1.
-// Outlet 2: link_color, processor_limits, processor_preview, detector_link_preview,
-// eq_preview, and filter_limits UI state.
+// Outlet 2: link_color, processor_limits, processor_preview, eq_preview, and
+// filter_limits UI state.
 // Local gesture input also accepts eq_parameter_absolute_gesture
 // <bankId> <filterId> <parameter> <absoluteValue> from SpectrumView and
 // processor_match_operation <device> <onset|level> and
@@ -55,6 +55,7 @@ include("JS/BankManagerLinkGraph.js");
 include("JS/BankManagerSelection.js");
 include("JS/BankVisibilityPolicy.js");
 include("JS/GroupOperationPlanner.js");
+include("JS/LinkMutationDispatcher.js");
 include("JS/BankManagerLayout.js");
 include("JS/BankManagerOperations.js");
 include("JS/BankManagerLinkTransport.js");
@@ -72,6 +73,7 @@ function BankManager() {
     this.selection = new BankManagerSelection(this);
     this.visibilityPolicy = new BankVisibilityPolicy(this);
     this.groupOperations = new GroupOperationPlanner(this);
+    this.linkMutations = new LinkMutationDispatcher(this);
     this.linkEditingEnabled = false;
     this.clearAllConfirmationArmed = false;
     this.clearAllConfirmationTask = new Task(this.ClearAllConfirmationExpired, this);
@@ -112,6 +114,7 @@ BankManager.prototype.Initialize = function() {
 
 BankManager.prototype.Dispose = function() {
     this.clearAllConfirmationTask.cancel();
+    this.linkMutations.Dispose();
     this.initializer.Dispose();
 };
 
@@ -141,6 +144,10 @@ BankManager.prototype.HandleTrackNameChanged = function(values) {
 
 BankManager.prototype.SendHostCommand = function(name, fields) {
     this.SendCommand(name, fields);
+};
+
+BankManager.prototype.QueueLinkMutation = function(instance, bank, linkId) {
+    this.linkMutations.Enqueue(instance, bank, linkId);
 };
 
 BankManager.prototype.ParseEqSnapshot = function(values) {
@@ -546,18 +553,6 @@ BankManager.prototype.HandleProcessorDetectorReset = function(values) {
 
 BankManager.prototype.PublishFilterLimits = function(linkId, isLinked) {
     this.linkPresentation.PublishFilterLimits(linkId, isLinked);
-};
-
-BankManager.prototype.PublishLinkedDetectorPreviews = function(linkId, isLinked) {
-    this.linkPresentation.PublishDetectorPreviews(linkId, isLinked);
-};
-
-BankManager.prototype.PublishLinkedFilterPreviews = function(linkId, isLinked) {
-    this.linkPresentation.PublishFilterPreviews(linkId, isLinked);
-};
-
-BankManager.prototype.PublishChangedFilterPreviews = function(linkId, filterId) {
-    this.linkPresentation.PublishChangedFilterPreviews(linkId, filterId);
 };
 
 var bankManager = new BankManager();

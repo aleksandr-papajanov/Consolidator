@@ -11,9 +11,6 @@ SpectrumViewModel.prototype.Build = function(state) {
         fitCurve: state.fitCurve,
         totalCurve: state.totalCurve,
         filterCurves: state.filterCurves,
-        handles: state.handles,
-        linkedHandles: state.linkedHandles,
-        linkId: state.linkId,
-        linkColor: state.linkColor
+        handles: state.handles
     };
 };

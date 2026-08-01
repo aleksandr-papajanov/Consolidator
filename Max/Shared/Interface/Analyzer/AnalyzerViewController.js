@@ -179,7 +179,6 @@ function AnalyzerViewController() {
         totalCurve: [],
         filterCurves: {},
         filterLimits: {},
-        linkedHandles: [],
         handles: [],
         selectedBankId: 1,
         eqBypass: false,
@@ -305,7 +304,6 @@ AnalyzerViewController.prototype.HandleAnything = function(inletIndex, name, val
     else if (inletIndex === 6 && name === "eq_preview") this.SetEqPreview(values);
     else if (inletIndex === 6 && name === "filter_limits") this.SetFilterLimits(values);
     else if (inletIndex === 6 && name === "link_color") this.SetLinkColor(values);
-    else if (inletIndex === 6 && name === "eq_link_preview") this.SetLinkedFilterPreview(values);
 };
 
 AnalyzerViewController.prototype.SetLinkColor = function(values) {
@@ -320,7 +318,6 @@ AnalyzerViewController.prototype.SetLinkColor = function(values) {
         !isFinite(color.b) || !isFinite(color.a)) return;
     var nextLinkId = String(values[0]) === "-" ? "" : String(values[0]);
     if (this.state.linkId !== nextLinkId) {
-        this.state.linkedHandles = [];
         this.state.filterLimits = {};
     }
     this.state.linkColor = String(values[0]) === "-"
@@ -332,39 +329,6 @@ AnalyzerViewController.prototype.SetLinkColor = function(values) {
             this.state.filterCurves[filterId].color = this.state.linkColor;
         }
     }
-    this.RequestRedraw();
-};
-
-AnalyzerViewController.prototype.SetLinkedFilterPreview = function(values) {
-    if (values.length === 1 && String(values[0]) === "-") {
-        this.state.linkedHandles = [];
-        this.RequestRedraw();
-        return;
-    }
-    if (values.length !== 8 || !this.state.linkId ||
-        String(values[0]) !== this.state.linkId) return;
-    var handle = {
-        sourceId: String(values[1]),
-        filterId: Number(values[2]),
-        active: Number(values[3]) !== 0,
-        frequency: Number(values[4]),
-        gain: Number(values[5]),
-        q: Number(values[6]),
-        type: String(values[7])
-    };
-    if (!isFinite(handle.filterId) || !isFinite(handle.frequency) ||
-        !isFinite(handle.gain) || !isFinite(handle.q)) return;
-    var replaced = false;
-    for (var index = 0; index < this.state.linkedHandles.length; ++index) {
-        var current = this.state.linkedHandles[index];
-        if (current.sourceId === handle.sourceId &&
-            current.filterId === handle.filterId) {
-            this.state.linkedHandles[index] = handle;
-            replaced = true;
-            break;
-        }
-    }
-    if (!replaced) this.state.linkedHandles.push(handle);
     this.RequestRedraw();
 };
 

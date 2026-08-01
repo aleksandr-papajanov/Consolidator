@@ -258,8 +258,6 @@ private:
         }
         try {
             const auto revisionBefore = host.Revision();
-            const auto isLinkCommand =
-                std::holds_alternative<domain::SetEqBankLinkCommand>(decoded.command);
             const auto isHistoryRestore =
                 std::holds_alternative<domain::UndoHistoryCommand>(decoded.command) ||
                 std::holds_alternative<domain::RedoHistoryCommand>(decoded.command) ||
@@ -275,10 +273,6 @@ private:
             if (host.Revision() != revisionBefore &&
                 IsContinuousParameterCommand(decoded.command)) {
                 PublishParameterUpdate(decoded.command, host.Revision());
-            }
-            if (isLinkCommand) {
-                persistenceDirty = false;
-                PublishPersistence();
             }
         }
         catch (const std::exception&) {

@@ -46,9 +46,6 @@ BankManagerSnapshotCoordinator.prototype.ApplyEq = function(values) {
         manager.pendingLinkedStatePublish = false;
         manager.PublishLinkedState();
     }
-    var activeLinkId = manager.ActiveLinkId(manager.local);
-    manager.PublishLinkedFilterPreviews(activeLinkId,
-        activeLinkId && manager.LinkMemberIds(activeLinkId).length >= 2);
     return true;
 };
 

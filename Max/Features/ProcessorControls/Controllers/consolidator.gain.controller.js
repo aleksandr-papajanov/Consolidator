@@ -360,9 +360,6 @@ function processor_match_operation(device, operation) {
     if (inlet === 0) controller.HandleGroupMatch(String(device), String(operation));
 }
 
-// The scoped processor link channel is shared with detector controllers.
-function detector_link_preview() {}
-
 function levelMatch(value) {
     if (inlet === 1) controller.HandleLevelMatch(value);
 }

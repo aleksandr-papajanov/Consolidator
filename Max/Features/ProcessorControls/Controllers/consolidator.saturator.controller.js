@@ -8,7 +8,7 @@ var controller = new ProcessorControllerBase("saturator");
 
 function inletassist(index) {
     assist([
-        "Local saturator saturation-output <ring 1..3> <0..1>|active <0|1>|onsetMatch <0|1>|levelMatch <0|1>, detector_absolute, detector_listen <filterId> <0|1>; processor_limits, link_color, processor_preview, detector_link_preview, processor_match_operation <saturator> <onset|level>, processor_bypass_operation <saturator> <0|1>",
+        "Local saturator saturation-output <ring 1..3> <0..1>|active <0|1>|onsetMatch <0|1>|levelMatch <0|1>, detector_absolute, detector_listen <filterId> <0|1>; processor_limits, link_color, processor_preview, processor_match_operation <saturator> <onset|level>, processor_bypass_operation <saturator> <0|1>",
         "Host EQ and processor snapshots",
         "target_level <absoluteDb>, processor_telemetry <9 values>"
     ][index] || "");
@@ -49,10 +49,6 @@ function processor_match_operation(device, operation) {
 }
 function processor_bypass_operation(device, bypass) {
     if (inlet === 0) controller.HandleGroupBypass(String(device), Number(bypass));
-}
-function detector_link_preview() {
-    if (inlet === 0) controller.HandleDetectorLinkPreview.apply(
-        controller, arrayfromargs(arguments));
 }
 function processor_detector_reset(device, filterId) {
     if (inlet === 0) controller.ResetDetector(String(device), Number(filterId));

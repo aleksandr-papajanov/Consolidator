@@ -75,11 +75,7 @@ GroupOperationPlanner.prototype.AssignSelection = function(linkId) {
     var members = this.Selection();
     for (var index = 0; index < members.length; ++index) {
         var member = members[index];
-        if (member.instance.id === manager.instanceId) {
-            manager.SendHostCommand("eq.set_link", [member.bank.id, linkId]);
-        } else {
-            outlet(1, "link.assign", linkId, member.instance.id, member.bank.id);
-        }
+        manager.QueueLinkMutation(member.instance, member.bank, linkId);
     }
 };
 
@@ -89,11 +85,7 @@ GroupOperationPlanner.prototype.DetachSelection = function(linkId) {
     var members = this.SelectionForLink(linkId);
     for (var index = 0; index < members.length; ++index) {
         var member = members[index];
-        if (member.instance.id === manager.instanceId) {
-            manager.SendHostCommand("eq.set_link", [member.bank.id, "-"]);
-        } else {
-            outlet(1, "link.detach", linkId, member.instance.id, member.bank.id);
-        }
+        manager.QueueLinkMutation(member.instance, member.bank, "");
     }
     return true;
 };

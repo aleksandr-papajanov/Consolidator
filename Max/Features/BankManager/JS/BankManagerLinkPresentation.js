@@ -35,8 +35,6 @@ BankManagerLinkPresentation.prototype.RefreshControlSession = function() {
     }
     var isLinkedSession = activeMembers.length >= 2;
     this.PublishFilterLimits(activeLinkId, isLinkedSession);
-    this.PublishFilterPreviews(activeLinkId, isLinkedSession);
-    this.PublishDetectorPreviews(activeLinkId, isLinkedSession);
 };
 
 BankManagerLinkPresentation.prototype.PublishFilterLimits = function(linkId, isLinked) {
@@ -74,84 +72,4 @@ BankManagerLinkPresentation.prototype.PublishFilterLimits = function(linkId, isL
                 BankManagerMath.Denormalize(Math.min(1, sourceValue + maximumDelta), definition));
         }
     }
-};
-
-BankManagerLinkPresentation.prototype.PublishDetectorPreviews = function(linkId, isLinked) {
-    var manager = this.manager;
-    var devices = ["compressor", "saturator"];
-    for (var deviceIndex = 0; deviceIndex < devices.length; ++deviceIndex) {
-        var device = devices[deviceIndex];
-        outlet(2, "detector_link_preview", device, "-");
-        if (!isLinked || !linkId) continue;
-        var group = manager.ProcessorLinkGroup(linkId, device);
-        if (!group) continue;
-        for (var sourceId in group.members) {
-            if (!group.members.hasOwnProperty(sourceId) || sourceId === manager.instanceId) continue;
-            var values = group.members[sourceId].values;
-            for (var filterId = 1; filterId <= 2; ++filterId) {
-                var prefix = "detector." + filterId + ".";
-                var bypass = Number(values[prefix + "bypass"]);
-                var gain = Number(values[prefix + "gain"]);
-                var frequency = Number(values[prefix + "frequency"]);
-                var q = Number(values[prefix + "q"]);
-                if (!isFinite(bypass) || !isFinite(gain) ||
-                    !isFinite(frequency) || !isFinite(q)) continue;
-                outlet(2, "detector_link_preview", device, linkId, sourceId,
-                    filterId, bypass ? 0 : 1, gain, frequency, q);
-            }
-        }
-    }
-};
-
-BankManagerLinkPresentation.prototype.PublishFilterPreviews = function(linkId, isLinked) {
-    var manager = this.manager;
-    outlet(2, "eq_link_preview", "-");
-    if (!isLinked || !linkId) return;
-    var members = manager.LinkMembers(linkId);
-    for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
-        var member = members[memberIndex];
-        if (member.instance.id === manager.instanceId) continue;
-        for (var filterId in member.bank.filters) {
-            if (!member.bank.filters.hasOwnProperty(filterId)) continue;
-            this.PublishFilterPreview(linkId, member, Number(filterId));
-        }
-    }
-};
-
-BankManagerLinkPresentation.prototype.PublishChangedFilterPreviews = function(linkId, filterId) {
-    var manager = this.manager;
-    var members = manager.LinkMembers(linkId);
-    for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
-        var member = members[memberIndex];
-        if (member.instance.id !== manager.instanceId) {
-            this.PublishFilterPreview(linkId, member, filterId);
-        }
-    }
-};
-
-BankManagerLinkPresentation.prototype.PublishFilterPreview = function(linkId, member, filterId) {
-    var manager = this.manager;
-    var filter = member.bank.filters[filterId];
-    var parameters = manager.filterDefinitions[filterId];
-    if (!filter || !parameters) return;
-    var frequency = 0;
-    var gain = 0;
-    var q = 0;
-    for (var parameterIndex = 0; parameterIndex < parameters.length; ++parameterIndex) {
-        var parameterName = parameters[parameterIndex].name;
-        var value = Number(filter.values[parameterIndex]);
-        if (!isFinite(value)) continue;
-        if (parameterName === "freq" || parameterName === "pivot") frequency = value;
-        else if (parameterName === "gain") gain = value;
-        else if (parameterName === "q") q = value;
-    }
-    outlet(2, "eq_link_preview", linkId, member.instance.id, filterId,
-        filter.bypass ? 0 : 1, frequency, gain, q,
-        manager.filterTypes[filterId] || "peak");
-};
-
-BankManagerLinkPresentation.prototype.ClearPreviews = function() {
-    outlet(2, "eq_link_preview", "-");
-    outlet(2, "detector_link_preview", "compressor", "-");
-    outlet(2, "detector_link_preview", "saturator", "-");
 };
