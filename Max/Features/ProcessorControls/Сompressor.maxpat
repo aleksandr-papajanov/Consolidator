@@ -45,7 +45,7 @@
 , 			{
 				"box" : 				{
 					"border" : 0,
-					"embedstate" : [ [ "autoMatchEnabled", 1 ], [ "primaryIndicator", 0 ], [ "tertiaryValue", 0.125 ], [ "primaryValue", 0.7 ], [ "enabled", 1 ], [ "valueCount", 3 ], [ "secondaryIndicator", 0 ], [ "secondaryValue", 0.5 ], [ "tertiaryIndicator", 0 ], [ "activityEnabled", 1 ], [ "listenEnabled", 0 ] ],
+					"embedstate" : [ [ "levelMatchEnabled", 1 ], [ "onsetMatchEnabled", 1 ], [ "primaryIndicator", 0 ], [ "tertiaryValue", 0.125 ], [ "primaryValue", 0.7 ], [ "enabled", 1 ], [ "valueCount", 3 ], [ "secondaryIndicator", 0 ], [ "secondaryValue", 0.5 ], [ "tertiaryIndicator", 0 ], [ "activityEnabled", 1 ], [ "listenEnabled", 0 ] ],
 					"filename" : "../../Shared/Interface/Dial/DialControl.js",
 					"id" : "obj-8",
 					"maxclass" : "jsui",

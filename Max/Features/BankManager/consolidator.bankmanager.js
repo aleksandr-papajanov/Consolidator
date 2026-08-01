@@ -6,7 +6,7 @@ outlets = 3;
 // Inlet 1: global bank/link messages: bank.query, bank.announce, bank.leave,
 // bank.reset_all, link.assign, link.detach, link.operation, link.filter_delta,
 // link.filter_bypass, link.filter_reset, link.processor_detector_reset, link.state,
-// and link.processor_delta.
+// link.processor_delta, link.processor_match, and link.processor_bypass.
 // Outlet 0: Host commands: eq.select_bank, eq.join_banks, eq.commit_all,
 // eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter,
 // and saturator.set_parameter.
@@ -14,7 +14,9 @@ outlets = 3;
 // Outlet 2: link_color, processor_limits, processor_preview, detector_link_preview,
 // eq_preview, and filter_limits UI state.
 // Local gesture input also accepts eq_parameter_absolute_gesture
-// <bankId> <filterId> <parameter> <absoluteValue> from SpectrumView.
+// <bankId> <filterId> <parameter> <absoluteValue> from SpectrumView and
+// processor_match_operation <device> <onset|level> and
+// processor_bypass_operation <compressor|saturator> <0|1> from processor controls.
 // bank.announce: <instanceId> <trackName> <trackOrder> <revision> <selectedBank>
 // <systemOccupied> <six bankId occupied linkId records>.
 // link.assign|link.detach: <linkId> <instanceId> <bankId>.
@@ -24,6 +26,8 @@ outlets = 3;
 // link.filter_reset: <linkId> <sourceId> <revision> <filterId>.
 // link.processor_delta: <linkId> <sourceId> <revision> <device> <parameter> <normalizedDelta>.
 // link.processor_detector_reset: <linkId> <sourceId> <revision> <device> <filterId>.
+// link.processor_match: <linkId> <sourceId> <revision> <device> <onset|level>.
+// link.processor_bypass: <linkId> <sourceId> <revision> <compressor|saturator> <0|1>.
 // link.state: <linkId> <sourceId> <revision> <bankId> <filterCount>
 // <filterId> <bypass> <valueCount> <values...>... <processorValueCount>
 // <device> <parameter> <absoluteValue>...
@@ -102,6 +106,11 @@ BankManager.prototype.Initialize = function() {
     this.initializer.Start();
 };
 
+BankManager.prototype.Dispose = function() {
+    this.clearAllConfirmationTask.cancel();
+    this.initializer.Dispose();
+};
+
 BankManager.prototype.TryInitialize = function() {
     var identity = this.liveIdentity.Resolve();
     if (!identity) return false;
@@ -162,6 +171,7 @@ BankManager.prototype.IsFocusedBank = function(instance, bank) {
 
 BankManager.prototype.SetFocusedBank = function(instance, bankId) {
     if (!instance || !isFinite(bankId) || bankId < 1 || bankId > 6) return;
+    if (instance.id !== this.instanceId) return;
     if (!this.selection.SetFocusedBank(instance, bankId)) return;
     if (!this.CanChangeFocusedBankLink()) this.linkEditingEnabled = false;
     this.controlLinkSession = "";
@@ -193,6 +203,11 @@ BankManager.prototype.SendProcessorValue = function(device, parameter, value) {
     } else {
         this.SendHostCommand(device + ".set_parameter", [parameter, value]);
     }
+};
+
+BankManager.prototype.SendProcessorBypass = function(device, bypass) {
+    if (device !== "compressor" && device !== "saturator") return;
+    this.SendHostCommand(device + ".set_bypass", [Number(bypass) !== 0 ? 1 : 0]);
 };
 
 BankManager.prototype.SendDetectorReset = function(device, filterId) {
@@ -281,6 +296,10 @@ BankManager.prototype.Rows = function() {
     return this.selection.Rows();
 };
 
+BankManager.prototype.DisplayRows = function() {
+    return this.Rows();
+};
+
 BankManager.prototype.BankStartX = function(width) {
     return this.layout.BankStartX(width);
 };
@@ -294,7 +313,7 @@ BankManager.prototype.ContentHeight = function() {
 };
 
 BankManager.prototype.MaximumScrollOffset = function() {
-    this.viewModel.listView.SetItems(this.Rows());
+    this.viewModel.listView.SetItems(this.DisplayRows());
     return this.viewModel.listView.MaximumScrollOffset(
         this.ContentHeight(), BankManagerVisualOptions.rowHeight);
 };
@@ -326,6 +345,7 @@ BankManager.prototype.IsPointInRect = function(x, y, rect) {
 BankManager.prototype.ToggleLinkEditing = function() {
     if (!this.CanChangeFocusedBankLink()) return;
     this.linkEditingEnabled = !this.linkEditingEnabled;
+    this.selection.ClearEditSelection();
     mgraphics.redraw();
 };
 
@@ -357,14 +377,7 @@ BankManager.prototype.ResetAllBankModels = function() {
 };
 
 BankManager.prototype.LinkGroupIndexAt = function(x, y, width, height) {
-    var layout = new ButtonGroupLayout();
-    return layout.IndexAt(
-        this.LinkPanelRect(width, height),
-        this.EditableLinkIds().length + 1,
-        x,
-        y,
-        BankManagerButtonGroupOptions.links
-    );
+    return this.layout.LinkGroupIndexAt(x, y, width, height);
 };
 
 BankManager.prototype.FocusedLinkId = function() {
@@ -382,63 +395,112 @@ BankManager.prototype.CanChangeFocusedBankLink = function() {
     return Boolean(bank && bank.id >= 2 && bank.id <= 5);
 };
 
-BankManager.prototype.CanAssignFocusedBankToLink = function(linkId) {
-    var instance = this.FocusedInstance();
-    var bank = this.FocusedBank();
-    var nextLinkId = this.NormalizeLinkId(linkId);
-    if (!instance || !bank || !this.CanChangeFocusedBankLink()) return false;
-    if (!nextLinkId) return Boolean(bank.linkId);
-    if (this.EditableLinkIds().indexOf(nextLinkId) < 0 || bank.linkId === nextLinkId) {
-        return false;
-    }
-    for (var index = 0; index < instance.banks.length; ++index) {
-        var candidate = instance.banks[index];
-        if (candidate.id !== bank.id && candidate.linkId === nextLinkId) return false;
-    }
-    return true;
-};
-
 BankManager.prototype.IsActiveGroupMember = function(bank) {
-    var linkId = this.FocusedLinkId();
+    var linkId = this.ActiveLinkId(this.local);
     return Boolean(linkId && bank && bank.linkId === linkId);
 };
 
-BankManager.prototype.CanEditBankInActiveGroup = function(instance, bank) {
-    var linkId = this.ActiveEditableLinkId();
-    if (!linkId || !instance || !bank || bank.id < 2 || bank.id > 5) return false;
-    if (bank.linkId === linkId) return true;
-    if (bank.linkId) return false;
+BankManager.prototype.IsEditBankSelected = function(instance, bank) {
+    return this.selection.IsEditSelected(instance, bank);
+};
+
+BankManager.prototype.IsEditableBank = function(bank) {
+    return Boolean(bank && bank.id >= 2 && bank.id <= 5);
+};
+
+BankManager.prototype.CanAssignBankToLink = function(instance, bank, linkId, reservedInstances) {
+    if (!instance || !this.IsEditableBank(bank) || bank.linkId ||
+        this.EditableLinkIds().indexOf(linkId) < 0) return false;
+    if (reservedInstances && reservedInstances[instance.id]) return false;
     for (var index = 0; index < instance.banks.length; ++index) {
-        if (instance.banks[index].id !== bank.id &&
-            instance.banks[index].linkId === linkId) return false;
+        var candidate = instance.banks[index];
+        if (candidate.id !== bank.id && candidate.linkId === linkId) return false;
     }
     return true;
 };
 
-BankManager.prototype.SetFocusedBankLink = function(linkId) {
-    var instance = this.FocusedInstance();
-    var bank = this.FocusedBank();
-    var nextLinkId = this.NormalizeLinkId(linkId);
-    if (!this.linkEditingEnabled || !instance || !bank ||
-        !this.CanAssignFocusedBankToLink(nextLinkId)) return;
-    if (instance.id === this.instanceId) {
-        this.SendHostCommand("eq.set_link", [bank.id, nextLinkId || "-"]);
-    } else if (nextLinkId) {
-        outlet(1, "link.assign", nextLinkId, instance.id, bank.id);
-    } else {
-        outlet(1, "link.detach", bank.linkId, instance.id, bank.id);
+BankManager.prototype.EditBankMembership = function(instance, bank, extend) {
+    if (!this.linkEditingEnabled || !this.IsEditableBank(bank)) return;
+    this.selection.ToggleEditBank(instance, bank, extend);
+};
+
+BankManager.prototype.EditSelection = function() {
+    return this.selection.EditSelection();
+};
+
+BankManager.prototype.CanAssignEditSelectionToLink = function(linkId) {
+    var members = this.EditSelection();
+    if (members.length === 0 || this.EditableLinkIds().indexOf(linkId) < 0) return false;
+    var reservedInstances = {};
+    for (var index = 0; index < members.length; ++index) {
+        var member = members[index];
+        if (!this.CanAssignBankToLink(member.instance, member.bank, linkId, reservedInstances)) {
+            return false;
+        }
+        reservedInstances[member.instance.id] = true;
+    }
+    return true;
+};
+
+BankManager.prototype.EditSelectionForLink = function(linkId) {
+    return this.EditSelection().filter(function(member) {
+        return member.bank.linkId === linkId;
+    });
+};
+
+BankManager.prototype.CanDetachEditSelectionFromLink = function(linkId) {
+    var members = this.EditSelection();
+    if (members.length === 0) return false;
+    for (var index = 0; index < members.length; ++index) {
+        if (members[index].bank.linkId !== linkId) return false;
+    }
+    return true;
+};
+
+BankManager.prototype.CanApplyEditSelectionToLink = function(linkId) {
+    return this.CanDetachEditSelectionFromLink(linkId) ||
+        this.CanAssignEditSelectionToLink(linkId);
+};
+
+BankManager.prototype.HasEditSelectionInLink = function(linkId) {
+    return this.CanDetachEditSelectionFromLink(linkId);
+};
+
+BankManager.prototype.AssignEditSelection = function(linkId) {
+    if (!this.linkEditingEnabled || !this.CanAssignEditSelectionToLink(linkId)) return;
+    var members = this.EditSelection();
+    for (var index = 0; index < members.length; ++index) {
+        var member = members[index];
+        if (member.instance.id === this.instanceId) {
+            this.SendHostCommand("eq.set_link", [member.bank.id, linkId]);
+        } else {
+            outlet(1, "link.assign", linkId, member.instance.id, member.bank.id);
+        }
     }
 };
 
-BankManager.prototype.ToggleBankInActiveGroup = function(instance, bank) {
-    var linkId = this.ActiveEditableLinkId();
-    if (!this.linkEditingEnabled || !linkId ||
-        !this.CanEditBankInActiveGroup(instance, bank)) return;
-    if (bank.linkId === linkId) {
-        outlet(1, "link.detach", linkId, instance.id, bank.id);
-    } else {
-        outlet(1, "link.assign", linkId, instance.id, bank.id);
+BankManager.prototype.DetachEditSelectionFromLink = function(linkId) {
+    if (!this.CanDetachEditSelectionFromLink(linkId)) return false;
+    var members = this.EditSelectionForLink(linkId);
+    for (var index = 0; index < members.length; ++index) {
+        var member = members[index];
+        if (member.instance.id === this.instanceId) {
+            this.SendHostCommand("eq.set_link", [member.bank.id, "-"]);
+        } else {
+            outlet(1, "link.detach", linkId, member.instance.id, member.bank.id);
+        }
     }
+    return true;
+};
+
+BankManager.prototype.ApplyEditSelectionToLink = function(linkId) {
+    if (!this.linkEditingEnabled) return;
+    if (this.DetachEditSelectionFromLink(linkId)) return;
+    this.AssignEditSelection(linkId);
+};
+
+BankManager.prototype.LinkMemberCount = function(linkId) {
+    return this.LinkMembers(linkId).length;
 };
 
 BankManager.prototype.ApplyLinkAssignment = function(values) {
@@ -550,6 +612,25 @@ BankManager.prototype.HandleProcessorParameterGesture = function(values) {
     this.linkTransport.HandleProcessorGesture(values);
 };
 
+BankManager.prototype.HandleProcessorMatchOperation = function(values) {
+    if (values.length !== 2) return;
+    var device = String(values[0]);
+    var operation = String(values[1]);
+    if (["input_gain", "output_gain", "compressor", "saturator"].indexOf(device) < 0 ||
+        (operation !== "onset" && operation !== "level")) return;
+    if ((device === "input_gain" || device === "output_gain") && operation !== "level") return;
+    this.linkTransport.StartProcessorMatch(device, operation);
+};
+
+BankManager.prototype.HandleProcessorBypassOperation = function(values) {
+    if (values.length !== 2) return;
+    var device = String(values[0]);
+    var bypass = Number(values[1]);
+    if ((device !== "compressor" && device !== "saturator") ||
+        (bypass !== 0 && bypass !== 1)) return;
+    this.linkTransport.StartProcessorBypass(device, bypass);
+};
+
 BankManager.prototype.HandleProcessorDetectorReset = function(values) {
     this.linkTransport.HandleDetectorReset(values);
 };
@@ -581,7 +662,7 @@ function BankManagerTrackNameChanged() {
 
 function inletassist(index) {
     assist(index === 0
-        ? "Local input: Host snapshots; eq_parameter_absolute_gesture, eq_parameter_absolute_preview, eq_filter_reset, processor_parameter_gesture"
+        ? "Local input: Host snapshots; eq_parameter_absolute_gesture, eq_parameter_absolute_preview, eq_filter_reset, processor_parameter_gesture, processor_match_operation, processor_bypass_operation"
         : "Global bus: bank.query, bank.announce, bank.leave, bank.reset_all, link.assign, link.detach, link.operation, link.filter_*, link.processor_*, link.state");
 }
 
@@ -599,7 +680,9 @@ setoutletassist(-1, outletassist);
 function loadbang() { bankManager.Initialize(); }
 function initialize() { bankManager.Initialize(); }
 function paint() { bankManager.ui.Paint(); }
-function onclick(x, y) { bankManager.ui.Click(x, y); }
+function onclick(x, y, button, cmd, shift) {
+    bankManager.ui.Click(x, y, Boolean(shift));
+}
 function onwheel(x, y, scrollx, scrolly) { bankManager.ui.Scroll(scrolly); }
 function snapshot() {
     if (inlet === 0) {
@@ -656,3 +739,4 @@ function list() {
 function leave() {
     if (bankManager.instanceId) outlet(1, "bank.leave", bankManager.instanceId);
 }
+function notifydeleted() { bankManager.Dispose(); }

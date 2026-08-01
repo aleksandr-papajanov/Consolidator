@@ -3,7 +3,7 @@ var ProcessorTelemetryOptions = {
         minimumDb: -60.0,
         maximumDb: 0.0,
         defaultTargetDb: -18.0,
-        averagingMilliseconds: 1500,
+        averagingMilliseconds: 3000,
         minimumAveragingMilliseconds: 1000,
         peakReleaseDb: 0.75
     },

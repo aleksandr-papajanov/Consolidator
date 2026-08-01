@@ -49,6 +49,12 @@ function GainController(stage) {
 GainController.prototype = Object.create(ControlControllerBase.prototype);
 GainController.prototype.constructor = GainController;
 
+GainController.prototype.Dispose = function() {
+    ControlControllerBase.prototype.Dispose.call(this);
+    this.telemetry.Dispose();
+    this.levelMatchCapture.Dispose();
+};
+
 GainController.prototype.NormalizeTarget = function(valueDb) {
     return this.ClampNormalized(
         (Number(valueDb) - ProcessorTelemetryOptions.levels.minimumDb)
@@ -68,7 +74,12 @@ GainController.prototype.TargetDb = function() {
 };
 
 GainController.prototype.SetGain = function(value) {
-    this.currentGain = this.ClampNormalized(value);
+    var nextGain = this.ClampNormalized(value);
+    if (Math.abs(nextGain - this.currentGain) > 1.0e-9) {
+        this.telemetry.LevelForStage(this.stage).Reset();
+        this.UpdateIndicator();
+    }
+    this.currentGain = nextGain;
     outlet(1, "set", 1, this.currentGain);
 };
 
@@ -87,7 +98,7 @@ GainController.prototype.ToNormalizedGain = function(value) {
     );
 };
 
-GainController.prototype.SendGain = function(value) {
+GainController.prototype.SendGain = function(value, emitGesture) {
     var normalized = this.ClampNormalized(value);
     this.currentGain = normalized;
     var absolute = this.ToAbsoluteGain(normalized);
@@ -98,14 +109,17 @@ GainController.prototype.SendGain = function(value) {
     this.pendingGain = null;
     this.parameterDispatcher.Enqueue(this.stage, {
         normalized: normalized,
-        absolute: absolute
+        absolute: absolute,
+        emitGesture: emitGesture !== false
     });
 };
 
 GainController.prototype.FlushGain = function(update) {
-    outlet(4, "processor_parameter_gesture",
-        this.stage === "input" ? "input_gain" : "output_gain",
-        "gain", update.normalized);
+    if (update.emitGesture) {
+        outlet(4, "processor_parameter_gesture",
+            this.stage === "input" ? "input_gain" : "output_gain",
+            "gain", update.normalized);
+    }
     this.SendCommand("gain.set_parameter", [this.stage, update.absolute]);
 };
 
@@ -137,18 +151,26 @@ GainController.prototype.MatchLevel = function(measuredDb) {
     );
     var nextValue = this.ToNormalizedGain(nextDb);
     this.SetGain(nextValue);
-    this.SendGain(nextValue);
+    this.SendGain(nextValue, false);
 };
 
 GainController.prototype.HandleLevelMatch = function(value) {
     if (Number(value) !== 0) {
-        if (this.levelMatchInProgress) return;
-        this.levelMatchInProgress = true;
-        outlet(1, "enabled", 0);
-        this.levelMatchCapture.Begin();
+        outlet(4, "processor_match_operation",
+            this.stage === "input" ? "input_gain" : "output_gain", "level");
         return;
     }
     this.CompleteLevelMatch(this.levelMatchCapture.Finish());
+};
+
+GainController.prototype.HandleGroupMatch = function(device, operation) {
+    var expectedDevice = this.stage === "input" ? "input_gain" : "output_gain";
+    if (String(device) !== expectedDevice || String(operation) !== "level" ||
+        this.levelMatchInProgress) return;
+    this.levelMatchInProgress = true;
+    outlet(1, "enabled", 0);
+    outlet(1, "levelMatch", 1);
+    this.levelMatchCapture.Begin();
 };
 
 GainController.prototype.CompleteLevelMatch = function(measuredDb) {
@@ -270,6 +292,8 @@ function loadbang() {
     controller.Initialize();
 }
 
+function notifydeleted() { controller.Dispose(); }
+
 function set_gain(value) {
     if (inlet === 0) controller.SetGain(value);
 }
@@ -326,6 +350,10 @@ function msg_int(value) {
     if (inlet === 1) controller.HandleDial([1, value]);
 }
 
+function processor_match_operation(device, operation) {
+    if (inlet === 0) controller.HandleGroupMatch(String(device), String(operation));
+}
+
 // The scoped processor link channel is shared with detector controllers.
 function detector_link_preview() {}
 
@@ -335,7 +363,7 @@ function levelMatch(value) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "Commands: set_gain <0..1>, set_target <0..1>, processor_telemetry <9 values>, processor_limits <device> gain <absoluteMinimum> <absoluteMaximum>, processor_preview <input_gain|output_gain> gain <absoluteDb>, link_color <linkId|-> <rgba>, enabled <0|1>"
+        ? "Commands: set_gain <0..1>, set_target <0..1>, processor_telemetry <9 values>, processor_limits <device> gain <absoluteMinimum> <absoluteMaximum>, processor_preview <input_gain|output_gain> gain <absoluteDb>, processor_match_operation <input_gain|output_gain> level, link_color <linkId|-> <rgba>, enabled <0|1>"
         : "DialControl output: <ring-index> <0..1> or levelMatch <0|1>");
 }
 
@@ -345,7 +373,7 @@ function outletassist(index) {
         "DialControl commands: set, step, displayRange, levelMatchEnabled, visualization, ringColor, clearRingColor, enabled; target ring uses normalized step 0.05 (3 dB)",
         "Diagnostics: error <code>",
         "Input target level: target_level <absoluteDb>",
-        "Live link gesture: processor_parameter_gesture <input_gain|output_gain> gain <normalizedValue>"
+        "Live link gesture: processor_parameter_gesture <input_gain|output_gain> gain <normalizedValue> or processor_match_operation <input_gain|output_gain> level"
     ][index] || "");
 }
 

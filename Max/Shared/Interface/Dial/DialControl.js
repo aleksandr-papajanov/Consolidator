@@ -86,6 +86,10 @@ DialControl.prototype.ScheduleDisplayedReset = function() {
     this.displayTask.schedule(1000);
 };
 
+DialControl.prototype.Dispose = function() {
+    this.displayTask.cancel();
+};
+
 DialControl.prototype.ClampValue = function(value) {
     return Math.max(0.0, Math.min(1.0, Number(value)));
 };
@@ -647,9 +651,15 @@ DialControl.prototype.PaintActionButton = function(center, radius, enabled, acti
     }
 };
 
+DialControl.prototype.GetActionButtonColor = function() {
+    return this.ringColors[0]
+        ? this.ringColors[0]
+        : InterfaceTheme.colors.secondaryAccent;
+};
+
 DialControl.prototype.PaintLevelMatchButton = function(center, radius) {
     var color = this.enabled
-        ? InterfaceTheme.colors.secondaryAccent
+        ? this.GetActionButtonColor()
         : InterfaceTheme.colors.textDisabled;
     mgraphics.set_line_width(DialOptions.activityButtonLineWidth);
     mgraphics.set_source_rgba(color);
@@ -670,7 +680,7 @@ DialControl.prototype.PaintLevelMatchButton = function(center, radius) {
 
 DialControl.prototype.PaintOnsetMatchButton = function(center, radius) {
     var color = this.enabled
-        ? InterfaceTheme.colors.secondaryAccent
+        ? this.GetActionButtonColor()
         : InterfaceTheme.colors.textDisabled;
     mgraphics.set_line_width(DialOptions.activityButtonLineWidth);
     mgraphics.set_source_rgba(color);
@@ -717,7 +727,7 @@ DialControl.prototype.PaintActivityButton = function(width, height) {
             radius,
             this.enabled,
             this.active,
-            InterfaceTheme.colors.secondaryAccent
+            this.GetActionButtonColor()
         );
     }
     if (this.levelMatchEnabled) {
@@ -1269,3 +1279,5 @@ function onidleout(x, y, button, modifiers, inTime, outTime) {
 function onresize(width, height) {
     mgraphics.redraw();
 }
+
+function notifydeleted() { dialControl.Dispose(); }

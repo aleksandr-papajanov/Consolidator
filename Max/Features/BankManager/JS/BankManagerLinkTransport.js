@@ -436,6 +436,57 @@ BankManagerLinkTransport.prototype.HandleDetectorReset = function(values) {
         this.NextRevision(linkId), device, filterId);
 };
 
+BankManagerLinkTransport.prototype.StartProcessorMatch = function(device, operation) {
+    var manager = this.manager;
+    var linkId = manager.ActiveLinkId(manager.local);
+    outlet(2, "processor_match_operation", String(device), String(operation));
+    if (!linkId) return;
+    outlet(1, "link.processor_match", linkId, manager.instanceId,
+        this.NextRevision(linkId), String(device), String(operation));
+};
+
+BankManagerLinkTransport.prototype.ApplyProcessorMatch = function(values) {
+    if (values.length !== 5) return;
+    var manager = this.manager;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var revision = Number(values[2]);
+    var device = String(values[3]);
+    var operation = String(values[4]);
+    if (sourceId === manager.instanceId || !isFinite(revision) ||
+        (operation !== "onset" && operation !== "level") ||
+        !manager.linkRevisions.AcceptOperation(linkId, sourceId, revision) ||
+        !manager.FindLocalLinkedBank(linkId)) return;
+    outlet(2, "processor_match_operation", device, operation);
+};
+
+BankManagerLinkTransport.prototype.StartProcessorBypass = function(device, bypass) {
+    var manager = this.manager;
+    var linkId = manager.ActiveLinkId(manager.local);
+    manager.SendProcessorBypass(device, bypass);
+    outlet(2, "processor_bypass_operation", String(device), Number(bypass));
+    if (!linkId) return;
+    outlet(1, "link.processor_bypass", linkId, manager.instanceId,
+        this.NextRevision(linkId), String(device), Number(bypass));
+};
+
+BankManagerLinkTransport.prototype.ApplyProcessorBypass = function(values) {
+    if (values.length !== 5) return;
+    var manager = this.manager;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var revision = Number(values[2]);
+    var device = String(values[3]);
+    var bypass = Number(values[4]);
+    if (sourceId === manager.instanceId || !isFinite(revision) ||
+        (device !== "compressor" && device !== "saturator") ||
+        (bypass !== 0 && bypass !== 1) ||
+        !manager.linkRevisions.AcceptOperation(linkId, sourceId, revision) ||
+        !manager.FindLocalLinkedBank(linkId)) return;
+    manager.SendProcessorBypass(device, bypass);
+    outlet(2, "processor_bypass_operation", device, bypass);
+};
+
 BankManagerLinkTransport.prototype.HandleGlobal = function(name, values) {
     var manager = this.manager;
     var shouldRedraw = name !== "link.filter_delta" &&
@@ -471,6 +522,10 @@ BankManagerLinkTransport.prototype.HandleGlobal = function(name, values) {
         this.ApplyFilterReset(values);
     } else if (name === "link.processor_delta") {
         this.ApplyProcessorDelta(values);
+    } else if (name === "link.processor_match") {
+        this.ApplyProcessorMatch(values);
+    } else if (name === "link.processor_bypass") {
+        this.ApplyProcessorBypass(values);
     } else if (name === "link.processor_detector_reset") {
         this.ApplyDetectorReset(values);
     }

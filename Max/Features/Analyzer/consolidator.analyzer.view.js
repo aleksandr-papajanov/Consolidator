@@ -29,6 +29,7 @@ function onclick() { analyzerViewController.OnClick.apply(analyzerViewController
 function ondblclick() { analyzerViewController.OnDoubleClick.apply(analyzerViewController, arguments); }
 function ondrag() { analyzerViewController.OnDrag.apply(analyzerViewController, arguments); }
 function onmouseup() { analyzerViewController.OnMouseUp(); }
+function notifydeleted() { analyzerViewController.Dispose(); }
 
 function inletassist(index) {
     var descriptions = [

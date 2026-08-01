@@ -33,14 +33,22 @@ function ProcessorControllerBase(device) {
         null,
         null
     );
-    this.autoMatchStage = "idle";
-    this.autoMatchTask = new Task(this.AdvanceAutoMatch, this);
+    this.matchStage = "idle";
+    this.matchTask = new Task(this.CompleteMatch, this);
 }
 
 var ProcessorControlsController = ProcessorControllerBase;
 
 ProcessorControllerBase.prototype = Object.create(ControlControllerBase.prototype);
 ProcessorControllerBase.prototype.constructor = ProcessorControllerBase;
+
+ProcessorControllerBase.prototype.Dispose = function() {
+    ControlControllerBase.prototype.Dispose.call(this);
+    this.matchTask.cancel();
+    this.telemetry.Dispose();
+    this.levelMatchCapture.Dispose();
+    this.onsetMatchCapture.Dispose();
+};
 
 ProcessorControlsController.prototype.SendParameterGesture = function(
     device,
@@ -57,8 +65,13 @@ ProcessorControlsController.prototype.QueueParameterUpdate = function(
     parameter,
     normalized,
     commandName,
-    commandFields
+    commandFields,
+    emitGesture
 ) {
+    if (device === this.visualDevice &&
+        (device === "compressor" || device === "saturator")) {
+        this.ResetOutputLevelWindow();
+    }
     this.parameterDispatcher.Enqueue(
         String(device) + ":" + String(parameter),
         {
@@ -66,14 +79,17 @@ ProcessorControlsController.prototype.QueueParameterUpdate = function(
             parameter: String(parameter),
             normalized: Math.max(0, Math.min(1, Number(normalized))),
             commandName: String(commandName),
-            commandFields: commandFields
+            commandFields: commandFields,
+            emitGesture: emitGesture !== false
         }
     );
 };
 
 ProcessorControlsController.prototype.FlushParameterUpdate = function(update) {
-    this.SendParameterGesture(
-        update.device, update.parameter, update.normalized);
+    if (update.emitGesture) {
+        this.SendParameterGesture(
+            update.device, update.parameter, update.normalized);
+    }
     this.SendCommand(update.commandName, update.commandFields);
 };
 
@@ -238,8 +254,9 @@ ProcessorControlsController.prototype.SendDialActivityEnabled = function(varName
     outlet(1, ["script", "sendbox", varName, "activityEnabled", 1]);
 };
 
-ProcessorControlsController.prototype.SendDialAutoMatchEnabled = function(varName) {
-    outlet(1, ["script", "sendbox", varName, "autoMatchEnabled", 1]);
+ProcessorControlsController.prototype.SendDialMatchEnabled = function(varName) {
+    outlet(1, ["script", "sendbox", varName, "onsetMatchEnabled", 1]);
+    outlet(1, ["script", "sendbox", varName, "levelMatchEnabled", 1]);
 };
 
 ProcessorControlsController.prototype.SendDialActive = function(varName, value) {
@@ -252,7 +269,7 @@ ProcessorControlsController.prototype.ConfigureActivityControls = function() {
         ? "compressor.thresholdOutput"
         : "saturator.saturationOutput";
     this.SendDialActivityEnabled(primaryControl);
-    this.SendDialAutoMatchEnabled(primaryControl);
+    this.SendDialMatchEnabled(primaryControl);
 };
 
 ProcessorControlsController.prototype.FindParameter = function(definition, name) {
@@ -455,20 +472,18 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
         }
         if ((processorAction === "threshold-output" ||
             processorAction === "saturation-output") &&
-            String(values[2]) === "autoMatch") {
-            this.HandleAutoMatch(device, values[3]);
+            (String(values[2]) === "onsetMatch" ||
+                String(values[2]) === "levelMatch")) {
+            this.RequestMatch(device, String(values[2]) === "onsetMatch"
+                ? "onset" : "level", values[3]);
             return;
         }
         if ((processorAction === "threshold-output" ||
             processorAction === "saturation-output") &&
             String(values[2]) === "active") {
             var processorActive = Number(values[3]) !== 0;
-            this.processorBypassed = !processorActive;
-            if (!processorActive && device === this.visualDevice) {
-                this.telemetry.Reset();
-                this.CancelMatchCaptures();
-            }
-            this.SendCommand(device + ".set_bypass", [processorActive ? 0 : 1]);
+            outlet(3, "processor_bypass_operation", device,
+                processorActive ? 0 : 1);
             return;
         }
         if ((processorAction === "threshold-output" ||
@@ -578,7 +593,8 @@ ProcessorControlsController.prototype.MatchOutputLevel = function(device, measur
         "output",
         nextNormalized,
         device + ".set_parameter",
-        ["output", nextDb]
+        ["output", nextDb],
+        false
     );
 };
 
@@ -595,7 +611,7 @@ ProcessorControlsController.prototype.GetTargetAbsolute = function(
     return target.minimum + normalized * (target.maximum - target.minimum);
 };
 
-ProcessorControlsController.prototype.AutoMatchControlName = function() {
+ProcessorControlsController.prototype.MatchControlName = function() {
     return this.visualDevice === "compressor"
         ? "compressor.thresholdOutput"
         : this.visualDevice === "saturator"
@@ -603,68 +619,84 @@ ProcessorControlsController.prototype.AutoMatchControlName = function() {
             : "";
 };
 
-ProcessorControlsController.prototype.SetAutoMatchActive = function(value) {
-    var varName = this.AutoMatchControlName();
-    if (varName) outlet(1, ["script", "sendbox", varName, "autoMatch", value ? 1 : 0]);
+ProcessorControlsController.prototype.SetMatchActive = function(stage, value) {
+    var varName = this.MatchControlName();
+    if (!varName) return;
+    outlet(1, ["script", "sendbox", varName,
+        stage === "onset" ? "onsetMatch" : "levelMatch", value ? 1 : 0]);
 };
 
-ProcessorControlsController.prototype.SetAutoMatchDialEnabled = function(value) {
-    var varName = this.AutoMatchControlName();
+ProcessorControlsController.prototype.SetMatchDialEnabled = function(value) {
+    var varName = this.MatchControlName();
     if (varName) outlet(1, ["script", "sendbox", varName, "enabled", value ? 1 : 0]);
 };
 
-ProcessorControlsController.prototype.BeginOutputMatch = function() {
-    this.levelMatchCapture.Begin();
-    this.autoMatchStage = "output";
-    this.autoMatchTask.cancel();
-    this.autoMatchTask.schedule(
+ProcessorControlsController.prototype.BeginMatch = function(stage) {
+    if (this.matchStage !== "idle") return;
+    var capture = stage === "onset"
+        ? this.onsetMatchCapture : this.levelMatchCapture;
+    capture.Begin();
+    this.matchStage = stage;
+    this.matchTask.cancel();
+    this.matchTask.schedule(
         ProcessorTelemetryOptions.capture.maximumDurationMilliseconds
     );
-    this.SetAutoMatchActive(1);
+    this.SetMatchDialEnabled(0);
+    this.SetMatchActive(stage, 1);
 };
 
-ProcessorControlsController.prototype.FinishAutoMatch = function() {
-    this.autoMatchTask.cancel();
-    this.autoMatchStage = "idle";
-    this.SetAutoMatchDialEnabled(1);
-    this.SetAutoMatchActive(0);
+ProcessorControlsController.prototype.FinishMatch = function() {
+    var stage = this.matchStage;
+    this.matchTask.cancel();
+    this.matchStage = "idle";
+    this.SetMatchDialEnabled(1);
+    if (stage !== "idle") this.SetMatchActive(stage, 0);
 };
 
-ProcessorControlsController.prototype.AdvanceAutoMatch = function() {
-    if (this.autoMatchStage === "target") {
+ProcessorControlsController.prototype.CompleteMatch = function() {
+    if (this.matchStage === "onset") {
         this.MatchOnset(this.visualDevice, this.onsetMatchCapture.Finish());
-        this.BeginOutputMatch();
+        this.FinishMatch();
         return;
     }
-    if (this.autoMatchStage === "output") {
+    if (this.matchStage === "level") {
         this.MatchOutputLevel(this.visualDevice, this.levelMatchCapture.Finish());
-        this.FinishAutoMatch();
+        this.FinishMatch();
     }
 };
 
-ProcessorControlsController.prototype.HandleAutoMatch = function(device, value) {
+ProcessorControlsController.prototype.RequestMatch = function(device, operation, value) {
     if (device !== this.visualDevice) return;
-    if (Number(value) !== 0) {
-        if (this.autoMatchStage !== "idle") return;
-        this.onsetMatchCapture.Begin();
-        this.autoMatchStage = "target";
-        this.SetAutoMatchDialEnabled(0);
-        this.autoMatchTask.cancel();
-        this.autoMatchTask.schedule(
-            ProcessorTelemetryOptions.capture.maximumDurationMilliseconds
-        );
+    if (Number(value) === 0) {
+        this.CompleteMatch();
         return;
     }
-    this.AdvanceAutoMatch();
+    outlet(3, "processor_match_operation", device, operation);
+};
+
+ProcessorControlsController.prototype.HandleGroupMatch = function(device, operation) {
+    if (device !== this.visualDevice ||
+        (operation !== "onset" && operation !== "level")) return;
+    this.BeginMatch(operation);
+};
+
+ProcessorControlsController.prototype.HandleGroupBypass = function(device, bypass) {
+    if (device !== this.visualDevice) return;
+    this.processorBypassed = Number(bypass) !== 0;
+    this.SendDialActive(this.MatchControlName(), !this.processorBypassed);
+    if (!this.processorBypassed) return;
+    this.telemetry.Reset();
+    this.CancelMatchCaptures();
 };
 
 ProcessorControlsController.prototype.CancelMatchCaptures = function() {
     this.levelMatchCapture.Cancel();
     this.onsetMatchCapture.Cancel();
-    this.autoMatchTask.cancel();
-    this.autoMatchStage = "idle";
-    this.SetAutoMatchDialEnabled(1);
-    this.SetAutoMatchActive(0);
+    this.matchTask.cancel();
+    this.matchStage = "idle";
+    this.SetMatchDialEnabled(1);
+    this.SetMatchActive("onset", 0);
+    this.SetMatchActive("level", 0);
 };
 
 ProcessorControlsController.prototype.MatchOnset = function(device, measuredValue) {
@@ -730,7 +762,8 @@ ProcessorControlsController.prototype.MatchOnset = function(device, measuredValu
         parameter,
         nextNormalized,
         device + ".set_parameter",
-        [parameter, this.ToAbsolute(definition, nextNormalized)]
+        [parameter, this.ToAbsolute(definition, nextNormalized)],
+        false
     );
 };
 
@@ -980,6 +1013,7 @@ ProcessorControlsController.prototype.HandleProcessorPreview = function(
         return;
     }
     var value = this.ToNormalized(definition, Number(absoluteValue));
+    this.ResetOutputLevelWindow();
     if (device === "compressor") {
         if (parameter === "threshold") this.SendValue(["compressor", "threshold-output", 1, value]);
         else if (parameter === "output") this.SendValue(["compressor", "threshold-output", 2, value]);
@@ -1019,6 +1053,12 @@ ProcessorControlsController.prototype.SendOutputLevelIndicator = function() {
         display.peak,
         display.smoothed
     );
+};
+
+ProcessorControlsController.prototype.ResetOutputLevelWindow = function() {
+    if (this.visualDevice !== "compressor" && this.visualDevice !== "saturator") return;
+    this.outputLevelIndicator.Reset();
+    this.SendOutputLevelIndicator();
 };
 
 ProcessorControlsController.prototype.ResetTelemetryIndicators = function() {
@@ -1101,10 +1141,10 @@ ProcessorControlsController.prototype.HandleTargetLevel = function(value) {
 ProcessorControlsController.prototype.HandleProcessorTelemetry = function(values) {
     if (this.processorBypassed) return;
     if (!this.telemetry.Update(values)) return;
-    if (this.autoMatchStage === "output" && this.levelMatchCapture.active) {
+    if (this.matchStage === "level" && this.levelMatchCapture.active) {
         this.levelMatchCapture.Observe(this.outputLevelIndicator.RawLevelDb());
     }
-    if (this.autoMatchStage === "target" && this.onsetMatchCapture.active) {
+    if (this.matchStage === "onset" && this.onsetMatchCapture.active) {
         this.onsetMatchCapture.Observe(this.visualDevice === "compressor"
             ? Math.max(0.0, -Number(values[0]))
             : this.saturationVisualization.rawValue);

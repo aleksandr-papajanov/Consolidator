@@ -62,7 +62,7 @@ BankManagerOperations.prototype.ApplyLinked = function(values) {
     var action = String(values[3]);
     var bypass = Number(values[4]);
     if (sourceId === manager.instanceId || !isFinite(revision) ||
-        !manager.AcceptIncomingOperationRevision(linkId, sourceId, revision)) return;
+        !manager.linkRevisions.AcceptOperation(linkId, sourceId, revision)) return;
     var bank = manager.FindLocalLinkedBank(linkId);
     if (!bank) return;
     if (action === "reset") {

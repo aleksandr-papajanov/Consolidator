@@ -138,6 +138,13 @@ ProcessorTelemetryViewModel.prototype.Reset = function() {
     }
 };
 
+ProcessorTelemetryViewModel.prototype.Dispose = function() {
+    this.resetTask.cancel();
+    this.resetFadeTask.cancel();
+    this.resetCallback = null;
+    this.resetContext = null;
+};
+
 ProcessorTelemetryViewModel.prototype.HasResetDisplay = function() {
     if (!this.resetDisplay) return false;
     return Math.abs(this.resetDisplay.input.peak) > 0.001

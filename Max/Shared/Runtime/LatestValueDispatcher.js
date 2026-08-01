@@ -24,3 +24,9 @@ LatestValueDispatcher.prototype.Flush = function() {
         }
     }
 };
+
+LatestValueDispatcher.prototype.Dispose = function() {
+    this.task.cancel();
+    this.pending = {};
+    this.scheduled = false;
+};

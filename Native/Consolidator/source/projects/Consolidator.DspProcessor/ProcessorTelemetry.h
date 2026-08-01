@@ -111,7 +111,7 @@ private:
 
     double EnergyLevelDb(double energy) const noexcept {
         if (energy <= MinimumEnergy || sampleCount == 0) return -120.0;
-        return 10.0 * std::log10(energy / (2.0 * static_cast<double>(sampleCount)));
+        return 10.0 * std::log10(energy / static_cast<double>(sampleCount));
     }
 
     static constexpr double MinimumEnergy = 1.0e-20;

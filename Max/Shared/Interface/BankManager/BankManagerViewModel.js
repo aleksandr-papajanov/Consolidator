@@ -6,7 +6,7 @@ function BankManagerViewModel() {
 
 BankManagerViewModel.prototype.Build = function(manager, width, height) {
     var options = BankManagerVisualOptions;
-    this.listView.SetItems(manager.Rows());
+    this.listView.SetItems(manager.DisplayRows());
     var viewportHeight = Math.max(0, height - options.padding * 2);
     var scrollOffset = this.listView.ClampScroll(viewportHeight, options.rowHeight);
     return {

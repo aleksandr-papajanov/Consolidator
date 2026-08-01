@@ -9,7 +9,6 @@ function LevelViewModel() {
     this.peakDb = this.minimumDb;
     this.hasLevel = false;
     this.energyHistory = [];
-    this.totalEnergy = 0.0;
     this.averagedMilliseconds = 0;
     this.normalizedValue = 0.0;
     this.normalizedSmoothedValue = 0.0;
@@ -31,7 +30,6 @@ LevelViewModel.prototype.Reset = function() {
     this.peakDb = this.minimumDb;
     this.hasLevel = false;
     this.energyHistory = [];
-    this.totalEnergy = 0.0;
     this.averagedMilliseconds = 0;
     this.normalizedValue = 0.0;
     this.normalizedSmoothedValue = 0.0;
@@ -50,15 +48,11 @@ LevelViewModel.prototype.SetLevelDb = function(value) {
         this.peakDb = this.levelDb;
         this.hasLevel = true;
         this.energyHistory = [{ timestamp: timestamp, energy: energy }];
-        this.totalEnergy = energy;
         return;
     }
     this.energyHistory.push({ timestamp: timestamp, energy: energy });
-    this.totalEnergy += energy;
+    this.smoothedDb = this.TimeWeightedEnergyDb(timestamp);
     this.TrimEnergyHistory(timestamp);
-    this.smoothedDb = 10.0 * Math.log(
-        Math.max(1.0e-20, this.totalEnergy / this.energyHistory.length)
-    ) / Math.LN10;
     this.peakDb = Math.max(
         this.levelDb,
         this.peakDb - ProcessorTelemetryOptions.levels.peakReleaseDb
@@ -69,12 +63,31 @@ LevelViewModel.prototype.TrimEnergyHistory = function(timestamp) {
     var minimumTimestamp = timestamp
         - ProcessorTelemetryOptions.levels.averagingMilliseconds;
     while (this.energyHistory.length > 1
-        && this.energyHistory[0].timestamp < minimumTimestamp) {
-        this.totalEnergy -= this.energyHistory.shift().energy;
+        && this.energyHistory[1].timestamp <= minimumTimestamp) {
+        this.energyHistory.shift();
     }
-    this.averagedMilliseconds = this.energyHistory.length < 2
-        ? 0
-        : timestamp - this.energyHistory[0].timestamp;
+    this.averagedMilliseconds = this.energyHistory.length < 2 ? 0
+        : Math.min(
+            ProcessorTelemetryOptions.levels.averagingMilliseconds,
+            timestamp - this.energyHistory[0].timestamp);
+};
+
+LevelViewModel.prototype.TimeWeightedEnergyDb = function(timestamp) {
+    var windowStart = timestamp - ProcessorTelemetryOptions.levels.averagingMilliseconds;
+    var integral = 0.0;
+    var duration = 0.0;
+    for (var index = 0; index + 1 < this.energyHistory.length; ++index) {
+        var sample = this.energyHistory[index];
+        var nextSample = this.energyHistory[index + 1];
+        var start = Math.max(windowStart, sample.timestamp);
+        var end = Math.min(timestamp, nextSample.timestamp);
+        if (end <= start) continue;
+        var interval = end - start;
+        integral += sample.energy * interval;
+        duration += interval;
+    }
+    if (duration <= 0.0) return this.levelDb;
+    return 10.0 * Math.log(Math.max(1.0e-20, integral / duration)) / Math.LN10;
 };
 
 LevelViewModel.prototype.ValueForDb = function(valueDb) {

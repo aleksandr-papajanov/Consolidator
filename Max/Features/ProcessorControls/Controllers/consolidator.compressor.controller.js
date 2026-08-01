@@ -8,7 +8,7 @@ var controller = new ProcessorControllerBase("compressor");
 
 function inletassist(index) {
     assist([
-        "Local compressor threshold-output <ring 1..3> <0..1>|active <0|1>|autoMatch <0|1>, attack-release, detector_absolute, detector_listen <filterId> <0|1>; processor_limits, link_color, processor_preview, detector_link_preview",
+        "Local compressor threshold-output <ring 1..3> <0..1>|active <0|1>|onsetMatch <0|1>|levelMatch <0|1>, attack-release, detector_absolute, detector_listen <filterId> <0|1>; processor_limits, link_color, processor_preview, detector_link_preview, processor_match_operation <compressor> <onset|level>, processor_bypass_operation <compressor> <0|1>",
         "Host EQ and processor snapshots",
         "target_level <absoluteDb>, processor_telemetry <9 values>"
     ][index] || "");
@@ -17,9 +17,9 @@ function inletassist(index) {
 function outletassist(index) {
     assist([
         "Host commands: eq.*, gain.set_parameter, compressor.*",
-        "UI: Dial set|active|activityEnabled|autoMatchEnabled|limits|displayRange|visualization|ringColor; detector preview and ghost marker updates",
+        "UI: Dial set|active|activityEnabled|onsetMatchEnabled|levelMatchEnabled|onsetMatch|levelMatch|limits|displayRange|visualization|ringColor; detector preview and ghost marker updates",
         "Diagnostics: error <code>",
-        "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue> or processor_detector_reset <device> <filterId>"
+        "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue>, processor_match_operation <device> <onset|level>, processor_bypass_operation <device> <0|1>, or processor_detector_reset <device> <filterId>"
     ][index] || "");
 }
 
@@ -44,6 +44,12 @@ function link_color(linkId, red, green, blue, alpha) {
 function processor_preview(device, parameter, absoluteValue) {
     if (inlet === 0) controller.HandleProcessorPreview(String(device), String(parameter), Number(absoluteValue));
 }
+function processor_match_operation(device, operation) {
+    if (inlet === 0) controller.HandleGroupMatch(String(device), String(operation));
+}
+function processor_bypass_operation(device, bypass) {
+    if (inlet === 0) controller.HandleGroupBypass(String(device), Number(bypass));
+}
 function detector_link_preview() {
     if (inlet === 0) controller.HandleDetectorLinkPreview.apply(
         controller, arrayfromargs(arguments));
@@ -59,3 +65,5 @@ function list() {
 function loadbang() {
     controller.Initialize();
 }
+
+function notifydeleted() { controller.Dispose(); }

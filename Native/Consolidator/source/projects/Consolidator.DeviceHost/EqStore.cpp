@@ -30,7 +30,7 @@ bool IsEditableLinkId(const std::string& value) {
         return false;
     }
     const auto groupId = std::stol(suffix);
-    return groupId >= 1 && groupId <= 10;
+    return groupId >= 1 && groupId <= 16;
 }
 
 } // namespace

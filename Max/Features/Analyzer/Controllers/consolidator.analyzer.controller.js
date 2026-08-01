@@ -69,6 +69,10 @@ AnalyzerController.prototype.Initialize = function() {
     this.initializer.Start();
 };
 
+AnalyzerController.prototype.Dispose = function() {
+    this.initializer.Dispose();
+};
+
 AnalyzerController.prototype.TryInitialize = function() {
     var device = new LiveAPI("this_device");
     var deviceId = Number(device.id);
@@ -153,6 +157,10 @@ function initialize() {
 
 function loadbang() {
     analyzerController.Initialize();
+}
+
+function notifydeleted() {
+    analyzerController.Dispose();
 }
 
 function inletassist(index) {

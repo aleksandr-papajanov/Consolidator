@@ -26,6 +26,13 @@ BankManagerLayout.prototype.EditableLinkIds = function() {
 
 BankManagerLayout.prototype.LinkColor = function(linkId) {
     if (String(linkId) === "global.6") return InterfaceTheme.colors.secondaryAccent;
+    var match = /^group\.(\d+)$/.exec(String(linkId));
+    if (match) {
+        var groupIndex = Number(match[1]) - 1;
+        if (groupIndex >= 0 && groupIndex < BankManagerColors.linkColors.length) {
+            return BankManagerColors.linkColors[groupIndex];
+        }
+    }
     var hash = 0;
     var value = String(linkId);
     for (var index = 0; index < value.length; ++index) {
@@ -45,6 +52,36 @@ BankManagerLayout.prototype.LinkPanelRect = function(width, height) {
         height: Math.max(1, height - options.padding * 2 - options.linkEditHeight -
             options.clearAllHeight - options.linkPanelGap * 2)
     };
+};
+
+BankManagerLayout.prototype.LinkGroupCells = function(width, height) {
+    var rect = this.LinkPanelRect(width, height);
+    var options = BankManagerVisualOptions;
+    var count = options.linkGroupCount + 1;
+    var columns = Math.max(1, Math.min(count, options.linkGroupColumnCount));
+    var rows = Math.ceil(count / columns);
+    var cellWidth = rect.width / columns;
+    var cellHeight = rect.height / rows;
+    var cells = [];
+    for (var index = 0; index < count; ++index) {
+        var column = Math.floor(index / rows);
+        var row = index % rows;
+        cells.push({
+            x: rect.x + column * cellWidth,
+            y: rect.y + row * cellHeight,
+            width: cellWidth,
+            height: cellHeight
+        });
+    }
+    return cells;
+};
+
+BankManagerLayout.prototype.LinkGroupIndexAt = function(x, y, width, height) {
+    var cells = this.LinkGroupCells(width, height);
+    for (var index = 0; index < cells.length; ++index) {
+        if (this.Contains(x, y, cells[index])) return index;
+    }
+    return -1;
 };
 
 BankManagerLayout.prototype.ClearAllRect = function(width) {

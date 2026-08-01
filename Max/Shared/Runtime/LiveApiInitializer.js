@@ -20,3 +20,8 @@ LiveApiInitializer.prototype.TryInitialize = function() {
     }
     if (!this.completed) this.task.schedule(this.retryMilliseconds);
 };
+
+LiveApiInitializer.prototype.Dispose = function() {
+    this.task.cancel();
+    this.completed = true;
+};

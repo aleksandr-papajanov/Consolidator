@@ -30,3 +30,7 @@ ControlControllerBase.prototype.ToNormalized = function(definition, absolute) {
             / (definition.maximum - definition.minimum)
     );
 };
+
+ControlControllerBase.prototype.Dispose = function() {
+    if (this.parameterDispatcher) this.parameterDispatcher.Dispose();
+};

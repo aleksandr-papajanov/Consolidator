@@ -10,7 +10,7 @@ BankManagerUiController.prototype.Scroll = function(delta) {
     var manager = this.manager;
     var step = Number(delta);
     if (!isFinite(step) || step === 0) return;
-    manager.viewModel.listView.SetItems(manager.Rows());
+    manager.viewModel.listView.SetItems(manager.DisplayRows());
     manager.viewModel.listView.Scroll(
         step,
         BankManagerVisualOptions.rowHeight,
@@ -19,7 +19,7 @@ BankManagerUiController.prototype.Scroll = function(delta) {
     mgraphics.redraw();
 };
 
-BankManagerUiController.prototype.Click = function(x, y) {
+BankManagerUiController.prototype.Click = function(x, y, shift) {
     var manager = this.manager;
     var options = BankManagerVisualOptions;
     if (manager.IsPointInRect(x, y, manager.LinkEditRect(mgraphics.size[0]))) {
@@ -32,11 +32,13 @@ BankManagerUiController.prototype.Click = function(x, y) {
     }
     var groupIndex = manager.LinkGroupIndexAt(x, y, mgraphics.size[0], mgraphics.size[1]);
     if (groupIndex >= 0) {
-        manager.SetFocusedBankLink(
-            groupIndex === 0 ? "" : manager.EditableLinkIds()[groupIndex - 1]);
+        if (manager.linkEditingEnabled && groupIndex > 0) {
+            manager.ApplyEditSelectionToLink(manager.EditableLinkIds()[groupIndex - 1]);
+            mgraphics.redraw();
+        }
         return;
     }
-    var rows = manager.Rows();
+    var rows = manager.DisplayRows();
     var contentHeight = manager.ContentHeight();
     var rowIndex = Math.floor((y - options.padding + manager.viewModel.listView.scrollOffset) /
         options.rowHeight);
@@ -44,7 +46,9 @@ BankManagerUiController.prototype.Click = function(x, y) {
         rowIndex < 0 || rowIndex >= rows.length) return;
     var instance = rows[rowIndex];
     if (x < manager.BankStartX(mgraphics.size[0])) {
-        manager.SetFocusedBank(instance, instance.selectedBankId);
+        if (instance.id === manager.instanceId) {
+            manager.SetFocusedBank(instance, instance.selectedBankId);
+        }
         mgraphics.redraw();
         return;
     }
@@ -67,13 +71,11 @@ BankManagerUiController.prototype.Click = function(x, y) {
     if (bankIndex < 0 || bankIndex >= displayedBanks.length) return;
     var bank = displayedBanks[bankIndex];
     if (bank.id === 0) return;
-    if (instance.id === manager.instanceId) {
+    if (manager.linkEditingEnabled) {
+        manager.EditBankMembership(instance, bank, Boolean(shift));
+    } else if (instance.id === manager.instanceId) {
         manager.SetFocusedBank(instance, bank.id);
         manager.SendHostCommand("eq.select_bank", [bank.id]);
-    } else if (manager.linkEditingEnabled && manager.ActiveEditableLinkId()) {
-        manager.ToggleBankInActiveGroup(instance, bank);
-    } else {
-        manager.SetFocusedBank(instance, bank.id);
     }
     mgraphics.redraw();
 };

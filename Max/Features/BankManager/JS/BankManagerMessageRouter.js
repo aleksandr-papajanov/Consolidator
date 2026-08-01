@@ -17,6 +17,10 @@ BankManagerMessageRouter.prototype.HandleLocal = function(name, values) {
         this.manager.HandleEqAbsoluteParameterPreview(values);
     } else if (name === "processor_parameter_gesture") {
         this.manager.HandleProcessorParameterGesture(values);
+    } else if (name === "processor_match_operation") {
+        this.manager.HandleProcessorMatchOperation(values);
+    } else if (name === "processor_bypass_operation") {
+        this.manager.HandleProcessorBypassOperation(values);
     } else if (name === "processor_detector_reset") {
         this.manager.HandleProcessorDetectorReset(values);
     } else if (name === "eq_filter_reset") {

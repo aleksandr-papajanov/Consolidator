@@ -40,6 +40,8 @@ function AnalyzerFitLabels() {
 
 function AnalyzerGroupActionVisualStates(state) {
     if (!state.linkId || !state.linkColor) return null;
+    var linkColor = [state.linkColor.r, state.linkColor.g,
+        state.linkColor.b, state.linkColor.a];
     var availability = state.operationAvailability;
     var available = [availability.bypass, availability.reset,
         availability.join, availability.commit];
@@ -51,9 +53,9 @@ function AnalyzerGroupActionVisualStates(state) {
         }
         var isActive = index === 0 && state.eqBypass;
         visualStates.push({
-            fillColor: isActive ? state.linkColor : null,
-            borderColor: state.linkColor,
-            textColor: isActive ? InterfaceTheme.colors.background : state.linkColor
+            fillColor: isActive ? linkColor : null,
+            borderColor: linkColor,
+            textColor: isActive ? InterfaceTheme.colors.background : linkColor
         });
     }
     return visualStates;
@@ -214,6 +216,11 @@ AnalyzerViewController.prototype.RequestRedraw = function() {
 AnalyzerViewController.prototype.FlushRedraw = function() {
     this.redrawPending = false;
     mgraphics.redraw();
+};
+
+AnalyzerViewController.prototype.Dispose = function() {
+    this.redrawTask.cancel();
+    this.redrawPending = false;
 };
 
 AnalyzerViewController.prototype.Paint = function() {

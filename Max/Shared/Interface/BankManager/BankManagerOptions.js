@@ -15,7 +15,7 @@ var BankManagerOptions = {
         padding: 0,
         rowHeight: 17,
         bankColumnWidth: 120,
-        linkPanelWidth: 34,
+        linkPanelWidth: 44,
         linkEditHeight: 16,
         clearAllHeight: 16,
         clearAllConfirmTimeoutMs: 3000,
@@ -24,7 +24,8 @@ var BankManagerOptions = {
         squareSize: 16,
         focusedBankOutlineWidth: 2,
         separatorWidth: 1,
-        linkGroupCount: 10,
+        linkGroupCount: 16,
+        linkGroupColumnCount: 2,
         inactiveBankOpacity: 0.45
     }
 };

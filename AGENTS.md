@@ -154,7 +154,7 @@ a contract changes.
 - EQ has exactly seven fixed banks: hidden system bank `0` and user banks
   `1..6`. User-bank and filter IDs are one-based everywhere. Bank `0` is never
   manually edited or linked. Bank `1` is always individual and never linked.
-  Banks `2..5` may belong to one editable `group.1` through `group.10` link
+  Banks `2..5` may belong to one editable `group.1` through `group.16` link
   group; one device instance has at most one member in a given group. Bank `6`
   always belongs to immutable global group `global.6` and is never editable.
 - User banks contain only filter state and an optional `linkId`; names and
@@ -281,12 +281,24 @@ dormant infrastructure for future structural search. Only Host commits a fit
 result atomically. EQ fit results never update gain, compressor, or saturator
 stores.
 
-`BankManager` is the single bank UI. It renders the six local user banks and
-the bank summaries of other registered instances. A normal local click selects
-the active bank. Its vertical group panel selects no group or one editable group.
-While a group is selected, clicking an eligible bank `2..5` adds it to that
-group or removes it when already a member. Bank `1`, bank `6`, and banks in
-another group are not editable. Link and Unlink action buttons do not exist.
+`BankManager` is the single bank UI. In normal mode it renders every track row,
+but remote banks are transparent unless they belong to the selected local bank's
+group; those member banks are bright but never active. The group panel has no
+active group unless the local selected bank belongs to one. Edit mode renders
+every instance and
+uses a separate transient multi-selection: a normal click starts a selection,
+and Shift-click adds or removes further eligible banks `2..5`, including banks
+that are already linked. Eligible banks render at full brightness in Edit;
+banks `0`, `1`, and `6` are fully transparent. The local active bank has no
+visual active state in Edit mode, and entering Edit never activates the local bank's
+group. Clicking a group removes the selection only when every selected bank
+already belongs to that same group; otherwise it assigns the complete free
+selected set. A group is visible at full brightness only when one of those two
+whole-selection operations is valid; unavailable groups render at 25% opacity.
+In normal mode every group renders at full opacity. Group operations preserve
+the Edit selection. Assignment rejects a second bank from one instance and
+every already-linked selected bank. Bank `0`, bank `1`, and bank `6` are not
+editable. Link and Unlink action buttons do not exist.
 `Join` moves audible filters from the active bank to hidden bank `0`. `Commit`
 computes the absolute response of the full local EQ stack without mutating it,
 fits that response into bank `1`, then atomically clears bank `0` and banks
@@ -326,6 +338,20 @@ and processors use
 `link.processor_delta <linkId> <sourceRuntimeId> <revision> <device> <parameter> <normalizedDelta>`.
 Only the global link transport uses normalized deltas; all Host commands,
 snapshots, stores, and DSP values remain absolute.
+Processor matching is a discrete group workflow. A local controller publishes
+`processor_match_operation <input_gain|output_gain|compressor|saturator>
+<level|onset>` to `BankManager`. `BankManager` starts the local operation and,
+when the selected bank is linked, broadcasts
+`link.processor_match <linkId> <sourceRuntimeId> <revision> <device>
+<level|onset>`. Every participant captures and applies its result locally.
+Match results are never converted to linked parameter deltas or rebroadcast.
+Compressor and saturator expose separate `onset` and `level` match controls;
+gain stages expose `level` only.
+Compressor and saturator bypass use the same discrete group pattern through
+`processor_bypass_operation <compressor|saturator> <0|1>` and
+`link.processor_bypass <linkId> <sourceRuntimeId> <revision> <device> <0|1>`.
+The Host bypass command is applied exactly once per participant and bypass never
+uses a continuous parameter delta.
 BankManager computes hard control limits from cached values of all group members
 only when the local user selects a bank. Link membership and `link.state` updates
 refresh the cache but never publish limits themselves. Processor limits go over
