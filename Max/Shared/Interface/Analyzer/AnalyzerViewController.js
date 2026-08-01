@@ -9,7 +9,8 @@ function AnalyzerColor(value) {
 
 var analyzerControlsOptions = {
     controlHeight: 18,
-    controlPadding: InterfaceTheme.geometry.minimumPadding
+    controlPadding: InterfaceTheme.geometry.minimumPadding,
+    redrawIntervalMilliseconds: 16
 };
 
 var AnalyzerButtonGroupOptions = {
@@ -207,7 +208,7 @@ function AnalyzerViewController() {
 AnalyzerViewController.prototype.RequestRedraw = function() {
     if (this.redrawPending) return;
     this.redrawPending = true;
-    this.redrawTask.schedule(0);
+    this.redrawTask.schedule(analyzerControlsOptions.redrawIntervalMilliseconds);
 };
 
 AnalyzerViewController.prototype.FlushRedraw = function() {
