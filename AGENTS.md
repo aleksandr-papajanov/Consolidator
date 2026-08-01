@@ -299,6 +299,15 @@ bus. Each participant resolves its own bank for that link and executes the
 operation locally. Group operations never replicate the resulting filter values
 as parameter edits.
 
+`link.processor_detector_reset <linkId> <sourceDeviceId> <revision>
+<compressor|saturator> <filterId>` resets one detector filter to its static
+definition defaults on every linked participant. It is a discrete reset
+transaction, never a relative delta.
+
+`link.filter_reset <linkId> <sourceDeviceId> <revision> <filterId>` resets one
+filter on every participant's local bank for that link. It is the group route
+for SpectrumView marker double-click reset.
+
 A bank `linkId` is the only link-group identity. It links that bank's EQ filters
 together with the instance input gain, compressor, saturator, and output gain.
 There is no separate processor link state or processor link command. The
@@ -392,7 +401,7 @@ DspProcessor. Approximator combines `---state.eq` and the compact
 `---state.processor` snapshot. UI controllers and BankManager also consume the
 compact processor state. `---state.analyzer` contains only Analyzer events and
 EQ snapshots needed by the native Analyzer and SpectrumView. `---analyzer.ui`
-carries only short SpectrumView-local `eq_preview`, `filter_limits`, and
+carries only short SpectrumView-local `eq_preview`, `eq_link_preview`, `filter_limits`, and
 `link_color` updates;
 it never enters the native Analyzer.
 
@@ -410,7 +419,9 @@ it never carries filter or processor snapshots. Linked participants initialize
 their peer models with one bounded `link.state` frame per linked bank only
 after startup, an explicit `bank.query`, or a changed link membership. Bank
 selection and ordinary snapshot confirmation publish only `bank.announce`,
-never a full linked-state replay. BankManager sorts peer rows by `trackOrder`
+never a full linked-state replay. A successful linked Join or Commit is the
+sole content-changing exception: its confirming EQ snapshot publishes one
+bounded `link.state` frame so peer models and ghost markers converge. BankManager sorts peer rows by `trackOrder`
 and uses the runtime ID only as a deterministic tie-breaker. Link updates carry
 `linkId`, source runtime ID, and a monotonically increasing revision. A
 received remote update must apply in remote mode and never be broadcast again.
@@ -449,8 +460,9 @@ Linked gestures have two scoped preview lanes. `---link.control.analyzer`
 carries `eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>` and
 `filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>` to
 SpectrumView. `---link.control.processor` carries
-`processor_preview <device> <parameter> <absoluteValue>` and processor control
-state. `BankManager` emits a preview immediately after updating its local
+`processor_preview <device> <parameter> <absoluteValue>`,
+`detector_link_preview <device> <linkId|-> [sourceRuntimeId filterId enabled gain frequency q]`,
+and processor control state. `BankManager` emits a preview immediately after updating its local
 linked model, both for source and remote deltas. UI controllers apply it
 directly without creating a Host command. A Host `parameter.updated` event
 updates DSP and Analyzer immediately; the delayed snapshot is canonical

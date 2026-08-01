@@ -8,7 +8,7 @@ var controller = new ProcessorControllerBase("compressor");
 
 function inletassist(index) {
     assist([
-        "Local compressor threshold-output <ring 1..3> <0..1>|active <0|1>|autoMatch <0|1>, attack-release, detector_absolute, detector_listen <filterId> <0|1>; gain, limits, link color and processor preview commands",
+        "Local compressor threshold-output <ring 1..3> <0..1>|active <0|1>|autoMatch <0|1>, attack-release, detector_absolute, detector_listen <filterId> <0|1>; processor_limits, link_color, processor_preview, detector_link_preview",
         "Host EQ and processor snapshots",
         "target_level <absoluteDb>, processor_telemetry <9 values>"
     ][index] || "");
@@ -17,9 +17,9 @@ function inletassist(index) {
 function outletassist(index) {
     assist([
         "Host commands: eq.*, gain.set_parameter, compressor.*",
-        "UI: Dial set|active|activityEnabled|autoMatchEnabled|limits|displayRange|visualization|ringColor; processor preview",
+        "UI: Dial set|active|activityEnabled|autoMatchEnabled|limits|displayRange|visualization|ringColor; detector preview and ghost marker updates",
         "Diagnostics: error <code>",
-        "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue>"
+        "Live link gesture: processor_parameter_gesture <device> <parameter> <normalizedValue> or processor_detector_reset <device> <filterId>"
     ][index] || "");
 }
 
@@ -43,6 +43,13 @@ function link_color(linkId, red, green, blue, alpha) {
 }
 function processor_preview(device, parameter, absoluteValue) {
     if (inlet === 0) controller.HandleProcessorPreview(String(device), String(parameter), Number(absoluteValue));
+}
+function detector_link_preview() {
+    if (inlet === 0) controller.HandleDetectorLinkPreview.apply(
+        controller, arrayfromargs(arguments));
+}
+function processor_detector_reset(device, filterId) {
+    if (inlet === 0) controller.ResetDetector(String(device), Number(filterId));
 }
 function list() {
     var values = arrayfromargs(arguments);

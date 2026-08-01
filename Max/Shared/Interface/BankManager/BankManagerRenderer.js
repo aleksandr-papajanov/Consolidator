@@ -169,7 +169,7 @@ BankManagerRenderer.prototype.DrawLinkEditToggle = function(manager, width) {
         : { active: false };
     this.buttonGroupRenderer.Paint(
         this.CreateGroup(
-            ["EDIT"],
+            ["edit"],
             ["toggle"],
             [enabled],
             [visualState],
@@ -181,7 +181,7 @@ BankManagerRenderer.prototype.DrawLinkEditToggle = function(manager, width) {
 
 BankManagerRenderer.prototype.DrawClearAllButton = function(manager, width) {
     var enabled = Boolean(manager.instanceId);
-    var label = manager.clearAllConfirmationArmed ? "SURE?" : "CLEAR";
+    var label = manager.clearAllConfirmationArmed ? "sure?" : "clear";
     this.buttonGroupRenderer.Paint(
         this.CreateGroup(
             [label],

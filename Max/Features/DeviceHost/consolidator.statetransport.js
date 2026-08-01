@@ -33,6 +33,9 @@ StateTransport.prototype.RouteSnapshot = function(values) {
 StateTransport.prototype.RouteAnalyzerUiState = function(name, values) {
     if (String(name) === "eq_preview" && values.length === 4) {
         outlet(8, "eq_preview", values);
+    } else if (String(name) === "eq_link_preview" &&
+        (values.length === 1 || values.length === 8)) {
+        outlet(8, "eq_link_preview", values);
     } else if (String(name) === "filter_limits" && values.length === 5) {
         outlet(8, "filter_limits", values);
     }
@@ -67,7 +70,7 @@ function anything() {
 function inletassist(index) {
     assist(index === 0
         ? "Host output: event or snapshot atom message"
-        : "Analyzer UI state: eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>; filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>");
+        : "Analyzer UI state: eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>; eq_link_preview <linkId> <sourceId> <filterId> <active> <freq> <gain> <q> <type>; filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>");
 }
 
 function outletassist(index) {
@@ -80,7 +83,7 @@ function outletassist(index) {
         "Processor state snapshots",
         "Analyzer events and EQ snapshots",
         "Continuous Host parameter events for DSP",
-        "Analyzer UI: eq_preview and filter_limits"
+        "Analyzer UI: eq_preview, eq_link_preview, and filter_limits"
     ][index] || "");
 }
 

@@ -17,6 +17,9 @@ var detectorCurveOptions = {
     markerHitRadius: 5.0,
     neutralMarkerOpacity: 0.45,
     inactiveMarkerOpacity: 0.70,
+    linkedMarkerOpacity: 0.42,
+    linkedMarkerRadius: 4.0,
+    linkedMarkerLineWidth: InterfaceTheme.geometry.borderLineWidth,
     gridColor: InterfaceTheme.colors.track,
     filterColors: [
         InterfaceTheme.colors.primaryAccent,

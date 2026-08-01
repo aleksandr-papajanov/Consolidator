@@ -4,8 +4,21 @@ function DetectorFilterViewModel() {
     this.frequencyHz = null;
     this.q = null;
     this.definition = null;
+    this.limits = {};
     this.hasState = false;
 }
+
+DetectorFilterViewModel.prototype.SetLimit = function(parameter, minimum, maximum) {
+    this.limits[String(parameter)] = {
+        minimum: Number(minimum),
+        maximum: Number(maximum)
+    };
+};
+
+DetectorFilterViewModel.prototype.Limit = function(parameter, minimum, maximum) {
+    var limit = this.limits[String(parameter)];
+    return limit || { minimum: Number(minimum), maximum: Number(maximum) };
+};
 
 DetectorFilterViewModel.prototype.Update = function(bypass, gainDb, frequencyHz, q) {
     this.bypass = Number(bypass) !== 0;
@@ -24,10 +37,21 @@ DetectorFilterViewModel.prototype.SetDefinition = function(definition) {
     this.q = definition.qDefault;
 };
 
+DetectorFilterViewModel.prototype.Reset = function() {
+    if (!this.definition) return;
+    this.Update(
+        this.definition.bypassDefault,
+        this.definition.gainDefault,
+        this.definition.frequencyDefault,
+        this.definition.qDefault
+    );
+};
+
 function DetectorCurveViewModel() {
     this.filters = [];
     this.listenFilters = {};
     this.linkColor = null;
+    this.linkedFilters = {};
     this.EnsureFilter(1);
     this.EnsureFilter(2);
 }
@@ -41,11 +65,53 @@ DetectorCurveViewModel.prototype.SetLinkColor = function(
 ) {
     if (String(linkId) === "-") {
         this.linkColor = null;
+        this.linkedFilters = {};
         return;
     }
     this.linkColor = [
         Number(red), Number(green), Number(blue), Number(alpha)
     ];
+};
+
+DetectorCurveViewModel.prototype.SetLimit = function(filterId, parameter, minimum, maximum) {
+    var filter = this.EnsureFilter(filterId);
+    if (!filter) return;
+    filter.SetLimit(parameter, minimum, maximum);
+};
+
+DetectorCurveViewModel.prototype.SetPreview = function(filterId, parameter, value) {
+    var filter = this.EnsureFilter(filterId);
+    if (!filter) return;
+    if (parameter === "bypass") filter.bypass = Number(value) !== 0;
+    else if (parameter === "gain") filter.gainDb = Number(value);
+    else if (parameter === "frequency") filter.frequencyHz = Number(value);
+    else if (parameter === "q") filter.q = Number(value);
+};
+
+DetectorCurveViewModel.prototype.Reset = function(filterId) {
+    var filter = this.EnsureFilter(filterId);
+    if (!filter) return;
+    filter.Reset();
+    this.listenFilters[Number(filterId)] = false;
+};
+
+DetectorCurveViewModel.prototype.SetLinkedPreview = function(values) {
+    if (!values.length || String(values[0]) === "-") {
+        this.linkedFilters = {};
+        return;
+    }
+    if (values.length !== 7) return;
+    var sourceId = String(values[1]);
+    var filterId = Number(values[2]);
+    if (!sourceId || !isFinite(filterId)) return;
+    this.linkedFilters[sourceId + ":" + filterId] = {
+        sourceId: sourceId,
+        filterId: filterId,
+        enabled: Number(values[3]) !== 0,
+        gainDb: Number(values[4]),
+        frequencyHz: Number(values[5]),
+        q: Number(values[6])
+    };
 };
 
 DetectorCurveViewModel.prototype.EnsureFilter = function(filterId) {

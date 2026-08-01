@@ -31,6 +31,7 @@ SpectrumRenderer.prototype.PaintSpectrum = function(state, width, height) {
         }
     }
     this.DrawCurve(state.fitCurve, width, bottom, settings.fit, settings.currentLineWidth);
+    this.DrawLinkedHandles(state.linkedHandles, state.linkColor, width, bottom);
     this.DrawHandles(state, width, bottom);
     this.DrawFrequencyLabels(width, height);
 };
@@ -157,6 +158,27 @@ SpectrumRenderer.prototype.DrawHandles = function(state, width, bottom) {
             if (isFilled) mgraphics.fill();
             else mgraphics.stroke();
         }
+    }
+};
+
+SpectrumRenderer.prototype.DrawLinkedHandles = function(handles, linkColor, width, bottom) {
+    if (!handles || !handles.length) return;
+    var size = spectrumOptions.linkedHandleSize;
+    var color = spectrumOptions.linkedHandle;
+    for (var index = 0; index < handles.length; ++index) {
+        var handle = handles[index];
+        var x = handle.type === "gain"
+            ? spectrumOptions.gainHandleX
+            : spectrumGeometry.FrequencyToX(handle.frequency, width);
+        var y = spectrumGeometry.DbToY(handle.gain, bottom);
+        mgraphics.set_line_width(spectrumOptions.linkedHandleLineWidth);
+        mgraphics.set_source_rgba(color.r, color.g, color.b,
+            spectrumOptions.linkedHandleOpacity);
+        mgraphics.move_to(x - size, y - size);
+        mgraphics.line_to(x + size, y + size);
+        mgraphics.move_to(x + size, y - size);
+        mgraphics.line_to(x - size, y + size);
+        mgraphics.stroke();
     }
 };
 

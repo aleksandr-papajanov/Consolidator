@@ -5,12 +5,14 @@ outlets = 3;
 // Inlet 0: Host EQ, processor, and device snapshots.
 // Inlet 1: global bank/link messages: bank.query, bank.announce, bank.leave,
 // bank.reset_all, link.assign, link.detach, link.operation, link.filter_delta,
-// link.filter_bypass, link.state, and link.processor_delta.
+// link.filter_bypass, link.filter_reset, link.processor_detector_reset, link.state,
+// and link.processor_delta.
 // Outlet 0: Host commands: eq.select_bank, eq.join_banks, eq.commit_all,
 // eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter,
 // and saturator.set_parameter.
 // Outlet 1: the complete global bank/link message set accepted by inlet 1.
-// Outlet 2: link_color, processor_limits, processor_preview, eq_preview, and filter_limits UI state.
+// Outlet 2: link_color, processor_limits, processor_preview, detector_link_preview,
+// eq_preview, and filter_limits UI state.
 // Local gesture input also accepts eq_parameter_absolute_gesture
 // <bankId> <filterId> <parameter> <absoluteValue> from SpectrumView.
 // bank.announce: <instanceId> <trackName> <trackOrder> <revision> <selectedBank>
@@ -19,7 +21,9 @@ outlets = 3;
 // link.operation: <linkId> <sourceId> <revision> <join|commit|reset|bypass> <bypass|-1>.
 // link.filter_delta: <linkId> <sourceId> <revision> <filterId> <parameterIndex> <normalizedDelta>.
 // link.filter_bypass: <linkId> <sourceId> <revision> <filterId> <0|1>.
+// link.filter_reset: <linkId> <sourceId> <revision> <filterId>.
 // link.processor_delta: <linkId> <sourceId> <revision> <device> <parameter> <normalizedDelta>.
+// link.processor_detector_reset: <linkId> <sourceId> <revision> <device> <filterId>.
 // link.state: <linkId> <sourceId> <revision> <bankId> <filterCount>
 // <filterId> <bypass> <valueCount> <values...>... <processorValueCount>
 // <device> <parameter> <absoluteValue>...
@@ -158,11 +162,16 @@ function BankManager() {
     this.linkRevision = 0;
     this.outgoingLinkRevisions = {};
     this.incomingLinkRevisions = {};
+    this.incomingOperationRevisions = {};
     this.filterDefinitions = {};
+    this.filterTypes = {};
+    this.filterDefaultBypass = {};
     this.processorRanges = {};
+    this.processorDefaults = {};
     this.LoadDefinitions();
     this.processorLinkGroups = {};
     this.controlLinkSession = "";
+    this.pendingLinkedStatePublish = false;
     this.hasCanonicalEqSnapshot = false;
     this.viewModel = new BankManagerViewModel();
     this.renderer = new BankManagerRenderer();
@@ -181,11 +190,14 @@ BankManager.prototype.LoadDefinitions = function() {
     for (var filterId in eqDefinitions) {
         if (!eqDefinitions.hasOwnProperty(filterId)) continue;
         this.filterDefinitions[filterId] = eqDefinitions[filterId].parameters;
+        this.filterTypes[filterId] = eqDefinitions[filterId].type;
+        this.filterDefaultBypass[filterId] = Boolean(eqDefinitions[filterId].defaultBypass);
     }
     var processorDefinitions = FilterDefinitionCatalog.Processors();
     for (var device in processorDefinitions) {
         if (!processorDefinitions.hasOwnProperty(device)) continue;
         this.processorRanges[device] = {};
+        this.processorDefaults[device] = {};
         var parameters = processorDefinitions[device].parameters;
         for (var index = 0; index < parameters.length; index++) {
             var parameter = parameters[index];
@@ -194,6 +206,7 @@ BankManager.prototype.LoadDefinitions = function() {
                 maximum: parameter.maximum,
                 logarithmic: parameter.logarithmic
             };
+            this.processorDefaults[device][parameter.name] = parameter.defaultValue;
         }
     }
 };
@@ -370,6 +383,15 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
     this.hasCanonicalEqSnapshot = true;
     this.PublishAnnouncement();
     this.PublishLinkedState(changedLinkIds);
+    if (this.pendingLinkedStatePublish) {
+        this.pendingLinkedStatePublish = false;
+        this.PublishLinkedState();
+    }
+    var activeLinkId = this.ActiveLinkId(this.local);
+    this.PublishLinkedFilterPreviews(
+        activeLinkId,
+        activeLinkId && this.LinkMemberIds(activeLinkId).length >= 2
+    );
     return true;
 };
 
@@ -391,10 +413,42 @@ BankManager.prototype.ParseProcessorSnapshot = function(values) {
         output: Number(values[base + 5]),
         mix: Number(values[base + 6])
     };
+    for (var compressorDetectorId = 1; compressorDetectorId <= 2;
+         ++compressorDetectorId) {
+        var compressorDetectorBase = base + 7 + (compressorDetectorId - 1) * 4;
+        processors.compressor.values[
+            "detector." + compressorDetectorId + ".bypass"
+        ] = Number(values[compressorDetectorBase]);
+        processors.compressor.values[
+            "detector." + compressorDetectorId + ".gain"
+        ] = Number(values[compressorDetectorBase + 1]);
+        processors.compressor.values[
+            "detector." + compressorDetectorId + ".frequency"
+        ] = Number(values[compressorDetectorBase + 2]);
+        processors.compressor.values[
+            "detector." + compressorDetectorId + ".q"
+        ] = Number(values[compressorDetectorBase + 3]);
+    }
     processors.saturator.values = {
         saturation: Number(values[base + 17]),
         output: Number(values[base + 18])
     };
+    for (var saturatorDetectorId = 1; saturatorDetectorId <= 2;
+         ++saturatorDetectorId) {
+        var saturatorDetectorBase = base + 19 + (saturatorDetectorId - 1) * 4;
+        processors.saturator.values[
+            "detector." + saturatorDetectorId + ".bypass"
+        ] = Number(values[saturatorDetectorBase]);
+        processors.saturator.values[
+            "detector." + saturatorDetectorId + ".gain"
+        ] = Number(values[saturatorDetectorBase + 1]);
+        processors.saturator.values[
+            "detector." + saturatorDetectorId + ".frequency"
+        ] = Number(values[saturatorDetectorBase + 2]);
+        processors.saturator.values[
+            "detector." + saturatorDetectorId + ".q"
+        ] = Number(values[saturatorDetectorBase + 3]);
+    }
     processors.output_gain.values.gain = Number(values[base + 28]);
     var shouldAnnounce = !isFinite(
         this.local.processors.input_gain.values.gain);
@@ -446,7 +500,11 @@ BankManager.prototype.SetFocusedBank = function(instance, bankId) {
     this.focusedBankId = bankId;
     if (!this.CanChangeFocusedBankLink()) this.linkEditingEnabled = false;
     this.controlLinkSession = "";
-    if (instance.id === this.instanceId) this.RefreshControlLinkSession();
+    // Local controls accept limits only for the selected bank confirmed by Host.
+    if (instance.id === this.instanceId &&
+        bankId === this.local.selectedBankId) {
+        this.RefreshControlLinkSession();
+    }
 };
 
 BankManager.prototype.HasLink = function(instance, linkId) {
@@ -460,8 +518,46 @@ BankManager.prototype.HasLink = function(instance, linkId) {
 BankManager.prototype.SendProcessorValue = function(device, parameter, value) {
     if (device === "input_gain" || device === "output_gain") {
         this.SendHostCommand("gain.set_parameter", [device === "input_gain" ? "input" : "output", value]);
+    } else if ((device === "compressor" || device === "saturator") &&
+        parameter.indexOf("detector.") === 0) {
+        var parts = parameter.split(".");
+        if (parts.length !== 3) return;
+        this.SendHostCommand(device + ".set_detector_parameter", [
+            Number(parts[1]), String(parts[2]), value
+        ]);
     } else {
         this.SendHostCommand(device + ".set_parameter", [parameter, value]);
+    }
+};
+
+BankManager.prototype.SendDetectorReset = function(device, filterId) {
+    var defaults = this.processorDefaults[device] || {};
+    var parameters = ["gain", "frequency", "q", "bypass"];
+    for (var index = 0; index < parameters.length; ++index) {
+        var parameter = parameters[index];
+        var key = "detector." + filterId + "." + parameter;
+        if (!defaults.hasOwnProperty(key)) continue;
+        this.SendHostCommand(device + ".set_detector_parameter", [
+            Number(filterId), parameter, defaults[key]
+        ]);
+    }
+};
+
+BankManager.prototype.ResetDetectorModels = function(linkId, device, filterId) {
+    var defaults = this.processorDefaults[device] || {};
+    var group = linkId ? this.ProcessorLinkGroup(linkId, device) : null;
+    var members = group ? group.members : {};
+    if (!group && this.local.processors[device]) {
+        members[this.instanceId] = this.local.processors[device];
+    }
+    var parameters = ["gain", "frequency", "q", "bypass"];
+    for (var instanceId in members) {
+        if (!members.hasOwnProperty(instanceId)) continue;
+        var values = members[instanceId].values;
+        for (var index = 0; index < parameters.length; ++index) {
+            var key = "detector." + filterId + "." + parameters[index];
+            if (defaults.hasOwnProperty(key)) values[key] = defaults[key];
+        }
     }
 };
 
@@ -590,6 +686,69 @@ BankManager.prototype.RefreshControlLinkSession = function() {
         }
     }
     this.PublishFilterLimits(activeLinkId, activeMembers.length >= 2);
+    this.PublishLinkedFilterPreviews(activeLinkId, activeMembers.length >= 2);
+    this.PublishLinkedDetectorPreviews(activeLinkId, activeMembers.length >= 2);
+};
+
+BankManager.prototype.PublishLinkedDetectorPreviews = function(linkId, isLinked) {
+    var devices = ["compressor", "saturator"];
+    for (var deviceIndex = 0; deviceIndex < devices.length; ++deviceIndex) {
+        var device = devices[deviceIndex];
+        outlet(2, "detector_link_preview", device, "-");
+        if (!isLinked || !linkId) continue;
+        var group = this.ProcessorLinkGroup(linkId, device);
+        if (!group) continue;
+        for (var sourceId in group.members) {
+            if (!group.members.hasOwnProperty(sourceId) || sourceId === this.instanceId) continue;
+            var values = group.members[sourceId].values;
+            for (var filterId = 1; filterId <= 2; ++filterId) {
+                var prefix = "detector." + filterId + ".";
+                var bypass = Number(values[prefix + "bypass"]);
+                var gain = Number(values[prefix + "gain"]);
+                var frequency = Number(values[prefix + "frequency"]);
+                var q = Number(values[prefix + "q"]);
+                if (!isFinite(bypass) || !isFinite(gain) ||
+                    !isFinite(frequency) || !isFinite(q)) continue;
+                outlet(2, "detector_link_preview", device, linkId, sourceId,
+                    filterId, bypass ? 0 : 1, gain, frequency, q);
+            }
+        }
+    }
+};
+
+BankManager.prototype.PublishLinkedFilterPreviews = function(linkId, isLinked) {
+    // Replace the complete preview set so removed peers cannot remain in SpectrumView.
+    outlet(2, "eq_link_preview", "-");
+    if (!isLinked || !linkId) {
+        return;
+    }
+    var members = this.LinkMembers(linkId);
+    for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
+        var member = members[memberIndex];
+        if (member.instance.id === this.instanceId) continue;
+        for (var filterId in member.bank.filters) {
+            if (!member.bank.filters.hasOwnProperty(filterId)) continue;
+            var filter = member.bank.filters[filterId];
+            var parameters = this.filterDefinitions[filterId];
+            if (!parameters) continue;
+            var frequency = 0;
+            var gain = 0;
+            var q = 0;
+            for (var parameterIndex = 0;
+                 parameterIndex < parameters.length;
+                 ++parameterIndex) {
+                var parameterName = parameters[parameterIndex].name;
+                var value = Number(filter.values[parameterIndex]);
+                if (!isFinite(value)) continue;
+                if (parameterName === "freq" || parameterName === "pivot") frequency = value;
+                else if (parameterName === "gain") gain = value;
+                else if (parameterName === "q") q = value;
+            }
+            outlet(2, "eq_link_preview", linkId, member.instance.id,
+                Number(filterId), filter.bypass ? 0 : 1, frequency, gain, q,
+                this.filterTypes[filterId] || "peak");
+        }
+    }
 };
 
 BankManager.prototype.ParseDeviceSnapshot = function(values) {
@@ -628,6 +787,7 @@ BankManager.prototype.HandleEqAbsoluteParameterGesture = function(values) {
         };
         filter.values[parameterIndex] = absolute;
         this.ApplyFilterDeltaToModel(update, this.instanceId);
+        this.PublishLinkedFilterPreviews(update.linkId, true);
         outlet(1, "link.filter_delta", update.linkId, this.instanceId,
             this.NextLinkRevision(update.linkId), filterId, parameterIndex, delta);
         return;
@@ -670,8 +830,29 @@ BankManager.prototype.HandleProcessorParameterGesture = function(values) {
     processor.values[parameter] = DenormalizeParameter(normalized, range);
     group.ApplyDelta(this.instanceId, parameter, delta, true, range);
     this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
+    if (parameter.indexOf("detector.") === 0) {
+        this.PublishLinkedDetectorPreviews(linkId, true);
+    }
     outlet(1, "link.processor_delta", linkId, this.instanceId,
         this.NextLinkRevision(linkId), device, parameter, delta);
+};
+
+BankManager.prototype.HandleProcessorDetectorReset = function(values) {
+    if (values.length !== 2) return;
+    var device = String(values[0]);
+    var filterId = Number(values[1]);
+    if ((device !== "compressor" && device !== "saturator") ||
+        !isFinite(filterId) || filterId < 1 || filterId > 2) return;
+    var linkId = this.ActiveLinkId(this.local);
+    var group = linkId ? this.ProcessorLinkGroup(linkId, device) : null;
+    var isLinked = Boolean(group && Object.keys(group.members).length >= 2);
+    this.ResetDetectorModels(isLinked ? linkId : "", device, filterId);
+    this.SendDetectorReset(device, filterId);
+    this.PublishLinkedDetectorPreviews(linkId, isLinked);
+    if (isLinked) {
+        outlet(1, "link.processor_detector_reset", linkId, this.instanceId,
+            this.NextLinkRevision(linkId), device, filterId);
+    }
 };
 
 BankManager.prototype.NextLinkRevision = function(linkId) {
@@ -708,6 +889,18 @@ BankManager.prototype.AcceptIncomingLinkRevision = function(
     var key = linkId + ":" + sourceId;
     if (revision <= (this.incomingLinkRevisions[key] || 0)) return false;
     this.incomingLinkRevisions[key] = revision;
+    return true;
+};
+
+BankManager.prototype.AcceptIncomingOperationRevision = function(
+    linkId,
+    sourceId,
+    revision
+) {
+    if (!linkId || !sourceId || !isFinite(revision)) return false;
+    var key = linkId + ":" + sourceId;
+    if (revision <= (this.incomingOperationRevisions[key] || 0)) return false;
+    this.incomingOperationRevisions[key] = revision;
     return true;
 };
 
@@ -894,6 +1087,11 @@ BankManager.prototype.ApplyLinkState = function(values) {
             processor.values[processorParameter] = processors[processorDevice][processorParameter];
         }
     }
+    if (this.ActiveLinkId(this.local) === linkId) {
+        // Recompute fixed gesture limits after the peer's absolute values arrive.
+        this.controlLinkSession = "";
+        this.RefreshControlLinkSession();
+    }
 };
 
 BankManager.prototype.HandleGlobal = function(name, values) {
@@ -924,8 +1122,12 @@ BankManager.prototype.HandleGlobal = function(name, values) {
         this.ApplyFilterDelta(values);
     } else if (name === "link.filter_bypass") {
         this.ApplyLinkBypass(values);
+    } else if (name === "link.filter_reset") {
+        this.ApplyLinkFilterReset(values);
     } else if (name === "link.processor_delta") {
         this.ApplyProcessorDelta(values);
+    } else if (name === "link.processor_detector_reset") {
+        this.ApplyProcessorDetectorReset(values);
     }
     if (shouldRedraw) mgraphics.redraw();
 };
@@ -951,7 +1153,27 @@ BankManager.prototype.ApplyProcessorDelta = function(values) {
     var processor = this.local.processors[device];
     if (!processor || !this.HasLink(this.local, linkId)) return;
     this.PublishProcessorPreview(device, parameter, processor.values[parameter]);
+    if (parameter.indexOf("detector.") === 0) {
+        this.PublishLinkedDetectorPreviews(linkId, true);
+    }
     this.SendProcessorValue(device, parameter, processor.values[parameter]);
+};
+
+BankManager.prototype.ApplyProcessorDetectorReset = function(values) {
+    if (values.length !== 5) return;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var revision = Number(values[2]);
+    var device = String(values[3]);
+    var filterId = Number(values[4]);
+    if (sourceId === this.instanceId ||
+        (device !== "compressor" && device !== "saturator") ||
+        !isFinite(filterId) || !this.AcceptIncomingOperationRevision(
+            linkId, sourceId, revision)) return;
+    if (!this.HasLink(this.local, linkId)) return;
+    this.ResetDetectorModels(linkId, device, filterId);
+    this.SendDetectorReset(device, filterId);
+    this.PublishLinkedDetectorPreviews(linkId, true);
 };
 
 BankManager.prototype.RemovePeer = function(values) {
@@ -963,6 +1185,8 @@ BankManager.prototype.RemovePeer = function(values) {
         this.SetFocusedBank(this.local, this.local.selectedBankId);
     }
     this.RebuildProcessorLinkGroups();
+    this.controlLinkSession = "";
+    this.RefreshControlLinkSession();
 };
 
 BankManager.prototype.ApplyFilterDelta = function(values) {
@@ -989,6 +1213,7 @@ BankManager.prototype.ApplyFilterDelta = function(values) {
     this.ApplyFilterDeltaToModel(update, "");
     this.PublishEqPreview(bank.id, filterId, parameterIndex,
         filter.values[parameterIndex]);
+    this.PublishLinkedFilterPreviews(linkId, true);
     this.SendHostCommand("eq.set_parameter_index", [
         bank.id, filterId, parameterIndex, filter.values[parameterIndex]
     ]);
@@ -1011,7 +1236,57 @@ BankManager.prototype.ApplyLinkBypass = function(values) {
         var filter = members[index].bank.filters[filterId];
         if (filter) filter.bypass = bypass !== 0;
     }
+    this.PublishLinkedFilterPreviews(linkId, true);
     this.SendHostCommand("eq.set_bypass", [localBank.id, filterId, bypass]);
+};
+
+BankManager.prototype.ExecuteFilterReset = function(bankId, filterId) {
+    var bank = this.LocalBank(bankId);
+    if (!bank || !isFinite(filterId)) return;
+    if (!bank.linkId) {
+        this.ResetFilterModel(bank, filterId);
+        this.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
+        return;
+    }
+    this.ResetLinkedFilterModels(bank.linkId, filterId);
+    this.PublishLinkedFilterPreviews(bank.linkId, true);
+    this.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
+    outlet(1, "link.filter_reset", bank.linkId, this.instanceId,
+        this.NextLinkRevision(bank.linkId), filterId);
+};
+
+BankManager.prototype.ApplyLinkFilterReset = function(values) {
+    if (values.length !== 4) return;
+    var linkId = String(values[0]);
+    var sourceId = String(values[1]);
+    var revision = Number(values[2]);
+    var filterId = Number(values[3]);
+    if (sourceId === this.instanceId || !isFinite(filterId) ||
+        !this.AcceptIncomingOperationRevision(linkId, sourceId, revision)) return;
+    var bank = this.FindLocalLinkedBank(linkId);
+    if (!bank) return;
+    this.ResetLinkedFilterModels(linkId, filterId);
+    this.PublishLinkedFilterPreviews(linkId, true);
+    this.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
+};
+
+BankManager.prototype.ResetLinkedFilterModels = function(linkId, filterId) {
+    var members = this.LinkMembers(linkId);
+    for (var index = 0; index < members.length; ++index) {
+        this.ResetFilterModel(members[index].bank, filterId);
+    }
+};
+
+BankManager.prototype.ResetFilterModel = function(bank, filterId) {
+    var filter = bank && bank.filters[filterId];
+    var parameters = this.filterDefinitions[filterId];
+    if (!filter || !parameters) return;
+    var values = [];
+    for (var index = 0; index < parameters.length; ++index) {
+        values.push(Number(parameters[index].defaultValue));
+    }
+    filter.values = values;
+    filter.bypass = Boolean(this.filterDefaultBypass[filterId]);
 };
 
 BankManager.prototype.FindLocalLinkedBank = function(linkId) {
@@ -1274,6 +1549,14 @@ BankManager.prototype.ExecuteOperation = function(action, bypass) {
     if (!activeBank) return;
     var linkId = activeBank.linkId;
     if (linkId) {
+        if (action === "join" || action === "commit") {
+            this.pendingLinkedStatePublish = true;
+        }
+        if (action === "reset") {
+            this.ResetLinkedBankModels(linkId);
+            this.PublishLinkedFilterPreviews(linkId, true);
+        }
+        this.ApplyOperation(action, activeBank.id, bypass);
         outlet(1, "link.operation", linkId, this.instanceId,
             this.NextLinkRevision(linkId), action, bypass === undefined ? -1 : bypass);
         return;
@@ -1300,9 +1583,29 @@ BankManager.prototype.ApplyLinkOperation = function(values) {
     var revision = Number(values[2]);
     var action = String(values[3]);
     var bypass = Number(values[4]);
-    if (!isFinite(revision) || !this.AcceptIncomingLinkRevision(linkId, sourceId, revision)) return;
+    if (sourceId === this.instanceId || !isFinite(revision) ||
+        !this.AcceptIncomingOperationRevision(linkId, sourceId, revision)) return;
     var bank = this.FindLocalLinkedBank(linkId);
-    if (bank) this.ApplyOperation(action, bank.id, bypass);
+    if (!bank) return;
+    if (action === "reset") {
+        this.ResetLinkedBankModels(linkId);
+        this.PublishLinkedFilterPreviews(linkId, true);
+    } else if (action === "join" || action === "commit") {
+        this.pendingLinkedStatePublish = true;
+    }
+    this.ApplyOperation(action, bank.id, bypass);
+};
+
+BankManager.prototype.ResetLinkedBankModels = function(linkId) {
+    var members = this.LinkMembers(linkId);
+    for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
+        var filters = members[memberIndex].bank.filters;
+        for (var filterId in filters) {
+            if (filters.hasOwnProperty(filterId)) {
+                this.ResetFilterModel(members[memberIndex].bank, Number(filterId));
+            }
+        }
+    }
 };
 
 BankManager.prototype.Paint = function() {
@@ -1381,7 +1684,7 @@ function BankManagerTrackNameChanged() {
 
 function inletassist(index) {
     assist(index === 0
-        ? "Local input: Host snapshots; eq_parameter_absolute_gesture, eq_parameter_absolute_preview, processor_parameter_gesture"
+        ? "Local input: Host snapshots; eq_parameter_absolute_gesture, eq_parameter_absolute_preview, eq_filter_reset, processor_parameter_gesture"
         : "Global bus: bank.query, bank.announce, bank.leave, bank.reset_all, link.assign, link.detach, link.operation, link.filter_*, link.processor_*, link.state");
 }
 
@@ -1428,6 +1731,15 @@ function processor_parameter_gesture() {
         bankManager.HandleProcessorParameterGesture(arrayfromargs(arguments));
     }
 }
+function processor_detector_reset() {
+    if (inlet === 0) {
+        bankManager.HandleProcessorDetectorReset(arrayfromargs(arguments));
+    }
+}
+function eq_filter_reset(bankId, filterId) {
+    if (inlet === 0) bankManager.ExecuteFilterReset(
+        Number(bankId), Number(filterId));
+}
 function bank_action(action, value) {
     if (inlet !== 0) return;
     var name = String(action);
@@ -1449,6 +1761,10 @@ function anything() {
         bankManager.HandleEqAbsoluteParameterPreview(values);
     } else if (inlet === 0 && messagename === "processor_parameter_gesture") {
         bankManager.HandleProcessorParameterGesture(values);
+    } else if (inlet === 0 && messagename === "processor_detector_reset") {
+        bankManager.HandleProcessorDetectorReset(values);
+    } else if (inlet === 0 && messagename === "eq_filter_reset") {
+        bankManager.ExecuteFilterReset(Number(values[0]), Number(values[1]));
     } else if (inlet === 0 && messagename === "bank.action") {
         bankManager.ExecuteOperation(String(values[0]), values[1]);
     } else if (inlet === 1) {

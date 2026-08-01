@@ -37,9 +37,13 @@ AnalyzerController.prototype.ForwardCommand = function(name, values) {
         );
         return;
     }
+    if (name === "command" && values.length === 6 &&
+        String(values[3]) === "eq.reset_filter") {
+        outlet(2, "eq_filter_reset", Number(values[4]), Number(values[5]));
+        return;
+    }
     if (name === "command" && values.length >= 6 &&
-        (String(values[3]) === "eq.set_bypass" ||
-            String(values[3]) === "eq.reset_filter")) {
+        String(values[3]) === "eq.set_bypass") {
         outlet(0, "command", values);
         return;
     }
@@ -165,7 +169,7 @@ function outletassist(index) {
         ? "command 1 analyzer <requestId> analyzer.set_view <visible> <spectrum|analysis>; fit.start <pointCount> <curve...>; analyzer.clear; eq.set_parameter, eq.set_bypass, eq.reset_filter; bank.action <join|commit|reset|bypass> <optional 0|1>"
         : (index === 1
             ? "mode spectrum|analysis for the unified Analyzer View"
-            : "eq_parameter_absolute_preview|eq_parameter_absolute_gesture <bankId> <filterId> <parameter> <absoluteValue>"));
+            : "eq_parameter_absolute_preview|eq_parameter_absolute_gesture <bankId> <filterId> <parameter> <absoluteValue>; eq_filter_reset <bankId> <filterId>"));
 }
 
 setinletassist(-1, inletassist);

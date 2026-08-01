@@ -92,23 +92,27 @@ DetectorCurveController.prototype.Drag = function(x, y, button, option) {
     if (!definition) return;
     var plotHeight = this.PlotHeight();
     if (Boolean(option)) {
+        var qLimit = filter.Limit("q", definition.qMinimum, definition.qMaximum);
         filter.q = this.renderer.Clamp(
             this.dragStart.q * Math.pow(8.0,
                 (this.dragStart.y - Number(y)) / Math.max(1.0, plotHeight)),
-            definition.qMinimum,
-            definition.qMaximum
+            qLimit.minimum,
+            qLimit.maximum
         );
         this.Emit("q", filter.q);
     } else {
+        var frequencyLimit = filter.Limit(
+            "frequency", definition.frequencyMinimum, definition.frequencyMaximum);
+        var gainLimit = filter.Limit("gain", definition.gainMinimum, definition.gainMaximum);
         filter.frequencyHz = this.renderer.Clamp(
             this.renderer.PointToFrequency(x, mgraphics.size[0]),
-            definition.frequencyMinimum,
-            definition.frequencyMaximum
+            frequencyLimit.minimum,
+            frequencyLimit.maximum
         );
         filter.gainDb = this.renderer.Clamp(
             this.renderer.PointToGain(y, plotHeight),
-            definition.gainMinimum,
-            definition.gainMaximum
+            gainLimit.minimum,
+            gainLimit.maximum
         );
         this.Emit("frequency", filter.frequencyHz);
         this.Emit("gain", filter.gainDb);

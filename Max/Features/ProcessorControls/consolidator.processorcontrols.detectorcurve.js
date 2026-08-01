@@ -49,6 +49,22 @@ function link_color(linkId, red, green, blue, alpha) {
     detectorCurveViewModel.SetLinkColor(linkId, red, green, blue, alpha);
     mgraphics.redraw();
 }
+function limits(filterId, parameter, minimum, maximum) {
+    detectorCurveViewModel.SetLimit(filterId, parameter, minimum, maximum);
+    mgraphics.redraw();
+}
+function preview(filterId, parameter, value) {
+    detectorCurveViewModel.SetPreview(filterId, parameter, value);
+    mgraphics.redraw();
+}
+function reset(filterId) {
+    detectorCurveViewModel.Reset(filterId);
+    mgraphics.redraw();
+}
+function detector_link_preview() {
+    detectorCurveViewModel.SetLinkedPreview(arrayfromargs(arguments));
+    mgraphics.redraw();
+}
 
 function onresize() {
     mgraphics.redraw();
@@ -68,7 +84,7 @@ function ondrag(x, y, button, mod1, shift, caps, option) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; link_color <linkId|-> <r> <g> <b> <a>; output detector_absolute <filterId> <parameter> <absoluteValue> or detector_listen <filterId> <0|1>"
+        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; definition, listen, limits, preview, detector_link_preview, link_color; output detector_absolute or detector_listen"
         : "");
 }
 

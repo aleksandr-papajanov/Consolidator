@@ -296,32 +296,9 @@ ProcessorControlsController.prototype.ToNormalized = function(definition, absolu
 };
 
 ProcessorControlsController.prototype.ResetDetector = function(device, filterId) {
-    var parameterNames = ["gain", "frequency", "q"];
-    for (var index = 0; index < parameterNames.length; ++index) {
-        var parameterName = parameterNames[index];
-        var definition = this.FindParameter(
-            this.processorDefinitions[device],
-            "detector." + filterId + "." + parameterName
-        );
-        if (!definition) continue;
-        var normalized = this.ToNormalized(definition, definition.defaultValue);
-        this.QueueParameterUpdate(
-            device,
-            "detector." + filterId + "." + parameterName,
-            normalized,
-            device + ".set_detector_parameter",
-            [filterId, parameterName, definition.defaultValue]
-        );
-    }
-    var bypassDefinition = this.FindParameter(
-        this.processorDefinitions[device],
-        "detector." + filterId + ".bypass"
-    );
-    if (bypassDefinition) {
-        this.SendCommand(device + ".set_detector_parameter", [
-            filterId, "bypass", bypassDefinition.defaultValue ? 1 : 0
-        ]);
-    }
+    outlet(3, "processor_detector_reset", String(device), Number(filterId));
+    outlet(1, ["script", "sendbox", device + ".detectorCurve", "reset",
+        Number(filterId)]);
 };
 
 ProcessorControlsController.prototype.HandleProcessorLimits = function(device, parameter, minimum, maximum) {
@@ -340,6 +317,17 @@ ProcessorControlsController.prototype.ApplyProcessorLimits = function(device, pa
     if (!definition) return;
     var minimumNormalized = Math.max(0, Math.min(1, this.ToNormalized(definition, minimum)));
     var maximumNormalized = Math.max(0, Math.min(1, this.ToNormalized(definition, maximum)));
+    if (parameter.indexOf("detector.") === 0) {
+        var detectorParts = parameter.split(".");
+        if (detectorParts.length === 3) {
+            outlet(1, [
+                "script", "sendbox", device + ".detectorCurve", "limits",
+                Number(detectorParts[1]), String(detectorParts[2]),
+                minimum, maximum
+            ]);
+        }
+        return;
+    }
     if (parameter === "threshold" || parameter === "saturation" || parameter === "output") {
         var primaryName = device === "compressor" ? "threshold" : "saturation";
         outlet(1, [
@@ -411,9 +399,19 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
         if (processorAction === "detector_absolute" && String(values[3]) === "bypass") {
             var bypassDetectorId = Number(values[2]);
             if (!this.IsDetectorId(bypassDetectorId)) return;
-            this.SendCommand(device + ".set_detector_parameter", [
-                bypassDetectorId, "bypass", Number(values[4]) ? 1 : 0
-            ]);
+            var bypassDefinition = this.FindParameter(
+                this.processorDefinitions[device],
+                "detector." + bypassDetectorId + ".bypass"
+            );
+            if (!bypassDefinition) return;
+            var bypassValue = Number(values[4]) ? 1 : 0;
+            this.QueueParameterUpdate(
+                device,
+                "detector." + bypassDetectorId + ".bypass",
+                bypassValue,
+                device + ".set_detector_parameter",
+                [bypassDetectorId, "bypass", bypassValue]
+            );
             return;
         }
         if (processorAction === "detector_absolute" && String(values[3]) === "reset") {
@@ -970,6 +968,17 @@ ProcessorControlsController.prototype.HandleProcessorPreview = function(
     if (device !== this.visualDevice) return;
     var definition = this.FindParameter(this.processorDefinitions[device], parameter);
     if (!definition) return;
+    if (parameter.indexOf("detector.") === 0) {
+        var detectorParts = parameter.split(".");
+        if (detectorParts.length === 3) {
+            outlet(1, [
+                "script", "sendbox", device + ".detectorCurve", "preview",
+                Number(detectorParts[1]), String(detectorParts[2]),
+                Number(absoluteValue)
+            ]);
+        }
+        return;
+    }
     var value = this.ToNormalized(definition, Number(absoluteValue));
     if (device === "compressor") {
         if (parameter === "threshold") this.SendValue(["compressor", "threshold-output", 1, value]);
@@ -981,6 +990,25 @@ ProcessorControlsController.prototype.HandleProcessorPreview = function(
         if (parameter === "saturation") this.SendValue(["saturator", "saturation-output", 1, value]);
         else if (parameter === "output") this.SendValue(["saturator", "saturation-output", 2, value]);
     }
+};
+
+ProcessorControlsController.prototype.HandleDetectorLinkPreview = function(
+    device,
+    linkId,
+    sourceId,
+    filterId,
+    enabled,
+    gainDb,
+    frequencyHz,
+    q
+) {
+    if (String(device) !== this.visualDevice) return;
+    var fields = [];
+    for (var index = 1; index < arguments.length; ++index) {
+        fields.push(arguments[index]);
+    }
+    outlet(1, ["script", "sendbox", device + ".detectorCurve",
+        "detector_link_preview"].concat(fields));
 };
 
 ProcessorControlsController.prototype.SendOutputLevelIndicator = function() {
