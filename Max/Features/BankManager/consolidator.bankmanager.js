@@ -50,6 +50,7 @@ include("JS/BankManagerLinkGraph.js");
 include("JS/BankManagerSelection.js");
 include("JS/BankManagerLayout.js");
 include("JS/BankManagerOperations.js");
+include("JS/BankManagerLinkTransport.js");
 var BankManagerVisualOptions = BankManagerOptions.geometry;
 var BankManagerColors = BankManagerOptions.colors;
 var bankGroupLayout = new ButtonGroupLayout();
@@ -76,6 +77,7 @@ function BankManager() {
     this.linkGraph = new BankManagerLinkGraph(this);
     this.layout = new BankManagerLayout();
     this.operations = new BankManagerOperations(this);
+    this.linkTransport = new BankManagerLinkTransport(this);
     this.controlLinkSession = "";
     this.pendingLinkedStatePublish = false;
     this.hasCanonicalEqSnapshot = false;
@@ -1160,6 +1162,87 @@ BankManager.prototype.ResetLinkedBankModels = function(linkId) {
             }
         }
     }
+};
+
+// The root owns feature composition; LinkTransport owns every global frame.
+BankManager.prototype.NextLinkRevision = function(linkId) {
+    return this.linkTransport.NextRevision(linkId);
+};
+
+BankManager.prototype.PublishEqPreview = function(bankId, filterId, parameterIndex, absoluteValue) {
+    this.linkTransport.PublishEqPreview(bankId, filterId, parameterIndex, absoluteValue);
+};
+
+BankManager.prototype.PublishProcessorPreview = function(device, parameter, absoluteValue) {
+    this.linkTransport.PublishProcessorPreview(device, parameter, absoluteValue);
+};
+
+BankManager.prototype.ApplyFilterDeltaToModel = function(update, skipInstanceId) {
+    this.linkTransport.ApplyFilterDeltaToModel(update, skipInstanceId);
+};
+
+BankManager.prototype.PublishLinkBypass = function(linkId, filterId, bypass) {
+    this.linkTransport.PublishFilterBypass(linkId, filterId, bypass);
+};
+
+BankManager.prototype.PublishAnnouncement = function() {
+    return this.linkTransport.PublishAnnouncement();
+};
+
+BankManager.prototype.PublishLinkedState = function(linkIds) {
+    this.linkTransport.PublishLinkedState(linkIds);
+};
+
+BankManager.prototype.ParseAnnouncement = function(values) {
+    this.linkTransport.ParseAnnouncement(values);
+};
+
+BankManager.prototype.ApplyLinkState = function(values) {
+    this.linkTransport.ApplyLinkedState(values);
+};
+
+BankManager.prototype.HandleGlobal = function(name, values) {
+    this.linkTransport.HandleGlobal(name, values);
+};
+
+BankManager.prototype.ApplyProcessorDelta = function(values) {
+    this.linkTransport.ApplyProcessorDelta(values);
+};
+
+BankManager.prototype.ApplyProcessorDetectorReset = function(values) {
+    this.linkTransport.ApplyDetectorReset(values);
+};
+
+BankManager.prototype.RemovePeer = function(values) {
+    this.linkTransport.RemovePeer(values);
+};
+
+BankManager.prototype.ApplyFilterDelta = function(values) {
+    this.linkTransport.ApplyFilterDelta(values);
+};
+
+BankManager.prototype.ApplyLinkBypass = function(values) {
+    this.linkTransport.ApplyFilterBypass(values);
+};
+
+BankManager.prototype.ApplyLinkFilterReset = function(values) {
+    this.linkTransport.ApplyFilterReset(values);
+};
+
+BankManager.prototype.HandleEqAbsoluteParameterGesture = function(values) {
+    this.linkTransport.HandleEqGesture(values);
+};
+
+BankManager.prototype.HandleEqAbsoluteParameterPreview = function(values) {
+    this.linkTransport.HandleEqPreview(values);
+};
+
+BankManager.prototype.HandleProcessorParameterGesture = function(values) {
+    this.linkTransport.HandleProcessorGesture(values);
+};
+
+BankManager.prototype.HandleProcessorDetectorReset = function(values) {
+    this.linkTransport.HandleDetectorReset(values);
 };
 
 var bankManager = new BankManager();

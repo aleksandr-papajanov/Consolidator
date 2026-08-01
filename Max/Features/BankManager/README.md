@@ -19,6 +19,9 @@ implement JSUI input dispatch directly.
   editable group identifiers, and link colors.
 - `JS/BankManagerOperations.js`: discrete link assignment and Join/Commit/Reset/
   Bypass transactions, including their global replication.
+- `JS/BankManagerLinkTransport.js`: global bank announcements, linked-state
+  frames, relative parameter deltas, discrete linked filter operations, and
+  the local preview lane for linked controls.
 - `JS/BankManagerSnapshotReader.js`: validation and decoding of EQ and
   processor Host snapshots into feature models.
 - `JS/BankManagerLiveIdentity.js`: Live API device identity, track order, and
