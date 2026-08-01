@@ -13,19 +13,14 @@ set_property(TARGET NLopt::nlopt PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO Rel
 
 set(SOURCE_FILES
     ${PROJECT_NAME}.cpp
-    ApproximatorBeamSearchAdapter.h
     ApproximatorCurveStore.h
     ApproximatorFitResult.h
     ApproximatorOutputs.h
     AnalysisMetricSnapshot.h
-    DeviceOptimizer.h
-    DynamicsMatchWorkflow.h
-    EqCurveOptimizer.h
     EqMatchWorkflow.h
     EqOptimizer.h
     FitAudioBuffer.h
     OfflineFitEvaluator.h
-    SaturationMatchWorkflow.h
 )
 
 set("${PROJECT_NAME}_EXTERN_OUTPUT_NAME" "consolidator.approximator" CACHE STRING "The name to give to the external output file/directory" FORCE)

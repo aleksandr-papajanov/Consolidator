@@ -185,8 +185,9 @@ a contract changes.
 - `CompressorOptions`, `SaturatorOptions`, and `GainOptions` define DSP-internal
   defaults and safety behavior; they are not a second UI validation contract.
   Compressor ratio is fixed in `CompressorOptions`.
-- `Max/Config/ConsolidatorSettings.json` contains presentation-only per-filter
-  colors. Runtime parameter definitions and ranges never come from JSON.
+- Presentation-only colors and UI settings live in the shared JavaScript
+  interface configuration. Runtime parameter definitions and ranges never
+  come from JSON.
 
 ## Component Responsibilities
 
@@ -391,7 +392,8 @@ DspProcessor. Approximator combines `---state.eq` and the compact
 `---state.processor` snapshot. UI controllers and BankManager also consume the
 compact processor state. `---state.analyzer` contains only Analyzer events and
 EQ snapshots needed by the native Analyzer and SpectrumView. `---analyzer.ui`
-carries only short SpectrumView-local `eq_preview` and `filter_limits` updates;
+carries only short SpectrumView-local `eq_preview`, `filter_limits`, and
+`link_color` updates;
 it never enters the native Analyzer.
 
 Cross-device coordination uses the unscoped `consolidator.host.bus` transport;

@@ -187,10 +187,10 @@
 					"id" : "eq-preview-route",
 					"maxclass" : "newobj",
 					"numinlets" : 3,
-					"numoutlets" : 3,
-					"outlettype" : [ "", "", "" ],
+					"numoutlets" : 4,
+					"outlettype" : [ "", "", "", "" ],
 					"patching_rect" : [ 340.0, 265.0, 161.0, 22.0 ],
-					"text" : "route eq_preview filter_limits"
+					"text" : "route eq_preview filter_limits link_color"
 				}
 
 			}
@@ -226,6 +226,29 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 445.0, 290.0, 120.0, 22.0 ],
 					"text" : "prepend filter_limits"
+				}
+
+			}
+,			{
+				"box" : {
+					"id" : "link-color-prefix",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 445.0, 315.0, 105.0, 22.0 ],
+					"text" : "prepend link_color"
+				}
+
+			}
+,			{
+				"box" : {
+					"id" : "analyzer-ui-send",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 570.0, 315.0, 105.0, 22.0 ],
+					"text" : "s ---analyzer.ui"
 				}
 
 			}
@@ -275,7 +298,28 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "processor-limits-send", 0 ],
+					"source" : [ "eq-preview-route", 3 ]
+				}
+
+			}
+,			{
+				"patchline" : {
+					"destination" : [ "link-color-prefix", 0 ],
 					"source" : [ "eq-preview-route", 2 ]
+				}
+
+			}
+,			{
+				"patchline" : {
+					"destination" : [ "analyzer-ui-send", 0 ],
+					"source" : [ "link-color-prefix", 0 ]
+				}
+
+			}
+,			{
+				"patchline" : {
+					"destination" : [ "processor-limits-send", 0 ],
+					"source" : [ "link-color-prefix", 0 ]
 				}
 
 			}

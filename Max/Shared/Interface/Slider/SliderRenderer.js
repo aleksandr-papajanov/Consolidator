@@ -18,7 +18,7 @@ SliderRenderer.prototype.Paint = function(state, geometry, theme) {
     mgraphics.stroke();
 
     this.renderer.SetColor(state.enabled
-        ? state.valueColor || theme.colors.value
+        ? state.valueColor || theme.colors.primaryAccent
         : theme.colors.track);
     mgraphics.new_path();
     mgraphics.move_to(geometry.startX, geometry.startY);

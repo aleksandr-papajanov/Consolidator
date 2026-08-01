@@ -9,12 +9,9 @@ function AnalyzerColor(value) {
 
 var analyzerControlsOptions = {
     controlHeight: 18,
-    controlPadding: InterfaceTheme.geometry.minimumPadding,
-    modeGroupRatio: 0.28,
-    groupGap: InterfaceTheme.geometry.valueGap
+    controlPadding: InterfaceTheme.geometry.minimumPadding
 };
 
-var analyzerUtilityButtonCount = 7;
 var AnalyzerButtonGroupOptions = {
     content: CreateButtonGroupOptions({
         layout: "horizontal",
@@ -24,8 +21,12 @@ var AnalyzerButtonGroupOptions = {
 };
 var analyzerButtonGroupRenderer = new ButtonGroupRenderer();
 
-function AnalyzerUtilityLabels(scaleDb) {
-    return [String(scaleDb) + " dB", "B", "R", "JOIN", "COMMIT", "MATCH EQ", "CLEAR"];
+function AnalyzerTopLabels(scaleDb) {
+    return ["FFT", "ANALYSIS", String(scaleDb) + " dB"];
+}
+
+function AnalyzerActionLabels() {
+    return ["B", "R", "JOIN", "COMMIT", "MATCH EQ", "CLEAR"];
 }
 
 function CreateAnalyzerButtonGroup(labels) {
@@ -43,15 +44,17 @@ function CreateAnalyzerButtonGroup(labels) {
 }
 
 var analyzerControlGroups = {
-    mode: CreateAnalyzerButtonGroup(["FFT", "ANALYSIS"]),
-    utility: CreateAnalyzerButtonGroup(AnalyzerUtilityLabels(24))
+    top: CreateAnalyzerButtonGroup(AnalyzerTopLabels(24)),
+    actions: CreateAnalyzerButtonGroup(AnalyzerActionLabels())
 };
-for (var analyzerModeIndex = 0; analyzerModeIndex < 2; ++analyzerModeIndex) {
-    analyzerControlGroups.mode.buttons.push(new ButtonViewModel("toggle"));
+for (var analyzerModeIndex = 0; analyzerModeIndex < 3; ++analyzerModeIndex) {
+    analyzerControlGroups.top.buttons.push(new ButtonViewModel(
+        analyzerModeIndex < 2 ? "toggle" : "momentary"));
 }
-var analyzerUtilityModes = ["momentary", "toggle", "momentary", "momentary", "momentary", "momentary", "momentary"];
+var analyzerUtilityModes = ["toggle", "momentary", "momentary", "momentary", "momentary", "momentary"];
 for (var analyzerUtilityIndex = 0; analyzerUtilityIndex < analyzerUtilityModes.length; ++analyzerUtilityIndex) {
-    analyzerControlGroups.utility.buttons.push(new ButtonViewModel(analyzerUtilityModes[analyzerUtilityIndex]));
+    analyzerControlGroups.actions.buttons.push(new ButtonViewModel(
+        analyzerUtilityModes[analyzerUtilityIndex]));
 }
 
 function ResolveAnalyzerScaleDb(state) {
@@ -60,66 +63,41 @@ function ResolveAnalyzerScaleDb(state) {
         : spectrumOptions.scaleOptionsDb[state.scaleIndex] || spectrumOptions.scaleDb;
 }
 
-function AnalyzerUtilityGroupRect(width) {
-    var height = analyzerControlsOptions.controlHeight
-        - analyzerControlsOptions.controlPadding * 2;
-    var modeWidth = width * analyzerControlsOptions.modeGroupRatio;
-    return {
-        x: Math.min(width, modeWidth + analyzerControlsOptions.groupGap),
-        y: analyzerControlsOptions.controlPadding,
-        width: Math.max(0, width - modeWidth - analyzerControlsOptions.groupGap),
-        height: height
-    };
+function AnalyzerTopGroupIndexAt(x, y) {
+    return analyzerButtonGroupRenderer.IndexAt(analyzerControlGroups.top, x, y);
 }
 
-function AnalyzerModeGroupRect(width) {
-    var height = analyzerControlsOptions.controlHeight
-        - analyzerControlsOptions.controlPadding * 2;
-    return {
-        x: analyzerControlsOptions.controlPadding,
-        y: analyzerControlsOptions.controlPadding,
-        width: Math.max(0, width * analyzerControlsOptions.modeGroupRatio),
-        height: height
-    };
-}
-
-function AnalyzerUtilityGroupIndexAt(x, y, width, scaleDb) {
-    return analyzerButtonGroupRenderer.IndexAt(analyzerControlGroups.utility, x, y);
-}
-
-function AnalyzerModeGroupIndexAt(x, y, width) {
-    return analyzerButtonGroupRenderer.IndexAt(analyzerControlGroups.mode, x, y);
+function AnalyzerActionGroupIndexAt(x, y) {
+    return analyzerButtonGroupRenderer.IndexAt(analyzerControlGroups.actions, x, y);
 }
 
 function AnalyzerControlsRenderer() {
-    this.modeGroup = analyzerControlGroups.mode;
-    this.utilityGroup = analyzerControlGroups.utility;
+    this.topGroup = analyzerControlGroups.top;
+    this.actionGroup = analyzerControlGroups.actions;
     this.buttonGroupRenderer = analyzerButtonGroupRenderer;
 }
 
-AnalyzerControlsRenderer.prototype.Paint = function(state, width) {
-    var settings = analyzerControlsOptions;
-    this.modeGroup.buttons[0].SetValue(state.mode === "spectrum" ? 1 : 0);
-    this.modeGroup.buttons[1].SetValue(state.mode === "analysis" ? 1 : 0);
+AnalyzerControlsRenderer.prototype.Paint = function(state, width, height) {
+    this.topGroup.buttons[0].SetValue(state.mode === "spectrum" ? 1 : 0);
+    this.topGroup.buttons[1].SetValue(state.mode === "analysis" ? 1 : 0);
+    this.topGroup.buttons[2].SetValue(0);
+    this.topGroup.labels = AnalyzerTopLabels(ResolveAnalyzerScaleDb(state));
     this.buttonGroupRenderer.Paint(
-        this.modeGroup,
-        this.buttonGroupRenderer.Cells(
-            this.modeGroup,
-            AnalyzerModeGroupRect(width)
+        this.topGroup,
+        this.buttonGroupRenderer.ContentCells(
+            this.topGroup,
+            analyzerControlsOptions.controlPadding,
+            analyzerControlsOptions.controlPadding,
+            analyzerControlsOptions.controlHeight
+                - analyzerControlsOptions.controlPadding * 2
         )
     );
-    var scaleDb = ResolveAnalyzerScaleDb(state);
-    this.utilityGroup.buttons[0].SetValue(0);
-    this.utilityGroup.buttons[1].SetValue(state.eqBypass ? 1 : 0);
-    this.utilityGroup.buttons[2].SetValue(0);
-    this.utilityGroup.buttons[3].SetValue(0);
-    this.utilityGroup.buttons[4].SetValue(0);
-    this.utilityGroup.buttons[5].SetValue(0);
-    this.utilityGroup.buttons[6].SetValue(0);
-    this.utilityGroup.labels = AnalyzerUtilityLabels(scaleDb);
     var operationAvailability = state.operationAvailability;
-    this.utilityGroup.enabled = [
-        true,
+    this.actionGroup.buttons[0].SetValue(state.eqBypass ? 1 : 0);
+    for (var index = 1; index < this.actionGroup.buttons.length; ++index) {
+        this.actionGroup.buttons[index].SetValue(0);
+    }
+    this.actionGroup.enabled = [
         operationAvailability.bypass,
         operationAvailability.reset,
         operationAvailability.join,
@@ -128,10 +106,14 @@ AnalyzerControlsRenderer.prototype.Paint = function(state, width) {
         operationAvailability.clear
     ];
     this.buttonGroupRenderer.Paint(
-        this.utilityGroup,
-        this.buttonGroupRenderer.Cells(
-            this.utilityGroup,
-            AnalyzerUtilityGroupRect(width)
+        this.actionGroup,
+        this.buttonGroupRenderer.ContentCells(
+            this.actionGroup,
+            analyzerControlsOptions.controlPadding,
+            height - analyzerControlsOptions.controlHeight
+                + analyzerControlsOptions.controlPadding,
+            analyzerControlsOptions.controlHeight
+                - analyzerControlsOptions.controlPadding * 2
         )
     );
 };
@@ -270,6 +252,28 @@ AnalyzerViewController.prototype.HandleAnything = function(inletIndex, name, val
     else if (inletIndex === 6 && name === "snapshot") this.HandleSnapshot(["snapshot"].concat(values));
     else if (inletIndex === 6 && name === "eq_preview") this.SetEqPreview(values);
     else if (inletIndex === 6 && name === "filter_limits") this.SetFilterLimits(values);
+    else if (inletIndex === 6 && name === "link_color") this.SetLinkColor(values);
+};
+
+AnalyzerViewController.prototype.SetLinkColor = function(values) {
+    if (values.length !== 5) return;
+    var color = {
+        r: Number(values[1]),
+        g: Number(values[2]),
+        b: Number(values[3]),
+        a: Number(values[4])
+    };
+    if (!isFinite(color.r) || !isFinite(color.g) ||
+        !isFinite(color.b) || !isFinite(color.a)) return;
+    this.state.linkColor = String(values[0]) === "-"
+        ? spectrumOptions.filter
+        : color;
+    for (var filterId in this.state.filterCurves) {
+        if (this.state.filterCurves.hasOwnProperty(filterId)) {
+            this.state.filterCurves[filterId].color = this.state.linkColor;
+        }
+    }
+    this.RequestRedraw();
 };
 
 AnalyzerViewController.prototype.SetCurveSettings = function(values) {
@@ -318,7 +322,7 @@ AnalyzerViewController.prototype.SetFilterCurve = function(values) {
     this.UpsertHandle(item);
     this.state.filterCurves[String(filterId)] = {
         curve: curve,
-        color: spectrumOptions.filter,
+        color: this.state.linkColor || spectrumOptions.filter,
         type: item.type,
         active: active,
         neutral: Math.abs(item.gain) < 1.0e-12
@@ -590,46 +594,50 @@ AnalyzerViewController.prototype.OnDoubleClick = function(x, y, button, cmd, shi
 };
 
 AnalyzerViewController.prototype.HandleViewControl = function(x, y) {
-    if (y > analyzerControlsOptions.controlHeight) return false;
-    var modeIndex = AnalyzerModeGroupIndexAt(x, y, mgraphics.size[0]);
-    if (modeIndex === 0) {
-        outlet(0, "view_mode", "spectrum");
-        this.SetMode("spectrum");
-        return true;
+    var height = mgraphics.size[1];
+    if (y <= analyzerControlsOptions.controlHeight) {
+        var topIndex = AnalyzerTopGroupIndexAt(x, y);
+        if (topIndex === 0) {
+            outlet(0, "view_mode", "spectrum");
+            this.SetMode("spectrum");
+            return true;
+        }
+        if (topIndex === 1) {
+            outlet(0, "view_mode", "analysis");
+            this.SetMode("analysis");
+            return true;
+        }
+        if (topIndex === 2) {
+            this.ToggleScale();
+            return true;
+        }
+        return false;
     }
-    if (modeIndex === 1) {
-        outlet(0, "view_mode", "analysis");
-        this.SetMode("analysis");
-        return true;
-    }
-    var scaleDb = ResolveAnalyzerScaleDb(this.state);
-    var utilityIndex = AnalyzerUtilityGroupIndexAt(x, y, mgraphics.size[0], scaleDb);
-    if (utilityIndex > 0 && !this.IsOperationAvailable(utilityIndex)) return true;
-    if (utilityIndex === 0) {
-        this.ToggleScale();
-        return true;
-    }
-    if (utilityIndex === 1) {
+    if (y < height - analyzerControlsOptions.controlHeight) return false;
+    var actionIndex = AnalyzerActionGroupIndexAt(x, y);
+    if (actionIndex < 0) return false;
+    if (actionIndex >= 0 && !this.IsOperationAvailable(actionIndex)) return true;
+    if (actionIndex === 0) {
         this.ToggleEqBypass();
         return true;
     }
-    if (utilityIndex === 2) {
+    if (actionIndex === 1) {
         this.ResetEq();
         return true;
     }
-    if (utilityIndex === 3) {
+    if (actionIndex === 2) {
         outlet(0, "bank.action", "join");
         return true;
     }
-    if (utilityIndex === 4) {
+    if (actionIndex === 3) {
         outlet(0, "bank.action", "commit");
         return true;
     }
-    if (utilityIndex === 5) {
+    if (actionIndex === 4) {
         this.StartFit();
         return true;
     }
-    if (utilityIndex === 6) {
+    if (actionIndex === 5) {
         this.ClearFitCurve();
         this.SendAnalyzerCommand("analyzer.clear", []);
         return true;
@@ -639,12 +647,12 @@ AnalyzerViewController.prototype.HandleViewControl = function(x, y) {
 
 AnalyzerViewController.prototype.IsOperationAvailable = function(utilityIndex) {
     var availability = this.state.operationAvailability;
-    if (utilityIndex === 1) return availability.bypass;
-    if (utilityIndex === 2) return availability.reset;
-    if (utilityIndex === 3) return availability.join;
-    if (utilityIndex === 4) return availability.commit;
-    if (utilityIndex === 5) return availability.match;
-    if (utilityIndex === 6) return availability.clear;
+    if (utilityIndex === 0) return availability.bypass;
+    if (utilityIndex === 1) return availability.reset;
+    if (utilityIndex === 2) return availability.join;
+    if (utilityIndex === 3) return availability.commit;
+    if (utilityIndex === 4) return availability.match;
+    if (utilityIndex === 5) return availability.clear;
     return false;
 };
 

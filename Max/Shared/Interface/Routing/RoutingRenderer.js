@@ -71,7 +71,7 @@ RoutingRenderer.prototype.DrawRow = function(text, rect, selected, enabled) {
         this.controlRenderer.SetColor(InterfaceTheme.states.active.fill);
         mgraphics.rectangle(rect.x, rect.y, rect.width, rect.height);
         mgraphics.fill();
-        this.controlRenderer.SetColor(InterfaceTheme.colors.accent);
+        this.controlRenderer.SetColor(InterfaceTheme.colors.secondaryAccent);
         mgraphics.rectangle(rect.x, rect.y, RoutingOptions.selectionBarWidth, rect.height);
         mgraphics.fill();
     }

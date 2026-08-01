@@ -6,7 +6,8 @@ SpectrumGeometry.prototype.Clamp = function(value, minimum, maximum) {
 };
 
 SpectrumGeometry.prototype.PlotBottom = function(height) {
-    return Math.max(1, height - spectrumOptions.bottomPadding);
+    return Math.max(1, height - spectrumOptions.bottomPadding
+        - analyzerControlsOptions.controlHeight);
 };
 
 SpectrumGeometry.prototype.PlotTop = function() {

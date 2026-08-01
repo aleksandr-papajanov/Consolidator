@@ -1,6 +1,7 @@
 var InterfaceTheme = {
     colors: {
         background: [0.075, 0.075, 0.075, 1.0],
+        transparent: [0.0, 0.0, 0.0, 0.0],
         surface: [0.11, 0.11, 0.11, 1.0],
         surfaceActive: [0.18, 0.18, 0.18, 1.0],
         surfaceInactive: [0.09, 0.09, 0.09, 1.0],
@@ -13,53 +14,24 @@ var InterfaceTheme = {
         textMuted: [0.65, 0.7, 0.7, 1.0],
         textInactive: [0.42, 0.42, 0.42, 1.0],
         textDisabled: [0.28, 0.28, 0.28, 1.0],
-        accent: [0.10, 0.78, 0.92, 1.0],
-        accentActive: [0.98, 0.72, 0.18, 1.0],
-        accentInactive: [0.20, 0.42, 0.46, 1.0],
-        value: [0.10, 0.78, 0.92, 1.0],
-        indicator: [0.98, 0.72, 0.18, 1.0],
-        levelPeak: [1.0, 0.52, 0.04, 0.50],
-        levelSmooth: [0.02, 0.86, 1.0, 0.50],
-        reductionPeak: [1.0, 0.52, 0.04, 0.50],
-        reductionSmooth: [1.0, 0.04, 0.04, 0.50],
-        reduction: [0.94, 0.30, 0.22, 1.0],
-        alert: [0.92, 0.18, 0.14, 1.0],
-        positive: [0.22, 0.94, 0.74, 1.0],
+        primaryAccent: [0.98, 0.72, 0.18, 1.0],
+        secondaryAccent: [0.10, 0.78, 0.92, 1.0],
+        secondaryAccentInactive: [0.20, 0.42, 0.46, 1.0],
+        tertiaryAccent: [0.94, 0.30, 0.22, 1.0],
+        tertiaryAccentVariant: [0.94, 0.30, 0.22, 0.25],
         selection: [0.96, 0.32, 0.78, 1.0],
         linkPalette: [
-            [0.24, 0.76, 0.94, 1.0],
-            [0.96, 0.38, 0.54, 1.0],
-            [0.47, 0.84, 0.34, 1.0],
-            [0.72, 0.48, 0.94, 1.0],
-            [0.98, 0.52, 0.20, 1.0],
-            [0.20, 0.86, 0.72, 1.0],
-            [0.96, 0.78, 0.24, 1.0],
-            [0.38, 0.58, 0.96, 1.0],
-            [0.92, 0.34, 0.78, 1.0],
-            [0.62, 0.86, 0.30, 1.0]
+            [0.4353, 0.8471, 0.7373, 1.0],
+            [0.4392, 0.7686, 0.7725, 1.0],
+            [0.4392, 0.6902, 0.8039, 1.0],
+            [0.4392, 0.6078, 0.8275, 1.0],
+            [0.4353, 0.5216, 0.8510, 1.0],
+            [0.4824, 0.4902, 0.8196, 1.0],
+            [0.5725, 0.5216, 0.7412, 1.0],
+            [0.6667, 0.5412, 0.6549, 1.0],
+            [0.7569, 0.5569, 0.5608, 1.0],
+            [0.8471, 0.5647, 0.4510, 1.0]
         ]
-    },
-    states: {
-        active: {
-            fill: [0.10, 0.78, 0.92, 1.0],
-            border: [0.10, 0.78, 0.92, 1.0],
-            text: [0.075, 0.075, 0.075, 1.0]
-        },
-        inactive: {
-            fill: [0.0, 0.0, 0.0, 0.0],
-            border: [0.10, 0.78, 0.92, 1.0],
-            text: [0.10, 0.78, 0.92, 1.0]
-        },
-        disabled: {
-            fill: [0.0, 0.0, 0.0, 0.0],
-            border: [0.22, 0.22, 0.22, 1.0],
-            text: [0.28, 0.28, 0.28, 1.0]
-        },
-        selected: {
-            fill: [0.98, 0.72, 0.18, 1.0],
-            border: [0.98, 0.72, 0.18, 1.0],
-            text: [0.075, 0.075, 0.075, 1.0]
-        }
     },
     typography: {
         fontFamily: "Ableton Sans Medium",
@@ -72,7 +44,7 @@ var InterfaceTheme = {
         controlGapRatio: 0.04,
         cornerRadiusRatio: 0.0,
         controlLineWidth: 2.0,
-        indicatorLineWidth: 1.5,
+        indicatorLineWidth: 2.0,
         borderLineWidth: 1.0,
         markerRadiusRatio: 0.04,
         arrowSizeRatio: 0.11,
@@ -87,7 +59,8 @@ var InterfaceTheme = {
         },
         buttonGroup: {
             paddingRatio: 0.0,
-            gapRatio: 0.03,
+            gapRatio: 0.0,
+            contentPadding: 4.0,
             cornerRadiusRatio: 0.04
         },
         dial: {
@@ -106,5 +79,28 @@ var InterfaceTheme = {
             paddingRatio: 0.0,
             valueAreaRatio: 0.34
         }
+    }
+};
+
+InterfaceTheme.states = {
+    active: {
+        fill: InterfaceTheme.colors.secondaryAccent,
+        border: InterfaceTheme.colors.secondaryAccent,
+        text: InterfaceTheme.colors.background
+    },
+    inactive: {
+        fill: InterfaceTheme.colors.transparent,
+        border: InterfaceTheme.colors.secondaryAccent,
+        text: InterfaceTheme.colors.secondaryAccent
+    },
+    disabled: {
+        fill: InterfaceTheme.colors.transparent,
+        border: InterfaceTheme.colors.borderInactive,
+        text: InterfaceTheme.colors.textDisabled
+    },
+    selected: {
+        fill: InterfaceTheme.colors.secondaryAccent,
+        border: InterfaceTheme.colors.secondaryAccent,
+        text: InterfaceTheme.colors.background
     }
 };

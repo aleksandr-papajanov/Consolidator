@@ -1,6 +1,12 @@
+include("../../Configuration/InterfaceTheme.js");
+
+function CurveColor(value) {
+    return { r: value[0], g: value[1], b: value[2], a: value[3] };
+}
+
 function CurveViewModel() {
     this.values = [];
-    this.color = { r: 1, g: 1, b: 1, a: 1 };
+    this.color = CurveColor(InterfaceTheme.colors.text);
     this.lineWidth = 1;
 }
 

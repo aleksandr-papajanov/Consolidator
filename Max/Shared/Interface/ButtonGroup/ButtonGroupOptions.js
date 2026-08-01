@@ -8,6 +8,7 @@ var ButtonGroupOptions = {
     buttonModes: ["toggle", "toggle", "toggle"],
     paddingRatio: InterfaceTheme.controls.buttonGroup.paddingRatio,
     gapRatio: InterfaceTheme.controls.buttonGroup.gapRatio,
+    contentPadding: InterfaceTheme.controls.buttonGroup.contentPadding,
     cornerRadiusRatio: InterfaceTheme.controls.buttonGroup.cornerRadiusRatio
 };
 
@@ -20,6 +21,7 @@ function CreateButtonGroupOptions(overrides) {
         buttonModes: ButtonGroupOptions.buttonModes.slice(),
         paddingRatio: ButtonGroupOptions.paddingRatio,
         gapRatio: ButtonGroupOptions.gapRatio,
+        contentPadding: ButtonGroupOptions.contentPadding,
         cornerRadiusRatio: ButtonGroupOptions.cornerRadiusRatio,
         sizing: "content"
     };

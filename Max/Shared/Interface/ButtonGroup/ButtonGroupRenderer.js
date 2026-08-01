@@ -13,6 +13,17 @@ ButtonGroupRenderer.prototype.Cells = function(group, rect) {
         : this.layout.CellsByContent(rect, group.labels, options);
 };
 
+ButtonGroupRenderer.prototype.ContentCells = function(group, x, y, height) {
+    var options = group.options || ButtonGroupOptions;
+    var width = this.layout.ContentWidth(group.labels, height, options);
+    return this.layout.CellsByContent({
+        x: x,
+        y: y,
+        width: width,
+        height: height
+    }, group.labels, options);
+};
+
 ButtonGroupRenderer.prototype.IndexAt = function(group, x, y) {
     var cells = group.cells;
     if (!cells) return -1;

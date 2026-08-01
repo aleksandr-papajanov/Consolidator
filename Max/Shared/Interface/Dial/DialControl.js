@@ -296,7 +296,7 @@ DialControl.prototype.PaintSignedVisualization = function(index, width, height) 
 
     mgraphics.set_line_width(InterfaceTheme.geometry.indicatorLineWidth);
     mgraphics.set_line_cap("round");
-    mgraphics.set_source_rgba(InterfaceTheme.colors.indicator);
+    mgraphics.set_source_rgba(InterfaceTheme.colors.primaryAccent);
     mgraphics.new_path();
     mgraphics.arc(
         centerX,
@@ -317,7 +317,7 @@ DialControl.prototype.PaintRelativeVisualization = function(index, width, height
         width,
         height,
         visualization.relativeValue,
-        InterfaceTheme.colors.reduction
+        InterfaceTheme.colors.tertiaryAccent
     );
 };
 
@@ -362,7 +362,7 @@ DialControl.prototype.PaintReductionVisualization = function(index, width, heigh
         width,
         height,
         -visualization.reductionValue,
-        InterfaceTheme.colors.reductionPeak
+        InterfaceTheme.colors.tertiaryAccent
     );
 };
 
@@ -401,14 +401,14 @@ DialControl.prototype.PaintLevelVisualization = function(index, width, height) {
         width,
         height,
         visualization.peakValue,
-        InterfaceTheme.colors.levelPeak
+        InterfaceTheme.colors.tertiaryAccentVariant
     );
     this.PaintLevelArc(
         index,
         width,
         height,
         visualization.smoothedValue,
-        InterfaceTheme.colors.levelSmooth
+        InterfaceTheme.colors.tertiaryAccent
     );
 };
 
@@ -426,11 +426,11 @@ DialControl.prototype.GetRingValueColor = function(index) {
     if (this.ringColors[index]) return this.ringColors[index];
     var visualization = this.visualizations[index];
     if (!visualization || visualization.mode !== "color") {
-        return InterfaceTheme.colors.value;
+        return InterfaceTheme.colors.primaryAccent;
     }
     return this.BlendColor(
-        InterfaceTheme.colors.value,
-        InterfaceTheme.colors.alert,
+        InterfaceTheme.colors.primaryAccent,
+        InterfaceTheme.colors.tertiaryAccent,
         visualization.value
     );
 };
@@ -649,7 +649,7 @@ DialControl.prototype.PaintActionButton = function(center, radius, enabled, acti
 
 DialControl.prototype.PaintLevelMatchButton = function(center, radius) {
     var color = this.enabled
-        ? InterfaceTheme.colors.positive
+        ? InterfaceTheme.colors.secondaryAccent
         : InterfaceTheme.colors.textDisabled;
     mgraphics.set_line_width(DialOptions.activityButtonLineWidth);
     mgraphics.set_source_rgba(color);
@@ -670,7 +670,7 @@ DialControl.prototype.PaintLevelMatchButton = function(center, radius) {
 
 DialControl.prototype.PaintOnsetMatchButton = function(center, radius) {
     var color = this.enabled
-        ? InterfaceTheme.colors.indicator
+        ? InterfaceTheme.colors.secondaryAccent
         : InterfaceTheme.colors.textDisabled;
     mgraphics.set_line_width(DialOptions.activityButtonLineWidth);
     mgraphics.set_source_rgba(color);
@@ -690,7 +690,7 @@ DialControl.prototype.PaintOnsetMatchButton = function(center, radius) {
 
 DialControl.prototype.PaintAutoMatchButton = function(center, radius) {
     var color = this.enabled
-        ? InterfaceTheme.colors.indicator
+        ? InterfaceTheme.colors.secondaryAccent
         : InterfaceTheme.colors.textDisabled;
     mgraphics.set_line_width(DialOptions.activityButtonLineWidth);
     mgraphics.set_source_rgba(color);
@@ -717,7 +717,7 @@ DialControl.prototype.PaintActivityButton = function(width, height) {
             radius,
             this.enabled,
             this.active,
-            InterfaceTheme.colors.accent
+            InterfaceTheme.colors.secondaryAccent
         );
     }
     if (this.levelMatchEnabled) {
@@ -744,7 +744,7 @@ DialControl.prototype.PaintActivityButton = function(width, height) {
             radius,
             this.enabled,
             this.listen,
-            InterfaceTheme.colors.accentActive
+            InterfaceTheme.colors.secondaryAccent
         );
     }
 };

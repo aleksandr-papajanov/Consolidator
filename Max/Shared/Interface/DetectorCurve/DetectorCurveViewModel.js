@@ -27,9 +27,26 @@ DetectorFilterViewModel.prototype.SetDefinition = function(definition) {
 function DetectorCurveViewModel() {
     this.filters = [];
     this.listenFilters = {};
+    this.linkColor = null;
     this.EnsureFilter(1);
     this.EnsureFilter(2);
 }
+
+DetectorCurveViewModel.prototype.SetLinkColor = function(
+    linkId,
+    red,
+    green,
+    blue,
+    alpha
+) {
+    if (String(linkId) === "-") {
+        this.linkColor = null;
+        return;
+    }
+    this.linkColor = [
+        Number(red), Number(green), Number(blue), Number(alpha)
+    ];
+};
 
 DetectorCurveViewModel.prototype.EnsureFilter = function(filterId) {
     var index = Number(filterId) - 1;

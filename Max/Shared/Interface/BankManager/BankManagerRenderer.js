@@ -105,7 +105,7 @@ BankManagerRenderer.prototype.DrawBanks = function(manager, instance, banks, x, 
         var cell = cells[index];
         var outlineWidth = BankManagerVisualOptions.focusedBankOutlineWidth;
         var outlineInset = outlineWidth * 0.5;
-        this.controlRenderer.SetColor(InterfaceTheme.colors.alert);
+        this.controlRenderer.SetColor(InterfaceTheme.colors.secondaryAccent);
         mgraphics.set_line_width(outlineWidth);
         mgraphics.rectangle(
             cell.x + outlineInset,
@@ -160,11 +160,11 @@ BankManagerRenderer.prototype.DrawLinkEditToggle = function(manager, width) {
     var visualState = enabled
         ? {
             active: active,
-            borderColor: InterfaceTheme.colors.accent,
-            fillColor: active ? InterfaceTheme.colors.accent : null,
+            borderColor: InterfaceTheme.colors.secondaryAccent,
+            fillColor: active ? InterfaceTheme.colors.secondaryAccent : null,
             textColor: active
                 ? BankManagerColors.background
-                : InterfaceTheme.colors.accent
+                : InterfaceTheme.colors.secondaryAccent
         }
         : { active: false };
     this.buttonGroupRenderer.Paint(
@@ -190,9 +190,9 @@ BankManagerRenderer.prototype.DrawClearAllButton = function(manager, width) {
             [enabled
                 ? {
                     active: false,
-                    borderColor: InterfaceTheme.colors.alert,
+                    borderColor: InterfaceTheme.colors.secondaryAccent,
                     fillColor: null,
-                    textColor: InterfaceTheme.colors.alert
+                    textColor: InterfaceTheme.colors.secondaryAccent
                 }
                 : { active: false }],
             BankManagerButtonGroupOptions.action

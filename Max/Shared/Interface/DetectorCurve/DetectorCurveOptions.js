@@ -15,9 +15,11 @@ var detectorCurveOptions = {
     totalLineWidth: InterfaceTheme.geometry.controlLineWidth,
     listenMarkerRadius: 10.0,
     markerHitRadius: 5.0,
-    gridColor: [0.28, 0.28, 0.28, 0.72],
+    neutralMarkerOpacity: 0.45,
+    inactiveMarkerOpacity: 0.70,
+    gridColor: InterfaceTheme.colors.track,
     filterColors: [
-        [0.10, 0.78, 0.92, 0.65],
-        [0.98, 0.72, 0.18, 0.65]
+        InterfaceTheme.colors.primaryAccent,
+        InterfaceTheme.colors.primaryAccent
     ]
 };

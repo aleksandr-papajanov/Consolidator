@@ -356,7 +356,13 @@ BankManager.prototype.ParseEqSnapshot = function(values) {
         linkTopologyChanged = true;
         if (currentLinkId) changedLinkIds[currentLinkId] = true;
     }
-    if (linkTopologyChanged) this.RebuildProcessorLinkGroups();
+    if (linkTopologyChanged) {
+        this.RebuildProcessorLinkGroups();
+        if (this.focusedInstanceId === this.instanceId) {
+            this.controlLinkSession = "";
+            this.RefreshControlLinkSession();
+        }
+    }
     if ((!this.focusedInstanceId || this.focusedInstanceId === this.instanceId) &&
         (!this.hasCanonicalEqSnapshot || previousSelectedBankId !== selected)) {
         this.SetFocusedBank(this.local, selected);
@@ -563,9 +569,7 @@ BankManager.prototype.RefreshControlLinkSession = function() {
         : "unlinked") + ":" + (activeBank ? activeBank.id : 0);
     if (this.controlLinkSession === signature) return;
     this.controlLinkSession = signature;
-    var color = activeLinkId && activeMembers.length >= 2
-        ? BankManagerColors.linkColors[Math.abs(this.Hash(activeLinkId)) % BankManagerColors.linkColors.length]
-        : null;
+    var color = activeLinkId ? this.LinkColor(activeLinkId) : null;
     outlet(2, "link_color", activeLinkId && color ? activeLinkId : "-",
         color ? color[0] : 0, color ? color[1] : 0,
         color ? color[2] : 0, color ? color[3] : 0);
@@ -830,7 +834,13 @@ BankManager.prototype.ParseAnnouncement = function(values) {
         peer.banks[index].linkId = linkId;
     }
     this.peers[instanceId] = peer;
-    if (linkTopologyChanged) this.RebuildProcessorLinkGroups();
+    if (linkTopologyChanged) {
+        this.RebuildProcessorLinkGroups();
+        if (this.focusedInstanceId === this.instanceId) {
+            this.controlLinkSession = "";
+            this.RefreshControlLinkSession();
+        }
+    }
 };
 
 BankManager.prototype.ApplyLinkState = function(values) {
@@ -1085,6 +1095,7 @@ BankManager.prototype.EditableLinkIds = function() {
 };
 
 BankManager.prototype.LinkColor = function(linkId) {
+    if (String(linkId) === "global.6") return InterfaceTheme.colors.secondaryAccent;
     return BankManagerColors.linkColors[
         Math.abs(this.Hash(String(linkId))) % BankManagerColors.linkColors.length
     ];

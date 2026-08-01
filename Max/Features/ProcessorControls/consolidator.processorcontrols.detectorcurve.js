@@ -45,6 +45,11 @@ function listen(filterId, enabled) {
     detectorCurveController.SetListen(filterId, enabled);
 }
 
+function link_color(linkId, red, green, blue, alpha) {
+    detectorCurveViewModel.SetLinkColor(linkId, red, green, blue, alpha);
+    mgraphics.redraw();
+}
+
 function onresize() {
     mgraphics.redraw();
 }
@@ -63,7 +68,7 @@ function ondrag(x, y, button, mod1, shift, caps, option) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; output detector_absolute <filterId> <parameter> <absoluteValue> or detector_listen <filterId> <0|1>"
+        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; link_color <linkId|-> <r> <g> <b> <a>; output detector_absolute <filterId> <parameter> <absoluteValue> or detector_listen <filterId> <0|1>"
         : "");
 }
 

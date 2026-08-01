@@ -90,7 +90,8 @@ DetectorCurveRenderer.prototype.PaintCurve = function(model, filterIndex, width,
     var listening = !total && model.IsListening(filterIndex + 1);
     var sourceColor = total
         ? InterfaceTheme.colors.text
-        : (listening ? InterfaceTheme.colors.accentActive : options.filterColors[filterIndex]);
+        : (listening ? InterfaceTheme.colors.secondaryAccent
+            : (model.linkColor || options.filterColors[filterIndex]));
     var color = {
         r: sourceColor[0], g: sourceColor[1], b: sourceColor[2], a: sourceColor[3]
     };
@@ -115,9 +116,19 @@ DetectorCurveRenderer.prototype.PaintMarker = function(model, index, width, plot
     var y = this.DbToY(filter.gainDb, plotHeight);
     var size = mgraphics.size;
     var radius = options.markerHitRadius;
-    this.SetColor(options.filterColors[index]);
+    var filterColor = model.linkColor || options.filterColors[index];
+    var neutral = Math.abs(filter.gainDb) < 1.0e-12;
+    var opacity = neutral ? options.neutralMarkerOpacity : 1.0;
+    if (filter.bypass) opacity *= options.inactiveMarkerOpacity;
+    var markerColor = [
+        filterColor[0],
+        filterColor[1],
+        filterColor[2],
+        filterColor[3] * opacity
+    ];
+    this.SetColor(markerColor);
     if (model.IsListening(index + 1)) {
-        this.SetColor(InterfaceTheme.colors.accentActive);
+        this.SetColor(InterfaceTheme.colors.secondaryAccent);
         mgraphics.set_line_width(options.listenLineWidth);
         mgraphics.ellipse(
             x - options.listenMarkerRadius,
@@ -126,7 +137,7 @@ DetectorCurveRenderer.prototype.PaintMarker = function(model, index, width, plot
             options.listenMarkerRadius * 2.0
         );
         mgraphics.stroke();
-        this.SetColor(options.filterColors[index]);
+        this.SetColor(markerColor);
     }
     mgraphics.ellipse(x - radius, y - radius, radius * 2.0, radius * 2.0);
     if (filter.bypass) mgraphics.stroke();

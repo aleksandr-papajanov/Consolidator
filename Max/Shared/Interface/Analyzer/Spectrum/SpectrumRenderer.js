@@ -14,7 +14,7 @@ SpectrumRenderer.prototype.PaintSpectrum = function(state, width, height) {
     var settings = spectrumOptions;
     var bottom = spectrumGeometry.PlotBottom(height);
     this.FillBackground(settings.background, width, height);
-    this.controlsRenderer.Paint(state, width);
+    this.controlsRenderer.Paint(state, width, height);
     this.DrawSignalCurve(state.referenceCurve, width, bottom,
         settings.reference, settings.currentLineWidth);
     this.DrawSignalCurve(state.currentCurve, width, bottom,
@@ -170,7 +170,8 @@ SpectrumRenderer.prototype.DrawFrequencyLabels = function(width, height) {
         var frequency = settings.majorFrequencies[index];
         var text = frequency >= 1000 ? (frequency / 1000) + "k" : String(frequency);
         var x = spectrumGeometry.FrequencyToX(frequency, width);
-        mgraphics.move_to(x - 8, height - 4);
+        mgraphics.move_to(x - 8,
+            height - spectrumOptions.controlHeight - 4);
         mgraphics.show_text(text);
     }
 };

@@ -5,7 +5,7 @@ var BankManagerOptions = {
         background: InterfaceTheme.colors.background,
         instanceText: InterfaceTheme.colors.textMuted,
         separator: InterfaceTheme.colors.borderInactive,
-        bankDefault: InterfaceTheme.colors.accentActive,
+        bankDefault: InterfaceTheme.colors.primaryAccent,
         linkColors: InterfaceTheme.colors.linkPalette,
         systemBank: InterfaceTheme.colors.textMuted,
         inactiveBank: InterfaceTheme.colors.textInactive,

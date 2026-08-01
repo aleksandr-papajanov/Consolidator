@@ -6,7 +6,7 @@ function AnalysisRenderer() {
 AnalysisRenderer.prototype.Paint = function(state, width, height) {
     var settings = analysisOptions;
     this.FillBackground(settings.background, width, height);
-    this.controlsRenderer.Paint(state, width);
+    this.controlsRenderer.Paint(state, width, height);
 
     var bands = state.analysis.bands;
     var sectorCount = Math.max(1, bands.length + 1);

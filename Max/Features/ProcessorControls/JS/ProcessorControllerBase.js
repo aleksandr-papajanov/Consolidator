@@ -901,6 +901,8 @@ ProcessorControlsController.prototype.HandleLinkColor = function(linkId, red, gr
         : [Number(red), Number(green), Number(blue), Number(alpha)];
     var device = this.visualDevice;
     if (device !== "compressor" && device !== "saturator") return;
+    outlet(1, ["script", "sendbox", device + ".detectorCurve", "link_color",
+        String(linkId), Number(red), Number(green), Number(blue), Number(alpha)]);
     if (device === "compressor") {
         this.SendDialLinkColor("compressor.thresholdOutput", 2);
         this.SendDialLinkColor("compressor.attackRelease", 2);
