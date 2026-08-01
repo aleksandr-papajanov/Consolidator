@@ -38,11 +38,14 @@ ButtonGroupRenderer.prototype.IndexAt = function(group, x, y) {
 ButtonGroupRenderer.prototype.Paint = function(manager, cells) {
     manager.cells = cells;
     var options = manager.options || ButtonGroupOptions;
+    var enabled = manager.buttonEnabled === undefined
+        ? manager.enabled
+        : manager.enabled ? manager.buttonEnabled : false;
     var states = manager.viewModel.BuildStates(
         manager.buttons,
         manager.labels,
         manager.loadingIndex,
-        manager.enabled,
+        enabled,
         options.selectionMode,
         manager.pressedIndex,
         manager.visualStates

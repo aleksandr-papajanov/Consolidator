@@ -328,13 +328,19 @@ function snapshot() {
 function event() {}
 function status() {}
 
+function gesture(phase) {
+    if (inlet === 1) controller.HandleHistoryGesture(String(phase));
+}
+
 function enabled(value) {
     if (inlet === 0) outlet(1, "enabled", Number(value) !== 0 ? 1 : 0);
 }
 
 function list() {
     var values = arrayfromargs(arguments);
-    if (inlet === 1 && String(values[0]) === "levelMatch") {
+    if (inlet === 1 && String(values[0]) === "gesture") {
+        controller.HandleHistoryGesture(values[1]);
+    } else if (inlet === 1 && String(values[0]) === "levelMatch") {
         controller.HandleLevelMatch(values[1]);
     } else if (inlet === 1) controller.HandleDial(values);
     else if (values.length && String(values[0]) === "snapshot") {

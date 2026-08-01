@@ -268,14 +268,21 @@ function onclick(x, y, button, modifiers, inTime, outTime) {
     sliderControl.isDragging = true;
     sliderControl.lastX = x;
     sliderControl.lastY = y;
+    outlet(0, "gesture", "begin");
 }
 
 function ondrag(x, y, button, modifiers, inTime, outTime) {
     if (!sliderControl.enabled) return;
+    if (button === 0) {
+        if (sliderControl.isDragging) outlet(0, "gesture", "end");
+        sliderControl.isDragging = false;
+        return;
+    }
     if (sliderControl.isDragging) sliderControl.HandleDrag(x, y);
 }
 
 function onidleout(x, y, button, modifiers, inTime, outTime) {
+    if (sliderControl.isDragging) outlet(0, "gesture", "end");
     sliderControl.isDragging = false;
 }
 

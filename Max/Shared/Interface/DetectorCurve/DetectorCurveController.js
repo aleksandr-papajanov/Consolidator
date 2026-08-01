@@ -81,6 +81,7 @@ DetectorCurveController.prototype.BeginDrag = function(x, y, option, control) {
         q: match.filter.q,
         editQ: Boolean(option)
     };
+    outlet(0, "gesture", "begin");
 };
 
 DetectorCurveController.prototype.Drag = function(x, y, button, option) {
@@ -121,6 +122,7 @@ DetectorCurveController.prototype.Drag = function(x, y, button, option) {
 };
 
 DetectorCurveController.prototype.EndDrag = function() {
+    if (this.dragFilterId > 0 && this.dragStart) outlet(0, "gesture", "end");
     this.dragFilterId = 0;
     this.dragStart = null;
 };

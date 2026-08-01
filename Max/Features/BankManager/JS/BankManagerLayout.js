@@ -57,15 +57,15 @@ BankManagerLayout.prototype.LinkPanelRect = function(width, height) {
 BankManagerLayout.prototype.LinkGroupCells = function(width, height) {
     var rect = this.LinkPanelRect(width, height);
     var options = BankManagerVisualOptions;
-    var count = options.linkGroupCount + 1;
+    var count = options.linkGroupCount;
     var columns = Math.max(1, Math.min(count, options.linkGroupColumnCount));
     var rows = Math.ceil(count / columns);
     var cellWidth = rect.width / columns;
     var cellHeight = rect.height / rows;
     var cells = [];
     for (var index = 0; index < count; ++index) {
-        var column = Math.floor(index / rows);
-        var row = index % rows;
+        var column = index % columns;
+        var row = Math.floor(index / columns);
         cells.push({
             x: rect.x + column * cellWidth,
             y: rect.y + row * cellHeight,

@@ -1,6 +1,10 @@
 autowatch = 1;
 inlets = 1;
 outlets = 1;
+
+// Inlet: count, layout, selectionMode, allowEmptySelection, buttonModes,
+// labels, selection, enabled, buttonEnabled <index> <0|1>, and loadingIndex.
+// Outlet: custom mode emits <index> <0|1>; selection modes emit selections.
 mgraphics.init();
 include("../../Configuration/InterfaceTheme.js");
 include("ButtonGroupOptions.js");
@@ -25,6 +29,7 @@ declareattribute("loadingIndex", "getLoadingIndex", "setLoadingIndex", 1);
 function ButtonGroupControl() {
     this.labels = ["One", "Two", "Three"];
     this.buttons = [];
+    this.buttonEnabled = [];
     this.pressedIndex = -1;
     this.loadingIndex = 0;
     this.enabled = true;
@@ -42,13 +47,18 @@ ButtonGroupControl.prototype.SetCount = function(count) {
     while (this.labels.length < nextCount) this.labels.push(String(this.labels.length + 1));
     this.labels = this.labels.slice(0, nextCount);
     var previousButtons = this.buttons;
+    var previousButtonEnabled = this.buttonEnabled;
     this.buttons = [];
+    this.buttonEnabled = [];
     for (var i = 0; i < nextCount; i++) {
         var button = new ButtonViewModel(
             "toggle"
         );
         if (previousButtons[i]) button.SetValue(previousButtons[i].value);
         this.buttons.push(button);
+        this.buttonEnabled.push(
+            previousButtonEnabled[i] === 0 ? 0 : 1
+        );
     }
     if (this.pressedIndex >= nextCount) this.pressedIndex = -1;
     if (this.loadingIndex > nextCount) this.loadingIndex = 0;
@@ -151,6 +161,7 @@ ButtonGroupControl.prototype.EmitSelection = function() {
 ButtonGroupControl.prototype.Select = function(index, shouldOutput) {
     if (!this.enabled && shouldOutput) return;
     if (index < 0 || index >= this.buttons.length) return;
+    if (this.buttonEnabled[index] === 0) return;
     if (this.options.selectionMode === "custom") {
         this.pressedIndex = index;
         var customValue = this.buttons[index].HandleClick();
@@ -319,6 +330,17 @@ ButtonGroupControl.prototype.SetButtonValue = function(index, value) {
     mgraphics.redraw();
 };
 
+ButtonGroupControl.prototype.SetButtonEnabled = function(index, value) {
+    var buttonIndex = Math.floor(Number(index)) - 1;
+    if (buttonIndex < 0 || buttonIndex >= this.buttons.length) return;
+    this.buttonEnabled[buttonIndex] = Number(value) !== 0 ? 1 : 0;
+    if (this.buttonEnabled[buttonIndex] === 0 && this.pressedIndex === buttonIndex) {
+        this.pressedIndex = -1;
+        this.buttons[buttonIndex].HandleRelease();
+    }
+    mgraphics.redraw();
+};
+
 function getLoadingIndex() {
     return buttonGroupControl.loadingIndex;
 }
@@ -343,6 +365,10 @@ ButtonGroupControl.prototype.OutputValue = function() {
 
 function enabled(value) {
     buttonGroupControl.SetEnabled(value);
+}
+
+function buttonEnabled(index, value) {
+    buttonGroupControl.SetButtonEnabled(index, value);
 }
 
 function enable() {

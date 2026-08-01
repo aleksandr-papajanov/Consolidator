@@ -62,10 +62,8 @@ BankManagerRenderer.prototype.DrawBanks = function(manager, instance, banks, x, 
         var interactive = bank.id !== 0;
         var selected = interactive && !manager.linkEditingEnabled && local &&
             bank.id === manager.local.selectedBankId;
-        var groupMember = manager.IsActiveGroupMember(bank);
-        var editSelected = manager.IsEditBankSelected(instance, bank);
-        var editable = manager.linkEditingEnabled && manager.IsEditableBank(bank);
-        var visible = local || manager.linkEditingEnabled || groupMember;
+        var editSelected = manager.groupOperations.IsSelected(instance, bank);
+        var visible = manager.visibilityPolicy.IsVisible(instance, bank, local);
         if (!visible) {
             labels.push("");
             enabled.push(false);
@@ -79,17 +77,10 @@ BankManagerRenderer.prototype.DrawBanks = function(manager, instance, banks, x, 
         }
         var color = bank.id === 0 ? colors.systemBank : colors.bankDefault;
         if (bank.linkId) color = manager.LinkColor(bank.linkId);
-        var alpha = manager.linkEditingEnabled
-            ? (bank.id === 0 || bank.id === 1 || bank.id === 6 ? 0.0 : 1.0)
-            : !local && !groupMember && !editSelected
-                ? BankManagerVisualOptions.inactiveBankOpacity : 1.0;
-        if (!manager.linkEditingEnabled &&
-            !bank.occupied && !groupMember && !selected && !editSelected) {
-            alpha *= BankManagerVisualOptions.inactiveBankOpacity;
-        }
+        var alpha = manager.visibilityPolicy.Opacity(bank, local, selected, editSelected);
         color = this.WithAlpha(color, alpha);
         labels.push(String(bank.id));
-        enabled.push(interactive && (manager.linkEditingEnabled ? editable : local));
+        enabled.push(manager.visibilityPolicy.IsEnabled(bank, local));
         var active = selected || editSelected;
         visualStates.push({
             active: active,
@@ -114,10 +105,10 @@ BankManagerRenderer.prototype.DrawBanks = function(manager, instance, banks, x, 
 };
 
 BankManagerRenderer.prototype.DrawLinkGroups = function(manager, width, height) {
-    var labels = ["-"];
+    var labels = [];
     var activeLinkId = manager.ActiveEditableLinkId();
-    var enabled = [false];
-    var visualStates = [{ active: false }];
+    var enabled = [];
+    var visualStates = [];
     var linkIds = manager.EditableLinkIds();
     for (var index = 0; index < linkIds.length; ++index) {
         var linkId = linkIds[index];
@@ -125,9 +116,9 @@ BankManagerRenderer.prototype.DrawLinkGroups = function(manager, width, height) 
         var color = manager.LinkColor(linkId);
         var used = manager.LinkMemberCount(linkId) > 0;
         var active = manager.linkEditingEnabled
-            ? manager.HasEditSelectionInLink(linkId)
+            ? manager.groupOperations.HasSelectionInLink(linkId)
             : activeLinkId === linkId;
-        var assignable = manager.CanApplyEditSelectionToLink(linkId);
+        var assignable = manager.groupOperations.CanApplySelection(linkId);
         var interactive = manager.linkEditingEnabled && assignable;
         enabled.push(interactive);
         var visibleAlpha = manager.linkEditingEnabled

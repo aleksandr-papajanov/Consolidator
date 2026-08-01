@@ -413,6 +413,14 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
 
     if (device === "compressor" || device === "saturator") {
         var processorAction = String(values[1]);
+        if (processorAction === "gesture") {
+            this.HandleHistoryGesture(values[2]);
+            return;
+        }
+        if (String(values[2]) === "gesture") {
+            this.HandleHistoryGesture(values[3]);
+            return;
+        }
         if (processorAction === "detector_absolute" && String(values[3]) === "bypass") {
             var bypassDetectorId = Number(values[2]);
             if (!this.IsDetectorId(bypassDetectorId)) return;

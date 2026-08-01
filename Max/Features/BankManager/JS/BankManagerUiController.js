@@ -32,8 +32,8 @@ BankManagerUiController.prototype.Click = function(x, y, shift) {
     }
     var groupIndex = manager.LinkGroupIndexAt(x, y, mgraphics.size[0], mgraphics.size[1]);
     if (groupIndex >= 0) {
-        if (manager.linkEditingEnabled && groupIndex > 0) {
-            manager.ApplyEditSelectionToLink(manager.EditableLinkIds()[groupIndex - 1]);
+        if (manager.linkEditingEnabled) {
+            manager.groupOperations.ApplySelection(manager.EditableLinkIds()[groupIndex]);
             mgraphics.redraw();
         }
         return;
@@ -72,7 +72,7 @@ BankManagerUiController.prototype.Click = function(x, y, shift) {
     var bank = displayedBanks[bankIndex];
     if (bank.id === 0) return;
     if (manager.linkEditingEnabled) {
-        manager.EditBankMembership(instance, bank, Boolean(shift));
+        manager.groupOperations.EditBankMembership(instance, bank, Boolean(shift));
     } else if (instance.id === manager.instanceId) {
         manager.SetFocusedBank(instance, bank.id);
         manager.SendHostCommand("eq.select_bank", [bank.id]);

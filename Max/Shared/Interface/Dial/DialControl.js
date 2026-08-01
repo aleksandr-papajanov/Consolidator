@@ -884,6 +884,7 @@ DialControl.prototype.HandleClick = function(x, y, opt, mod2) {
     this.lastClickTime = currentTime;
     this.displayIndex = this.activeIndex;
     this.isDragging = true;
+    outlet(0, "gesture", "begin");
     mgraphics.redraw();
 };
 
@@ -898,7 +899,9 @@ DialControl.prototype.HandleDragEvent = function(x, y, button, opt, mod2) {
 };
 
 DialControl.prototype.HandleRelease = function(x, y, button, modifiers, inTime, outTime) {
+    var wasDragging = this.isDragging;
     this.isDragging = false;
+    if (wasDragging) outlet(0, "gesture", "end");
     this.ScheduleDisplayedReset();
 };
 
@@ -907,8 +910,10 @@ DialControl.prototype.HandleMessage = function(value) {
 };
 
 DialControl.prototype.SetEnabled = function(value) {
+    var wasDragging = this.isDragging;
     this.enabled = Number(value) !== 0;
     if (!this.enabled) this.isDragging = false;
+    if (wasDragging && !this.enabled) outlet(0, "gesture", "end");
     mgraphics.redraw();
 };
 
