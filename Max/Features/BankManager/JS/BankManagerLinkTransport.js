@@ -305,7 +305,7 @@ BankManagerLinkTransport.prototype.ApplyFilterDelta = function(values) {
     this.ApplyFilterDeltaToModel(update, "");
     this.PublishEqPreview(bank.id, filterId, parameterIndex,
         filter.values[parameterIndex]);
-    manager.PublishLinkedFilterPreviews(linkId, true);
+    manager.PublishChangedFilterPreviews(linkId, filterId);
     manager.SendHostCommand("eq.set_parameter_index", [
         bank.id, filterId, parameterIndex, filter.values[parameterIndex]
     ]);
@@ -372,7 +372,7 @@ BankManagerLinkTransport.prototype.HandleEqGesture = function(values) {
             parameterIndex: parameterIndex, delta: delta };
         filter.values[parameterIndex] = absolute;
         this.ApplyFilterDeltaToModel(update, manager.instanceId);
-        manager.PublishLinkedFilterPreviews(update.linkId, true);
+        manager.PublishChangedFilterPreviews(update.linkId, filterId);
         outlet(1, "link.filter_delta", update.linkId, manager.instanceId,
             this.NextRevision(update.linkId), filterId, parameterIndex, delta);
         return;

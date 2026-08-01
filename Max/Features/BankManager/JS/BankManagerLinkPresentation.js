@@ -113,25 +113,41 @@ BankManagerLinkPresentation.prototype.PublishFilterPreviews = function(linkId, i
         if (member.instance.id === manager.instanceId) continue;
         for (var filterId in member.bank.filters) {
             if (!member.bank.filters.hasOwnProperty(filterId)) continue;
-            var filter = member.bank.filters[filterId];
-            var parameters = manager.filterDefinitions[filterId];
-            if (!parameters) continue;
-            var frequency = 0;
-            var gain = 0;
-            var q = 0;
-            for (var parameterIndex = 0; parameterIndex < parameters.length; ++parameterIndex) {
-                var parameterName = parameters[parameterIndex].name;
-                var value = Number(filter.values[parameterIndex]);
-                if (!isFinite(value)) continue;
-                if (parameterName === "freq" || parameterName === "pivot") frequency = value;
-                else if (parameterName === "gain") gain = value;
-                else if (parameterName === "q") q = value;
-            }
-            outlet(2, "eq_link_preview", linkId, member.instance.id, Number(filterId),
-                filter.bypass ? 0 : 1, frequency, gain, q,
-                manager.filterTypes[filterId] || "peak");
+            this.PublishFilterPreview(linkId, member, Number(filterId));
         }
     }
+};
+
+BankManagerLinkPresentation.prototype.PublishChangedFilterPreviews = function(linkId, filterId) {
+    var manager = this.manager;
+    var members = manager.LinkMembers(linkId);
+    for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
+        var member = members[memberIndex];
+        if (member.instance.id !== manager.instanceId) {
+            this.PublishFilterPreview(linkId, member, filterId);
+        }
+    }
+};
+
+BankManagerLinkPresentation.prototype.PublishFilterPreview = function(linkId, member, filterId) {
+    var manager = this.manager;
+    var filter = member.bank.filters[filterId];
+    var parameters = manager.filterDefinitions[filterId];
+    if (!filter || !parameters) return;
+    var frequency = 0;
+    var gain = 0;
+    var q = 0;
+    for (var parameterIndex = 0; parameterIndex < parameters.length; ++parameterIndex) {
+        var parameterName = parameters[parameterIndex].name;
+        var value = Number(filter.values[parameterIndex]);
+        if (!isFinite(value)) continue;
+        if (parameterName === "freq" || parameterName === "pivot") frequency = value;
+        else if (parameterName === "gain") gain = value;
+        else if (parameterName === "q") q = value;
+    }
+    outlet(2, "eq_link_preview", linkId, member.instance.id, filterId,
+        filter.bypass ? 0 : 1, frequency, gain, q,
+        manager.filterTypes[filterId] || "peak");
 };
 
 BankManagerLinkPresentation.prototype.ClearPreviews = function() {

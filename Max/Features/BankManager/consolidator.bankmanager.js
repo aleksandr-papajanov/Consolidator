@@ -566,6 +566,10 @@ BankManager.prototype.PublishLinkedFilterPreviews = function(linkId, isLinked) {
     this.linkPresentation.PublishFilterPreviews(linkId, isLinked);
 };
 
+BankManager.prototype.PublishChangedFilterPreviews = function(linkId, filterId) {
+    this.linkPresentation.PublishChangedFilterPreviews(linkId, filterId);
+};
+
 var bankManager = new BankManager();
 
 function BankManagerTrackNameChanged() {
