@@ -37,6 +37,27 @@ function AnalyzerFitLabels() {
     return ["match eq", "clear"];
 }
 
+function AnalyzerGroupActionVisualStates(state) {
+    if (!state.linkId || !state.linkColor) return null;
+    var availability = state.operationAvailability;
+    var available = [availability.bypass, availability.reset,
+        availability.join, availability.commit];
+    var visualStates = [];
+    for (var index = 0; index < 4; ++index) {
+        if (!available[index]) {
+            visualStates.push(null);
+            continue;
+        }
+        var isActive = index === 0 && state.eqBypass;
+        visualStates.push({
+            fillColor: isActive ? state.linkColor : null,
+            borderColor: state.linkColor,
+            textColor: isActive ? InterfaceTheme.colors.background : state.linkColor
+        });
+    }
+    return visualStates;
+}
+
 function CreateAnalyzerButtonGroup(labels) {
     return {
         buttons: [],
@@ -122,6 +143,7 @@ AnalyzerControlsRenderer.prototype.Paint = function(state, width, height) {
         operationAvailability.join,
         operationAvailability.commit
     ];
+    this.actionGroup.visualStates = AnalyzerGroupActionVisualStates(state);
     this.PaintGroup(this.actionGroup, analyzerControlsOptions.controlPadding,
         height - analyzerControlsOptions.controlHeight + analyzerControlsOptions.controlPadding,
         groupHeight);
