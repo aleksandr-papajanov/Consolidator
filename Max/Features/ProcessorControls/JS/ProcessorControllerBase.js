@@ -55,9 +55,7 @@ ProcessorControlsController.prototype.SendParameterGesture = function(
     parameter,
     normalized
 ) {
-    outlet(3, "processor_parameter_gesture",
-        String(device), String(parameter),
-        Math.max(0, Math.min(1, Number(normalized))));
+    return Math.max(0, Math.min(1, Number(normalized)));
 };
 
 ProcessorControlsController.prototype.QueueParameterUpdate = function(
@@ -87,8 +85,8 @@ ProcessorControlsController.prototype.QueueParameterUpdate = function(
 
 ProcessorControlsController.prototype.FlushParameterUpdate = function(update) {
     if (update.emitGesture) {
-        this.SendParameterGesture(
-            update.device, update.parameter, update.normalized);
+        outlet(0, "link_processor_local", update.device, update.parameter,
+            Number(update.commandFields[update.commandFields.length - 1]));
     }
     this.SendCommand(update.commandName, update.commandFields);
 };

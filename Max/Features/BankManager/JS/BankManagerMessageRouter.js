@@ -2,22 +2,8 @@ function BankManagerMessageRouter(manager) {
     this.manager = manager;
 }
 
-BankManagerMessageRouter.prototype.HandleSnapshot = function(values) {
-    if (!values.length || String(values[0]) !== "snapshot") return;
-    var store = String(values[3]);
-    if (store === "eq") this.manager.ParseEqSnapshot(values);
-    else if (store === "processor") this.manager.ParseProcessorSnapshot(values);
-    else if (store === "device") this.manager.ParseDeviceSnapshot(values);
-};
-
 BankManagerMessageRouter.prototype.HandleLocal = function(name, values) {
-    if (name === "eq_parameter_absolute_gesture") {
-        this.manager.HandleEqAbsoluteParameterGesture(values);
-    } else if (name === "eq_parameter_absolute_preview") {
-        this.manager.HandleEqAbsoluteParameterPreview(values);
-    } else if (name === "processor_parameter_gesture") {
-        this.manager.HandleProcessorParameterGesture(values);
-    } else if (name === "processor_match_operation") {
+    if (name === "processor_match_operation") {
         this.manager.HandleProcessorMatchOperation(values);
     } else if (name === "processor_bypass_operation") {
         this.manager.HandleProcessorBypassOperation(values);
@@ -35,8 +21,8 @@ BankManagerMessageRouter.prototype.Handle = function(inletIndex, name, values) {
         this.manager.HandleGlobal(name, values);
         return;
     }
-    if (name === "snapshot") {
-        this.HandleSnapshot(["snapshot"].concat(values));
+    if (name === "coordinator_directory") {
+        this.manager.ParseCoordinatorDirectory(values);
         return;
     }
     this.HandleLocal(name, values);

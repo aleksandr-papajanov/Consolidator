@@ -74,6 +74,7 @@ BankManagerUiController.prototype.Click = function(x, y, shift) {
     if (manager.linkEditingEnabled) {
         manager.groupOperations.EditBankMembership(instance, bank, Boolean(shift));
     } else if (instance.id === manager.instanceId) {
+        manager.local.selectedBankId = bank.id;
         manager.SetFocusedBank(instance, bank.id);
         manager.SendHostCommand("eq.select_bank", [bank.id]);
     }

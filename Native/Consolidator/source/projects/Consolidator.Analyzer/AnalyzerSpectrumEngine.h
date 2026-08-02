@@ -18,8 +18,14 @@
 
 class AnalyzerSpectrumEngine {
 public:
+    AnalyzerSpectrumEngine() {
+        RebuildWindow();
+        RebuildOutputBinMapping();
+    }
+
     void SetSampleRate(double sampleRate) {
         this->sampleRate = sampleRate;
+        RebuildOutputBinMapping();
     }
 
     AnalyzerSpectrumResult Analyze(
@@ -147,10 +153,7 @@ private:
 
         for (int i = 0; i < fftSize; ++i) {
             const int index = (start + i) % fftSize;
-            const double hann = consolidator::settings::AnalysisOptions::HannWindowCoefficient * (1.0 - std::cos(
-                (2.0 * std::numbers::pi * i) / (fftSize - 1)));
-
-            output[i] = source[index] * hann;
+            output[i] = source[index] * hannWindow[static_cast<std::size_t>(i)];
         }
 
     }
@@ -169,23 +172,38 @@ private:
         }
     }
 
-    double MapOutputBinToFftBin(int index, int binsOut, int fftSize) const {
-        if (binsOut <= 1) {
-            return 0.0;
+    void RebuildWindow() {
+        const auto fftSize = static_cast<int>(
+            consolidator::settings::AnalysisOptions::DefaultFftSize);
+        for (int index = 0; index < fftSize; ++index) {
+            hannWindow[static_cast<std::size_t>(index)] =
+                consolidator::settings::AnalysisOptions::HannWindowCoefficient *
+                (1.0 - std::cos((2.0 * std::numbers::pi * index) / (fftSize - 1)));
         }
+    }
 
-        const double normalized = static_cast<double>(index) / static_cast<double>(binsOut - 1);
+    void RebuildOutputBinMapping() {
+        const int binsOut = static_cast<int>(
+            consolidator::settings::AnalysisOptions::DefaultCurvePointCount);
+        const int fftSize = static_cast<int>(
+            consolidator::settings::AnalysisOptions::DefaultFftSize);
         const int maxBin = (fftSize / 2) - 1;
         const double nyquist = sampleRate * 0.5;
         const double maximumFrequency = std::max(
             consolidator::settings::SpectrumOptions::MinimumFrequencyHz,
             std::min(consolidator::settings::SpectrumOptions::MaximumFrequencyHz, nyquist));
-        const double frequencyHz = consolidator::settings::SpectrumOptions::MinimumFrequencyHz *
-            std::pow(maximumFrequency /
-                consolidator::settings::SpectrumOptions::MinimumFrequencyHz, normalized);
-        const double mappedBin = frequencyHz * static_cast<double>(fftSize) / sampleRate;
-
-        return std::clamp(mappedBin, 1.0, static_cast<double>(maxBin));
+        for (int index = 0; index < binsOut; ++index) {
+            const double normalized = binsOut > 1
+                ? static_cast<double>(index) / static_cast<double>(binsOut - 1)
+                : 0.0;
+            const double frequencyHz = consolidator::settings::SpectrumOptions::MinimumFrequencyHz *
+                std::pow(maximumFrequency /
+                    consolidator::settings::SpectrumOptions::MinimumFrequencyHz, normalized);
+            outputBinMapping[static_cast<std::size_t>(index)] = std::clamp(
+                frequencyHz * static_cast<double>(fftSize) / sampleRate,
+                1.0,
+                static_cast<double>(maxBin));
+        }
     }
 
     double SampleSpectrumDb(
@@ -194,7 +212,7 @@ private:
         int binsOut,
         int fftSize
     ) const {
-        const auto mappedBin = MapOutputBinToFftBin(index, binsOut, fftSize);
+        const auto mappedBin = outputBinMapping[static_cast<std::size_t>(index)];
         const auto lower = static_cast<std::size_t>(std::floor(mappedBin));
         const auto upper = std::min(lower + 1, static_cast<std::size_t>(fftSize / 2 - 1));
         const auto fraction = mappedBin - static_cast<double>(lower);
@@ -203,6 +221,8 @@ private:
 
     double sampleRate = consolidator::settings::AudioOptions::DefaultSampleRateHz;
     consolidator::dsp::FftEngine engine;
+    std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> hannWindow{};
+    std::array<double, consolidator::settings::AnalysisOptions::DefaultCurvePointCount> outputBinMapping{};
     std::array<double, consolidator::settings::AnalysisOptions::MaximumFftSize> windowedSamples{};
     std::array<double, AnalyzerSignalSpectrum::MaximumBinCount> leftMagnitudes{};
     std::array<double, AnalyzerSignalSpectrum::MaximumBinCount> rightMagnitudes{};

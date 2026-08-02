@@ -1,16 +1,17 @@
 function BankManagerLiveIdentity() {
-    this.trackId = 0;
-    this.trackNameObserver = null;
 }
 
 BankManagerLiveIdentity.prototype.Resolve = function() {
     try {
         var device = new LiveAPI("this_device");
         var liveObjectId = Number(device.id);
+        if (!isFinite(liveObjectId) || liveObjectId <= 0) return null;
         var parent = device.get("canonical_parent");
+        if (!parent || parent.length < 2) return null;
         var trackId = Number(parent[1]);
-        if (liveObjectId <= 0 || trackId <= 0) return null;
+        if (!isFinite(trackId) || trackId <= 0) return null;
         var track = new LiveAPI("id " + trackId);
+        if (!isFinite(Number(track.id)) || Number(track.id) <= 0) return null;
         var trackName = String(track.get("name")[0] || "");
         var trackOrder = this.TrackOrder(trackId);
         if (!trackName || !isFinite(trackOrder)) return null;
@@ -23,14 +24,6 @@ BankManagerLiveIdentity.prototype.Resolve = function() {
     } catch (error) {
         return null;
     }
-};
-
-BankManagerLiveIdentity.prototype.ObserveTrackName = function(trackId) {
-    if (this.trackId === trackId && this.trackNameObserver) return;
-    this.trackId = trackId;
-    this.trackNameObserver = new LiveAPI(
-        BankManagerTrackNameChanged, "id " + trackId);
-    this.trackNameObserver.property = "name";
 };
 
 BankManagerLiveIdentity.prototype.TrackOrder = function(trackId) {

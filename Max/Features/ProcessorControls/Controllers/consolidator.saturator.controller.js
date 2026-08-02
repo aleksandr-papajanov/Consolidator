@@ -15,6 +15,10 @@ function inletassist(index) {
 }
 
 function outletassist(index) {
+    if (index === 3) {
+        assist("Host-local link dispatch plus match, bypass, and detector-reset group operations");
+        return;
+    }
     assist([
         "Host commands: eq.*, gain.set_parameter, saturator.*",
         "UI: Dial set|active|activityEnabled|onsetMatchEnabled|levelMatchEnabled|onsetMatch|levelMatch|limits|displayRange|visualization|ringColor; detector preview and ghost marker updates",

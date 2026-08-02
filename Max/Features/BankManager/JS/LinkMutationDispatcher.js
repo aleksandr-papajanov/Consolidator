@@ -44,13 +44,16 @@ LinkMutationDispatcher.prototype.Deliver = function(mutation) {
     var manager = this.manager;
     if (mutation.instanceId === manager.instanceId) {
         manager.SendHostCommand("eq.set_link", [mutation.bankId, mutation.linkId || "-"]);
+        outlet(1, "coordinator.changed");
         return;
     }
     if (mutation.linkId) {
         outlet(1, "link.assign", mutation.linkId, mutation.instanceId, mutation.bankId);
+        outlet(1, "coordinator.changed");
         return;
     }
     outlet(1, "link.detach", mutation.previousLinkId, mutation.instanceId, mutation.bankId);
+    outlet(1, "coordinator.changed");
 };
 
 LinkMutationDispatcher.prototype.Dispose = function() {

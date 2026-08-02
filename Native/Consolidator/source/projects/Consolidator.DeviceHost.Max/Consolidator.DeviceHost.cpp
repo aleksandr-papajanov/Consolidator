@@ -5,13 +5,20 @@
 #include "CommandCodec.h"
 #include "DeviceHost.h"
 #include "EventCodec.h"
+#include "LinkCoordinator.h"
 #include "Definitions/Definitions.h"
 #include "MaxDictionarySerializer.h"
+#include "Models/ParameterDefinitions.h"
 #include "PersistenceCodec.h"
 #include "SnapshotCodec.h"
 #include "Workflows/LatestWorkflowExecutor.h"
 
 #include <exception>
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <limits>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <type_traits>
@@ -36,11 +43,15 @@ public:
 
     inlet<> commandIn{
         this,
-        "(message) commands: command 1 <source> <requestId> <name> <fields>; eq.set_parameter, eq.set_bypass, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.reset_all, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.commit_all, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, history.begin <operationId>, history.end <operationId>, history.undo, history.redo, history.restore <operationId> <undo|redo>, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes EQ and DSP snapshots after initialization"
+        "(message) commands: command 1 <source> <requestId> <name> <fields>; coordinator_identity <runtimeId> <trackName> <trackOrder>; eq.set_parameter, eq.set_bypass, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.reset_all, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.commit_all, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, history.begin <operationId>, history.end <operationId>, history.undo, history.redo, history.restore <operationId> <undo|redo>, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes EQ and DSP snapshots after initialization"
     };
     inlet<> persistenceIn{
         this,
         "(message) persistence: restore <dictionary> or persistence_ready"
+    };
+    inlet<> coordinatorIn{
+        this,
+        "(message) coordinator_identity <runtimeId> <trackName> <trackOrder>; coordinator_refresh"
     };
 
     outlet<> eventOut{
@@ -58,6 +69,10 @@ public:
     outlet<> persistenceOut{
         this,
         "(dictionary) persistence state dictionary"
+    };
+    outlet<> coordinatorOut{
+        this,
+        "(unused) coordinator directory is emitted through eventOut"
     };
 
     queue<> stateDelivery{
@@ -171,6 +186,115 @@ public:
         }
     };
 
+    message<> coordinatorIdentity{
+        this,
+        "coordinator_identity",
+        "Register this runtime instance with the process-local link coordinator",
+        MIN_FUNCTION {
+            if (inlet != 0 || args.size() != 3) {
+                debugOut.send("error", "invalid_coordinator_identity");
+                return {};
+            }
+            runtimeId = std::string{ args[0] };
+            trackName = std::string{ args[1] };
+            trackOrder = static_cast<long>(args[2]);
+            host::LinkCoordinator::Instance().RegisterCallbacks(runtimeId, {
+                [this](const host::LinkedFilterGesture& gesture) {
+                    ApplyLinkedFilterGesture(gesture);
+                },
+                [this](const host::LinkedProcessorGesture& gesture) {
+                    ApplyLinkedProcessorGesture(gesture);
+                }
+            });
+            SyncCoordinator();
+            PublishCoordinatorDirectory();
+            return {};
+        }
+    };
+
+    message<> coordinatorRefresh{
+        this,
+        "coordinator_refresh",
+        "Publish the current process-local coordinator directory",
+        MIN_FUNCTION {
+            if (inlet != 0) {
+                debugOut.send("error", "invalid_coordinator_inlet");
+                return {};
+            }
+            PublishCoordinatorDirectory();
+            return {};
+        }
+    };
+
+    message<> coordinatorLimits{
+        this,
+        "coordinator_limits",
+        "Refresh native link limits for the selected bank",
+        MIN_FUNCTION {
+            if (inlet != 0) return {};
+            PublishCoordinatorLimits();
+            return {};
+        }
+    };
+
+    message<> coordinatorRemove{
+        this,
+        "coordinator_remove",
+        "Remove this runtime instance from the process-local link coordinator",
+        MIN_FUNCTION {
+            if (inlet != 0 || args.size() != 1) return {};
+            host::LinkCoordinator::Instance().Remove(std::string{ args[0] });
+            return {};
+        }
+    };
+
+    message<> linkFilterLocal{
+        this,
+        "link_filter_local",
+        "Dispatch a local absolute EQ gesture through the native link coordinator",
+        MIN_FUNCTION {
+            if (inlet != 0 || args.size() != 4) return {};
+            const auto bankId = static_cast<long>(args[0]);
+            const auto filterId = static_cast<long>(args[1]);
+            const auto parameterIndex = static_cast<std::size_t>(static_cast<long>(args[2]));
+            const auto targetValue = static_cast<double>(args[3]);
+            const auto* bank = host.Eq().State().FindBank(bankId);
+            const auto definition = domain::FilterDefinitions().find(filterId);
+            const auto* filter = bank ? bank->FindFilter(filterId) : nullptr;
+            if (!bank || bank->linkId.empty() || !filter || definition == domain::FilterDefinitions().end() ||
+                parameterIndex >= filter->values.size() || parameterIndex >= definition->second.parameters.size() ||
+                !std::isfinite(targetValue)) return {};
+            const auto& range = definition->second.parameters[parameterIndex].range;
+            host::LinkCoordinator::Instance().Dispatch(host::LinkedFilterGesture{
+                bank->linkId, runtimeId, filterId, parameterIndex,
+                range.Normalize(filter->values[parameterIndex]), range.Normalize(targetValue)
+            });
+            return {};
+        }
+    };
+
+    message<> linkProcessorLocal{
+        this,
+        "link_processor_local",
+        "Dispatch a local absolute processor gesture through the native link coordinator",
+        MIN_FUNCTION {
+            if (inlet != 0 || args.size() != 3) return {};
+            const auto device = std::string{ args[0] };
+            const auto parameter = std::string{ args[1] };
+            const auto targetValue = static_cast<double>(args[2]);
+            const auto* bank = host.Eq().State().SelectedBank();
+            const auto definition = models::ParameterDefinitions().find(device + "." + parameter);
+            const auto current = ReadProcessorValue(device, parameter);
+            if (!bank || bank->linkId.empty() || definition == models::ParameterDefinitions().end() ||
+                !current || !std::isfinite(targetValue)) return {};
+            host::LinkCoordinator::Instance().Dispatch(host::LinkedProcessorGesture{
+                bank->linkId, runtimeId, device, parameter,
+                definition->second.Normalize(*current), definition->second.Normalize(targetValue)
+            });
+            return {};
+        }
+    };
+
     ConsolidatorDeviceHost()
         : host([this](const domain::Event& event) {
             if (const auto* updated = std::get_if<domain::StoreUpdatedEvent>(&event)) {
@@ -217,6 +341,7 @@ private:
         if (!EnsureInitializedState()) return;
         PublishReadyState();
         PublishAllSnapshots();
+        PublishHostInitializedEvent();
         PublishPersistence();
     }
 
@@ -274,12 +399,135 @@ private:
                 IsContinuousParameterCommand(decoded.command)) {
                 PublishParameterUpdate(decoded.command, host.Revision());
             }
+            if (host.Revision() != revisionBefore) SyncCoordinator();
         }
         catch (const std::exception&) {
             suppressContinuousStatePublication = false;
             suppressDspStatePublication = false;
             debugOut.send("error", "host_command_failed");
         }
+    }
+
+    void ApplyLinkedCommand(const domain::Command& command) {
+        if (!ready) return;
+        const auto revisionBefore = host.Revision();
+        suppressContinuousStatePublication = true;
+        host.Handle(command);
+        suppressContinuousStatePublication = false;
+        if (host.Revision() == revisionBefore) return;
+        PublishParameterUpdate(command, host.Revision());
+        SyncCoordinator();
+    }
+
+    void ApplyLinkedFilterGesture(const host::LinkedFilterGesture& gesture) {
+        if (runtimeId.empty() || gesture.sourceRuntimeId == runtimeId) return;
+        const auto bank = std::find_if(host.Eq().State().banks.begin(), host.Eq().State().banks.end(),
+            [&gesture](const auto& candidate) { return candidate.linkId == gesture.linkId; });
+        const auto definition = domain::FilterDefinitions().find(gesture.filterId);
+        if (bank == host.Eq().State().banks.end() || definition == domain::FilterDefinitions().end()) return;
+        const auto* filter = bank->FindFilter(gesture.filterId);
+        if (!filter || gesture.parameterIndex >= filter->values.size() ||
+            gesture.parameterIndex >= definition->second.parameters.size()) return;
+        const auto& range = definition->second.parameters[gesture.parameterIndex].range;
+        const auto value = range.Denormalize(range.Normalize(filter->values[gesture.parameterIndex]) +
+            gesture.targetNormalized - gesture.sourceNormalized);
+        ApplyLinkedCommand(domain::SetEqParameterIndexCommand{
+            {}, { bank->bankId }, { gesture.filterId }, gesture.parameterIndex, value
+        });
+        eventOut.send("eq_preview", bank->bankId, gesture.filterId,
+            static_cast<long>(gesture.parameterIndex), value);
+    }
+
+    void ApplyLinkedProcessorGesture(const host::LinkedProcessorGesture& gesture) {
+        if (runtimeId.empty() || gesture.sourceRuntimeId == runtimeId) return;
+        const auto bank = std::find_if(host.Eq().State().banks.begin(), host.Eq().State().banks.end(),
+            [&gesture](const auto& candidate) { return candidate.linkId == gesture.linkId; });
+        const auto definition = models::ParameterDefinitions().find(gesture.device + "." + gesture.parameter);
+        const auto current = ReadProcessorValue(gesture.device, gesture.parameter);
+        if (bank == host.Eq().State().banks.end() || definition == models::ParameterDefinitions().end() || !current) return;
+        const auto value = definition->second.Denormalize(definition->second.Normalize(*current) +
+            gesture.targetNormalized - gesture.sourceNormalized);
+        if (gesture.device == "input_gain" || gesture.device == "output_gain") {
+            ApplyLinkedCommand(domain::SetGainParameterCommand{ {},
+                gesture.device == "input_gain" ? domain::GainStage::Input : domain::GainStage::Output, value });
+        } else if (gesture.device == "compressor") {
+            long filterId = 0;
+            std::string parameter;
+            if (ParseDetectorParameter(gesture.parameter, filterId, parameter)) {
+                ApplyLinkedCommand(domain::SetCompressorDetectorParameterCommand{ {}, filterId, parameter, value });
+            } else ApplyLinkedCommand(domain::SetCompressorParameterCommand{ {}, gesture.parameter, value });
+        } else if (gesture.device == "saturator") {
+            long filterId = 0;
+            std::string parameter;
+            if (ParseDetectorParameter(gesture.parameter, filterId, parameter)) {
+                ApplyLinkedCommand(domain::SetSaturatorDetectorParameterCommand{ {}, filterId, parameter, value });
+            } else ApplyLinkedCommand(domain::SetSaturatorParameterCommand{ {}, gesture.parameter, value });
+        }
+        eventOut.send("coordinator_processor_preview", gesture.device, gesture.parameter, value);
+    }
+
+    std::optional<double> ReadProcessorValue(
+        const std::string& device,
+        const std::string& parameter
+    ) const {
+        return ReadProcessorValue({ host.InputGain().State(), host.Compressor().State(),
+            host.Saturator().State(), host.OutputGain().State() }, device, parameter);
+    }
+
+    static std::optional<double> ReadProcessorValue(
+        const models::ProcessorState& processor,
+        const std::string& device,
+        const std::string& parameter
+    ) {
+        if (device == "input_gain" && parameter == "gain") return processor.inputGain.gainDb;
+        if (device == "output_gain" && parameter == "gain") return processor.outputGain.gainDb;
+        if (device == "compressor") {
+            const auto& state = processor.compressor;
+            if (parameter == "attack") return state.attackMs;
+            if (parameter == "release") return state.releaseMs;
+            if (parameter == "threshold") return state.thresholdDb;
+            if (parameter == "output") return state.outputDb;
+            if (parameter == "mix") return state.mix;
+            long detectorFilterId = 0;
+            std::string detectorParameter;
+            if (ParseDetectorParameter(parameter, detectorFilterId, detectorParameter)) {
+                const auto& filter = state.detectorFilters[static_cast<std::size_t>(detectorFilterId - 1)];
+                if (detectorParameter == "gain") return filter.gainDb;
+                if (detectorParameter == "frequency") return filter.frequencyHz;
+                if (detectorParameter == "q") return filter.q;
+            }
+        }
+        if (device == "saturator") {
+            const auto& state = processor.saturator;
+            if (parameter == "saturation") return state.saturation;
+            if (parameter == "output") return state.outputDb;
+            long detectorFilterId = 0;
+            std::string detectorParameter;
+            if (ParseDetectorParameter(parameter, detectorFilterId, detectorParameter)) {
+                const auto& filter = state.detectorFilters[static_cast<std::size_t>(detectorFilterId - 1)];
+                if (detectorParameter == "gain") return filter.gainDb;
+                if (detectorParameter == "frequency") return filter.frequencyHz;
+                if (detectorParameter == "q") return filter.q;
+            }
+        }
+        return std::nullopt;
+    }
+
+    static bool ParseDetectorParameter(
+        const std::string& parameter,
+        long& filterId,
+        std::string& parameterName
+    ) {
+        constexpr std::string_view prefix = "detector.";
+        if (!parameter.starts_with(prefix) || parameter.size() < prefix.size() + 3) return false;
+        const auto separator = parameter.find('.', prefix.size());
+        if (separator == std::string::npos) return false;
+        const auto id = std::strtol(parameter.c_str() + prefix.size(), nullptr, 10);
+        const auto name = parameter.substr(separator + 1);
+        if ((name != "gain" && name != "frequency" && name != "q") || id < 1 || id > 2) return false;
+        filterId = id;
+        parameterName = name;
+        return true;
     }
 
     static bool IsContinuousParameterCommand(const domain::Command& command) {
@@ -340,12 +588,129 @@ private:
         if (!ready) {
             ready = true;
             statusOut.send("status", "ready");
-            messaging::EventCodec::Send(
-                domain::HostInitializedEvent{ host.Revision() },
-                { nextEventId++ },
-                [this](const messaging::AtomList& atoms) {
-                    eventOut.send(maxadapter::AtomAdapter::Write(atoms));
-                });
+        }
+    }
+
+    void PublishHostInitializedEvent() {
+        if (hostInitializedPublished) return;
+        hostInitializedPublished = true;
+        messaging::EventCodec::Send(
+            domain::HostInitializedEvent{ host.Revision() },
+            { nextEventId++ },
+            [this](const messaging::AtomList& atoms) {
+                eventOut.send(maxadapter::AtomAdapter::Write(atoms));
+            });
+    }
+
+    void SyncCoordinator() {
+        if (runtimeId.empty() || !ready) return;
+        host::LinkCoordinator::Instance().Upsert({
+            runtimeId,
+            trackName,
+            trackOrder,
+            host.Revision(),
+            host.Eq().State(),
+            {
+                host.InputGain().State(), host.Compressor().State(),
+                host.Saturator().State(), host.OutputGain().State()
+            }
+        });
+    }
+
+    void PublishCoordinatorDirectory() {
+        const auto entries = host::LinkCoordinator::Instance().Entries();
+        atoms values;
+        values.emplace_back("coordinator_directory");
+        values.emplace_back(static_cast<long>(entries.size()));
+        for (const auto& entry : entries) {
+            values.emplace_back(entry.runtimeId);
+            values.emplace_back(entry.trackName);
+            values.emplace_back(entry.trackOrder);
+            values.emplace_back(entry.eq.selectedBankId);
+            for (long bankId = models::EqSnapshot::SystemBankId;
+                 bankId <= models::EqSnapshot::LastUserBankId;
+                 ++bankId) {
+                const auto* bank = entry.eq.FindBank(bankId);
+                values.emplace_back(bank ? bank->linkId : "-");
+                const auto occupied = bank && std::any_of(
+                    bank->filters.begin(), bank->filters.end(),
+                    [](const auto& filter) { return !filter.bypass; });
+                values.emplace_back(occupied ? 1 : 0);
+            }
+        }
+        eventOut.send(values);
+    }
+
+    void PublishCoordinatorLimits() {
+        const auto* bank = host.Eq().State().SelectedBank();
+        if (!bank) return;
+        const auto entries = host::LinkCoordinator::Instance().Entries();
+        const auto linked = !bank->linkId.empty() &&
+            host::LinkCoordinator::Instance().Members(bank->linkId).size() >= 2;
+        const auto effectiveRange = [linked](const models::ParameterRange& range,
+            double sourceValue, const std::vector<double>& memberValues) {
+            if (!linked) return std::pair{ range.minimum, range.maximum };
+            const auto source = range.Normalize(sourceValue);
+            double minimumDelta = -std::numeric_limits<double>::infinity();
+            double maximumDelta = std::numeric_limits<double>::infinity();
+            for (const auto value : memberValues) {
+                minimumDelta = std::max(minimumDelta, -range.Normalize(value));
+                maximumDelta = std::min(maximumDelta, 1.0 - range.Normalize(value));
+            }
+            return std::pair{
+                range.Denormalize(std::max(0.0, source + minimumDelta)),
+                range.Denormalize(std::min(1.0, source + maximumDelta))
+            };
+        };
+
+        for (const auto& [key, range] : models::ParameterDefinitions()) {
+            const auto separator = key.find('.');
+            if (separator == std::string::npos) continue;
+            const auto device = key.substr(0, separator);
+            const auto parameter = key.substr(separator + 1);
+            const auto source = ReadProcessorValue(device, parameter);
+            if (!source) continue;
+            std::vector<double> memberValues;
+            for (const auto& entry : entries) {
+                const auto memberBank = std::find_if(entry.eq.banks.begin(), entry.eq.banks.end(),
+                    [&bank](const auto& candidate) { return candidate.linkId == bank->linkId; });
+                if (memberBank == entry.eq.banks.end() || entry.runtimeId == runtimeId) continue;
+                const auto value = ReadProcessorValue(entry.processor, device, parameter);
+                if (value) memberValues.push_back(*value);
+            }
+            const auto [minimum, maximum] = effectiveRange(range, *source, memberValues);
+            atoms values;
+            values.emplace_back("coordinator_processor_limits");
+            values.emplace_back(device);
+            values.emplace_back(parameter);
+            values.emplace_back(minimum);
+            values.emplace_back(maximum);
+            eventOut.send(values);
+        }
+
+        for (const auto& [filterId, definition] : domain::FilterDefinitions()) {
+            for (std::size_t parameterIndex = 0; parameterIndex < definition.parameters.size(); ++parameterIndex) {
+                const auto& range = definition.parameters[parameterIndex].range;
+                const auto* sourceFilter = bank->FindFilter(filterId);
+                if (!sourceFilter || parameterIndex >= sourceFilter->values.size()) continue;
+                std::vector<double> memberValues;
+                for (const auto& entry : entries) {
+                    for (const auto& candidate : entry.eq.banks) {
+                        if (entry.runtimeId == runtimeId || candidate.linkId != bank->linkId) continue;
+                        const auto* filter = candidate.FindFilter(filterId);
+                        if (filter && parameterIndex < filter->values.size()) memberValues.push_back(filter->values[parameterIndex]);
+                    }
+                }
+                const auto [minimum, maximum] = effectiveRange(range, sourceFilter->values[parameterIndex], memberValues);
+                atoms values;
+                values.emplace_back("coordinator_filter_limits");
+                values.emplace_back(bank->bankId);
+                values.emplace_back(filterId);
+                values.emplace_back(static_cast<long>(parameterIndex));
+                values.emplace_back(minimum);
+                values.emplace_back(maximum);
+                eventOut.send(values);
+            }
         }
     }
 
@@ -358,6 +723,8 @@ private:
         eqSnapshotDirty = false;
         dspSnapshotDirty = false;
         processorSnapshotDirty = false;
+        SyncCoordinator();
+        PublishCoordinatorDirectory();
     }
 
     void PublishEqSnapshot() {
@@ -429,6 +796,7 @@ private:
     static constexpr double PersistenceDebounceMilliseconds = 100.0;
     long nextEventId = 1;
     bool ready = false;
+    bool hostInitializedPublished = false;
     bool restorePending = false;
     bool persistenceReadyRequested = false;
     bool stateDeliveryScheduled = false;
@@ -440,6 +808,9 @@ private:
     bool suppressDspStatePublication = false;
     bool continuousEqConfirmationDirty = false;
     bool continuousProcessorConfirmationDirty = false;
+    std::string runtimeId;
+    std::string trackName;
+    long trackOrder = 0;
 };
 
 MIN_EXTERNAL_CUSTOM(ConsolidatorDeviceHost, consolidator.devicehost);

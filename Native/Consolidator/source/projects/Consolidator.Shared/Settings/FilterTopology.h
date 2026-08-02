@@ -12,15 +12,15 @@ public:
     static const std::map<long, models::FilterDefinition>& Definitions() {
         using models::FilterType;
         static const std::map<long, models::FilterDefinition> definitions = {
-            { 1, { 1, FilterType::Tilt, { { "gain", {}, 0 }, { "pivot", {}, 1000 } }, false } },
-            { 2, { 2, FilterType::LowShelf, { { "gain", {}, 0 }, { "freq", {}, 200 } }, false } },
-            { 3, { 3, FilterType::HighShelf, { { "gain", {}, 0 }, { "freq", {}, 8000 } }, false } },
-            { 4, { 4, FilterType::Peak, { { "gain", {}, 0 }, { "freq", {}, 1000 }, { "q", {}, 1 } }, false } },
-            { 5, { 5, FilterType::Peak, { { "gain", {}, 0 }, { "freq", {}, 3000 }, { "q", {}, 1 } }, false } },
-            { 6, { 6, FilterType::Peak, { { "gain", {}, 0 }, { "freq", {}, 500 }, { "q", {}, 3 } }, false, models::FilterScope::Eq } },
-            { 7, { 7, FilterType::Peak, { { "gain", {}, 0 }, { "frequency", {}, 200 }, { "q", {}, .707 } }, false, models::FilterScope::Detector } },
-            { 8, { 8, FilterType::Peak, { { "gain", {}, 0 }, { "frequency", {}, 4000 }, { "q", {}, .707 } }, false, models::FilterScope::Detector } },
-            { 9, { 9, FilterType::Gain, { { "gain", {}, 0 } }, false, models::FilterScope::Eq } }
+            { 1, { 1, FilterType::Tilt, { { "gain", { -24, 24 }, 0 }, { "pivot", { 40, 18000, models::ParameterScale::Logarithmic }, 1000 } }, false } },
+            { 2, { 2, FilterType::LowShelf, { { "gain", { -24, 24 }, 0 }, { "freq", { 40, 800, models::ParameterScale::Logarithmic }, 200 } }, false } },
+            { 3, { 3, FilterType::HighShelf, { { "gain", { -24, 24 }, 0 }, { "freq", { 1000, 18000, models::ParameterScale::Logarithmic }, 8000 } }, false } },
+            { 4, { 4, FilterType::Peak, { { "gain", { -24, 24 }, 0 }, { "freq", { 40, 18000, models::ParameterScale::Logarithmic }, 300 }, { "q", { .1, 10, models::ParameterScale::Logarithmic }, .707 } }, false } },
+            { 5, { 5, FilterType::Peak, { { "gain", { -24, 24 }, 0 }, { "freq", { 40, 18000, models::ParameterScale::Logarithmic }, 800 }, { "q", { .1, 10, models::ParameterScale::Logarithmic }, .707 } }, false } },
+            { 6, { 6, FilterType::Peak, { { "gain", { -24, 24 }, 0 }, { "freq", { 40, 18000, models::ParameterScale::Logarithmic }, 3000 }, { "q", { .1, 10, models::ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Eq } },
+            { 7, { 7, FilterType::Peak, { { "gain", { -24, 24 }, 0 }, { "frequency", { 40, 18000, models::ParameterScale::Logarithmic }, 200 }, { "q", { .1, 10, models::ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Detector } },
+            { 8, { 8, FilterType::Peak, { { "gain", { -24, 24 }, 0 }, { "frequency", { 40, 18000, models::ParameterScale::Logarithmic }, 4000 }, { "q", { .1, 10, models::ParameterScale::Logarithmic }, .707 } }, false, models::FilterScope::Detector } },
+            { 9, { 9, FilterType::Gain, { { "gain", { -24, 24 }, 0 } }, false, models::FilterScope::Eq } }
         };
         return definitions;
     }

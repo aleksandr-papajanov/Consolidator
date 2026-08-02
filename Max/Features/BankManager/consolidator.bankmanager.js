@@ -2,35 +2,23 @@ autowatch = 1;
 inlets = 2;
 outlets = 3;
 
-// Inlet 0: Host EQ, processor, and device snapshots.
-// Inlet 1: global bank/link messages: bank.query, bank.announce, bank.leave,
-// bank.reset_all, link.assign, link.detach, link.operation, link.filter_delta,
-// link.filter_bypass, link.filter_reset, link.processor_detector_reset, link.state,
-// link.processor_delta, link.processor_match, link.processor_bypass, and link.history_*.
+// Inlet 0: runtime history events, coordinator directory, and local operations.
+// Inlet 1: global coordinator and discrete group-operation messages.
 // Outlet 0: Host commands: eq.select_bank, eq.join_banks, eq.commit_all,
 // eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter,
 // and saturator.set_parameter.
-// Outlet 1: the complete global bank/link message set accepted by inlet 1.
+// Outlet 1: global coordinator and discrete group-operation messages.
 // Outlet 2: link_color, processor_limits, processor_preview, eq_preview, and
 // filter_limits UI state.
-// Local gesture input also accepts eq_parameter_absolute_gesture
-// <bankId> <filterId> <parameter> <absoluteValue> from SpectrumView and
-// processor_match_operation <device> <onset|level> and
+// Local operation input accepts processor_match_operation <device> <onset|level> and
 // processor_bypass_operation <compressor|saturator> <0|1> from processor controls.
-// bank.announce: <instanceId> <trackName> <trackOrder> <revision> <selectedBank>
-// <systemOccupied> <six bankId occupied linkId records>.
 // link.assign|link.detach: <linkId> <instanceId> <bankId>.
 // link.operation: <linkId> <sourceId> <revision> <join|commit|reset|bypass> <bypass|-1>.
-// link.filter_delta: <linkId> <sourceId> <revision> <filterId> <parameterIndex> <normalizedDelta>.
 // link.filter_bypass: <linkId> <sourceId> <revision> <filterId> <0|1>.
 // link.filter_reset: <linkId> <sourceId> <revision> <filterId>.
-// link.processor_delta: <linkId> <sourceId> <revision> <device> <parameter> <normalizedDelta>.
 // link.processor_detector_reset: <linkId> <sourceId> <revision> <device> <filterId>.
 // link.processor_match: <linkId> <sourceId> <revision> <device> <onset|level>.
 // link.processor_bypass: <linkId> <sourceId> <revision> <compressor|saturator> <0|1>.
-// link.state: <linkId> <sourceId> <revision> <bankId> <filterCount>
-// <filterId> <bypass> <valueCount> <values...>... <processorValueCount>
-// <device> <parameter> <absoluteValue>...
 
 mgraphics.init();
 mgraphics.relative_coords = 0;
@@ -43,23 +31,16 @@ include("../../Shared/Interface/BankManager/BankManagerViewModel.js");
 include("../../Shared/Interface/BankManager/BankManagerRenderer.js");
 include("../../Shared/Interface/ButtonGroup/ButtonGroupLayout.js");
 include("../../Shared/Configuration/FilterDefinitions.js");
-include("JS/BankManagerMath.js");
 include("JS/BankManagerModels.js");
 include("JS/BankManagerLiveIdentity.js");
-include("JS/BankManagerSnapshotReader.js");
-include("JS/BankManagerSnapshotCoordinator.js");
 include("JS/BankManagerUiController.js");
 include("JS/BankManagerMessageRouter.js");
-include("JS/BankManagerDefinitions.js");
-include("JS/BankManagerLinkGraph.js");
 include("JS/BankManagerSelection.js");
 include("JS/BankVisibilityPolicy.js");
 include("JS/GroupOperationPlanner.js");
 include("JS/LinkMutationDispatcher.js");
 include("JS/BankManagerLayout.js");
 include("JS/BankManagerOperations.js");
-include("JS/BankManagerLinkTransport.js");
-include("JS/BankManagerLinkPresentation.js");
 var BankManagerVisualOptions = BankManagerOptions.geometry;
 var BankManagerColors = BankManagerOptions.colors;
 var bankGroupLayout = new ButtonGroupLayout();
@@ -79,27 +60,13 @@ function BankManager() {
     this.clearAllConfirmationTask = new Task(this.ClearAllConfirmationExpired, this);
     this.linkRevision = 0;
     this.linkRevisions = new LinkRevisionTracker();
-    this.definitions = new BankManagerDefinitions();
-    this.filterDefinitions = this.definitions.filterParameters;
-    this.filterTypes = this.definitions.filterTypes;
-    this.filterDefaultBypass = this.definitions.filterDefaultBypass;
-    this.processorRanges = this.definitions.processorRanges;
-    this.processorDefaults = this.definitions.processorDefaults;
-    this.snapshotReader = new BankManagerSnapshotReader(this.filterDefinitions);
-    this.snapshotCoordinator = new BankManagerSnapshotCoordinator(this);
-    this.linkGraph = new BankManagerLinkGraph(this);
     this.layout = new BankManagerLayout();
     this.operations = new BankManagerOperations(this);
-    this.linkTransport = new BankManagerLinkTransport(this);
-    this.linkPresentation = new BankManagerLinkPresentation(this);
     this.controlLinkSession = "";
-    this.pendingLinkedStatePublish = false;
-    this.hasCanonicalEqSnapshot = false;
     this.viewModel = new BankManagerViewModel();
     this.renderer = new BankManagerRenderer();
     this.ui = new BankManagerUiController(this);
     this.messageRouter = new BankManagerMessageRouter(this);
-    this.lastAnnouncementState = "";
     this.liveIdentity = new BankManagerLiveIdentity();
     this.initializer = new LiveApiInitializer(
         this.TryInitialize, this, 50);
@@ -125,21 +92,8 @@ BankManager.prototype.TryInitialize = function() {
     this.local.id = this.instanceId;
     this.local.label = identity.trackName;
     this.local.trackOrder = identity.trackOrder;
-    this.liveIdentity.ObserveTrackName(identity.trackId);
     this.SetFocusedBank(this.local, this.local.selectedBankId);
-    outlet(1, "bank.query", this.instanceId);
-    this.PublishAnnouncement();
-    this.PublishLinkedState();
     return true;
-};
-
-BankManager.prototype.HandleTrackNameChanged = function(values) {
-    if (values.length !== 2 || String(values[0]) !== "name") return;
-    var trackName = String(values[1] || "");
-    if (!trackName || trackName === this.local.label) return;
-    this.local.label = trackName;
-    this.PublishAnnouncement();
-    mgraphics.redraw();
 };
 
 BankManager.prototype.SendHostCommand = function(name, fields) {
@@ -150,16 +104,8 @@ BankManager.prototype.QueueLinkMutation = function(instance, bank, linkId) {
     this.linkMutations.Enqueue(instance, bank, linkId);
 };
 
-BankManager.prototype.ParseEqSnapshot = function(values) {
-    return this.snapshotCoordinator.ApplyEq(values);
-};
-
-BankManager.prototype.ParseProcessorSnapshot = function(values) {
-    return this.snapshotCoordinator.ApplyProcessor(values);
-};
-
 BankManager.prototype.HandleRuntimeEvent = function(values) {
-    this.linkTransport.HandleHistoryEvent(values);
+    this.operations.HandleHistoryEvent(values);
 };
 
 BankManager.prototype.ActiveBank = function(instance) {
@@ -193,7 +139,7 @@ BankManager.prototype.SetFocusedBank = function(instance, bankId) {
     // Local controls accept limits only for the selected bank confirmed by Host.
     if (instance.id === this.instanceId &&
         bankId === this.local.selectedBankId) {
-        this.RefreshControlLinkSession();
+        this.SynchronizeCoordinator();
     }
 };
 
@@ -226,33 +172,26 @@ BankManager.prototype.SendProcessorBypass = function(device, bypass) {
 };
 
 BankManager.prototype.SendDetectorReset = function(device, filterId) {
-    var defaults = this.processorDefaults[device] || {};
+    var definition = FilterDefinitionCatalog.Processors()[device];
+    if (!definition) return;
     var parameters = ["gain", "frequency", "q", "bypass"];
     for (var index = 0; index < parameters.length; ++index) {
         var parameter = parameters[index];
         var key = "detector." + filterId + "." + parameter;
-        if (!defaults.hasOwnProperty(key)) continue;
-        this.SendHostCommand(device + ".set_detector_parameter", [
-            Number(filterId), parameter, defaults[key]
-        ]);
-    }
-};
-
-BankManager.prototype.ResetDetectorModels = function(linkId, device, filterId) {
-    var defaults = this.processorDefaults[device] || {};
-    var group = linkId ? this.ProcessorLinkGroup(linkId, device) : null;
-    var members = group ? group.members : {};
-    if (!group && this.local.processors[device]) {
-        members[this.instanceId] = this.local.processors[device];
-    }
-    var parameters = ["gain", "frequency", "q", "bypass"];
-    for (var instanceId in members) {
-        if (!members.hasOwnProperty(instanceId)) continue;
-        var values = members[instanceId].values;
-        for (var index = 0; index < parameters.length; ++index) {
-            var key = "detector." + filterId + "." + parameters[index];
-            if (defaults.hasOwnProperty(key)) values[key] = defaults[key];
+        var defaultValue;
+        for (var parameterIndex = 0;
+             parameterIndex < definition.parameters.length;
+             ++parameterIndex) {
+            var candidate = definition.parameters[parameterIndex];
+            if (candidate.name === key) {
+                defaultValue = candidate.defaultValue;
+                break;
+            }
         }
+        if (!isFinite(defaultValue)) continue;
+        this.SendHostCommand(device + ".set_detector_parameter", [
+            Number(filterId), parameter, defaultValue
+        ]);
     }
 };
 
@@ -261,46 +200,93 @@ BankManager.prototype.NormalizeLinkId = function(value) {
     return linkId === "-" ? "" : linkId;
 };
 
-BankManager.prototype.RebuildProcessorLinkGroups = function() {
-    this.linkGraph.Rebuild();
-};
-
-BankManager.prototype.ProcessorLinkGroup = function(linkId, device) {
-    return this.linkGraph.ProcessorGroup(linkId, device);
-};
-
 BankManager.prototype.LinkMembers = function(linkId) {
-    return this.linkGraph.Members(linkId);
+    var members = [];
+    var instances = [this.local];
+    for (var runtimeId in this.peers) {
+        if (this.peers.hasOwnProperty(runtimeId)) instances.push(this.peers[runtimeId]);
+    }
+    for (var instanceIndex = 0; instanceIndex < instances.length; ++instanceIndex) {
+        var banks = instances[instanceIndex].banks;
+        for (var bankIndex = 0; bankIndex < banks.length; ++bankIndex) {
+            if (banks[bankIndex].linkId === String(linkId)) {
+                members.push({ instance: instances[instanceIndex], bank: banks[bankIndex] });
+            }
+        }
+    }
+    return members;
 };
 
 BankManager.prototype.LinkMemberIds = function(linkId) {
-    return this.linkGraph.MemberIds(linkId);
+    return this.LinkMembers(linkId).map(function(member) {
+        return member.instance.id;
+    }).sort();
 };
 
 BankManager.prototype.RefreshControlLinkSession = function() {
-    this.linkPresentation.RefreshControlSession();
+    var activeLinkId = this.ActiveLinkId(this.local);
+    var activeMembers = activeLinkId ? this.LinkMemberIds(activeLinkId) : [];
+    var activeBank = this.ActiveBank(this.local);
+    var signature = (activeLinkId && activeMembers.length >= 2
+        ? activeLinkId + ":" + activeMembers.join(",")
+        : "unlinked") + ":" + (activeBank ? activeBank.id : 0);
+    if (this.controlLinkSession === signature) return;
+    this.controlLinkSession = signature;
+    var color = activeLinkId ? this.LinkColor(activeLinkId) : null;
+    outlet(2, "link_color", activeLinkId && color ? activeLinkId : "-",
+        color ? color[0] : 0, color ? color[1] : 0,
+        color ? color[2] : 0, color ? color[3] : 0);
+    outlet(0, "coordinator_limits");
 };
 
-BankManager.prototype.ParseDeviceSnapshot = function(values) {
-    if (values.length !== 6 || String(values[0]) !== "snapshot" || String(values[3]) !== "device") return;
-    if (!this.instanceId) return;
-    this.PublishAnnouncement();
+BankManager.prototype.ParseCoordinatorDirectory = function(values) {
+    var count = Number(values[0]);
+    if (!isFinite(count) || count < 0) return;
+    var position = 1;
+    var peers = {};
+    var previousSelectedBankId = this.local.selectedBankId;
+    for (var index = 0; index < count; ++index) {
+        if (position + 18 > values.length) return;
+        var runtimeId = String(values[position++]);
+        var label = String(values[position++]);
+        var trackOrder = Number(values[position++]);
+        var selectedBankId = Number(values[position++]);
+        if (!runtimeId || !isFinite(trackOrder) ||
+            selectedBankId < 1 || selectedBankId > 6) return;
+        var instance = runtimeId === this.instanceId ? this.local :
+            new InstanceSummary(runtimeId, label);
+        instance.label = label;
+        instance.trackOrder = trackOrder;
+        instance.selectedBankId = selectedBankId;
+        for (var bankId = 0; bankId <= 6; ++bankId) {
+            var linkId = String(values[position++]);
+            var occupied = Number(values[position++]) !== 0;
+            var bank = bankId === 0 ? instance.systemBank : instance.banks[bankId - 1];
+            bank.linkId = linkId === "-" ? "" : linkId;
+            bank.occupied = occupied;
+        }
+        if (runtimeId !== this.instanceId) peers[runtimeId] = instance;
+    }
+    this.peers = peers;
+    if (this.local.selectedBankId !== previousSelectedBankId) {
+        this.selection.SetFocusedBank(this.local, this.local.selectedBankId);
+    }
+    this.controlLinkSession = "";
+    this.RefreshControlLinkSession();
+    mgraphics.redraw();
 };
 
 BankManager.prototype.ExecuteFilterReset = function(bankId, filterId) {
     this.operations.ResetFilter(bankId, filterId);
 };
 
-BankManager.prototype.ResetLinkedFilterModels = function(linkId, filterId) {
-    this.operations.ResetLinkedFilterModels(linkId, filterId);
-};
-
-BankManager.prototype.ResetFilterModel = function(bank, filterId) {
-    this.operations.ResetFilterModel(bank, filterId);
-};
-
 BankManager.prototype.FindLocalLinkedBank = function(linkId) {
-    return this.linkGraph.FindLocalBank(linkId);
+    var active = this.local.banks[this.local.selectedBankId - 1];
+    if (active && active.linkId === linkId) return active;
+    for (var index = 0; index < this.local.banks.length; ++index) {
+        if (this.local.banks[index].linkId === linkId) return this.local.banks[index];
+    }
+    return null;
 };
 
 BankManager.prototype.LocalBank = function(bankId) {
@@ -387,8 +373,6 @@ BankManager.prototype.ClearAllConfirmationExpired = function() {
 };
 
 BankManager.prototype.ResetAllBankModels = function() {
-    this.operations.ResetAllModels();
-    this.linkPresentation.ClearPreviews();
 };
 
 BankManager.prototype.LinkGroupIndexAt = function(x, y, width, height) {
@@ -439,93 +423,44 @@ BankManager.prototype.ApplyLinkOperation = function(values) {
     this.operations.ApplyLinked(values);
 };
 
-BankManager.prototype.ResetLinkedBankModels = function(linkId) {
-    var members = this.LinkMembers(linkId);
-    for (var memberIndex = 0; memberIndex < members.length; ++memberIndex) {
-        var filters = members[memberIndex].bank.filters;
-        for (var filterId in filters) {
-            if (filters.hasOwnProperty(filterId)) {
-                this.ResetFilterModel(members[memberIndex].bank, Number(filterId));
-            }
-        }
-    }
-};
-
-// The root owns feature composition; LinkTransport owns every global frame.
 BankManager.prototype.NextLinkRevision = function(linkId) {
-    return this.linkTransport.NextRevision(linkId);
+    return this.operations.NextRevision(linkId);
 };
 
 BankManager.prototype.PublishEqPreview = function(bankId, filterId, parameterIndex, absoluteValue) {
-    this.linkTransport.PublishEqPreview(bankId, filterId, parameterIndex, absoluteValue);
+    outlet(2, "eq_preview", Number(bankId), Number(filterId),
+        Number(parameterIndex), Number(absoluteValue));
 };
 
 BankManager.prototype.PublishProcessorPreview = function(device, parameter, absoluteValue) {
-    this.linkTransport.PublishProcessorPreview(device, parameter, absoluteValue);
-};
-
-BankManager.prototype.ApplyFilterDeltaToModel = function(update, skipInstanceId) {
-    this.linkTransport.ApplyFilterDeltaToModel(update, skipInstanceId);
+    outlet(2, "processor_preview", String(device), String(parameter),
+        Number(absoluteValue));
 };
 
 BankManager.prototype.PublishLinkBypass = function(linkId, filterId, bypass) {
-    this.linkTransport.PublishFilterBypass(linkId, filterId, bypass);
+    this.operations.PublishFilterBypass(linkId, filterId, bypass);
 };
 
-BankManager.prototype.PublishAnnouncement = function() {
-    return this.linkTransport.PublishAnnouncement();
-};
-
-BankManager.prototype.PublishLinkedState = function(linkIds) {
-    this.linkTransport.PublishLinkedState(linkIds);
-};
-
-BankManager.prototype.ParseAnnouncement = function(values) {
-    this.linkTransport.ParseAnnouncement(values);
-};
-
-BankManager.prototype.ApplyLinkState = function(values) {
-    this.linkTransport.ApplyLinkedState(values);
+BankManager.prototype.SynchronizeCoordinator = function() {
+    this.controlLinkSession = "";
+    this.RefreshControlLinkSession();
+    mgraphics.redraw();
 };
 
 BankManager.prototype.HandleGlobal = function(name, values) {
-    this.linkTransport.HandleGlobal(name, values);
-};
-
-BankManager.prototype.ApplyProcessorDelta = function(values) {
-    this.linkTransport.ApplyProcessorDelta(values);
+    this.operations.HandleGlobal(name, values);
 };
 
 BankManager.prototype.ApplyProcessorDetectorReset = function(values) {
-    this.linkTransport.ApplyDetectorReset(values);
-};
-
-BankManager.prototype.RemovePeer = function(values) {
-    this.linkTransport.RemovePeer(values);
-};
-
-BankManager.prototype.ApplyFilterDelta = function(values) {
-    this.linkTransport.ApplyFilterDelta(values);
+    this.operations.ApplyDetectorReset(values);
 };
 
 BankManager.prototype.ApplyLinkBypass = function(values) {
-    this.linkTransport.ApplyFilterBypass(values);
+    this.operations.ApplyFilterBypass(values);
 };
 
 BankManager.prototype.ApplyLinkFilterReset = function(values) {
-    this.linkTransport.ApplyFilterReset(values);
-};
-
-BankManager.prototype.HandleEqAbsoluteParameterGesture = function(values) {
-    this.linkTransport.HandleEqGesture(values);
-};
-
-BankManager.prototype.HandleEqAbsoluteParameterPreview = function(values) {
-    this.linkTransport.HandleEqPreview(values);
-};
-
-BankManager.prototype.HandleProcessorParameterGesture = function(values) {
-    this.linkTransport.HandleProcessorGesture(values);
+    this.operations.ApplyFilterReset(values);
 };
 
 BankManager.prototype.HandleProcessorMatchOperation = function(values) {
@@ -535,7 +470,7 @@ BankManager.prototype.HandleProcessorMatchOperation = function(values) {
     if (["input_gain", "output_gain", "compressor", "saturator"].indexOf(device) < 0 ||
         (operation !== "onset" && operation !== "level")) return;
     if ((device === "input_gain" || device === "output_gain") && operation !== "level") return;
-    this.linkTransport.StartProcessorMatch(device, operation);
+    this.operations.StartProcessorMatch(device, operation);
 };
 
 BankManager.prototype.HandleProcessorBypassOperation = function(values) {
@@ -544,36 +479,25 @@ BankManager.prototype.HandleProcessorBypassOperation = function(values) {
     var bypass = Number(values[1]);
     if ((device !== "compressor" && device !== "saturator") ||
         (bypass !== 0 && bypass !== 1)) return;
-    this.linkTransport.StartProcessorBypass(device, bypass);
+    this.operations.StartProcessorBypass(device, bypass);
 };
 
 BankManager.prototype.HandleProcessorDetectorReset = function(values) {
-    this.linkTransport.HandleDetectorReset(values);
-};
-
-BankManager.prototype.PublishFilterLimits = function(linkId, isLinked) {
-    this.linkPresentation.PublishFilterLimits(linkId, isLinked);
+    this.operations.HandleDetectorReset(values);
 };
 
 var bankManager = new BankManager();
 
-function BankManagerTrackNameChanged() {
-    var values = arguments.length === 1 && arguments[0] instanceof Array
-        ? arguments[0]
-        : arrayfromargs(arguments);
-    bankManager.HandleTrackNameChanged(values);
-}
-
 function inletassist(index) {
     assist(index === 0
-        ? "Local input: Host snapshots; eq_parameter_absolute_gesture, eq_parameter_absolute_preview, eq_filter_reset, processor_parameter_gesture, processor_match_operation, processor_bypass_operation"
-        : "Global bus: bank.query, bank.announce, bank.leave, bank.reset_all, link.assign, link.detach, link.operation, link.filter_*, link.processor_*, link.state, link.history_*");
+        ? "Local input: coordinator directory, runtime history events, filter reset, and processor operations"
+        : "Global bus: coordinator and discrete linked operations");
 }
 
 function outletassist(index) {
     assist([
         "Host commands: eq.select_bank, eq.join_banks, eq.commit_all, eq.reset_all, eq.set_link, gain.set_parameter, compressor.set_parameter, saturator.set_parameter",
-        "Global bus: bank.query, bank.announce, bank.leave, bank.reset_all, link.assign, link.detach, link.operation, link.filter_*, link.processor_*, link.state, link.history_*",
+        "Global bus: coordinator and discrete linked operations",
         "Local link UI: link_color, processor_limits, eq_preview, filter_limits, processor_preview"
     ][index] || "");
 }
@@ -588,33 +512,9 @@ function onclick(x, y, button, cmd, shift) {
     bankManager.ui.Click(x, y, Boolean(shift));
 }
 function onwheel(x, y, scrollx, scrolly) { bankManager.ui.Scroll(scrolly); }
-function snapshot() {
-    if (inlet === 0) {
-        bankManager.messageRouter.HandleSnapshot(
-            ["snapshot"].concat(arrayfromargs(arguments)));
-        mgraphics.redraw();
-    }
-}
+function snapshot() {}
 function event() {
     if (inlet === 0) bankManager.HandleRuntimeEvent(arrayfromargs(arguments));
-}
-function eq_parameter_absolute_gesture() {
-    if (inlet === 0) {
-        bankManager.messageRouter.HandleLocal(
-            "eq_parameter_absolute_gesture", arrayfromargs(arguments));
-    }
-}
-function eq_parameter_absolute_preview() {
-    if (inlet === 0) {
-        bankManager.messageRouter.HandleLocal(
-            "eq_parameter_absolute_preview", arrayfromargs(arguments));
-    }
-}
-function processor_parameter_gesture() {
-    if (inlet === 0) {
-        bankManager.messageRouter.HandleLocal(
-            "processor_parameter_gesture", arrayfromargs(arguments));
-    }
 }
 function processor_detector_reset() {
     if (inlet === 0) {
@@ -637,12 +537,6 @@ function anything() {
     bankManager.messageRouter.Handle(inlet, messagename, values);
 }
 function list() {
-    var values = arrayfromargs(arguments);
-    if (inlet === 0 && values.length && String(values[0]) === "snapshot") {
-        bankManager.messageRouter.HandleSnapshot(values);
-    }
 }
-function leave() {
-    if (bankManager.instanceId) outlet(1, "bank.leave", bankManager.instanceId);
-}
+function leave() {}
 function notifydeleted() { bankManager.Dispose(); }

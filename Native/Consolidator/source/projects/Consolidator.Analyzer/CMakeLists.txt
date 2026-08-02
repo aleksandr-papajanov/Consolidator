@@ -23,6 +23,7 @@ set(SOURCE_FILES
     AnalyzerCurveFrame.h
     AnalyzerFilterVisuals.h
     AnalyzerSpectrumEngine.h
+    AnalyzerWorkProcessor.h
     AnalyzerSpectrumResult.h
     Analysis/AnalysisFeatureFrame.h
     Analysis/AnalyzerFeaturePipeline.h

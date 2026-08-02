@@ -1,39 +1,24 @@
 # Bank Manager
 
-`consolidator.bankmanager.js` owns feature composition and BankManager domain
-coordination. It does not decode raw snapshots, resolve Live identity, or
-implement JSUI input dispatch directly.
+`consolidator.bankmanager.js` owns feature composition and local BankManager
+behavior. Runtime-only cross-instance topology belongs to the native
+process-local `LinkCoordinator`; BankManager receives its compact directory and
+does not own remote state, resolve Live identity, or implement JSUI input
+dispatch directly.
 
 ## Components
 
-- `JS/BankManagerModels.js`: mutable local and peer summaries plus processor
-  link-group delta math.
-- `JS/BankManagerMath.js`: normalized/absolute parameter conversion.
-- `JS/BankManagerDefinitions.js`: static UI definitions projected into filter
-  metadata, processor ranges, and reset defaults.
-- `JS/BankManagerLinkGraph.js`: the derived cross-instance link graph and
-  processor groups built from compact peer topology.
+- `JS/BankManagerModels.js`: mutable local UI summaries.
 - `JS/BankManagerSelection.js`: active/focused bank state and deterministic
   peer-row ordering.
 - `JS/BankManagerLayout.js`: bank-list geometry, link-panel layout, hit-testing,
   editable group identifiers, and link colors.
 - `JS/BankManagerOperations.js`: discrete link assignment, filter resets, and
   Join/Commit/Reset/Bypass transactions, including their global replication.
-- `JS/BankManagerLinkTransport.js`: global bank announcements, linked-state
-  frames, relative parameter deltas, discrete linked filter operations, and
-  the local preview lane for linked controls.
-- `JS/BankManagerLinkPresentation.js`: linked-control colors, fixed control
-  limits, the selected-bank control session, detector previews, and
-  SpectrumView ghost-filter previews.
-- `JS/BankManagerSnapshotReader.js`: validation and decoding of EQ and
-  processor Host snapshots into feature models.
-- `JS/BankManagerSnapshotCoordinator.js`: applies decoded snapshots, refreshes
-  the derived link graph, publishes topology summaries, and refreshes scoped
-  control presentation after canonical state changes.
 - `JS/BankManagerLiveIdentity.js`: Live API device identity, track order, and
   track-name observation.
-- `JS/BankManagerMessageRouter.js`: Max selector/list routing to BankManager
-  commands, snapshots, or global link messages.
+- `JS/BankManagerMessageRouter.js`: Max selector/list routing to local UI
+  operations, Coordinator directory data, or discrete global operations.
 - `JS/BankManagerUiController.js`: JSUI paint, click, and scroll handling.
 - `Max/Shared/Runtime/LinkRevisionTracker.js`: reusable monotonic revision
   tracking for global link update and operation streams.

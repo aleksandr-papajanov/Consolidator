@@ -1,13 +1,13 @@
 autowatch = 1;
 inlets = 2;
-outlets = 9;
+outlets = 12;
 
 function StateTransport() {}
 
 StateTransport.prototype.RouteEvent = function(values) {
     if (String(values[3]) === "parameter.updated") {
         outlet(7, "event", values);
-        outlet(6, "event", values);
+        if (String(values[5]) === "eq") outlet(6, "event", values);
         return;
     }
     outlet(0, "event", values);
@@ -38,6 +38,20 @@ StateTransport.prototype.RouteAnalyzerUiState = function(name, values) {
     }
 };
 
+StateTransport.prototype.RouteCoordinatorState = function(name, values) {
+    if (String(name) === "eq_preview" && values.length === 4) {
+        outlet(8, "eq_preview", values);
+    } else if (String(name) === "coordinator_directory") {
+        outlet(9, "coordinator_directory", values);
+    } else if (String(name) === "coordinator_processor_limits") {
+        outlet(10, "processor_limits", values);
+    } else if (String(name) === "coordinator_processor_preview") {
+        outlet(10, "processor_preview", values);
+    } else if (String(name) === "coordinator_filter_limits") {
+        outlet(11, "filter_limits", values);
+    }
+};
+
 var stateTransport = new StateTransport();
 
 function event() {
@@ -55,13 +69,14 @@ function list() {
     if (category === "event") stateTransport.RouteEvent(values.slice(1));
     else if (category === "snapshot") {
         stateTransport.RouteSnapshot(values.slice(1));
-    }
+    } else stateTransport.RouteCoordinatorState(category, values.slice(1));
 }
 
 function anything() {
+    var values = arrayfromargs(arguments);
     if (inlet === 1) {
-        stateTransport.RouteAnalyzerUiState(messagename, arrayfromargs(arguments));
-    }
+        stateTransport.RouteAnalyzerUiState(messagename, values);
+    } else stateTransport.RouteCoordinatorState(messagename, values);
 }
 
 function inletassist(index) {

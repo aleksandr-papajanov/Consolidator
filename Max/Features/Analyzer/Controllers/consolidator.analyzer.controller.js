@@ -3,6 +3,7 @@ inlets = 3;
 outlets = 3;
 include("../../../Shared/Runtime/LiveApiInitializer.js");
 include("../../../Shared/Runtime/ControlControllerBase.js");
+include("../../../Shared/Configuration/FilterDefinitions.js");
 
 function AnalyzerController() {
     ControlControllerBase.call(this, "analyzer", this.FlushEqParameterCommand, this);
@@ -57,9 +58,16 @@ AnalyzerController.prototype.ForwardCommand = function(name, values) {
 };
 
 AnalyzerController.prototype.FlushEqParameterCommand = function(values) {
-    outlet(2, "eq_parameter_absolute_gesture",
-        Number(values[4]), Number(values[5]),
-        String(values[6]), Number(values[7]));
+    var filterId = Number(values[5]);
+    var parameterName = String(values[6]);
+    var parameters = FilterDefinitionCatalog.Eq()[filterId].parameters;
+    for (var parameterIndex = 0; parameterIndex < parameters.length; ++parameterIndex) {
+        if (parameters[parameterIndex].name === parameterName) {
+            outlet(0, "link_filter_local", Number(values[4]), filterId,
+                parameterIndex, Number(values[7]));
+            break;
+        }
+    }
     outlet(0, "command", values);
 };
 
@@ -179,6 +187,10 @@ function inletassist(index) {
 }
 
 function outletassist(index) {
+    if (index === 2) {
+        assist("eq_parameter_absolute_preview and eq_filter_reset local UI messages");
+        return;
+    }
     assist(index === 0
         ? "command 1 analyzer <requestId> analyzer.set_view <visible> <spectrum|analysis>; fit.start <pointCount> <curve...>; analyzer.clear; history.begin <operationId>, history.end <operationId>; eq.set_parameter, eq.set_bypass, eq.reset_filter; bank.action <join|commit|reset|bypass> <optional 0|1>"
         : (index === 1

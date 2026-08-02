@@ -7,6 +7,7 @@ add_library(Consolidator.DeviceHost STATIC
     SaturatorStore.cpp
     DeviceHistory.cpp
     DeviceHost.cpp
+    LinkCoordinator.cpp
     Workflows/AnalyzerWorkflow.cpp
     Workflows/FitWorkflow.cpp
 )

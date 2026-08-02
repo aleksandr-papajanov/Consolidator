@@ -116,9 +116,9 @@ GainController.prototype.SendGain = function(value, emitGesture) {
 
 GainController.prototype.FlushGain = function(update) {
     if (update.emitGesture) {
-        outlet(4, "processor_parameter_gesture",
+        outlet(0, "link_processor_local",
             this.stage === "input" ? "input_gain" : "output_gain",
-            "gain", update.normalized);
+            "gain", update.absolute);
     }
     this.SendCommand("gain.set_parameter", [this.stage, update.absolute]);
 };
@@ -371,6 +371,10 @@ function inletassist(index) {
 }
 
 function outletassist(index) {
+    if (index === 4) {
+        assist("Host-local link dispatch or a gain-match group operation");
+        return;
+    }
     assist([
         "Host command: gain.set_parameter <input|output> <absoluteDb>",
         "DialControl commands: set, step, displayRange, levelMatchEnabled, visualization, ringColor, clearRingColor, enabled; target ring uses normalized step 0.05 (3 dB)",

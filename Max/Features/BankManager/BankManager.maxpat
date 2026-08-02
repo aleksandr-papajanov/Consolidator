@@ -15,18 +15,6 @@
 		"gridsize" : [ 10.0, 10.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
-					"id" : "local-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 20.0, 20.0, 140.0, 22.0 ],
-					"text" : "r ---state.eq"
-				}
-
-			}
-, 			{
-				"box" : 				{
 					"id" : "global-receive",
 					"maxclass" : "newobj",
 					"numinlets" : 0,
@@ -37,18 +25,7 @@
 				}
 
 			}
-, 			{
-				"box" : 				{
-					"id" : "gesture-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 340.0, 20.0, 175.0, 22.0 ],
-					"text" : "r ---link.parameter.gesture"
-				}
 
-			}
 , 			{
 				"box" : 				{
 					"id" : "runtime-events-receive",
@@ -58,6 +35,18 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 340.0, 45.0, 165.0, 22.0 ],
 					"text" : "r ---message.bus.out"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "coordinator-receive",
+					"maxclass" : "newobj",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 340.0, 70.0, 175.0, 22.0 ],
+					"text" : "r ---bankmanager.coordinator"
 				}
 
 			}
@@ -110,30 +99,7 @@
 				}
 
 			}
-, 			{
-				"box" : 				{
-					"id" : "dsp-state-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 20.0, 325.0, 110.0, 22.0 ],
-					"text" : "r ---state.processor"
-				}
 
-			}
-, 			{
-				"box" : 				{
-					"id" : "device-state-receive",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 295.0, 325.0, 115.0, 22.0 ],
-					"text" : "r ---state.device"
-				}
-
-			}
 , 			{
 				"box" : 				{
 					"id" : "device",
@@ -274,20 +240,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "manager", 0 ],
-					"source" : [ "device-state-receive", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "manager", 0 ],
-					"source" : [ "dsp-state-receive", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "eq-preview-send", 0 ],
 					"source" : [ "eq-preview-prefix", 0 ]
 				}
@@ -349,17 +301,18 @@
 				}
 
 			}
+
 , 			{
 				"patchline" : 				{
 					"destination" : [ "manager", 0 ],
-					"source" : [ "gesture-receive", 0 ]
+					"source" : [ "runtime-events-receive", 0 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "manager", 0 ],
-					"source" : [ "runtime-events-receive", 0 ]
+					"source" : [ "coordinator-receive", 0 ]
 				}
 
 			}
@@ -391,13 +344,7 @@
 				}
 
 			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "manager", 0 ],
-					"source" : [ "local-receive", 0 ]
-				}
 
-			}
 , 			{
 				"patchline" : 				{
 					"destination" : [ "eq-preview-route", 0 ],

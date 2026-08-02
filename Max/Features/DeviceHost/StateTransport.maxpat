@@ -41,8 +41,11 @@
           "maxclass": "newobj",
           "text": "js consolidator.statetransport.js",
           "numinlets": 2,
-          "numoutlets": 9,
+          "numoutlets": 12,
           "outlettype": [
+            "",
+            "",
+            "",
             "",
             "",
             "",
@@ -198,6 +201,83 @@
             22.0
           ]
         }
+      },
+      {
+        "box": {
+          "id": "coordinator-ui",
+          "maxclass": "newobj",
+          "text": "s ---bankmanager.coordinator",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [
+            670.0,
+            160.0,
+            190.0,
+            22.0
+          ]
+        }
+      },
+      {
+        "box": {
+          "id": "processor-limits",
+          "maxclass": "newobj",
+          "text": "s ---link.control.processor",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [ 670.0, 185.0, 170.0, 22.0 ]
+        }
+      },
+      {
+        "box": {
+          "id": "filter-limits",
+          "maxclass": "newobj",
+          "text": "s ---link.control.analyzer",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [ 670.0, 210.0, 165.0, 22.0 ]
+        }
+      },
+      {
+        "box": {
+          "id": "coordinator-identity",
+          "maxclass": "newobj",
+          "text": "js consolidator.coordinatoridentity.js",
+          "numinlets": 1,
+          "numoutlets": 2,
+          "outlettype": [ "", "" ],
+          "patching_rect": [ 20.0, 235.0, 215.0, 22.0 ]
+        }
+      },
+      {
+        "box": {
+          "id": "coordinator-command-send",
+          "maxclass": "newobj",
+          "text": "s ---message.bus.in",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [ 245.0, 235.0, 135.0, 22.0 ]
+        }
+      },
+      {
+        "box": {
+          "id": "coordinator-changed-send",
+          "maxclass": "newobj",
+          "text": "s consolidator.host.bus",
+          "numinlets": 1,
+          "numoutlets": 0,
+          "patching_rect": [ 390.0, 235.0, 160.0, 22.0 ]
+        }
+      },
+      {
+        "box": {
+          "id": "coordinator-runtime-events",
+          "maxclass": "newobj",
+          "text": "r ---message.bus.out",
+          "numinlets": 0,
+          "numoutlets": 1,
+          "outlettype": [ "" ],
+          "patching_rect": [ 20.0, 265.0, 145.0, 22.0 ]
+        }
       }
     ],
     "lines": [
@@ -319,6 +399,48 @@
             "analyzer-ui",
             0
           ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "router",
+            9
+          ],
+          "destination": [
+            "coordinator-ui",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [ "router", 10 ],
+          "destination": [ "processor-limits", 0 ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [ "router", 11 ],
+          "destination": [ "filter-limits", 0 ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [ "coordinator-identity", 0 ],
+          "destination": [ "coordinator-command-send", 0 ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [ "coordinator-identity", 1 ],
+          "destination": [ "coordinator-changed-send", 0 ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [ "coordinator-runtime-events", 0 ],
+          "destination": [ "coordinator-identity", 0 ]
         }
       }
     ],

@@ -5,6 +5,7 @@
 #include "AnalyzerFilterVisuals.h"
 #include "AnalyzerFrameBuffer.h"
 #include "AnalyzerSpectrumEngine.h"
+#include "AnalyzerWorkProcessor.h"
 #include "Analysis/AnalyzerFeaturePipeline.h"
 #include "AtomAdapter.h"
 #include "AtomMessage.h"
@@ -13,13 +14,29 @@
 #include "Settings/AnalysisOptions.h"
 #include "Settings/SpectrumOptions.h"
 #include "LatestValueTripleBuffer.h"
+#include "Workflows/LatestWorkflowExecutor.h"
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <optional>
 
 using namespace c74::min;
 using namespace consolidator;
+
+struct AnalyzerAsyncRuntime final {
+    explicit AnalyzerAsyncRuntime(queue<>& completionQueue)
+        : executor(
+            [this](const std::shared_ptr<AnalyzerWorkTask>& task,
+                   const workflows::WorkflowCancellation& cancellation) {
+                return processor.Process(*task, cancellation);
+            },
+            [&completionQueue] { completionQueue.set(); }) {}
+
+    AnalyzerWorkProcessor processor;
+    workflows::LatestWorkflowExecutor<std::shared_ptr<AnalyzerWorkTask>, AnalyzerWorkResult> executor;
+    dspcore::LatestValueTripleBuffer<AnalyzerWorkTask> tasks;
+};
 
 class ConsolidatorAnalyzer :
     public object<ConsolidatorAnalyzer>,
@@ -64,6 +81,30 @@ public:
         this,
         MIN_FUNCTION {
             PublishCurves();
+            return {};
+        }
+    };
+
+    queue<> analysisDispatch{
+        this,
+        MIN_FUNCTION {
+            DispatchAnalysis();
+            return {};
+        }
+    };
+
+    queue<> analysisCompletion{
+        this,
+        MIN_FUNCTION {
+            DeliverAnalysis();
+            return {};
+        }
+    };
+
+    queue<> analysisRuntimeInitialization{
+        this,
+        MIN_FUNCTION {
+            InitializeAnalysisRuntime();
             return {};
         }
     };
@@ -137,6 +178,7 @@ public:
         "Apply one local EQ visual preview",
         MIN_FUNCTION {
             if (inlet != 6 || args.size() != 4) return {};
+            if (!IsSpectrumViewActive()) return {};
             const auto bankId = static_cast<long>(args[0]);
             const auto filterId = static_cast<long>(args[1]);
             const auto parameterIndex = static_cast<long>(args[2]);
@@ -170,9 +212,10 @@ public:
     message<> dspsetup{ this, "dspsetup",
         MIN_FUNCTION {
             if (!args.empty()) {
-                spectrumEngine.SetSampleRate(static_cast<double>(args[0]));
-                featurePipeline.SetSampleRate(static_cast<double>(args[0]));
-                filterVisuals.SetSampleRate(static_cast<double>(args[0]));
+                const auto sampleRate = static_cast<double>(args[0]);
+                analysisSampleRate.store(sampleRate, std::memory_order_release);
+                analysisRuntimeInitialization.set();
+                filterVisuals.SetSampleRate(sampleRate);
                 if (IsSpectrumViewActive()) {
                     filterVisuals.RefreshCurves();
                     PublishCurveSettings();
@@ -194,11 +237,14 @@ public:
         sample eqInputLeftIn,
         sample eqInputRightIn
     ) {
-        const consolidator::audio::AnalyzerInputFrame frame{
+        auto* runtime = analysisRuntime.get();
+        if (!runtime) return {};
+
+        const consolidator::audio::AnalyzerInputFrame visualFrame{
             { currentLeftIn, currentRightIn },
             { referenceLeftIn, referenceRightIn }
         };
-        const consolidator::audio::AnalyzerInputFrame fitFrame{
+        const consolidator::audio::AnalyzerInputFrame fitInputFrame{
             { eqInputLeftIn, eqInputRightIn },
             { referenceLeftIn, referenceRightIn }
         };
@@ -207,80 +253,36 @@ public:
         const auto viewMode = analyzerViewMode.load(std::memory_order_acquire);
         const auto sendSpectrum = viewVisible && viewMode == domain::AnalyzerViewMode::Spectrum;
         const auto sendAnalysis = viewVisible && viewMode == domain::AnalyzerViewMode::Analysis;
+        const auto visualCaptureRequested = sendSpectrum || sendAnalysis;
 
-        capture.Write(frame);
-        fitCapture.Write(fitFrame);
+        auto& task = runtime->tasks.ProducerValue();
+        if (!task.collecting) {
+            task.visualFrame.Reset();
+            task.fitFrame.Reset();
+            task.collecting = true;
+        }
 
-        const auto captureReady = capture.Advance();
-        fitCapture.Advance();
-        if (captureReady) {
-            const auto frameDifferenceGeneration = differenceGeneration.load(std::memory_order_acquire);
-            if (differenceResetRequested.exchange(false, std::memory_order_acq_rel)) {
-                curves.ResetDifference();
-                fitCurves.ResetDifference();
-            }
-            const auto currentActive = !capture.IsCurrentSilent();
-            const auto referenceActive = !capture.IsReferenceSilent();
-            const auto visualActive = currentActive || referenceActive;
-            const auto fitActive = !fitCapture.IsCurrentSilent() &&
-                !fitCapture.IsReferenceSilent();
-            if (visualActive || fitActive) {
-                audioActive.store(true, std::memory_order_release);
-                AnalyzerSpectrumResult spectra;
-                if (visualActive && (sendSpectrum || sendAnalysis)) {
-                    spectra = spectrumEngine.Analyze(capture, curves, sendSpectrum, false);
-                }
-                if (fitActive) {
-                    AnalyzerSpectrumResult fitSpectra;
-                    if (visualActive && (sendSpectrum || sendAnalysis)) {
-                        spectrumEngine.AnalyzeCurrentWithReferenceInto(
-                            fitCapture,
-                            spectra.reference,
-                            fitCurves,
-                            fitSpectra,
-                            true);
-                    }
-                    else {
-                        spectrumEngine.Analyze(fitCapture, fitCurves, true, true);
-                    }
-                }
-                if (sendSpectrum && fitActive) {
-                    curves.WriteFrame(
-                        curveFrames.ProducerValue(),
-                        fitCurves,
-                        frameDifferenceGeneration,
-                        referenceActive,
-                        true);
-                }
-                else if (sendSpectrum) {
-                    curves.WriteFrame(
-                        curveFrames.ProducerValue(),
-                        frameDifferenceGeneration,
-                        referenceActive,
-                        false);
-                }
-                else if (fitActive) {
-                    fitCurves.WriteFrame(
-                        curveFrames.ProducerValue(),
-                        frameDifferenceGeneration,
-                        referenceActive,
-                        true);
-                }
-                if (visualActive && sendAnalysis) {
-                    curveFrames.ProducerValue().SetFeatures(featurePipeline.Process(capture, spectra));
-                }
-                curveFrames.ProducerValue().SetGainLevels(ReadGainLevels());
-                curveFrames.Publish();
-                ScheduleCurveDelivery();
-            }
-            else if (audioActive.exchange(false, std::memory_order_acq_rel)) {
-                curveFrames.ProducerValue().MarkSilent();
-                curveFrames.Publish();
-                ScheduleCurveDelivery();
-            }
+        if (visualCaptureRequested != visualCaptureEnabled) {
+            task.visualFrame.Reset();
+            visualCaptureEnabled = visualCaptureRequested;
+        }
+        if (visualCaptureRequested) task.visualFrame.Write(visualFrame);
+        task.fitFrame.Write(fitInputFrame);
 
-            capture.Reset();
-            fitCapture.Reset();
+        const auto visualReady = visualCaptureRequested && task.visualFrame.Advance();
+        const auto fitReady = task.fitFrame.Advance();
+        if (visualReady || fitReady) {
+            task.visualReady = visualReady;
+            task.fitReady = fitReady;
+            task.sendSpectrum = sendSpectrum;
+            task.sendAnalysis = sendAnalysis;
+            task.resetDifference = differenceResetRequested.exchange(false, std::memory_order_acq_rel);
+            task.differenceGeneration = differenceGeneration.load(std::memory_order_acquire);
+            task.sampleRate = analysisSampleRate.load(std::memory_order_acquire);
+            task.gainLevels = ReadGainLevels();
+            task.collecting = false;
+            runtime->tasks.Publish();
+            ScheduleAnalysisDispatch();
         }
 
         return {};
@@ -300,8 +302,44 @@ private:
     void ResetDifferenceAccumulation() {
         differenceGeneration.fetch_add(1, std::memory_order_acq_rel);
         differenceResetRequested.store(true, std::memory_order_release);
+        if (analysisRuntime) {
+            analysisRuntime->executor.Cancel();
+            analysisRuntime->tasks.DiscardLatest();
+        }
         curveFrames.DiscardLatest();
         differenceOut.send("clear_fit_curve");
+    }
+
+    void InitializeAnalysisRuntime() {
+        if (analysisRuntime) return;
+        analysisRuntime = std::make_unique<AnalyzerAsyncRuntime>(analysisCompletion);
+    }
+
+    void DispatchAnalysis() {
+        analysisDispatchScheduled.store(false, std::memory_order_release);
+        if (!analysisRuntime) return;
+        analysisRuntime->tasks.ConsumeLatest([this](const AnalyzerWorkTask& task) {
+            auto input = std::make_shared<AnalyzerWorkTask>(task);
+            analysisRuntime->executor.Submit(++analysisTaskRevision, std::move(input));
+        });
+
+        if (analysisRuntime->tasks.HasPending()) ScheduleAnalysisDispatch();
+    }
+
+    void DeliverAnalysis() {
+        if (!analysisRuntime) return;
+        auto completion = analysisRuntime->executor.TakeCompletion();
+        if (!completion || completion->error || !completion->result || !completion->result->publish) return;
+
+        curveFrames.ProducerValue() = std::move(completion->result->frame);
+        curveFrames.Publish();
+        ScheduleCurveDelivery();
+    }
+
+    void ScheduleAnalysisDispatch() {
+        if (!analysisDispatchScheduled.exchange(true, std::memory_order_acq_rel)) {
+            analysisDispatch.set();
+        }
     }
 
     void ApplyEvent(const std::optional<messaging::AtomList>& atoms) {
@@ -317,6 +355,7 @@ private:
         }
         if (const auto* parameter = std::get_if<domain::ParameterUpdatedEvent>(&decoded.event)) {
             if (parameter->revision < latestEqRevision) return;
+            if (!IsSpectrumViewActive()) return;
             if (parameter->device == "eq" && filterVisuals.UpdateParameter(
                 parameter->bankId, parameter->filterId, parameter->parameter,
                 parameter->value)) {
@@ -348,7 +387,7 @@ private:
             hostReadyPublished = true;
             statusOut.send("status", "host_ready");
         }
-        ScheduleFilterVisualDelivery();
+        if (IsSpectrumViewActive()) ScheduleFilterVisualDelivery();
     }
 
     void SetViewState(bool visible, domain::AnalyzerViewMode mode) {
@@ -356,6 +395,10 @@ private:
         const auto modeChanged = analyzerViewMode.exchange(mode, std::memory_order_acq_rel) != mode;
         const auto changed = visibleChanged || modeChanged;
         if (!changed) return;
+        if (analysisRuntime) {
+            analysisRuntime->executor.Cancel();
+            analysisRuntime->tasks.DiscardLatest();
+        }
         curveFrames.DiscardLatest();
         if (IsSpectrumViewActive()) {
             PublishCurveSettings();
@@ -408,28 +451,26 @@ private:
         result.inputPostDb = inputPostDb.load(std::memory_order_acquire);
         result.outputPreDb = outputPreDb.load(std::memory_order_acquire);
         result.outputPostDb = outputPostDb.load(std::memory_order_acquire);
-        result.referenceDb = capture.ReferenceLevelDb();
+        result.referenceDb = -120.0;
         return result;
     }
 
-    static constexpr double FilterVisualFrameIntervalMilliseconds = 8.0;
+    static constexpr double FilterVisualFrameIntervalMilliseconds = 16.0;
 
-    AnalyzerFrameBuffer capture;
-    AnalyzerFrameBuffer fitCapture;
-    AnalyzerCurveBatch curves;
-    AnalyzerCurveBatch fitCurves;
+    std::unique_ptr<AnalyzerAsyncRuntime> analysisRuntime;
     dspcore::LatestValueTripleBuffer<AnalyzerCurveFrame> curveFrames;
-    AnalyzerSpectrumEngine spectrumEngine;
-    AnalyzerFeaturePipeline featurePipeline;
     AnalyzerFilterVisuals filterVisuals;
+    std::atomic<bool> analysisDispatchScheduled{ false };
     std::atomic<bool> curveDeliveryScheduled{ false };
+    std::atomic<double> analysisSampleRate{ settings::AudioOptions::DefaultSampleRateHz };
+    std::uint64_t analysisTaskRevision = 0;
     bool filterVisualDeliveryScheduled = false;
     bool filterVisualsDirty = false;
+    bool visualCaptureEnabled = false;
     bool hostReadyPublished = false;
     domain::StoreRevision latestEqRevision = 0;
     std::atomic<bool> differenceResetRequested{ false };
     std::atomic<std::uint64_t> differenceGeneration{ 0 };
-    std::atomic<bool> audioActive{ false };
     std::atomic<bool> analyzerViewVisible{ false };
     std::atomic<domain::AnalyzerViewMode> analyzerViewMode{ domain::AnalyzerViewMode::Spectrum };
     std::atomic<double> inputPreDb{ -120.0 };
