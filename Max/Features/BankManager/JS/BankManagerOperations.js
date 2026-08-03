@@ -98,17 +98,9 @@ BankManagerOperations.prototype.Detach = function(values) {
 
 BankManagerOperations.prototype.Execute = function(action, bypass) {
     var manager = this.manager;
-    var instance = manager.FocusedInstance();
     var bank = manager.FocusedBank();
     if (!bank) return;
-    if (!bank.linkId || instance.id !== manager.instanceId) {
-        this.Apply(action, bank.id, bypass);
-        return;
-    }
     this.Apply(action, bank.id, bypass);
-    outlet(1, "link.operation", bank.linkId, instance.id,
-        manager.NextLinkRevision(bank.linkId), action,
-        bypass === undefined ? -1 : bypass);
 };
 
 BankManagerOperations.prototype.Apply = function(action, bankId, bypass) {
@@ -121,39 +113,12 @@ BankManagerOperations.prototype.Apply = function(action, bankId, bypass) {
     }
 };
 
-BankManagerOperations.prototype.ApplyLinked = function(values) {
-    if (values.length !== 5) return;
-    var manager = this.manager;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var revision = Number(values[2]);
-    var action = String(values[3]);
-    var bypass = Number(values[4]);
-    if (sourceId === manager.instanceId || !isFinite(revision) ||
-        !manager.linkRevisions.AcceptOperation(linkId, sourceId, revision)) return;
-    var bank = manager.FindLocalLinkedBank(linkId);
-    if (!bank) return;
-    this.Apply(action, bank.id, bypass);
-};
-
 BankManagerOperations.prototype.ResetFilter = function(bankId, filterId) {
     var manager = this.manager;
     var instance = manager.FocusedInstance();
     var bank = instance && instance.banks[Number(bankId) - 1];
     if (!bank || !isFinite(filterId)) return;
-    if (!bank.linkId) {
-        manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
-        return;
-    }
     manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
-    outlet(1, "link.filter_reset", bank.linkId, manager.instanceId,
-        manager.NextLinkRevision(bank.linkId), filterId);
-};
-
-BankManagerOperations.prototype.PublishFilterBypass = function(linkId, filterId, bypass) {
-    var manager = this.manager;
-    outlet(1, "link.filter_bypass", linkId, manager.instanceId,
-        this.NextRevision(linkId), filterId, bypass);
 };
 
 BankManagerOperations.prototype.ApplyDetectorReset = function(values) {
@@ -170,35 +135,6 @@ BankManagerOperations.prototype.ApplyDetectorReset = function(values) {
             linkId, sourceId, revision)) return;
     if (!manager.HasLink(manager.local, linkId)) return;
     manager.SendDetectorReset(device, filterId);
-};
-
-BankManagerOperations.prototype.ApplyFilterBypass = function(values) {
-    var manager = this.manager;
-    if (values.length !== 5) return;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var revision = Number(values[2]);
-    var filterId = Number(values[3]);
-    var bypass = Number(values[4]) ? 1 : 0;
-    if (sourceId === manager.instanceId || !isFinite(revision) ||
-        !isFinite(filterId)) return;
-    var localBank = manager.FindLocalLinkedBank(linkId);
-    if (!localBank || !manager.linkRevisions.AcceptUpdate(linkId, sourceId, revision)) return;
-    manager.SendHostCommand("eq.set_bypass", [localBank.id, filterId, bypass]);
-};
-
-BankManagerOperations.prototype.ApplyFilterReset = function(values) {
-    var manager = this.manager;
-    if (values.length !== 4) return;
-    var linkId = String(values[0]);
-    var sourceId = String(values[1]);
-    var revision = Number(values[2]);
-    var filterId = Number(values[3]);
-    if (sourceId === manager.instanceId || !isFinite(filterId) ||
-        !manager.linkRevisions.AcceptOperation(linkId, sourceId, revision)) return;
-    var bank = manager.FindLocalLinkedBank(linkId);
-    if (!bank) return;
-    manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
 };
 
 BankManagerOperations.prototype.HandleDetectorReset = function(values) {
@@ -280,12 +216,6 @@ BankManagerOperations.prototype.HandleGlobal = function(name, values) {
         this.Assign(values);
     } else if (name === "link.detach") {
         this.Detach(values);
-    } else if (name === "link.operation") {
-        this.ApplyLinked(values);
-    } else if (name === "link.filter_bypass") {
-        this.ApplyFilterBypass(values);
-    } else if (name === "link.filter_reset") {
-        this.ApplyFilterReset(values);
     } else if (name === "link.processor_match") {
         this.ApplyProcessorMatch(values);
     } else if (name === "link.processor_bypass") {
