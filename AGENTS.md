@@ -379,10 +379,13 @@ Processor limits go over
 `---link.control.processor`; EQ `filter_limits` go over
 `---link.control.analyzer` and are forwarded to SpectrumView through
 `---analyzer.ui`. Limits are never recalculated during a gesture. The gesture
-source updates its complete linked cache before it broadcasts the delta. Each
-remote receiver updates only its own local member before its Host command;
-selecting a linked bank derives limits from the existing native cache; it never
-queries peers. A remote Host command is never broadcast again.
+source applies its target once, then each receiving Host updates only its own
+local member. Receivers do not copy complete state into Coordinator during the
+gesture; Coordinator refreshes the canonical cache after the coalesced
+confirmation. For a remote editing target, that target Host refreshes only its
+own Coordinator entry before the source publishes its canonical UI preview.
+Selecting a linked bank derives limits from the cache and never queries peers.
+A remote Host command is never broadcast again.
 
 Analyzer visualization is split into independent responsive JSUI components.
 `consolidator.analyzer.view.js` is the single responsive JSUI for Analyzer
@@ -472,6 +475,9 @@ native Coordinator entry. BankManager never registers or removes a Host; it
 only requests the compact directory for UI presentation. Peers do not exchange `bank.query`, `bank.announce`, or
 `link.state` frames. The runtime ID derives from its Live device object and is
 never persisted: copying a device always creates a separate Coordinator row.
+Every native Coordinator participant unregisters its callbacks from its own
+destructor. JavaScript `notifydeleted` is only optional early cleanup and never
+the lifetime guarantee for a native callback.
 BankManager sorts peer rows by `trackOrder` and uses the runtime ID only as a
 deterministic tie-breaker. Link updates carry
 `linkId`, source runtime ID, and a monotonically increasing revision. A
@@ -479,6 +485,17 @@ received remote update must apply in remote mode and never be broadcast again.
 Revisions are monotonic per source runtime ID and link; receivers track them by
 `(linkId, sourceRuntimeId)`. A single revision counter shared by all members can
 reject valid edits from another participant.
+
+BankManager may select any registered `(runtimeId, bankId)` as the local UI
+editing target. The local `DeviceHost` resolves that target through
+`LinkCoordinator`, publishes the target EQ and processor state to its local UI
+channels, and dispatches ordinary control commands directly to the target Host.
+While a remote target is active, `StateTransport` suppresses the local EQ and
+processor confirmation snapshots for UI consumers and forwards only the tagged
+target snapshot pair. Local DSP state transport remains independent.
+The target Host remains the sole state owner and propagates a linked continuous
+parameter edit to its own group. Analyzer audio and FFT always remain local to
+the visible device; only the EQ/processor control state is redirected.
 
 Continuous linked-control gestures have one latest-value dispatcher per local
 control parameter, capped at 16 ms. SpectrumView and processor controllers send
@@ -488,6 +505,14 @@ The UI neither scans group members nor waits for remote application. Fixed
 limits established on bank selection constrain the local control before it
 publishes a command.
 
+Local `link_filter_local` and `link_processor_local` handlers defer
+`LinkCoordinator::Dispatch` to a single-shot Min `queue<> linkDispatchQueue`.
+The handler returns immediately so the subsequent `eq.set_parameter` command
+updates the local Host and DSP without waiting for remote synchronous delivery.
+The queue coalesces multiple rapid gestures into one pending dispatch; when it
+fires on the main thread, only the latest gesture is sent to remote members.
+Remote `ApplyLinkedFilterGesture` and `ApplyLinkedProcessorGesture` remain
+synchronous, preserving group operation integrity.
 Linked gestures have two scoped preview lanes. `---link.control.analyzer`
 carries `eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>` and
 `filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>` to
