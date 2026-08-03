@@ -127,6 +127,15 @@ public:
         }
     };
 
+    queue<> linkedVisualQueue{
+        this,
+        MIN_FUNCTION {
+            linkedVisualScheduled = false;
+            DeliverPendingVisualEvents();
+            return {};
+        }
+    };
+
     timer<timer_options::defer_delivery> persistenceDelivery{
         this,
         MIN_FUNCTION {
@@ -750,6 +759,30 @@ private:
         coordinatorSyncDirty = true;
     }
 
+    bool TryApplyLinkedStateChange(const domain::Command& command) {
+        if (!ready) return false;
+        const auto revisionBefore = host.Revision();
+        suppressContinuousStatePublication = true;
+        host.Handle(command);
+        suppressContinuousStatePublication = false;
+        if (host.Revision() == revisionBefore) return false;
+        PublishParameterUpdate(command, host.Revision());
+        coordinatorSyncDirty = true;
+        return true;
+    }
+
+    void ScheduleVisualDelivery(std::function<void()> visualEvent) {
+        pendingVisualEvents.push_back(std::move(visualEvent));
+        if (linkedVisualScheduled) return;
+        linkedVisualScheduled = true;
+        linkedVisualQueue.set();
+    }
+
+    void DeliverPendingVisualEvents() {
+        for (const auto& event : pendingVisualEvents) event();
+        pendingVisualEvents.clear();
+    }
+
     void ScheduleLinkDispatch(std::function<void()> dispatcher) {
         if (linkDispatchScheduled) return;
         linkDispatchScheduled = true;
@@ -779,8 +812,10 @@ private:
         ApplyLinkedCommand(domain::SetEqParameterIndexCommand{
             {}, { bank->bankId }, { gesture.filterId }, gesture.parameterIndex, value
         });
-        eventOut.send("eq_preview", bank->bankId, gesture.filterId,
-            static_cast<long>(gesture.parameterIndex), value);
+        ScheduleVisualDelivery([this, bankId = bank->bankId, filterId = gesture.filterId,
+            parameterIndex = static_cast<long>(gesture.parameterIndex), value]() {
+            eventOut.send("eq_preview", bankId, filterId, parameterIndex, value);
+        });
     }
 
     void ApplyLinkedProcessorGesture(const host::LinkedProcessorGesture& gesture) {
@@ -808,7 +843,9 @@ private:
                 ApplyLinkedCommand(domain::SetSaturatorDetectorParameterCommand{ {}, filterId, parameter, value });
             } else ApplyLinkedCommand(domain::SetSaturatorParameterCommand{ {}, gesture.parameter, value });
         }
-        eventOut.send("coordinator_processor_preview", gesture.device, gesture.parameter, value);
+        ScheduleVisualDelivery([this, device = gesture.device, parameter = gesture.parameter, value]() {
+            eventOut.send("coordinator_processor_preview", device, parameter, value);
+        });
     }
 
     std::optional<double> ReadProcessorValue(
@@ -1185,6 +1222,8 @@ private:
     bool continuousProcessorConfirmationDirty = false;
     bool linkDispatchScheduled = false;
     std::function<void()> pendingDispatch;
+    bool linkedVisualScheduled = false;
+    std::vector<std::function<void()>> pendingVisualEvents;
     std::string runtimeId;
     std::string editingRuntimeId;
     long editingBankId = models::EqSnapshot::FirstUserBankId;
