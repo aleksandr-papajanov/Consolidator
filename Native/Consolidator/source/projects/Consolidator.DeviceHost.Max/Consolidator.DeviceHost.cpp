@@ -712,7 +712,11 @@ private:
             std::holds_alternative<domain::ResetEqChainCommand>(command) ||
             std::holds_alternative<domain::SetEqChainBypassCommand>(command) ||
             std::holds_alternative<domain::JoinEqBanksCommand>(command) ||
-            std::holds_alternative<domain::CommitAllEqBanksCommand>(command);
+            std::holds_alternative<domain::CommitAllEqBanksCommand>(command) ||
+            std::holds_alternative<domain::SetCompressorBypassCommand>(command) ||
+            std::holds_alternative<domain::SetSaturatorBypassCommand>(command) ||
+            std::holds_alternative<domain::ResetCompressorCommand>(command) ||
+            std::holds_alternative<domain::ResetSaturatorCommand>(command);
         if (!groupOperation) return false;
         for (const auto& member : host::LinkCoordinator::Instance().Members(bank->linkId)) {
             auto memberCommand = command;

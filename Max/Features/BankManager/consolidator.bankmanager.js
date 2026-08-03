@@ -445,18 +445,6 @@ BankManager.prototype.HandleGlobal = function(name, values) {
     this.operations.HandleGlobal(name, values);
 };
 
-BankManager.prototype.ApplyProcessorDetectorReset = function(values) {
-    this.operations.ApplyDetectorReset(values);
-};
-
-BankManager.prototype.ApplyLinkBypass = function(values) {
-    this.operations.ApplyFilterBypass(values);
-};
-
-BankManager.prototype.ApplyLinkFilterReset = function(values) {
-    this.operations.ApplyFilterReset(values);
-};
-
 BankManager.prototype.HandleProcessorMatchOperation = function(values) {
     if (values.length !== 2) return;
     var device = String(values[0]);
