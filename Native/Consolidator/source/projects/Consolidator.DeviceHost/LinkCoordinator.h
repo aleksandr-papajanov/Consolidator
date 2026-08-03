@@ -81,9 +81,13 @@ public:
     void DispatchCommand(const std::string& runtimeId, RoutedCommand command) const;
 
 private:
+    void AddLinksFor(const std::string& runtimeId, const models::EqSnapshot& eq);
+    void RemoveLinksFor(const std::string& runtimeId);
+
     mutable std::mutex mutex;
     std::map<std::string, LinkCoordinatorEntry, std::less<>> entries;
     std::map<std::string, LinkCoordinatorCallbacks, std::less<>> callbacks;
+    std::map<std::string, std::vector<std::string>, std::less<>> linkMembers;
 };
 
 } // namespace consolidator::host

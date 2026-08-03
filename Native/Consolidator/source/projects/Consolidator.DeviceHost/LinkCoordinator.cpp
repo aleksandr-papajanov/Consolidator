@@ -13,7 +13,23 @@ LinkCoordinator& LinkCoordinator::Instance() {
 void LinkCoordinator::Upsert(LinkCoordinatorEntry entry) {
     if (entry.runtimeId.empty()) return;
     std::lock_guard lock(mutex);
+    RemoveLinksFor(entry.runtimeId);
+    auto eq = entry.eq;
     entries.insert_or_assign(entry.runtimeId, std::move(entry));
+    AddLinksFor(entry.runtimeId, eq);
+}
+
+void LinkCoordinator::AddLinksFor(const std::string& runtimeId, const models::EqSnapshot& eq) {
+    for (const auto& bank : eq.banks) {
+        if (bank.linkId.empty()) continue;
+        linkMembers[bank.linkId].push_back(runtimeId);
+    }
+}
+
+void LinkCoordinator::RemoveLinksFor(const std::string& runtimeId) {
+    for (auto& [linkId, members] : linkMembers) {
+        members.erase(std::remove(members.begin(), members.end(), runtimeId), members.end());
+    }
 }
 
 void LinkCoordinator::RegisterCallbacks(
@@ -28,6 +44,7 @@ void LinkCoordinator::RegisterCallbacks(
 void LinkCoordinator::Remove(const std::string& runtimeId) {
     if (runtimeId.empty()) return;
     std::lock_guard lock(mutex);
+    RemoveLinksFor(runtimeId);
     entries.erase(runtimeId);
     callbacks.erase(runtimeId);
 }
@@ -36,12 +53,13 @@ void LinkCoordinator::Dispatch(const LinkedFilterGesture& gesture) const {
     std::vector<std::function<void(const LinkedFilterGesture&)>> recipients;
     {
         std::lock_guard lock(mutex);
-        for (const auto& [runtimeId, entry] : entries) {
-            const auto linked = std::any_of(entry.eq.banks.begin(), entry.eq.banks.end(),
-                [&gesture](const auto& bank) { return bank.linkId == gesture.linkId; });
-            const auto callback = callbacks.find(runtimeId);
-            if (linked && callback != callbacks.end() && callback->second.applyFilter) {
-                recipients.push_back(callback->second.applyFilter);
+        const auto members = linkMembers.find(gesture.linkId);
+        if (members != linkMembers.end()) {
+            for (const auto& runtimeId : members->second) {
+                const auto callback = callbacks.find(runtimeId);
+                if (callback != callbacks.end() && callback->second.applyFilter) {
+                    recipients.push_back(callback->second.applyFilter);
+                }
             }
         }
     }
@@ -52,12 +70,13 @@ void LinkCoordinator::Dispatch(const LinkedProcessorGesture& gesture) const {
     std::vector<std::function<void(const LinkedProcessorGesture&)>> recipients;
     {
         std::lock_guard lock(mutex);
-        for (const auto& [runtimeId, entry] : entries) {
-            const auto linked = std::any_of(entry.eq.banks.begin(), entry.eq.banks.end(),
-                [&gesture](const auto& bank) { return bank.linkId == gesture.linkId; });
-            const auto callback = callbacks.find(runtimeId);
-            if (linked && callback != callbacks.end() && callback->second.applyProcessor) {
-                recipients.push_back(callback->second.applyProcessor);
+        const auto members = linkMembers.find(gesture.linkId);
+        if (members != linkMembers.end()) {
+            for (const auto& runtimeId : members->second) {
+                const auto callback = callbacks.find(runtimeId);
+                if (callback != callbacks.end() && callback->second.applyProcessor) {
+                    recipients.push_back(callback->second.applyProcessor);
+                }
             }
         }
     }
@@ -86,9 +105,11 @@ void LinkCoordinator::UpdateState(
     std::lock_guard lock(mutex);
     const auto entry = entries.find(runtimeId);
     if (entry == entries.end()) return;
+    RemoveLinksFor(runtimeId);
     entry->second.revision = revision;
     entry->second.eq = eq;
     entry->second.processor = processor;
+    AddLinksFor(runtimeId, eq);
 }
 
 std::vector<LinkCoordinatorEntry> LinkCoordinator::Entries() const {
