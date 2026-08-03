@@ -417,10 +417,6 @@ BankManager.prototype.ApplyOperation = function(action, bankId, bypass) {
     this.operations.Apply(action, bankId, bypass);
 };
 
-BankManager.prototype.ApplyLinkOperation = function(values) {
-    this.operations.ApplyLinked(values);
-};
-
 BankManager.prototype.NextLinkRevision = function(linkId) {
     return this.operations.NextRevision(linkId);
 };
