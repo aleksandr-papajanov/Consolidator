@@ -132,15 +132,11 @@ BankManager.prototype.IsFocusedBank = function(instance, bank) {
 
 BankManager.prototype.SetFocusedBank = function(instance, bankId) {
     if (!instance || !isFinite(bankId) || bankId < 1 || bankId > 6) return;
-    if (instance.id !== this.instanceId) return;
     if (!this.selection.SetFocusedBank(instance, bankId)) return;
     if (!this.CanChangeFocusedBankLink()) this.linkEditingEnabled = false;
     this.controlLinkSession = "";
     // Local controls accept limits only for the selected bank confirmed by Host.
-    if (instance.id === this.instanceId &&
-        bankId === this.local.selectedBankId) {
-        this.SynchronizeCoordinator();
-    }
+    this.SynchronizeCoordinator();
 };
 
 BankManager.prototype.HasLink = function(instance, linkId) {
@@ -224,18 +220,20 @@ BankManager.prototype.LinkMemberIds = function(linkId) {
 };
 
 BankManager.prototype.RefreshControlLinkSession = function() {
-    var activeLinkId = this.ActiveLinkId(this.local);
+    var focusedInstance = this.FocusedInstance();
+    var focusedBank = this.FocusedBank();
+    var activeLinkId = focusedBank ? focusedBank.linkId : "";
     var activeMembers = activeLinkId ? this.LinkMemberIds(activeLinkId) : [];
-    var activeBank = this.ActiveBank(this.local);
     var signature = (activeLinkId && activeMembers.length >= 2
         ? activeLinkId + ":" + activeMembers.join(",")
-        : "unlinked") + ":" + (activeBank ? activeBank.id : 0);
+        : "unlinked") + ":" + (focusedBank ? focusedBank.id : 0) + ":" + focusedInstance.id;
     if (this.controlLinkSession === signature) return;
     this.controlLinkSession = signature;
     var color = activeLinkId ? this.LinkColor(activeLinkId) : null;
     outlet(2, "link_color", activeLinkId && color ? activeLinkId : "-",
         color ? color[0] : 0, color ? color[1] : 0,
         color ? color[2] : 0, color ? color[3] : 0);
+    outlet(0, "coordinator_select_target", focusedInstance.id, focusedBank.id);
     outlet(0, "coordinator_limits");
 };
 

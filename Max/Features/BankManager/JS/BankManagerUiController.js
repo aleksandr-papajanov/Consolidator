@@ -73,10 +73,12 @@ BankManagerUiController.prototype.Click = function(x, y, shift) {
     if (bank.id === 0) return;
     if (manager.linkEditingEnabled) {
         manager.groupOperations.EditBankMembership(instance, bank, Boolean(shift));
-    } else if (instance.id === manager.instanceId) {
-        manager.local.selectedBankId = bank.id;
+    } else {
+        if (instance.id === manager.instanceId) manager.local.selectedBankId = bank.id;
         manager.SetFocusedBank(instance, bank.id);
-        manager.SendHostCommand("eq.select_bank", [bank.id]);
+        if (instance.id === manager.instanceId) {
+            manager.SendHostCommand("eq.select_bank", [bank.id]);
+        }
     }
     mgraphics.redraw();
 };

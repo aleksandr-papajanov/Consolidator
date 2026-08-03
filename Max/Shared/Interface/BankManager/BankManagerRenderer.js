@@ -60,8 +60,8 @@ BankManagerRenderer.prototype.DrawBanks = function(manager, instance, banks, x, 
     for (var index = 0; index < banks.length; ++index) {
         var bank = banks[index];
         var interactive = bank.id !== 0;
-        var selected = interactive && !manager.linkEditingEnabled && local &&
-            bank.id === manager.local.selectedBankId;
+        var selected = interactive && !manager.linkEditingEnabled &&
+            manager.IsFocusedBank(instance, bank);
         var editSelected = manager.groupOperations.IsSelected(instance, bank);
         var visible = manager.visibilityPolicy.IsVisible(instance, bank, local);
         if (!visible) {

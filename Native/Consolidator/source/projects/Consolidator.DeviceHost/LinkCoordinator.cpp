@@ -64,6 +64,19 @@ void LinkCoordinator::Dispatch(const LinkedProcessorGesture& gesture) const {
     for (const auto& recipient : recipients) recipient(gesture);
 }
 
+void LinkCoordinator::DispatchCommand(
+    const std::string& runtimeId,
+    RoutedCommand command
+) const {
+    std::function<void(const RoutedCommand&)> recipient;
+    {
+        std::lock_guard lock(mutex);
+        const auto callback = callbacks.find(runtimeId);
+        if (callback != callbacks.end()) recipient = callback->second.applyCommand;
+    }
+    if (recipient) recipient(command);
+}
+
 void LinkCoordinator::UpdateState(
     const std::string& runtimeId,
     domain::StoreRevision revision,
@@ -90,6 +103,15 @@ std::vector<LinkCoordinatorEntry> LinkCoordinator::Entries() const {
         return left.runtimeId < right.runtimeId;
     });
     return result;
+}
+
+std::optional<LinkCoordinatorEntry> LinkCoordinator::Find(
+    const std::string& runtimeId
+) const {
+    std::lock_guard lock(mutex);
+    const auto entry = entries.find(runtimeId);
+    if (entry == entries.end()) return std::nullopt;
+    return entry->second;
 }
 
 std::vector<LinkCoordinatorMember> LinkCoordinator::Members(const std::string& linkId) const {

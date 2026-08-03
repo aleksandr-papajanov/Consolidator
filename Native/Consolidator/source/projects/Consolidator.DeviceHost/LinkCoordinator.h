@@ -1,11 +1,13 @@
 #pragma once
 
 #include "Ids/DomainIds.h"
+#include "Commands/Commands.h"
 #include "Models/EqSnapshot.h"
 #include "Models/ProcessorState.h"
 
 #include <map>
 #include <mutex>
+#include <optional>
 #include <functional>
 #include <cstddef>
 #include <string>
@@ -45,9 +47,16 @@ struct LinkedProcessorGesture final {
     double targetNormalized = 0.0;
 };
 
+struct RoutedCommand final {
+    std::string sourceRuntimeId;
+    long bankId = 0;
+    domain::Command command;
+};
+
 struct LinkCoordinatorCallbacks final {
     std::function<void(const LinkedFilterGesture&)> applyFilter;
     std::function<void(const LinkedProcessorGesture&)> applyProcessor;
+    std::function<void(const RoutedCommand&)> applyCommand;
 };
 
 // Process-local runtime registry. DeviceHost remains the owner of persisted state.
@@ -65,9 +74,11 @@ public:
         const models::ProcessorState& processor);
 
     std::vector<LinkCoordinatorEntry> Entries() const;
+    std::optional<LinkCoordinatorEntry> Find(const std::string& runtimeId) const;
     std::vector<LinkCoordinatorMember> Members(const std::string& linkId) const;
     void Dispatch(const LinkedFilterGesture& gesture) const;
     void Dispatch(const LinkedProcessorGesture& gesture) const;
+    void DispatchCommand(const std::string& runtimeId, RoutedCommand command) const;
 
 private:
     mutable std::mutex mutex;

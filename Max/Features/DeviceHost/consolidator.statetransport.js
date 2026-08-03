@@ -2,7 +2,11 @@ autowatch = 1;
 inlets = 2;
 outlets = 12;
 
-function StateTransport() {}
+function StateTransport() {
+    this.remoteTargetActive = false;
+    this.pendingTargetEqSnapshot = false;
+    this.pendingTargetProcessorSnapshot = false;
+}
 
 StateTransport.prototype.RouteEvent = function(values) {
     if (String(values[3]) === "parameter.updated") {
@@ -19,6 +23,8 @@ StateTransport.prototype.RouteSnapshot = function(values) {
         String(values[1]) !== "host") return;
     var store = String(values[2]);
     if (store === "eq") {
+        if (this.remoteTargetActive && !this.pendingTargetEqSnapshot) return;
+        this.pendingTargetEqSnapshot = false;
         outlet(1, "snapshot", values);
         outlet(6, "snapshot", values);
     } else if (store === "dsp") {
@@ -26,6 +32,8 @@ StateTransport.prototype.RouteSnapshot = function(values) {
     } else if (store === "device") {
         outlet(4, "snapshot", values);
     } else if (store === "processor") {
+        if (this.remoteTargetActive && !this.pendingTargetProcessorSnapshot) return;
+        this.pendingTargetProcessorSnapshot = false;
         outlet(5, "snapshot", values);
     }
 };
@@ -41,6 +49,11 @@ StateTransport.prototype.RouteAnalyzerUiState = function(name, values) {
 StateTransport.prototype.RouteCoordinatorState = function(name, values) {
     if (String(name) === "eq_preview" && values.length === 4) {
         outlet(8, "eq_preview", values);
+    } else if (String(name) === "coordinator_target" && values.length === 3) {
+        this.remoteTargetActive = Number(values[2]) !== 0;
+        this.pendingTargetEqSnapshot = this.remoteTargetActive;
+        this.pendingTargetProcessorSnapshot = this.remoteTargetActive;
+        outlet(6, "coordinator_target", values.slice(0, 2));
     } else if (String(name) === "coordinator_directory") {
         outlet(9, "coordinator_directory", values);
     } else if (String(name) === "coordinator_processor_limits") {

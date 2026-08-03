@@ -98,14 +98,15 @@ BankManagerOperations.prototype.Detach = function(values) {
 
 BankManagerOperations.prototype.Execute = function(action, bypass) {
     var manager = this.manager;
-    var bank = manager.ActiveBank(manager.local);
+    var instance = manager.FocusedInstance();
+    var bank = manager.FocusedBank();
     if (!bank) return;
-    if (!bank.linkId) {
+    if (!bank.linkId || instance.id !== manager.instanceId) {
         this.Apply(action, bank.id, bypass);
         return;
     }
     this.Apply(action, bank.id, bypass);
-    outlet(1, "link.operation", bank.linkId, manager.instanceId,
+    outlet(1, "link.operation", bank.linkId, instance.id,
         manager.NextLinkRevision(bank.linkId), action,
         bypass === undefined ? -1 : bypass);
 };
@@ -137,7 +138,8 @@ BankManagerOperations.prototype.ApplyLinked = function(values) {
 
 BankManagerOperations.prototype.ResetFilter = function(bankId, filterId) {
     var manager = this.manager;
-    var bank = manager.LocalBank(bankId);
+    var instance = manager.FocusedInstance();
+    var bank = instance && instance.banks[Number(bankId) - 1];
     if (!bank || !isFinite(filterId)) return;
     if (!bank.linkId) {
         manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);

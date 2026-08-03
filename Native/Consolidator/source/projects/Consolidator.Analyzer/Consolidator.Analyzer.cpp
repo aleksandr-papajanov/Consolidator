@@ -139,6 +139,17 @@ public:
         }
     };
 
+    message<> coordinatorTarget{
+        this,
+        "coordinator_target",
+        "Reset EQ visual revision tracking before a new editing target snapshot",
+        MIN_FUNCTION {
+            if (inlet != 6 || args.size() != 2) return {};
+            latestEqRevision = 0;
+            return {};
+        }
+    };
+
     message<> list{
         this,
         "list",

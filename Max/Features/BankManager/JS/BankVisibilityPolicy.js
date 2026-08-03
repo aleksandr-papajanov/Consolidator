@@ -7,8 +7,7 @@ BankVisibilityPolicy.prototype.Rows = function() {
 };
 
 BankVisibilityPolicy.prototype.IsVisible = function(instance, bank, local) {
-    if (local || this.manager.linkEditingEnabled) return true;
-    return this.manager.IsActiveGroupMember(bank);
+    return true;
 };
 
 BankVisibilityPolicy.prototype.Opacity = function(bank, local, selected, editSelected) {
@@ -26,5 +25,5 @@ BankVisibilityPolicy.prototype.IsEnabled = function(bank, local) {
     if (!bank || bank.id === 0) return false;
     return this.manager.linkEditingEnabled
         ? this.manager.groupOperations.IsEditableBank(bank)
-        : local;
+        : bank.id >= 1;
 };

@@ -41,6 +41,12 @@ public:
     MIN_TAGS{ "state, host, messaging" };
     MIN_AUTHOR{ "Oleksandr Papaianov" };
 
+    ~ConsolidatorDeviceHost() {
+        // Coordinator callbacks capture this Host. Native teardown must unregister
+        // them before Max can destroy the owning external.
+        host::LinkCoordinator::Instance().Remove(runtimeId);
+    }
+
     inlet<> commandIn{
         this,
         "(message) commands: command 1 <source> <requestId> <name> <fields>; coordinator_identity <runtimeId> <trackName> <trackOrder>; eq.set_parameter, eq.set_bypass, eq.set_chain_bypass <0|1>, eq.set_chain_solo <0|1>, eq.reset <bankId>, eq.reset_all, eq.join_banks <count> <bankIds...>, eq.commit_hidden <bankId>, eq.commit_all, eq.set_link <bankId> <linkId|->, eq.select_bank, gain.*, compressor.*, saturator.*, history.begin <operationId>, history.end <operationId>, history.undo, history.redo, history.restore <operationId> <undo|redo>, analyzer.clear, analyzer.set_view <0|1> <spectrum|analysis>, fit.start <pointCount> <curveDb...>, fit.complete, fit.fail; bang publishes EQ and DSP snapshots after initialization"
@@ -100,6 +106,27 @@ public:
         }
     };
 
+    queue<> editingStateDelivery{
+        this,
+        MIN_FUNCTION {
+            editingStateDeliveryScheduled = false;
+            if (ready && editingStateDirty) {
+                editingStateDirty = false;
+                PublishEditingState();
+            }
+            return {};
+        }
+    };
+
+    queue<> linkDispatchQueue{
+        this,
+        MIN_FUNCTION {
+            linkDispatchScheduled = false;
+            DeliverPendingLinkDispatch();
+            return {};
+        }
+    };
+
     timer<timer_options::defer_delivery> persistenceDelivery{
         this,
         MIN_FUNCTION {
@@ -107,6 +134,10 @@ public:
                 persistenceDirty = false;
                 PublishPersistence();
                 PublishContinuousConfirmations();
+            }
+            if (ready && coordinatorSyncDirty) {
+                coordinatorSyncDirty = false;
+                SyncCoordinator();
             }
             return {};
         }
@@ -198,12 +229,16 @@ public:
             runtimeId = std::string{ args[0] };
             trackName = std::string{ args[1] };
             trackOrder = static_cast<long>(args[2]);
+            if (editingRuntimeId.empty()) editingRuntimeId = runtimeId;
             host::LinkCoordinator::Instance().RegisterCallbacks(runtimeId, {
                 [this](const host::LinkedFilterGesture& gesture) {
                     ApplyLinkedFilterGesture(gesture);
                 },
                 [this](const host::LinkedProcessorGesture& gesture) {
                     ApplyLinkedProcessorGesture(gesture);
+                },
+                [this](const host::RoutedCommand& command) {
+                    ApplyRoutedCommand(command);
                 }
             });
             SyncCoordinator();
@@ -237,6 +272,24 @@ public:
         }
     };
 
+    message<> coordinatorSelectTarget{
+        this,
+        "coordinator_select_target",
+        "Select the runtime instance and bank controlled by this local UI",
+        MIN_FUNCTION {
+            if (inlet != 0 || args.size() != 2) return {};
+            const auto targetRuntimeId = std::string{ args[0] };
+            const auto targetBankId = static_cast<long>(args[1]);
+            const auto target = host::LinkCoordinator::Instance().Find(targetRuntimeId);
+            if (!target || targetBankId < models::EqSnapshot::FirstUserBankId ||
+                targetBankId > models::EqSnapshot::LastUserBankId) return {};
+            editingRuntimeId = targetRuntimeId;
+            editingBankId = targetBankId;
+            PublishEditingState();
+            return {};
+        }
+    };
+
     message<> coordinatorRemove{
         this,
         "coordinator_remove",
@@ -244,6 +297,19 @@ public:
         MIN_FUNCTION {
             if (inlet != 0 || args.size() != 1) return {};
             host::LinkCoordinator::Instance().Remove(std::string{ args[0] });
+            return {};
+        }
+    };
+
+    message<> bankAction{
+        this,
+        "bank_action",
+        "Apply Join, Commit, Reset, or Bypass to the current editing target",
+        MIN_FUNCTION {
+            if (inlet != 0 || args.empty() || args.size() > 2 || !ready) return {};
+            const auto action = std::string{ args[0] };
+            const auto bypass = args.size() == 2 ? static_cast<long>(args[1]) : 0;
+            ApplyBankAction(action, bypass);
             return {};
         }
     };
@@ -258,6 +324,7 @@ public:
             const auto filterId = static_cast<long>(args[1]);
             const auto parameterIndex = static_cast<std::size_t>(static_cast<long>(args[2]));
             const auto targetValue = static_cast<double>(args[3]);
+            if (!editingRuntimeId.empty() && editingRuntimeId != runtimeId) return {};
             const auto* bank = host.Eq().State().FindBank(bankId);
             const auto definition = domain::FilterDefinitions().find(filterId);
             const auto* filter = bank ? bank->FindFilter(filterId) : nullptr;
@@ -265,9 +332,12 @@ public:
                 parameterIndex >= filter->values.size() || parameterIndex >= definition->second.parameters.size() ||
                 !std::isfinite(targetValue)) return {};
             const auto& range = definition->second.parameters[parameterIndex].range;
-            host::LinkCoordinator::Instance().Dispatch(host::LinkedFilterGesture{
+            auto gesture = host::LinkedFilterGesture{
                 bank->linkId, runtimeId, filterId, parameterIndex,
                 range.Normalize(filter->values[parameterIndex]), range.Normalize(targetValue)
+            };
+            ScheduleLinkDispatch([this, gesture = std::move(gesture)]() {
+                host::LinkCoordinator::Instance().Dispatch(gesture);
             });
             return {};
         }
@@ -282,14 +352,18 @@ public:
             const auto device = std::string{ args[0] };
             const auto parameter = std::string{ args[1] };
             const auto targetValue = static_cast<double>(args[2]);
+            if (!editingRuntimeId.empty() && editingRuntimeId != runtimeId) return {};
             const auto* bank = host.Eq().State().SelectedBank();
             const auto definition = models::ParameterDefinitions().find(device + "." + parameter);
             const auto current = ReadProcessorValue(device, parameter);
             if (!bank || bank->linkId.empty() || definition == models::ParameterDefinitions().end() ||
                 !current || !std::isfinite(targetValue)) return {};
-            host::LinkCoordinator::Instance().Dispatch(host::LinkedProcessorGesture{
+            auto gesture = host::LinkedProcessorGesture{
                 bank->linkId, runtimeId, device, parameter,
                 definition->second.Normalize(*current), definition->second.Normalize(targetValue)
+            };
+            ScheduleLinkDispatch([this, gesture = std::move(gesture)]() {
+                host::LinkCoordinator::Instance().Dispatch(gesture);
             });
             return {};
         }
@@ -381,31 +455,284 @@ private:
             debugOut.send("error", "host_not_ready");
             return;
         }
+        if (DispatchEditingGroupOperation(decoded.command)) return;
+        if (RouteToEditingTarget(decoded.command)) return;
+        ApplyLocalCommand(decoded.command);
+    }
+
+    void ApplyRoutedCommand(const host::RoutedCommand& routed) {
+        if (!ready) return;
+        const auto revisionBefore = host.Revision();
+        const auto* bank = host.Eq().State().FindBank(routed.bankId);
+        const auto linkId = bank ? bank->linkId : std::string{};
+        const auto previousEqValue = std::visit([bank](const auto& value)
+            -> std::optional<double> {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) {
+                const auto* filter = bank ? bank->FindFilter(value.filterId.value) : nullptr;
+                const auto definition = domain::FilterDefinitions().find(value.filterId.value);
+                if (!filter || definition == domain::FilterDefinitions().end()) return std::nullopt;
+                for (std::size_t index = 0; index < definition->second.parameters.size(); ++index) {
+                    if (definition->second.parameters[index].name == value.parameter && index < filter->values.size()) {
+                        return filter->values[index];
+                    }
+                }
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetEqParameterIndexCommand>) {
+                const auto* filter = bank ? bank->FindFilter(value.filterId.value) : nullptr;
+                if (filter && value.parameterIndex < filter->values.size()) return filter->values[value.parameterIndex];
+            }
+            return std::nullopt;
+        }, routed.command);
+        const auto previousProcessorValue = std::visit([this](const auto& value)
+            -> std::optional<double> {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
+                return ReadProcessorValue(value.stage == domain::GainStage::Input
+                    ? "input_gain" : "output_gain", "gain");
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) {
+                return ReadProcessorValue("compressor", value.parameter);
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorParameterCommand>) {
+                return ReadProcessorValue("saturator", value.parameter);
+            }
+            else return std::nullopt;
+        }, routed.command);
+        ApplyLocalCommand(routed.command);
+        if (IsContinuousParameterCommand(routed.command) && host.Revision() != revisionBefore) {
+            // The remote UI reads this target from Coordinator immediately after
+            // its preview. Keep that one entry current without syncing every peer.
+            SyncCoordinator();
+        }
+        if (linkId.empty()) return;
+        std::visit([this, &routed, &linkId, previousEqValue, previousProcessorValue](const auto& value) {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) {
+                const auto definition = domain::FilterDefinitions().find(value.filterId.value);
+                const auto* filter = host.Eq().State().FindBank(routed.bankId)->FindFilter(value.filterId.value);
+                if (definition == domain::FilterDefinitions().end() || !filter || !previousEqValue) return;
+                for (std::size_t index = 0; index < definition->second.parameters.size(); ++index) {
+                    if (definition->second.parameters[index].name != value.parameter || index >= filter->values.size()) continue;
+                    host::LinkCoordinator::Instance().Dispatch(host::LinkedFilterGesture{
+                        linkId, runtimeId, static_cast<long>(value.filterId.value), index,
+                        definition->second.parameters[index].range.Normalize(*previousEqValue),
+                        definition->second.parameters[index].range.Normalize(filter->values[index])
+                    });
+                    return;
+                }
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetEqParameterIndexCommand>) {
+                const auto definition = domain::FilterDefinitions().find(value.filterId.value);
+                const auto* filter = host.Eq().State().FindBank(routed.bankId)->FindFilter(value.filterId.value);
+                if (definition == domain::FilterDefinitions().end() || !filter || !previousEqValue ||
+                    value.parameterIndex >= definition->second.parameters.size() ||
+                    value.parameterIndex >= filter->values.size()) return;
+                host::LinkCoordinator::Instance().Dispatch(host::LinkedFilterGesture{
+                    linkId, runtimeId, static_cast<long>(value.filterId.value), value.parameterIndex,
+                    definition->second.parameters[value.parameterIndex].range.Normalize(*previousEqValue),
+                    definition->second.parameters[value.parameterIndex].range.Normalize(filter->values[value.parameterIndex])
+                });
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand> ||
+                std::is_same_v<Command, domain::SetCompressorParameterCommand> ||
+                std::is_same_v<Command, domain::SetSaturatorParameterCommand>) {
+                std::string device;
+                std::string parameter;
+                if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
+                    device = value.stage == domain::GainStage::Input ? "input_gain" : "output_gain";
+                    parameter = "gain";
+                }
+                else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) {
+                    device = "compressor";
+                    parameter = value.parameter;
+                }
+                else {
+                    device = "saturator";
+                    parameter = value.parameter;
+                }
+                const auto definition = models::ParameterDefinitions().find(device + "." + parameter);
+                const auto current = ReadProcessorValue(device, parameter);
+                if (!previousProcessorValue || !current || definition == models::ParameterDefinitions().end()) return;
+                host::LinkCoordinator::Instance().Dispatch(host::LinkedProcessorGesture{
+                    linkId, runtimeId, device, parameter,
+                    definition->second.Normalize(*previousProcessorValue),
+                    definition->second.Normalize(*current)
+                });
+            }
+        }, routed.command);
+    }
+
+    void ApplyLocalCommand(const domain::Command& command) {
         try {
             const auto revisionBefore = host.Revision();
             const auto isHistoryRestore =
-                std::holds_alternative<domain::UndoHistoryCommand>(decoded.command) ||
-                std::holds_alternative<domain::RedoHistoryCommand>(decoded.command) ||
-                std::holds_alternative<domain::RestoreHistoryOperationCommand>(decoded.command);
-            suppressContinuousStatePublication = IsContinuousParameterCommand(decoded.command);
-            suppressDspStatePublication = IsDspIndependentCommand(decoded.command);
-            host.Handle(decoded.command);
+                std::holds_alternative<domain::UndoHistoryCommand>(command) ||
+                std::holds_alternative<domain::RedoHistoryCommand>(command) ||
+                std::holds_alternative<domain::RestoreHistoryOperationCommand>(command);
+            suppressContinuousStatePublication = IsContinuousParameterCommand(command);
+            suppressDspStatePublication = IsDspIndependentCommand(command);
+            host.Handle(command);
             suppressContinuousStatePublication = false;
             suppressDspStatePublication = false;
             if (isHistoryRestore && host.Revision() != revisionBefore) {
                 PublishAllSnapshots();
             }
             if (host.Revision() != revisionBefore &&
-                IsContinuousParameterCommand(decoded.command)) {
-                PublishParameterUpdate(decoded.command, host.Revision());
+                IsContinuousParameterCommand(command)) {
+                PublishParameterUpdate(command, host.Revision());
             }
-            if (host.Revision() != revisionBefore) SyncCoordinator();
+            if (host.Revision() != revisionBefore) {
+                if (IsContinuousParameterCommand(command)) coordinatorSyncDirty = true;
+                else SyncCoordinator();
+            }
         }
         catch (const std::exception&) {
             suppressContinuousStatePublication = false;
             suppressDspStatePublication = false;
             debugOut.send("error", "host_command_failed");
         }
+    }
+
+    bool RouteToEditingTarget(const domain::Command& command) {
+        if (editingRuntimeId.empty() || editingRuntimeId == runtimeId) return false;
+        auto routed = command;
+        const auto replaceBank = [this](auto& value) { value.bankId = { editingBankId }; };
+        const auto routeable = std::visit([this, &replaceBank](auto& value) {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand> ||
+                std::is_same_v<Command, domain::SetEqParameterIndexCommand> ||
+                std::is_same_v<Command, domain::SetEqBypassCommand> ||
+                std::is_same_v<Command, domain::ResetEqFilterCommand> ||
+                std::is_same_v<Command, domain::ResetEqChainCommand>) {
+                replaceBank(value);
+                return true;
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetEqChainBypassCommand> ||
+                std::is_same_v<Command, domain::SetEqChainSoloCommand> ||
+                std::is_same_v<Command, domain::CommitAllEqBanksCommand>) return true;
+            else if constexpr (std::is_same_v<Command, domain::JoinEqBanksCommand>) {
+                value.bankIds = { domain::BankId{ editingBankId } };
+                return true;
+            }
+            else if constexpr (std::is_same_v<Command, domain::CommitHiddenEqBankCommand>) {
+                replaceBank(value);
+                return true;
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand> ||
+                std::is_same_v<Command, domain::SetCompressorParameterCommand> ||
+                std::is_same_v<Command, domain::SetCompressorBypassCommand> ||
+                std::is_same_v<Command, domain::SetCompressorDetectorParameterCommand> ||
+                std::is_same_v<Command, domain::SetCompressorDetectorListenCommand> ||
+                std::is_same_v<Command, domain::ResetCompressorCommand> ||
+                std::is_same_v<Command, domain::SetSaturatorParameterCommand> ||
+                std::is_same_v<Command, domain::SetSaturatorBypassCommand> ||
+                std::is_same_v<Command, domain::SetSaturatorDetectorParameterCommand> ||
+                std::is_same_v<Command, domain::SetSaturatorDetectorListenCommand> ||
+                std::is_same_v<Command, domain::ResetSaturatorCommand>) return true;
+            return false;
+        }, routed);
+        if (!routeable) return false;
+        if (DispatchEditingGroupOperation(routed)) return true;
+        host::LinkCoordinator::Instance().DispatchCommand(editingRuntimeId, {
+            runtimeId, editingBankId, std::move(routed)
+        });
+        if (IsContinuousParameterCommand(command)) {
+            PublishEditingPreview(command);
+            ScheduleEditingStatePublication();
+        }
+        else PublishEditingState();
+        return true;
+    }
+
+    void ScheduleEditingStatePublication() {
+        if (editingStateDeliveryScheduled) return;
+        editingStateDirty = true;
+        editingStateDeliveryScheduled = true;
+        editingStateDelivery.set();
+    }
+
+    void PublishEditingPreview(const domain::Command& command) {
+        std::visit([this](const auto& value) {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, domain::SetEqParameterCommand>) {
+                const auto definition = domain::FilterDefinitions().find(value.filterId.value);
+                if (definition == domain::FilterDefinitions().end()) return;
+                for (std::size_t index = 0; index < definition->second.parameters.size(); ++index) {
+                    if (definition->second.parameters[index].name == value.parameter) {
+                        eventOut.send("eq_preview", editingBankId,
+                            static_cast<long>(value.filterId.value), static_cast<long>(index), value.value);
+                        return;
+                    }
+                }
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetEqParameterIndexCommand>) {
+                eventOut.send("eq_preview", editingBankId,
+                    static_cast<long>(value.filterId.value), static_cast<long>(value.parameterIndex), value.value);
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetGainParameterCommand>) {
+                eventOut.send("coordinator_processor_preview",
+                    value.stage == domain::GainStage::Input ? "input_gain" : "output_gain", "gain", value.gainDb);
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetCompressorParameterCommand>) {
+                eventOut.send("coordinator_processor_preview", "compressor", value.parameter, value.value);
+            }
+            else if constexpr (std::is_same_v<Command, domain::SetSaturatorParameterCommand>) {
+                eventOut.send("coordinator_processor_preview", "saturator", value.parameter, value.value);
+            }
+        }, command);
+    }
+
+    void ApplyBankAction(const std::string& action, long bypass) {
+        domain::Command command;
+        if (action == "join") {
+            command = domain::JoinEqBanksCommand{ {}, { domain::BankId{ editingBankId } } };
+        }
+        else if (action == "commit") {
+            command = domain::CommitAllEqBanksCommand{};
+        }
+        else if (action == "reset") {
+            command = domain::ResetEqChainCommand{ {}, { editingBankId } };
+        }
+        else if (action == "bypass") {
+            command = domain::SetEqChainBypassCommand{ {}, bypass != 0 };
+        }
+        else return;
+        if (DispatchEditingGroupOperation(command)) return;
+        if (RouteToEditingTarget(command)) return;
+        ApplyLocalCommand(command);
+    }
+
+    bool DispatchEditingGroupOperation(const domain::Command& command) {
+        const auto target = host::LinkCoordinator::Instance().Find(editingRuntimeId);
+        const auto* bank = target ? target->eq.FindBank(editingBankId) : nullptr;
+        if (!bank || bank->linkId.empty()) return false;
+        const auto groupOperation = std::holds_alternative<domain::SetEqBypassCommand>(command) ||
+            std::holds_alternative<domain::ResetEqFilterCommand>(command) ||
+            std::holds_alternative<domain::ResetEqChainCommand>(command) ||
+            std::holds_alternative<domain::SetEqChainBypassCommand>(command) ||
+            std::holds_alternative<domain::JoinEqBanksCommand>(command) ||
+            std::holds_alternative<domain::CommitAllEqBanksCommand>(command);
+        if (!groupOperation) return false;
+        for (const auto& member : host::LinkCoordinator::Instance().Members(bank->linkId)) {
+            auto memberCommand = command;
+            std::visit([&member](auto& value) {
+                using Command = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<Command, domain::SetEqBypassCommand> ||
+                    std::is_same_v<Command, domain::ResetEqFilterCommand> ||
+                    std::is_same_v<Command, domain::ResetEqChainCommand>) {
+                    value.bankId = { member.bankId };
+                }
+                else if constexpr (std::is_same_v<Command, domain::JoinEqBanksCommand>) {
+                    value.bankIds = { domain::BankId{ member.bankId } };
+                }
+            }, memberCommand);
+            host::LinkCoordinator::Instance().DispatchCommand(member.runtimeId, {
+                runtimeId, member.bankId, std::move(memberCommand)
+            });
+        }
+        PublishEditingState();
+        return true;
     }
 
     void ApplyLinkedCommand(const domain::Command& command) {
@@ -416,7 +743,21 @@ private:
         suppressContinuousStatePublication = false;
         if (host.Revision() == revisionBefore) return;
         PublishParameterUpdate(command, host.Revision());
-        SyncCoordinator();
+        coordinatorSyncDirty = true;
+    }
+
+    void ScheduleLinkDispatch(std::function<void()> dispatcher) {
+        if (linkDispatchScheduled) return;
+        linkDispatchScheduled = true;
+        pendingDispatch = std::move(dispatcher);
+        linkDispatchQueue.set();
+    }
+
+    void DeliverPendingLinkDispatch() {
+        if (pendingDispatch) {
+            pendingDispatch();
+            pendingDispatch = nullptr;
+        }
     }
 
     void ApplyLinkedFilterGesture(const host::LinkedFilterGesture& gesture) {
@@ -642,7 +983,9 @@ private:
     }
 
     void PublishCoordinatorLimits() {
-        const auto* bank = host.Eq().State().SelectedBank();
+        const auto target = host::LinkCoordinator::Instance().Find(editingRuntimeId);
+        if (!target) return;
+        const auto* bank = target->eq.FindBank(editingBankId);
         if (!bank) return;
         const auto entries = host::LinkCoordinator::Instance().Entries();
         const auto linked = !bank->linkId.empty() &&
@@ -668,13 +1011,13 @@ private:
             if (separator == std::string::npos) continue;
             const auto device = key.substr(0, separator);
             const auto parameter = key.substr(separator + 1);
-            const auto source = ReadProcessorValue(device, parameter);
+            const auto source = ReadProcessorValue(target->processor, device, parameter);
             if (!source) continue;
             std::vector<double> memberValues;
             for (const auto& entry : entries) {
                 const auto memberBank = std::find_if(entry.eq.banks.begin(), entry.eq.banks.end(),
                     [&bank](const auto& candidate) { return candidate.linkId == bank->linkId; });
-                if (memberBank == entry.eq.banks.end() || entry.runtimeId == runtimeId) continue;
+                if (memberBank == entry.eq.banks.end() || entry.runtimeId == editingRuntimeId) continue;
                 const auto value = ReadProcessorValue(entry.processor, device, parameter);
                 if (value) memberValues.push_back(*value);
             }
@@ -696,7 +1039,7 @@ private:
                 std::vector<double> memberValues;
                 for (const auto& entry : entries) {
                     for (const auto& candidate : entry.eq.banks) {
-                        if (entry.runtimeId == runtimeId || candidate.linkId != bank->linkId) continue;
+                        if (entry.runtimeId == editingRuntimeId || candidate.linkId != bank->linkId) continue;
                         const auto* filter = candidate.FindFilter(filterId);
                         if (filter && parameterIndex < filter->values.size()) memberValues.push_back(filter->values[parameterIndex]);
                     }
@@ -727,9 +1070,27 @@ private:
         PublishCoordinatorDirectory();
     }
 
+    void PublishEditingState() {
+        const auto target = host::LinkCoordinator::Instance().Find(editingRuntimeId);
+        if (!target) return;
+        auto eq = target->eq;
+        eq.selectedBankId = editingBankId;
+        eventOut.send("coordinator_target", editingRuntimeId, editingBankId,
+            editingRuntimeId != runtimeId ? 1 : 0);
+        PublishEqSnapshot(eq, target->revision);
+        PublishProcessorSnapshot(target->processor, target->revision);
+    }
+
     void PublishEqSnapshot() {
+        PublishEqSnapshot(host.Eq().State(), host.Revision());
+    }
+
+    void PublishEqSnapshot(
+        const models::EqSnapshot& eq,
+        domain::StoreRevision revision
+    ) {
         eventOut.send(maxadapter::AtomAdapter::Write(
-            messaging::SnapshotCodec::EncodeEq(host.Eq().State(), host.Revision())));
+            messaging::SnapshotCodec::EncodeEq(eq, revision)));
     }
 
     void PublishDspSnapshot() {
@@ -743,11 +1104,18 @@ private:
     }
 
     void PublishProcessorSnapshot() {
+        PublishProcessorSnapshot({
+            host.InputGain().State(), host.Compressor().State(),
+            host.Saturator().State(), host.OutputGain().State()
+        }, host.Revision());
+    }
+
+    void PublishProcessorSnapshot(
+        const models::ProcessorState& processor,
+        domain::StoreRevision revision
+    ) {
         eventOut.send(maxadapter::AtomAdapter::Write(
-            messaging::SnapshotCodec::EncodeProcessor({
-                host.InputGain().State(), host.Compressor().State(),
-                host.Saturator().State(), host.OutputGain().State()
-            }, host.Revision())));
+            messaging::SnapshotCodec::EncodeProcessor(processor, revision)));
     }
 
     void PublishPersistence() {
@@ -797,6 +1165,8 @@ private:
     long nextEventId = 1;
     bool ready = false;
     bool hostInitializedPublished = false;
+    bool editingStateDeliveryScheduled = false;
+    bool editingStateDirty = false;
     bool restorePending = false;
     bool persistenceReadyRequested = false;
     bool stateDeliveryScheduled = false;
@@ -804,11 +1174,16 @@ private:
     bool dspSnapshotDirty = false;
     bool processorSnapshotDirty = false;
     bool persistenceDirty = false;
+    bool coordinatorSyncDirty = false;
     bool suppressContinuousStatePublication = false;
     bool suppressDspStatePublication = false;
     bool continuousEqConfirmationDirty = false;
     bool continuousProcessorConfirmationDirty = false;
+    bool linkDispatchScheduled = false;
+    std::function<void()> pendingDispatch;
     std::string runtimeId;
+    std::string editingRuntimeId;
+    long editingBankId = models::EqSnapshot::FirstUserBankId;
     std::string trackName;
     long trackOrder = 0;
 };

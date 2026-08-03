@@ -40,7 +40,7 @@ AnalyzerController.prototype.ForwardCommand = function(name, values) {
             return;
         }
         if (commandName === "eq.reset_filter" && commandValues.length === 6) {
-            outlet(2, "eq_filter_reset", Number(commandValues[4]), Number(commandValues[5]));
+            outlet(0, "command", commandValues);
             return;
         }
         if (commandName === "eq.set_bypass" && commandValues.length >= 6) {
@@ -51,7 +51,7 @@ AnalyzerController.prototype.ForwardCommand = function(name, values) {
         return;
     }
     if (name === "bank.action") {
-        outlet(2, "bank.action", values);
+        outlet(0, "bank_action", values);
         return;
     }
     outlet(0, name, values);
