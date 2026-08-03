@@ -463,9 +463,23 @@ carries only short SpectrumView-local `eq_preview`, `filter_limits`, and
 `link_color` updates;
 it never enters the native Analyzer.
 
-Cross-device coordination uses the unscoped `consolidator.host.bus` transport;
-it is intentionally distinct from the per-device `---message.bus.*` runtime
-bus. Native `LinkCoordinator` is a process-local, runtime-only singleton that
+Cross-device coordination uses the process-local native `LinkCoordinator`
+singleton as the primary transport. Continuous linked parameter gestures flow
+through `LinkCoordinator::Dispatch()` (C++ direct call); discrete group
+operations (join, commit, reset, bypass, filter bypass/reset, processor
+bypass, detector reset) flow through `DeviceHost::DispatchEditingGroupOperation`
+→ `LinkCoordinator::DispatchCommand()`. These high-rate and group paths never
+enter Max send/receive.
+
+The unscoped `consolidator.host.bus` Max transport carries only low-frequency
+cross-instance messages: `link.history_begin/end/restore`, `link.processor_match`,
+`link.assign/detach`, `coordinator.changed`, and `bank.reset_all`.
+Scoped `---message.bus.in/out` and `---state.*` transports remain for local
+UI↔DeviceHost and DeviceHost→consumer communication within a single instance;
+these are inherent to the Max external model and do not carry cross-instance
+traffic.
+
+Native `LinkCoordinator` is a process-local, runtime-only singleton that
 owns the registry of instances, group membership, selected banks, and canonical
 cached values. Local DeviceHosts remain the sole owners of their persistence
 and official state. The non-UI `consolidator.coordinatoridentity.js` runtime
