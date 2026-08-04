@@ -519,14 +519,15 @@ The UI neither scans group members nor waits for remote application. Fixed
 limits established on bank selection constrain the local control before it
 publishes a command.
 
-Local `link_filter_local` and `link_processor_local` handlers defer
-`LinkCoordinator::Dispatch` to a single-shot Min `queue<> linkDispatchQueue`.
-The handler returns immediately so the subsequent `eq.set_parameter` command
-updates the local Host and DSP without waiting for remote synchronous delivery.
-The queue coalesces multiple rapid gestures into one pending dispatch; when it
-fires on the main thread, only the latest gesture is sent to remote members.
-Remote `ApplyLinkedFilterGesture` and `ApplyLinkedProcessorGesture` remain
-synchronous, preserving group operation integrity.
+`LinkCoordinator::Dispatch()` uses a precomputed `linkMembers` index mapping
+each linkId to its member runtime IDs for O(1) lookup. The index is maintained
+by `Upsert`, `Remove`, and `UpdateState`. Remote `ApplyLinkedFilterGesture` and
+`ApplyLinkedProcessorGesture` apply only state mutation synchronously
+(`host.Handle` + `PublishParameterUpdate`) without Max send/receive. Visual
+preview delivery for remote instances relies on the 100ms debounced persistence
+confirmation; local source preview remains instantaneous through
+`SpectrumView` outlet(2). This eliminates synchronous Max event chains during
+linked gesture dispatch.
 Linked gestures have two scoped preview lanes. `---link.control.analyzer`
 carries `eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>` and
 `filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>` to

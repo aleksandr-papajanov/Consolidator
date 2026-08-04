@@ -54,22 +54,12 @@ void LinkCoordinator::Dispatch(const LinkedFilterGesture& gesture) const {
     {
         std::lock_guard lock(mutex);
         const auto members = linkMembers.find(gesture.linkId);
-        if (members != linkMembers.end()) {
-            for (const auto& runtimeId : members->second) {
-                if (runtimeId == gesture.sourceRuntimeId) continue;
-                const auto callback = callbacks.find(runtimeId);
-                if (callback != callbacks.end() && callback->second.applyFilter)
-                    recipients.push_back(callback->second.applyFilter);
-            }
-        } else {
-            for (const auto& [runtimeId, entry] : entries) {
-                const auto linked = std::any_of(entry.eq.banks.begin(), entry.eq.banks.end(),
-                    [&gesture](const auto& bank) { return bank.linkId == gesture.linkId; });
-                if (!linked || runtimeId == gesture.sourceRuntimeId) continue;
-                const auto callback = callbacks.find(runtimeId);
-                if (callback != callbacks.end() && callback->second.applyFilter)
-                    recipients.push_back(callback->second.applyFilter);
-            }
+        if (members == linkMembers.end()) return;
+        for (const auto& runtimeId : members->second) {
+            if (runtimeId == gesture.sourceRuntimeId) continue;
+            const auto callback = callbacks.find(runtimeId);
+            if (callback != callbacks.end() && callback->second.applyFilter)
+                recipients.push_back(callback->second.applyFilter);
         }
     }
     for (const auto& recipient : recipients) recipient(gesture);
@@ -80,22 +70,12 @@ void LinkCoordinator::Dispatch(const LinkedProcessorGesture& gesture) const {
     {
         std::lock_guard lock(mutex);
         const auto members = linkMembers.find(gesture.linkId);
-        if (members != linkMembers.end()) {
-            for (const auto& runtimeId : members->second) {
-                if (runtimeId == gesture.sourceRuntimeId) continue;
-                const auto callback = callbacks.find(runtimeId);
-                if (callback != callbacks.end() && callback->second.applyProcessor)
-                    recipients.push_back(callback->second.applyProcessor);
-            }
-        } else {
-            for (const auto& [runtimeId, entry] : entries) {
-                const auto linked = std::any_of(entry.eq.banks.begin(), entry.eq.banks.end(),
-                    [&gesture](const auto& bank) { return bank.linkId == gesture.linkId; });
-                if (!linked || runtimeId == gesture.sourceRuntimeId) continue;
-                const auto callback = callbacks.find(runtimeId);
-                if (callback != callbacks.end() && callback->second.applyProcessor)
-                    recipients.push_back(callback->second.applyProcessor);
-            }
+        if (members == linkMembers.end()) return;
+        for (const auto& runtimeId : members->second) {
+            if (runtimeId == gesture.sourceRuntimeId) continue;
+            const auto callback = callbacks.find(runtimeId);
+            if (callback != callbacks.end() && callback->second.applyProcessor)
+                recipients.push_back(callback->second.applyProcessor);
         }
     }
     for (const auto& recipient : recipients) recipient(gesture);

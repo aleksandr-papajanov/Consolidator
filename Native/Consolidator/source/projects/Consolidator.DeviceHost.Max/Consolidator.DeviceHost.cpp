@@ -42,8 +42,6 @@ public:
     MIN_AUTHOR{ "Oleksandr Papaianov" };
 
     ~ConsolidatorDeviceHost() {
-        // Coordinator callbacks capture this Host. Native teardown must unregister
-        // them before Max can destroy the owning external.
         host::LinkCoordinator::Instance().Remove(runtimeId);
     }
 
@@ -114,24 +112,6 @@ public:
                 editingStateDirty = false;
                 PublishEditingState();
             }
-            return {};
-        }
-    };
-
-    queue<> linkDispatchQueue{
-        this,
-        MIN_FUNCTION {
-            linkDispatchScheduled = false;
-            DeliverPendingLinkDispatch();
-            return {};
-        }
-    };
-
-    queue<> linkedVisualQueue{
-        this,
-        MIN_FUNCTION {
-            linkedVisualScheduled = false;
-            DeliverPendingVisualEvents();
             return {};
         }
     };
@@ -341,12 +321,9 @@ public:
                 parameterIndex >= filter->values.size() || parameterIndex >= definition->second.parameters.size() ||
                 !std::isfinite(targetValue)) return {};
             const auto& range = definition->second.parameters[parameterIndex].range;
-            auto gesture = host::LinkedFilterGesture{
+            host::LinkCoordinator::Instance().Dispatch(host::LinkedFilterGesture{
                 bank->linkId, runtimeId, filterId, parameterIndex,
                 range.Normalize(filter->values[parameterIndex]), range.Normalize(targetValue)
-            };
-            ScheduleLinkDispatch([this, gesture = std::move(gesture)]() {
-                host::LinkCoordinator::Instance().Dispatch(gesture);
             });
             return {};
         }
@@ -367,12 +344,9 @@ public:
             const auto current = ReadProcessorValue(device, parameter);
             if (!bank || bank->linkId.empty() || definition == models::ParameterDefinitions().end() ||
                 !current || !std::isfinite(targetValue)) return {};
-            auto gesture = host::LinkedProcessorGesture{
+            host::LinkCoordinator::Instance().Dispatch(host::LinkedProcessorGesture{
                 bank->linkId, runtimeId, device, parameter,
                 definition->second.Normalize(*current), definition->second.Normalize(targetValue)
-            };
-            ScheduleLinkDispatch([this, gesture = std::move(gesture)]() {
-                host::LinkCoordinator::Instance().Dispatch(gesture);
             });
             return {};
         }
@@ -510,8 +484,6 @@ private:
         }, routed.command);
         ApplyLocalCommand(routed.command);
         if (IsContinuousParameterCommand(routed.command) && host.Revision() != revisionBefore) {
-            // The remote UI reads this target from Coordinator immediately after
-            // its preview. Keep that one entry current without syncing every peer.
             SyncCoordinator();
         }
         if (linkId.empty()) return;
@@ -759,44 +731,6 @@ private:
         coordinatorSyncDirty = true;
     }
 
-    bool TryApplyLinkedStateChange(const domain::Command& command) {
-        if (!ready) return false;
-        const auto revisionBefore = host.Revision();
-        suppressContinuousStatePublication = true;
-        host.Handle(command);
-        suppressContinuousStatePublication = false;
-        if (host.Revision() == revisionBefore) return false;
-        PublishParameterUpdate(command, host.Revision());
-        coordinatorSyncDirty = true;
-        return true;
-    }
-
-    void ScheduleVisualDelivery(std::function<void()> visualEvent) {
-        pendingVisualEvents.push_back(std::move(visualEvent));
-        if (linkedVisualScheduled) return;
-        linkedVisualScheduled = true;
-        linkedVisualQueue.set();
-    }
-
-    void DeliverPendingVisualEvents() {
-        for (const auto& event : pendingVisualEvents) event();
-        pendingVisualEvents.clear();
-    }
-
-    void ScheduleLinkDispatch(std::function<void()> dispatcher) {
-        if (linkDispatchScheduled) return;
-        linkDispatchScheduled = true;
-        pendingDispatch = std::move(dispatcher);
-        linkDispatchQueue.set();
-    }
-
-    void DeliverPendingLinkDispatch() {
-        if (pendingDispatch) {
-            pendingDispatch();
-            pendingDispatch = nullptr;
-        }
-    }
-
     void ApplyLinkedFilterGesture(const host::LinkedFilterGesture& gesture) {
         if (runtimeId.empty() || gesture.sourceRuntimeId == runtimeId) return;
         const auto bank = std::find_if(host.Eq().State().banks.begin(), host.Eq().State().banks.end(),
@@ -811,10 +745,6 @@ private:
             gesture.targetNormalized - gesture.sourceNormalized);
         ApplyLinkedCommand(domain::SetEqParameterIndexCommand{
             {}, { bank->bankId }, { gesture.filterId }, gesture.parameterIndex, value
-        });
-        ScheduleVisualDelivery([this, bankId = bank->bankId, filterId = gesture.filterId,
-            parameterIndex = static_cast<long>(gesture.parameterIndex), value]() {
-            eventOut.send("eq_preview", bankId, filterId, parameterIndex, value);
         });
     }
 
@@ -843,9 +773,6 @@ private:
                 ApplyLinkedCommand(domain::SetSaturatorDetectorParameterCommand{ {}, filterId, parameter, value });
             } else ApplyLinkedCommand(domain::SetSaturatorParameterCommand{ {}, gesture.parameter, value });
         }
-        ScheduleVisualDelivery([this, device = gesture.device, parameter = gesture.parameter, value]() {
-            eventOut.send("coordinator_processor_preview", device, parameter, value);
-        });
     }
 
     std::optional<double> ReadProcessorValue(
@@ -901,7 +828,8 @@ private:
         std::string& parameterName
     ) {
         constexpr std::string_view prefix = "detector.";
-        if (!parameter.starts_with(prefix) || parameter.size() < prefix.size() + 3) return false;
+        if (parameter.size() < prefix.size() + 3) return false;
+        if (parameter.substr(0, prefix.size()) != prefix) return false;
         const auto separator = parameter.find('.', prefix.size());
         if (separator == std::string::npos) return false;
         const auto id = std::strtol(parameter.c_str() + prefix.size(), nullptr, 10);
@@ -1220,10 +1148,6 @@ private:
     bool suppressDspStatePublication = false;
     bool continuousEqConfirmationDirty = false;
     bool continuousProcessorConfirmationDirty = false;
-    bool linkDispatchScheduled = false;
-    std::function<void()> pendingDispatch;
-    bool linkedVisualScheduled = false;
-    std::vector<std::function<void()>> pendingVisualEvents;
     std::string runtimeId;
     std::string editingRuntimeId;
     long editingBankId = models::EqSnapshot::FirstUserBankId;
