@@ -56,10 +56,19 @@ void LinkCoordinator::Dispatch(const LinkedFilterGesture& gesture) const {
         const auto members = linkMembers.find(gesture.linkId);
         if (members != linkMembers.end()) {
             for (const auto& runtimeId : members->second) {
+                if (runtimeId == gesture.sourceRuntimeId) continue;
                 const auto callback = callbacks.find(runtimeId);
-                if (callback != callbacks.end() && callback->second.applyFilter) {
+                if (callback != callbacks.end() && callback->second.applyFilter)
                     recipients.push_back(callback->second.applyFilter);
-                }
+            }
+        } else {
+            for (const auto& [runtimeId, entry] : entries) {
+                const auto linked = std::any_of(entry.eq.banks.begin(), entry.eq.banks.end(),
+                    [&gesture](const auto& bank) { return bank.linkId == gesture.linkId; });
+                if (!linked || runtimeId == gesture.sourceRuntimeId) continue;
+                const auto callback = callbacks.find(runtimeId);
+                if (callback != callbacks.end() && callback->second.applyFilter)
+                    recipients.push_back(callback->second.applyFilter);
             }
         }
     }
@@ -73,10 +82,19 @@ void LinkCoordinator::Dispatch(const LinkedProcessorGesture& gesture) const {
         const auto members = linkMembers.find(gesture.linkId);
         if (members != linkMembers.end()) {
             for (const auto& runtimeId : members->second) {
+                if (runtimeId == gesture.sourceRuntimeId) continue;
                 const auto callback = callbacks.find(runtimeId);
-                if (callback != callbacks.end() && callback->second.applyProcessor) {
+                if (callback != callbacks.end() && callback->second.applyProcessor)
                     recipients.push_back(callback->second.applyProcessor);
-                }
+            }
+        } else {
+            for (const auto& [runtimeId, entry] : entries) {
+                const auto linked = std::any_of(entry.eq.banks.begin(), entry.eq.banks.end(),
+                    [&gesture](const auto& bank) { return bank.linkId == gesture.linkId; });
+                if (!linked || runtimeId == gesture.sourceRuntimeId) continue;
+                const auto callback = callbacks.find(runtimeId);
+                if (callback != callbacks.end() && callback->second.applyProcessor)
+                    recipients.push_back(callback->second.applyProcessor);
             }
         }
     }
