@@ -8,12 +8,13 @@
 #include <map>
 #include <mutex>
 #include <optional>
-#include <functional>
 #include <cstddef>
 #include <string>
 #include <vector>
 
 namespace consolidator::host {
+
+class DeviceHost;
 
 struct LinkCoordinatorEntry final {
     std::string runtimeId;
@@ -53,19 +54,14 @@ struct RoutedCommand final {
     domain::Command command;
 };
 
-struct LinkCoordinatorCallbacks final {
-    std::function<void(const LinkedFilterGesture&)> applyFilter;
-    std::function<void(const LinkedProcessorGesture&)> applyProcessor;
-    std::function<void(const RoutedCommand&)> applyCommand;
-};
-
-// Process-local runtime registry. DeviceHost remains the owner of persisted state.
+// Process-local runtime registry. Dispatch converts normalized gestures to
+// absolute commands using cached host state, then calls host->Handle().
 class LinkCoordinator final {
 public:
     static LinkCoordinator& Instance();
 
     void Upsert(LinkCoordinatorEntry entry);
-    void RegisterCallbacks(const std::string& runtimeId, LinkCoordinatorCallbacks callbacks);
+    void RegisterHost(const std::string& runtimeId, DeviceHost& host);
     void Remove(const std::string& runtimeId);
     void UpdateState(
         const std::string& runtimeId,
@@ -76,9 +72,17 @@ public:
     std::vector<LinkCoordinatorEntry> Entries() const;
     std::optional<LinkCoordinatorEntry> Find(const std::string& runtimeId) const;
     std::vector<LinkCoordinatorMember> Members(const std::string& linkId) const;
-    void Dispatch(const LinkedFilterGesture& gesture) const;
-    void Dispatch(const LinkedProcessorGesture& gesture) const;
-    void DispatchCommand(const std::string& runtimeId, RoutedCommand command) const;
+
+    void Dispatch(const LinkedFilterGesture& gesture);
+    void Dispatch(const LinkedProcessorGesture& gesture);
+    void DispatchCommandToHost(const std::string& runtimeId, const domain::Command& command) const;
+    void DispatchCommandToGroup(const std::string& linkId, const domain::Command& command) const;
+    void DispatchCommandToAll(const domain::Command& command) const;
+
+    static std::optional<double> ReadProcessorValue(
+        const models::ProcessorState& processor,
+        const std::string& device,
+        const std::string& parameter);
 
 private:
     void AddLinksFor(const std::string& runtimeId, const models::EqSnapshot& eq);
@@ -86,8 +90,8 @@ private:
 
     mutable std::mutex mutex;
     std::map<std::string, LinkCoordinatorEntry, std::less<>> entries;
-    std::map<std::string, LinkCoordinatorCallbacks, std::less<>> callbacks;
     std::map<std::string, std::vector<std::string>, std::less<>> linkMembers;
+    std::map<std::string, DeviceHost*, std::less<>> hosts;
 };
 
 } // namespace consolidator::host
