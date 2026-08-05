@@ -9,3 +9,4 @@ Native/Consolidator/vcpkg_static/
 *.suo
 *.VC.db
 *.VC.VC.opendb
+Native.Old/

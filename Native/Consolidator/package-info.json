@@ -1,9 +1,0 @@
-{
-  "name": "consolidator",
-  "displayname": "Consolidator",
-  "version": "0.1.0",
-  "author": "Oleksandr Papaianov",
-  "description": "EQ curve consolidator for Max for Live",
-  "tags": [ "audio", "eq", "spectrum" ],
-  "website": ""
-}

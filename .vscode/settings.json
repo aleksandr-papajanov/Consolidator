@@ -1,8 +1,19 @@
 {
-  "cmake.sourceDirectory": "${workspaceFolder}/Native/Consolidator",
-  "cmake.buildDirectory": "${workspaceFolder}/Native/Consolidator/out/build-vscode",
+  "cmake.sourceDirectory": "${workspaceFolder}/Consolidator.Native",
+  "cmake.buildDirectory": "${workspaceFolder}/Consolidator.Native/build",
   "cmake.configureOnOpen": true,
-  "cmake.generator": "Ninja",
+  "cmake.generator": "Visual Studio 18 2026",
+  "cmake.configureArgs": [
+    "-DCONSOLIDATOR_DEV=ON"
+  ],
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/Consolidator.Native/Source",
+    "${workspaceFolder}/Consolidator.Native/Source/Max/MinApi"
+  ],
+  "C_Cpp.default.cppStandard": "c++20",
+  "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+  "C_Cpp.default.compilerPath": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "files.exclude": {
     "**/.vs": true,
     "**/build": true,
