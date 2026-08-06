@@ -50,13 +50,6 @@ void Compressor::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass)
-    {
-        std::copy_n(input, sampleCount, output);
-        displayedGainReductionDb_.store(0.0f, std::memory_order_relaxed);
-        return;
-    }
-
     double lastGainReductionDb = gainReductionDb_;
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
@@ -299,6 +292,11 @@ void Compressor::RecalculateRuntime()
     RecalculateReleaseCoefficient();
     RecalculateOutputGain();
     RecalculateMix();
+
+    runtime_.isNeutral = state_.bypass
+        || (state_.thresholdDb >= 0.0f
+            && state_.ratio <= 1.0f
+            && state_.outputDb == 0.0f);
 }
 
 void Compressor::RecalculateAttackCoefficient() noexcept

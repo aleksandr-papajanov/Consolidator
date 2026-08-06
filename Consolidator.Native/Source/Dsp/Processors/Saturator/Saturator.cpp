@@ -53,12 +53,6 @@ void Saturator::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass)
-    {
-        std::copy_n(input, sampleCount, output);
-        return;
-    }
-
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
         for (std::size_t channel = 0;  channel < channelCount; ++channel)
@@ -219,6 +213,11 @@ void Saturator::RecalculateRuntime()
     SetMix(state_.mix);
     SetDetectorAmount(state_.detectorAmount);
     SetBypass(state_.bypass);
+
+    runtime_.isNeutral = state_.bypass
+        || (runtime_.driveLinear == 1.0
+            && runtime_.outputGainLinear == 1.0
+            && runtime_.wetMix == 1.0);
 }
 
 } // namespace consolidator::dsp

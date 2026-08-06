@@ -11,6 +11,7 @@ namespace consolidator::dsp
 void Gain::RecalculateRuntime()
 {
     runtime_.linearGain = std::pow(10.0, static_cast<double>(state_.gainDb) / 20.0);
+    runtime_.isNeutral = state_.bypass || runtime_.linearGain == 1.0;
 }
 
 void Gain::Process(
@@ -20,12 +21,6 @@ void Gain::Process(
     std::size_t channelCount)
 {
     const auto sampleCount = frameCount * channelCount;
-
-    if (state_.bypass)
-    {
-        std::copy_n(input, sampleCount, output);
-        return;
-    }
 
     for (std::size_t sample = 0; sample < sampleCount; ++sample)
     {

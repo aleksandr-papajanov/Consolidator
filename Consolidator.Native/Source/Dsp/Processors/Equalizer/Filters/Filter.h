@@ -38,59 +38,25 @@ struct FilterMemory
 class Filter : public IDspDevice
 {
 public:
-    Filter(
-        DeviceId deviceId,
-        detail::ElementKind elementKind,
-        std::uint8_t elementIndex);
+    Filter(DeviceId deviceId, detail::ElementKind elementKind, std::uint8_t elementIndex);
 
     virtual void Prepare(double sampleRate, std::size_t channelCount);
-
     virtual void Reset() noexcept;
 
-    void Process(
-        const double* input,
-        double* output,
-        std::size_t frameCount,
-        std::size_t channelCount) override;
-
+    void Process(const double* input, double* output, std::size_t frameCount, std::size_t channelCount) override;
     void ApplyParameterChange(const ParameterChange& change) override;
 
-    [[nodiscard]] DeviceId GetDeviceId() const noexcept override
-    {
-        return deviceId_;
-    }
-
-    [[nodiscard]] detail::ElementKind GetElementKind() const noexcept override
-    {
-        return elementKind_;
-    }
-
-    [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override
-    {
-        return elementIndex_;
-    }
+    [[nodiscard]] DeviceId GetDeviceId() const noexcept override { return deviceId_; }
+    [[nodiscard]] detail::ElementKind GetElementKind() const noexcept override { return elementKind_; }
+    [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override { return elementIndex_; }
 
     [[nodiscard]] virtual double ProcessSample(double input, std::size_t channel) noexcept;
 
-    [[nodiscard]] const FilterParameters& GetParameters() const noexcept
-    {
-        return parameters_;
-    }
+    [[nodiscard]] const FilterParameters& GetParameters() const noexcept { return parameters_; }
+    [[nodiscard]] EqFilterId GetEqFilterId() const noexcept { return detail::ToEqFilterId(elementIndex_); }
+    [[nodiscard]] BankId GetBankId() const noexcept { return bankId_; }
 
-    [[nodiscard]] EqFilterId GetEqFilterId() const noexcept
-    {
-        return detail::ToEqFilterId(elementIndex_);
-    }
-
-    [[nodiscard]] BankId GetBankId() const noexcept
-    {
-        return bankId_;
-    }
-
-    [[nodiscard]] virtual bool IsNeutral() const noexcept
-    {
-        return parameters_.bypass;
-    }
+    [[nodiscard]] bool IsNeutral() const noexcept override { return isNeutral_; }
 
     DeviceId deviceId_;
     BankId bankId_ = BankId::Bank0;
@@ -102,46 +68,32 @@ protected:
 
     virtual void RecalculateCoefficients() = 0;
 
-    void SetNormalizedCoefficients(const BiquadCoefficients& coefficients) noexcept
-    {
-        coefficients_ = coefficients;
-    }
+    void SetNormalizedCoefficients(const BiquadCoefficients& c) noexcept { coefficients_ = c; }
+    [[nodiscard]] double GetSampleRate() const noexcept { return sampleRate_; }
 
-    [[nodiscard]] double GetSampleRate() const noexcept
-    {
-        return sampleRate_;
-    }
+    void InitializeParameters(double f, double q, double g) noexcept
+    { parameters_.frequencyHz = f; parameters_.q = q; parameters_.gainDb = g; }
 
-    void InitializeParameters(
-        double frequencyHz,
-        double q,
-        double gainDb) noexcept
-    {
-        parameters_.frequencyHz = frequencyHz;
-        parameters_.q = q;
-        parameters_.gainDb = gainDb;
-    }
+    void SetNeutral(bool v) noexcept { isNeutral_ = v; }
 
     detail::ElementKind elementKind_;
     std::uint8_t elementIndex_;
     FilterParameters parameters_;
     BiquadCoefficients coefficients_;
-
     std::array<FilterMemory, kMaximumChannelCount> channelStates_{};
-
     double sampleRate_ = core::settings::kDefaultSampleRate;
-
     std::size_t activeChannelCount_ = kMaximumChannelCount;
 
 private:
-    void SetFrequency(float frequencyHz);
+    void SetFrequency(float f);
     void SetQ(float q);
     void SetGain(float gainDb);
     void SetBypass(bool bypass) noexcept;
 
     [[nodiscard]] double ProcessActiveSample(double input, std::size_t channel) noexcept;
-
     [[nodiscard]] double GetMaximumFrequencyHz() const noexcept;
+
+    bool isNeutral_ = true;
 };
 
 } // namespace consolidator::dsp

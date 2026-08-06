@@ -18,6 +18,7 @@ struct GainState
 struct GainRuntime
 {
     double linearGain = 1.0;
+    bool isNeutral = true;
 };
 
 class Gain final : public IDspDevice
@@ -58,7 +59,7 @@ public:
 
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
-        return state_.bypass || runtime_.linearGain == 1.0;
+        return runtime_.isNeutral;
     }
 
 private:

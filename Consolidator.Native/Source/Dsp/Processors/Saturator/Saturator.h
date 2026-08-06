@@ -38,6 +38,7 @@ struct SaturatorRuntime
     double dryMix = 0.0;
 
     double detectorAmount = 1.0;
+    bool isNeutral = true;
 };
 
 class Saturator final : public IDspDevice
@@ -82,10 +83,7 @@ public:
 
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
-        return state_.bypass
-            || (runtime_.driveLinear == 1.0
-                && runtime_.outputGainLinear == 1.0
-                && runtime_.wetMix == 1.0);
+        return runtime_.isNeutral;
     }
 
 private:

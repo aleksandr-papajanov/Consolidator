@@ -30,6 +30,7 @@ struct CompressorRuntime
     double dryMix = 0.0;
     double attackCoefficient = 0.0;
     double releaseCoefficient = 0.0;
+    bool isNeutral = true;
 };
 
 class Compressor final : public IDspDevice
@@ -75,10 +76,7 @@ public:
 
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
-        return state_.bypass
-            || (state_.thresholdDb >= 0.0f
-                && state_.ratio <= 1.0f
-                && state_.outputDb == 0.0f);
+        return runtime_.isNeutral;
     }
 
 private:
