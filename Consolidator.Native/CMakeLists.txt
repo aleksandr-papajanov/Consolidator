@@ -33,6 +33,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Groups/InstanceGroup.h
     Source/Core/Commands/Commands.h
     Source/Core/Commands/DspActions.h
+    Source/Core/Notifications/Notifications.h
     Source/Core/Registry/InstanceRegistry.h
     Source/Core/Registry/InstanceRegistry.cpp
     Source/Core/Logging/Log.h

@@ -92,6 +92,32 @@ struct SetAnalyzerViewCommand
     AnalyzerViewMode mode = AnalyzerViewMode::Spectrum;
 };
 
+// ---- History commands ----
+
+struct BeginHistoryCommand
+{
+    std::string operationId;
+};
+
+struct EndHistoryCommand
+{
+    std::string operationId;
+};
+
+struct UndoCommand
+{
+};
+
+struct RedoCommand
+{
+};
+
+struct RestoreHistoryOperationCommand
+{
+    std::string operationId;
+    bool isUndo = false;
+};
+
 // ---- Fit commands ----
 
 struct StartFitCommand
@@ -119,32 +145,6 @@ struct FailFitCommand
     std::string error;
 };
 
-// ---- History commands ----
-
-struct BeginHistoryCommand
-{
-    std::string operationId;
-};
-
-struct EndHistoryCommand
-{
-    std::string operationId;
-};
-
-struct UndoHistoryCommand
-{
-};
-
-struct RedoHistoryCommand
-{
-};
-
-struct RestoreHistoryOperationCommand
-{
-    std::string operationId;
-    bool isUndo = false;
-};
-
 // ---- Command variant ----
 
 using Command = std::variant<
@@ -165,8 +165,8 @@ using Command = std::variant<
     FailFitCommand,
     BeginHistoryCommand,
     EndHistoryCommand,
-    UndoHistoryCommand,
-    RedoHistoryCommand,
+    UndoCommand,
+    RedoCommand,
     RestoreHistoryOperationCommand
 >;
 
