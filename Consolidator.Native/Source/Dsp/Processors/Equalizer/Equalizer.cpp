@@ -36,6 +36,11 @@ void Equalizer::Process(
 void Equalizer::ApplyParameterChange(
     const ParameterChange& change)
 {
+    if (change.address.GetBankId() != bankId_)
+    {
+        return;
+    }
+
     if (change.address.GetElementKind() != detail::ElementKind::Device)
     {
         if (auto* f = FindFilter(

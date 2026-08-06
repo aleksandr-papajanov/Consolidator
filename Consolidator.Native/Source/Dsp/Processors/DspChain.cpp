@@ -32,18 +32,22 @@ void DspChain::Process(const double* input,
     if (devices_.empty())
     {
         const auto sampleCount = frameCount * channelCount;
+        
         for (std::size_t i = 0; i < sampleCount; ++i)
         {
             output[i] = input[i];
         }
+        
         return;
     }
 
     devices_[0]->Process(input, interim, frameCount, channelCount);
+
     for (std::size_t i = 1; i + 1 < devices_.size(); ++i)
     {
         devices_[i]->Process(interim, interim, frameCount, channelCount);
     }
+
     devices_.back()->Process(interim, output, frameCount, channelCount);
 }
 
@@ -68,6 +72,7 @@ void DspChain::ApplyPendingChanges()
     {
         ApplyChangeToDevice(change);
     }
+
     pendingChanges_.clear();
 }
 

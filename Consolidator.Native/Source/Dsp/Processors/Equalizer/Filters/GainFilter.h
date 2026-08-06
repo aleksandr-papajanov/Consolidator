@@ -8,9 +8,7 @@ namespace consolidator::dsp
 
 struct GainFilterState
 {
-    float gainDb = static_cast<float>(
-        core::settings::FilterDefaults::kDefaultGainDb);
-
+    float gainDb = static_cast<float>(core::settings::FilterDefaults::kDefaultGainDb);
     bool bypass = false;
 };
 

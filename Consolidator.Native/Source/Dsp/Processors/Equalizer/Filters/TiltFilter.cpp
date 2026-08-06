@@ -23,9 +23,7 @@ TiltFilter::TiltFilter(
     RecalculateCoefficients();
 }
 
-void TiltFilter::Prepare(
-    double sampleRate,
-    std::size_t channelCount)
+void TiltFilter::Prepare(double sampleRate, std::size_t channelCount)
 {
     Filter::Prepare(sampleRate, channelCount);
     lowShelf_.Prepare(sampleRate, channelCount);
@@ -51,8 +49,7 @@ double TiltFilter::ProcessSample(
         return input;
     }
 
-    const double lowShelfOutput =
-        lowShelf_.ProcessSample(input, channel);
+    const double lowShelfOutput = lowShelf_.ProcessSample(input, channel);
 
     return highShelf_.ProcessSample(
         lowShelfOutput,
@@ -68,40 +65,44 @@ void TiltFilter::ApplyInternalParameters()
 {
     const auto& parameters = GetParameters();
     const auto filterId = GetEqFilterId();
+    const auto bankId = GetBankId();
+
+    lowShelf_.bankId_ = bankId;
+    highShelf_.bankId_ = bankId;
 
     lowShelf_.ApplyParameterChange(
         ParameterChange{
-            ParameterAddress::EqFilterFrequency(filterId),
+            ParameterAddress::EqFilterFrequency(bankId, filterId),
             ParameterValue{
                 static_cast<float>(parameters.frequencyHz)}});
 
     lowShelf_.ApplyParameterChange(
         ParameterChange{
-            ParameterAddress::EqFilterQ(filterId),
+            ParameterAddress::EqFilterQ(bankId, filterId),
             ParameterValue{
                 static_cast<float>(parameters.q)}});
 
     lowShelf_.ApplyParameterChange(
         ParameterChange{
-            ParameterAddress::EqFilterGain(filterId),
+            ParameterAddress::EqFilterGain(bankId, filterId),
             ParameterValue{
                 static_cast<float>(-parameters.gainDb * 0.5)}});
 
     highShelf_.ApplyParameterChange(
         ParameterChange{
-            ParameterAddress::EqFilterFrequency(filterId),
+            ParameterAddress::EqFilterFrequency(bankId, filterId),
             ParameterValue{
                 static_cast<float>(parameters.frequencyHz)}});
 
     highShelf_.ApplyParameterChange(
         ParameterChange{
-            ParameterAddress::EqFilterQ(filterId),
+            ParameterAddress::EqFilterQ(bankId, filterId),
             ParameterValue{
                 static_cast<float>(parameters.q)}});
 
     highShelf_.ApplyParameterChange(
         ParameterChange{
-            ParameterAddress::EqFilterGain(filterId),
+            ParameterAddress::EqFilterGain(bankId, filterId),
             ParameterValue{
                 static_cast<float>(parameters.gainDb * 0.5)}});
 }

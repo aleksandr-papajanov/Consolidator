@@ -34,10 +34,8 @@ BellFilter::BellFilter(EqFilterId filterId, double frequencyHz)
 void BellFilter::RecalculateCoefficients()
 {
     const double amplitude = GainDbToAmplitude(parameters_.gainDb);
-    const double omega =
-        2.0 * std::numbers::pi * parameters_.frequencyHz / sampleRate_;
-    const double alpha =
-        std::sin(omega) / (2.0 * parameters_.q);
+    const double omega = 2.0 * std::numbers::pi * parameters_.frequencyHz / sampleRate_;
+    const double alpha = std::sin(omega) / (2.0 * parameters_.q);
 
     const double a0 = 1.0 + alpha / amplitude;
     const double inverseA0 = 1.0 / a0;
@@ -56,15 +54,9 @@ void BellFilter::RecalculateCoefficients()
 
 void BellFilter::SyncState()
 {
-    state_.frequency =
-        static_cast<float>(parameters_.frequencyHz);
-
-    state_.q =
-        static_cast<float>(parameters_.q);
-
-    state_.gainDb =
-        static_cast<float>(parameters_.gainDb);
-
+    state_.frequency = static_cast<float>(parameters_.frequencyHz);
+    state_.q = static_cast<float>(parameters_.q);
+    state_.gainDb = static_cast<float>(parameters_.gainDb);
     state_.bypass = parameters_.bypass;
 }
 

@@ -17,8 +17,7 @@ GainFilter::GainFilter(EqFilterId filterId)
 
 void GainFilter::RecalculateCoefficients()
 {
-    coefficients_.b0 =
-        std::pow(10.0, parameters_.gainDb / 20.0);
+    coefficients_.b0 = std::pow(10.0, parameters_.gainDb / 20.0);
 
     coefficients_.b1 = 0.0;
     coefficients_.b2 = 0.0;
@@ -30,8 +29,7 @@ void GainFilter::RecalculateCoefficients()
 
 void GainFilter::SyncState()
 {
-    state_.gainDb =
-        static_cast<float>(parameters_.gainDb);
+    state_.gainDb = static_cast<float>(parameters_.gainDb);
 
     state_.bypass = parameters_.bypass;
 }

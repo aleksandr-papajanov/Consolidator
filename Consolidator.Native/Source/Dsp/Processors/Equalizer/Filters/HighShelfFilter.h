@@ -8,24 +8,16 @@ namespace consolidator::dsp
 
 struct HighShelfFilterState
 {
-    float frequency = static_cast<float>(
-        core::settings::FilterDefaults::kDefaultFrequencyHz);
-
-    float q = static_cast<float>(
-        core::settings::FilterDefaults::kDefaultQ);
-
-    float gainDb = static_cast<float>(
-        core::settings::FilterDefaults::kDefaultGainDb);
-
+    float frequency = static_cast<float>(core::settings::FilterDefaults::kDefaultFrequencyHz);
+    float q = static_cast<float>(core::settings::FilterDefaults::kDefaultQ);
+    float gainDb = static_cast<float>(core::settings::FilterDefaults::kDefaultGainDb);
     bool bypass = false;
 };
 
 class HighShelfFilter final : public Filter
 {
 public:
-    HighShelfFilter(
-        EqFilterId filterId,
-        double frequencyHz);
+    HighShelfFilter(EqFilterId filterId, double frequencyHz);
 
     void SyncState();
 

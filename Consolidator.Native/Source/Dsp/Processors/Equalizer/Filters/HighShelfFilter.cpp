@@ -25,17 +25,14 @@ HighShelfFilter::HighShelfFilter(
 
 void HighShelfFilter::RecalculateCoefficients()
 {
-    const double gain =
-        std::pow(10.0, parameters_.gainDb / 40.0);
+    const double gain =std::pow(10.0, parameters_.gainDb / 40.0);
 
-    const double omega =
-        2.0 * std::numbers::pi * parameters_.frequencyHz / sampleRate_;
+    const double omega = 2.0 * std::numbers::pi * parameters_.frequencyHz / sampleRate_;
 
     const double sine = std::sin(omega);
     const double cosine = std::cos(omega);
     const double alpha = sine / (2.0 * parameters_.q);
-    const double gainRootTerm =
-        2.0 * std::sqrt(gain) * alpha;
+    const double gainRootTerm = 2.0 * std::sqrt(gain) * alpha;
 
     const double a0 =
         (gain + 1.0) -
@@ -85,15 +82,9 @@ void HighShelfFilter::RecalculateCoefficients()
 
 void HighShelfFilter::SyncState()
 {
-    state_.frequency =
-        static_cast<float>(parameters_.frequencyHz);
-
-    state_.q =
-        static_cast<float>(parameters_.q);
-
-    state_.gainDb =
-        static_cast<float>(parameters_.gainDb);
-
+    state_.frequency = static_cast<float>(parameters_.frequencyHz);
+    state_.q = static_cast<float>(parameters_.q);
+    state_.gainDb = static_cast<float>(parameters_.gainDb);
     state_.bypass = parameters_.bypass;
 }
 

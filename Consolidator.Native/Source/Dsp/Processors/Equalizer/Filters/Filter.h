@@ -49,9 +49,7 @@ public:
         detail::ElementKind elementKind,
         std::uint8_t elementIndex);
 
-    virtual void Prepare(
-        double sampleRate,
-        std::size_t channelCount);
+    virtual void Prepare(double sampleRate, std::size_t channelCount);
 
     virtual void Reset() noexcept;
 
@@ -61,8 +59,7 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    void ApplyParameterChange(
-        const ParameterChange& change) override;
+    void ApplyParameterChange(const ParameterChange& change) override;
 
     [[nodiscard]] DeviceId GetDeviceId() const noexcept override
     {
@@ -79,14 +76,22 @@ public:
         return elementIndex_;
     }
 
-    [[nodiscard]] virtual double ProcessSample(
-        double input,
-        std::size_t channel) noexcept;
+    [[nodiscard]] virtual double ProcessSample(double input, std::size_t channel) noexcept;
 
     [[nodiscard]] const FilterParameters& GetParameters() const noexcept
     {
         return parameters_;
     }
+
+    [[nodiscard]] EqFilterId GetEqFilterId() const noexcept
+    {
+        return detail::ToEqFilterId(elementIndex_);
+    }
+
+    [[nodiscard]] BankId GetBankId() const noexcept { return bankId_; }
+
+    DeviceId deviceId_;
+    BankId bankId_ = BankId::Bank0;
 
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
@@ -95,8 +100,7 @@ protected:
 
     virtual void RecalculateCoefficients() = 0;
 
-    void SetNormalizedCoefficients(
-        const BiquadCoefficients& coefficients) noexcept
+    void SetNormalizedCoefficients(const BiquadCoefficients& coefficients) noexcept
     {
         coefficients_ = coefficients;
     }
@@ -116,35 +120,24 @@ protected:
         parameters_.gainDb = gainDb;
     }
 
-    [[nodiscard]] EqFilterId GetEqFilterId() const noexcept
-    {
-        return detail::ToEqFilterId(elementIndex_);
-    }
-
-    DeviceId deviceId_;
     detail::ElementKind elementKind_;
     std::uint8_t elementIndex_;
-
     FilterParameters parameters_;
     BiquadCoefficients coefficients_;
 
     std::array<FilterMemory, kMaximumChannelCount> channelStates_{};
 
-    double sampleRate_ =
-        core::settings::kDefaultSampleRate;
+    double sampleRate_ = core::settings::kDefaultSampleRate;
 
-    std::size_t activeChannelCount_ =
-        kMaximumChannelCount;
+    std::size_t activeChannelCount_ = kMaximumChannelCount;
 
 private:
     void SetFrequency(float frequencyHz);
     void SetQ(float q);
-    void SetGainDb(float gainDb);
+    void SetGain(float gainDb);
     void SetBypass(bool bypass) noexcept;
 
-    [[nodiscard]] double ProcessActiveSample(
-        double input,
-        std::size_t channel) noexcept;
+    [[nodiscard]] double ProcessActiveSample(double input, std::size_t channel) noexcept;
 
     [[nodiscard]] double GetMaximumFrequencyHz() const noexcept;
 };

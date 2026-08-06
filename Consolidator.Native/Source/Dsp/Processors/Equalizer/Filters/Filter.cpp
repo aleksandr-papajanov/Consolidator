@@ -43,21 +43,17 @@ void Filter::Process(
     std::size_t frameCount,
     std::size_t channelCount)
 {
-    const auto processedChannelCount =
-        std::min(channelCount, activeChannelCount_);
+    const auto processedChannelCount = std::min(channelCount, activeChannelCount_);
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
         const auto frameOffset = frame * channelCount;
 
-        for (std::size_t channel = 0;
-             channel < processedChannelCount;
-             ++channel)
+        for (std::size_t channel = 0; channel < processedChannelCount; ++channel)
         {
             const auto sampleIndex = frameOffset + channel;
 
-            output[sampleIndex] =
-                ProcessSample(input[sampleIndex], channel);
+            output[sampleIndex] = ProcessSample(input[sampleIndex], channel);
         }
     }
 }
@@ -83,7 +79,7 @@ void Filter::ApplyParameterChange(const ParameterChange& change)
     case ParameterId::Gain:
         if (const auto* value = TryGetValue<float>(change))
         {
-            SetGainDb(*value);
+            SetGain(*value);
         }
         break;
 
@@ -99,9 +95,7 @@ void Filter::ApplyParameterChange(const ParameterChange& change)
     }
 }
 
-double Filter::ProcessSample(
-    double input,
-    std::size_t channel) noexcept
+double Filter::ProcessSample(double input, std::size_t channel) noexcept
 {
     if (parameters_.bypass ||
         channel >= channelStates_.size())
@@ -112,9 +106,7 @@ double Filter::ProcessSample(
     return ProcessActiveSample(input, channel);
 }
 
-double Filter::ProcessActiveSample(
-    double input,
-    std::size_t channel) noexcept
+double Filter::ProcessActiveSample(double input, std::size_t channel) noexcept
 {
     auto& state = channelStates_[channel];
 
@@ -145,14 +137,12 @@ void Filter::SetFrequency(float frequencyHz)
 
 void Filter::SetQ(float q)
 {
-    parameters_.q = std::max(
-        static_cast<double>(q),
-        kMinimumQ);
+    parameters_.q = std::max(static_cast<double>(q), kMinimumQ);
 
     RecalculateCoefficients();
 }
 
-void Filter::SetGainDb(float gainDb)
+void Filter::SetGain(float gainDb)
 {
     parameters_.gainDb = static_cast<double>(gainDb);
     RecalculateCoefficients();

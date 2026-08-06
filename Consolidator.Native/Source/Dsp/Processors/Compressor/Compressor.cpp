@@ -50,7 +50,12 @@ void Compressor::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass)
+    const bool isThresholdNeutral = (state_.thresholdDb >= 0.0f);
+    const bool isRatioNeutral = (state_.ratio <= 1.0f);
+    const bool isOutputNeutral = (state_.outputDb == 0.0f);
+    const bool isMixFull = (state_.mix >= 1.0f);
+
+    if (state_.bypass || (isThresholdNeutral && isRatioNeutral && isOutputNeutral && isMixFull))
     {
         std::copy_n(input, sampleCount, output);
         displayedGainReductionDb_.store(0.0f, std::memory_order_relaxed);
@@ -63,17 +68,13 @@ void Compressor::Process(
     {
         const auto frameOffset = frame * channelCount;
 
-        const double detectorInput =
-            CalculateLinkedDetectorInput(input + frameOffset, channelCount);
+        const double detectorInput = CalculateLinkedDetectorInput(input + frameOffset, channelCount);
 
         const double inputLevelDb = MeasureLevelDb(detectorInput);
-        const double targetGainReductionDb =
-            CalculateTargetGainReductionDb(inputLevelDb);
-        const double smoothedGainReductionDb =
-            UpdateGainReductionDb(targetGainReductionDb);
+        const double targetGainReductionDb = CalculateTargetGainReductionDb(inputLevelDb);
+        const double smoothedGainReductionDb = UpdateGainReductionDb(targetGainReductionDb);
 
-        const double gainLinear =
-            std::pow(10.0, smoothedGainReductionDb / 20.0);
+        const double gainLinear = std::pow(10.0, smoothedGainReductionDb / 20.0);
 
         for (std::size_t channel = 0; channel < channelCount; ++channel)
         {
@@ -91,9 +92,7 @@ void Compressor::Process(
         std::memory_order_relaxed);
 }
 
-double Compressor::CalculateLinkedDetectorInput(
-    const double* frame,
-    std::size_t channelCount) noexcept
+double Compressor::CalculateLinkedDetectorInput(const double* frame, std::size_t channelCount) noexcept
 {
     double linkedPeak = 0.0;
 
@@ -113,8 +112,7 @@ double Compressor::MeasureLevelDb(double detectorInput) noexcept
     return 20.0 * std::log10(safeLevel);
 }
 
-double Compressor::CalculateTargetGainReductionDb(
-    double inputLevelDb) const noexcept
+double Compressor::CalculateTargetGainReductionDb(double inputLevelDb) const noexcept
 {
     const double thresholdDb = static_cast<double>(state_.thresholdDb);
     const double ratio = static_cast<double>(state_.ratio);
@@ -149,8 +147,7 @@ double Compressor::CalculateTargetGainReductionDb(
 double Compressor::UpdateGainReductionDb(
     double targetGainReductionDb) noexcept
 {
-    const bool isIncreasingCompression =
-        targetGainReductionDb < gainReductionDb_;
+    const bool isIncreasingCompression = targetGainReductionDb < gainReductionDb_;
 
     const double coefficient = isIncreasingCompression
         ? runtime_.attackCoefficient
@@ -163,12 +160,9 @@ double Compressor::UpdateGainReductionDb(
     return gainReductionDb_;
 }
 
-double Compressor::ProcessSample(
-    double input,
-    double gainLinear) const noexcept
+double Compressor::ProcessSample(double input, double gainLinear) const noexcept
 {
-    const double compressed =
-        input * gainLinear * runtime_.outputGainLinear;
+    const double compressed = input * gainLinear * runtime_.outputGainLinear;
 
     return compressed * runtime_.wetMix + input * runtime_.dryMix;
 }
@@ -184,8 +178,7 @@ void Compressor::ApplyParameterChange(const ParameterChange& change)
     ApplyCompressorParameter(change);
 }
 
-bool Compressor::IsDetectorParameter(
-    const ParameterChange& change) const noexcept
+bool Compressor::IsDetectorParameter(const ParameterChange& change) const noexcept
 {
     return change.address.GetElementKind() == detail::ElementKind::CompressorDetectorFilter;
 }
@@ -317,20 +310,17 @@ void Compressor::RecalculateRuntime()
 
 void Compressor::RecalculateAttackCoefficient() noexcept
 {
-    runtime_.attackCoefficient =
-        CalculateTimeCoefficient(state_.attackMs, sampleRate_);
+    runtime_.attackCoefficient = CalculateTimeCoefficient(state_.attackMs, sampleRate_);
 }
 
 void Compressor::RecalculateReleaseCoefficient() noexcept
 {
-    runtime_.releaseCoefficient =
-        CalculateTimeCoefficient(state_.releaseMs, sampleRate_);
+    runtime_.releaseCoefficient = CalculateTimeCoefficient(state_.releaseMs, sampleRate_);
 }
 
 void Compressor::RecalculateOutputGain()
 {
-    runtime_.outputGainLinear =
-        std::pow(10.0, static_cast<double>(state_.outputDb) / 20.0);
+    runtime_.outputGainLinear = std::pow(10.0, static_cast<double>(state_.outputDb) / 20.0);
 }
 
 void Compressor::RecalculateMix() noexcept
@@ -339,9 +329,7 @@ void Compressor::RecalculateMix() noexcept
     runtime_.dryMix = 1.0 - runtime_.wetMix;
 }
 
-double Compressor::CalculateTimeCoefficient(
-    double timeMs,
-    double sampleRate) noexcept
+double Compressor::CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept
 {
     const double safeTimeMs = std::max(timeMs, 0.01);
     const double safeSampleRate = std::max(sampleRate, 1.0);

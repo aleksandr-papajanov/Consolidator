@@ -55,17 +55,24 @@ void BuildEqualizerFromSettings(Equalizer& equalizer, const EqualizerSettings& e
 std::unique_ptr<DspChain> DspChainBuilder::BuildFromSettings(const DspSettings& settings) const
 {
     auto chain = std::make_unique<DspChain>();
-    auto equalizer = std::make_unique<Equalizer>();
-    BuildEqualizerFromSettings(*equalizer, settings.equalizer);
 
     // Input Gain
     chain->AddDevice(std::make_unique<Gain>(settings.inputGain.elementId));
-    // Saturator (with built-in detector)
+
+    // Saturator
     chain->AddDevice(std::make_unique<Saturator>());
-    // Compressor (with built-in detector)
+
+    // Compressor
     chain->AddDevice(std::make_unique<Compressor>());
-    // Equalizer (7 bands)
-    chain->AddDevice(std::move(equalizer));
+
+    // 7 Equalizer banks (Bank0 ... Bank6)
+    for (const auto& bankSettings : settings.banks)
+    {
+        auto equalizer = std::make_unique<Equalizer>(bankSettings.bankId);
+        BuildEqualizerFromSettings(*equalizer, bankSettings);
+        chain->AddDevice(std::move(equalizer));
+    }
+
     // Output Gain
     chain->AddDevice(std::make_unique<Gain>(settings.outputGain.elementId));
 

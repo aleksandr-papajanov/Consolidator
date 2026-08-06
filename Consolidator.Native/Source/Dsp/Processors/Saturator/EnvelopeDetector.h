@@ -17,8 +17,7 @@ struct EnvelopeDetectorSettings
 class EnvelopeDetector
 {
 public:
-    EnvelopeDetector(SaturatorDetectorFilterId lowShelfId,
-                     SaturatorDetectorFilterId bellId);
+    EnvelopeDetector(SaturatorDetectorFilterId lowShelfId, SaturatorDetectorFilterId bellId);
 
     void Prepare(double sampleRate);
     void Reset() noexcept;
@@ -35,9 +34,7 @@ private:
 
     void RecalculateTimeCoefficients() noexcept;
 
-    [[nodiscard]] static double CalculateTimeCoefficient(
-        double timeMs,
-        double sampleRate) noexcept;
+    [[nodiscard]] static double CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept;
 
     LowShelfFilter lowShelf_;
     BellFilter bell_;

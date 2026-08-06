@@ -26,8 +26,7 @@ double RmsDetector::ProcessSample(double sample) noexcept
         return 0.0;
     }
 
-    const double meanSquare =
-        squaredSum_ / static_cast<double>(sampleCount_);
+    const double meanSquare = squaredSum_ / static_cast<double>(sampleCount_);
 
     return std::sqrt(std::max(meanSquare, 0.0));
 }

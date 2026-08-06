@@ -36,8 +36,7 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    void ApplyParameterChange(
-        const ParameterChange& change) override;
+    void ApplyParameterChange(const ParameterChange& change) override;
 
     [[nodiscard]] DeviceId GetDeviceId() const noexcept override
     {

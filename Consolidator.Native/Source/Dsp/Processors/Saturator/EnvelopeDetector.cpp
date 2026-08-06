@@ -37,9 +37,7 @@ void EnvelopeDetector::Reset() noexcept
 
 double EnvelopeDetector::ProcessSample(double input) noexcept
 {
-    const double filtered = bell_.ProcessSample(
-        lowShelf_.ProcessSample(input, 0), 0);
-
+    const double filtered = bell_.ProcessSample(lowShelf_.ProcessSample(input, 0), 0);
     const double rectified = std::abs(filtered);
 
     const double coefficient =
@@ -86,16 +84,11 @@ void EnvelopeDetector::SetReleaseMs(double releaseMs)
 
 void EnvelopeDetector::RecalculateTimeCoefficients() noexcept
 {
-    attackCoefficient_ = CalculateTimeCoefficient(
-        settings_.attackMs, sampleRate_);
-
-    releaseCoefficient_ = CalculateTimeCoefficient(
-        settings_.releaseMs, sampleRate_);
+    attackCoefficient_ = CalculateTimeCoefficient(settings_.attackMs, sampleRate_);
+    releaseCoefficient_ = CalculateTimeCoefficient(settings_.releaseMs, sampleRate_);
 }
 
-double EnvelopeDetector::CalculateTimeCoefficient(
-    double timeMs,
-    double sampleRate) noexcept
+double EnvelopeDetector::CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept
 {
     const double safeTimeMs = std::max(timeMs, kMinimumTimeMs);
     const double safeSampleRate = std::max(sampleRate, 1.0);

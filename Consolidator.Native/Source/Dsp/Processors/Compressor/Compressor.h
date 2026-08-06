@@ -14,24 +14,12 @@ namespace consolidator::dsp
 
 struct CompressorState
 {
-    float thresholdDb = static_cast<float>(
-        core::settings::CompressorDefaults::kDefaultThresholdDb);
-
-    float ratio = static_cast<float>(
-        core::settings::CompressorDefaults::kDefaultRatio);
-
-    float attackMs = static_cast<float>(
-        core::settings::CompressorDefaults::kDefaultAttackMs);
-
-    float releaseMs = static_cast<float>(
-        core::settings::CompressorDefaults::kDefaultReleaseMs);
-
-    float outputDb = static_cast<float>(
-        core::settings::CompressorDefaults::kDefaultOutputDb);
-
-    float mix = static_cast<float>(
-        core::settings::CompressorDefaults::kDefaultMix);
-
+    float thresholdDb = static_cast<float>(core::settings::CompressorDefaults::kDefaultThresholdDb);
+    float ratio = static_cast<float>(core::settings::CompressorDefaults::kDefaultRatio);
+    float attackMs = static_cast<float>(core::settings::CompressorDefaults::kDefaultAttackMs);
+    float releaseMs = static_cast<float>(core::settings::CompressorDefaults::kDefaultReleaseMs);
+    float outputDb = static_cast<float>(core::settings::CompressorDefaults::kDefaultOutputDb);
+    float mix = static_cast<float>(core::settings::CompressorDefaults::kDefaultMix);
     bool bypass = false;
 };
 

@@ -10,10 +10,7 @@ namespace consolidator::dsp
 
 void Gain::RecalculateRuntime()
 {
-    runtime_.linearGain =
-        std::pow(
-            10.0,
-            static_cast<double>(state_.gainDb) / 20.0);
+    runtime_.linearGain = std::pow(10.0, static_cast<double>(state_.gainDb) / 20.0);
 }
 
 void Gain::Process(
@@ -24,7 +21,7 @@ void Gain::Process(
 {
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass)
+    if (state_.bypass || runtime_.linearGain == 1.0)
     {
         std::copy_n(input, sampleCount, output);
         return;
@@ -32,13 +29,11 @@ void Gain::Process(
 
     for (std::size_t sample = 0; sample < sampleCount; ++sample)
     {
-        output[sample] =
-            input[sample] * runtime_.linearGain;
+        output[sample] = input[sample] * runtime_.linearGain;
     }
 }
 
-void Gain::ApplyParameterChange(
-    const ParameterChange& change)
+void Gain::ApplyParameterChange(const ParameterChange& change)
 {
     if (change.address.GetDeviceId() != deviceId_)
     {

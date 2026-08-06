@@ -26,9 +26,7 @@ void Saturator::Prepare(
         1,
         kMaximumChannelCount);
 
-    for (std::size_t channel = 0;
-         channel < activeChannelCount_;
-         ++channel)
+    for (std::size_t channel = 0; channel < activeChannelCount_; ++channel)
     {
         detectors_[channel].Prepare(sampleRate);
     }
@@ -55,7 +53,7 @@ void Saturator::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass)
+    if (state_.bypass || (runtime_.driveLinear == 1.0 && runtime_.outputGainLinear == 1.0 && runtime_.wetMix == 1.0))
     {
         std::copy_n(input, sampleCount, output);
         return;
@@ -63,12 +61,9 @@ void Saturator::Process(
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
-        for (std::size_t channel = 0;
-             channel < channelCount;
-             ++channel)
+        for (std::size_t channel = 0;  channel < channelCount; ++channel)
         {
-            const auto sampleIndex =
-                frame * channelCount + channel;
+            const auto sampleIndex = frame * channelCount + channel;
 
             if (channel >= activeChannelCount_)
             {
@@ -76,41 +71,27 @@ void Saturator::Process(
                 continue;
             }
 
-            output[sampleIndex] = ProcessSample(
-                input[sampleIndex],
-                detectors_[channel]);
+            output[sampleIndex] = ProcessSample(input[sampleIndex], detectors_[channel]);
         }
     }
 }
 
-double Saturator::ProcessSample(
-    double input,
-    EnvelopeDetector& detector) const noexcept
+double Saturator::ProcessSample(double input, EnvelopeDetector& detector) const noexcept
 {
     const double envelope = detector.ProcessSample(input);
-
-    const double modulation =
-        CalculateDriveModulation(envelope);
-
-    const double effectiveDrive =
-        runtime_.driveLinear * modulation;
-
-    const double saturated =
-        ApplyWaveshaper(input, effectiveDrive);
-
-    const double wet =
-        saturated * runtime_.outputGainLinear;
+    const double modulation = CalculateDriveModulation(envelope);
+    const double effectiveDrive = runtime_.driveLinear * modulation;
+    const double saturated = ApplyWaveshaper(input, effectiveDrive);
+    const double wet = saturated * runtime_.outputGainLinear;
 
     return
         wet * runtime_.wetMix +
         input * runtime_.dryMix;
 }
 
-double Saturator::CalculateDriveModulation(
-    double envelope) const noexcept
+double Saturator::CalculateDriveModulation(double envelope) const noexcept
 {
-    const double modulation =
-        1.0 + envelope * runtime_.detectorAmount;
+    const double modulation = 1.0 + envelope * runtime_.detectorAmount;
 
     return std::clamp(
         modulation,
@@ -118,13 +99,9 @@ double Saturator::CalculateDriveModulation(
         kMaximumDriveModulation);
 }
 
-double Saturator::ApplyWaveshaper(
-    double input,
-    double drive) const noexcept
+double Saturator::ApplyWaveshaper(double input, double drive) const noexcept
 {
-    const double safeDrive =
-        std::max(drive, static_cast<double>(kMinimumDrive));
-
+    const double safeDrive =  std::max(drive, static_cast<double>(kMinimumDrive));
     const double normalization = std::tanh(safeDrive);
 
     if (normalization <= 0.0)
@@ -135,8 +112,7 @@ double Saturator::ApplyWaveshaper(
     return std::tanh(input * safeDrive) / normalization;
 }
 
-void Saturator::ApplyParameterChange(
-    const ParameterChange& change)
+void Saturator::ApplyParameterChange(const ParameterChange& change)
 {
     if (change.address.GetElementKind() != detail::ElementKind::Device)
     {
@@ -147,8 +123,7 @@ void Saturator::ApplyParameterChange(
     ApplyDeviceParameter(change);
 }
 
-void Saturator::ApplyDeviceParameter(
-    const ParameterChange& change)
+void Saturator::ApplyDeviceParameter(const ParameterChange& change)
 {
     switch (change.address.GetParameterId())
     {
@@ -185,8 +160,7 @@ void Saturator::ApplyDeviceParameter(
     }
 }
 
-void Saturator::ApplyDetectorParameter(
-    const ParameterChange& change)
+void Saturator::ApplyDetectorParameter(const ParameterChange& change)
 {
     for (auto& detector : detectors_)
     {
@@ -201,17 +175,14 @@ void Saturator::SetDrive(float drive)
         kMinimumDrive,
         kMaximumDrive);
 
-    runtime_.driveLinear =
-        static_cast<double>(state_.drive);
+    runtime_.driveLinear = static_cast<double>(state_.drive);
 }
 
 void Saturator::SetOutputDb(float outputDb)
 {
     state_.outputDb = outputDb;
 
-    runtime_.outputGainLinear = std::pow(
-        10.0,
-        static_cast<double>(outputDb) / 20.0);
+    runtime_.outputGainLinear = std::pow(10.0, static_cast<double>(outputDb) / 20.0);
 }
 
 void Saturator::SetMix(float mix)
@@ -221,11 +192,9 @@ void Saturator::SetMix(float mix)
         kMinimumMix,
         kMaximumMix);
 
-    runtime_.wetMix =
-        static_cast<double>(state_.mix);
+    runtime_.wetMix = static_cast<double>(state_.mix);
 
-    runtime_.dryMix =
-        1.0 - runtime_.wetMix;
+    runtime_.dryMix = 1.0 - runtime_.wetMix;
 }
 
 void Saturator::SetDetectorAmount(float amount)
@@ -235,8 +204,7 @@ void Saturator::SetDetectorAmount(float amount)
         kMinimumDetectorAmount,
         kMaximumDetectorAmount);
 
-    runtime_.detectorAmount =
-        static_cast<double>(state_.detectorAmount);
+    runtime_.detectorAmount = static_cast<double>(state_.detectorAmount);
 }
 
 void Saturator::SetBypass(bool bypass) noexcept

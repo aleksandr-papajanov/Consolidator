@@ -127,11 +127,13 @@ struct FilterSettings
     BypassSetting bypass{};
 };
 
-// ---- Equalizer settings (7 bands: Gain, Tilt, LowShelf, HighShelf, 3×Bell) ----
+// ---- Equalizer settings (7 bands) ----
 
 struct EqualizerSettings
 {
     static inline constexpr std::size_t kBandCount = 7;
+
+    dsp::BankId bankId = dsp::BankId::Bank0;
 
     std::array<FilterSettings, kBandCount> bands
     {{
@@ -207,7 +209,7 @@ struct GainSettings
     BypassSetting bypass{};
 };
 
-// ---- Detector filter settings (2 bands: LowShelf + Bell) ----
+// ---- Detector filter settings ----
 
 struct DetectorFilterSettings
 {
@@ -215,18 +217,16 @@ struct DetectorFilterSettings
 
     std::array<FilterSettings, kBandCount> bands
     {{
-        // Band 0: LowShelf
         {
-            dsp::EqFilterId::Filter1, // placeholder — actual ID assigned by owning device
+            dsp::EqFilterId::Filter1,
             FilterKind::LowShelf,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 100.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
             BypassSetting{false}
         },
-        // Band 1: Bell
         {
-            dsp::EqFilterId::Filter1, // placeholder
+            dsp::EqFilterId::Filter1,
             FilterKind::Bell,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 1000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -297,14 +297,27 @@ struct CompressorSettings
     DetectorFilterSettings detector{};
 };
 
-// ---- Aggregate DSP settings ----
+// ---- Aggregate DSP settings (7 banks) ----
 
 struct DspSettings
 {
     GainSettings inputGain{ dsp::DeviceId::MainInputGain };
     SaturatorSettings saturator{};
     CompressorSettings compressor{};
-    EqualizerSettings equalizer{};
+
+    static inline constexpr std::size_t kBankCount = 7;
+
+    std::array<EqualizerSettings, kBankCount> banks
+    {{
+        EqualizerSettings{ dsp::BankId::Bank0 },
+        EqualizerSettings{ dsp::BankId::Bank1 },
+        EqualizerSettings{ dsp::BankId::Bank2 },
+        EqualizerSettings{ dsp::BankId::Bank3 },
+        EqualizerSettings{ dsp::BankId::Bank4 },
+        EqualizerSettings{ dsp::BankId::Bank5 },
+        EqualizerSettings{ dsp::BankId::Bank6 }
+    }};
+
     GainSettings outputGain{ dsp::DeviceId::MainOutputGain };
 };
 

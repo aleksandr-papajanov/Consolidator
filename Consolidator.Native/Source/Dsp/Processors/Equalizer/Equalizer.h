@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 
+#include "Dsp/Parameters/ParameterAddress.h"
 #include "Dsp/Processors/Equalizer/Filters/Filter.h"
 #include "Dsp/Processors/IDspDevice.h"
 
@@ -14,7 +15,10 @@ namespace consolidator::dsp
 class Equalizer final : public IDspDevice
 {
 public:
-    Equalizer() = default;
+    explicit Equalizer(BankId bankId) noexcept
+        : bankId_(bankId)
+    {
+    }
 
     void Process(
         const double* input,
@@ -39,7 +43,12 @@ public:
 
     [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override
     {
-        return 0;
+        return detail::ToIndex(bankId_);
+    }
+
+    [[nodiscard]] BankId GetBankId() const noexcept
+    {
+        return bankId_;
     }
 
     [[nodiscard]] std::size_t GetFilterCount() const noexcept
@@ -61,6 +70,7 @@ private:
         detail::ElementKind elementKind,
         std::uint8_t elementIndex) const noexcept;
 
+    BankId bankId_;
     std::vector<std::unique_ptr<Filter>> filters_;
 };
 
