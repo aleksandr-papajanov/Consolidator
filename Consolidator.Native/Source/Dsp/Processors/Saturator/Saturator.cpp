@@ -53,7 +53,7 @@ void Saturator::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass || (runtime_.driveLinear == 1.0 && runtime_.outputGainLinear == 1.0 && runtime_.wetMix == 1.0))
+    if (state_.bypass)
     {
         std::copy_n(input, sampleCount, output);
         return;

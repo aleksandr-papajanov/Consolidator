@@ -51,6 +51,18 @@ public:
         return bankId_;
     }
 
+    [[nodiscard]] bool IsNeutral() const noexcept override
+    {
+        for (const auto& f : filters_)
+        {
+            if (!f->IsNeutral())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     [[nodiscard]] std::size_t GetFilterCount() const noexcept
     {
         return filters_.size();

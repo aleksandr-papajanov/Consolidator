@@ -50,12 +50,7 @@ void Compressor::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    const bool isThresholdNeutral = (state_.thresholdDb >= 0.0f);
-    const bool isRatioNeutral = (state_.ratio <= 1.0f);
-    const bool isOutputNeutral = (state_.outputDb == 0.0f);
-    const bool isMixFull = (state_.mix >= 1.0f);
-
-    if (state_.bypass || (isThresholdNeutral && isRatioNeutral && isOutputNeutral && isMixFull))
+    if (state_.bypass)
     {
         std::copy_n(input, sampleCount, output);
         displayedGainReductionDb_.store(0.0f, std::memory_order_relaxed);
@@ -80,8 +75,7 @@ void Compressor::Process(
         {
             const auto sampleIndex = frameOffset + channel;
 
-            output[sampleIndex] =
-                ProcessSample(input[sampleIndex], gainLinear);
+            output[sampleIndex] = ProcessSample(input[sampleIndex], gainLinear);
         }
 
         lastGainReductionDb = smoothedGainReductionDb;
@@ -144,8 +138,7 @@ double Compressor::CalculateTargetGainReductionDb(double inputLevelDb) const noe
     return std::max(gainReductionDb, kMinimumGainReductionDb);
 }
 
-double Compressor::UpdateGainReductionDb(
-    double targetGainReductionDb) noexcept
+double Compressor::UpdateGainReductionDb(double targetGainReductionDb) noexcept
 {
     const bool isIncreasingCompression = targetGainReductionDb < gainReductionDb_;
 

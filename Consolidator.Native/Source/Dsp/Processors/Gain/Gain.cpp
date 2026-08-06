@@ -21,7 +21,7 @@ void Gain::Process(
 {
     const auto sampleCount = frameCount * channelCount;
 
-    if (state_.bypass || runtime_.linearGain == 1.0)
+    if (state_.bypass)
     {
         std::copy_n(input, sampleCount, output);
         return;

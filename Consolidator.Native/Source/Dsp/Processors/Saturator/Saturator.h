@@ -80,6 +80,14 @@ public:
         return state_;
     }
 
+    [[nodiscard]] bool IsNeutral() const noexcept override
+    {
+        return state_.bypass
+            || (runtime_.driveLinear == 1.0
+                && runtime_.outputGainLinear == 1.0
+                && runtime_.wetMix == 1.0);
+    }
+
 private:
     static constexpr std::size_t kMaximumChannelCount = 2;
 
@@ -96,15 +104,22 @@ private:
 
     void RecalculateRuntime();
 
-    void ApplyDeviceParameter(const ParameterChange& change);
+    void ApplyDeviceParameter(
+        const ParameterChange& change);
 
-    void ApplyDetectorParameter(const ParameterChange& change);
+    void ApplyDetectorParameter(
+        const ParameterChange& change);
 
-    [[nodiscard]] double ProcessSample(double input, EnvelopeDetector& detector) const noexcept;
+    [[nodiscard]] double ProcessSample(
+        double input,
+        EnvelopeDetector& detector) const noexcept;
 
-    [[nodiscard]] double CalculateDriveModulation(double envelope) const noexcept;
+    [[nodiscard]] double CalculateDriveModulation(
+        double envelope) const noexcept;
 
-    [[nodiscard]] double ApplyWaveshaper(double input, double drive) const noexcept;
+    [[nodiscard]] double ApplyWaveshaper(
+        double input,
+        double drive) const noexcept;
 
     void SetDrive(float drive);
     void SetOutputDb(float outputDb);

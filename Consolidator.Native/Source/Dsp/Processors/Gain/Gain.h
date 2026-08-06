@@ -11,9 +11,7 @@ namespace consolidator::dsp
 
 struct GainState
 {
-    float gainDb = static_cast<float>(
-        core::settings::GainDefaults::kDefaultGainDb);
-
+    float gainDb = static_cast<float>(core::settings::GainDefaults::kDefaultGainDb);
     bool bypass = false;
 };
 
@@ -56,6 +54,11 @@ public:
     [[nodiscard]] const GainState& GetState() const noexcept
     {
         return state_;
+    }
+
+    [[nodiscard]] bool IsNeutral() const noexcept override
+    {
+        return state_.bypass || runtime_.linearGain == 1.0;
     }
 
 private:

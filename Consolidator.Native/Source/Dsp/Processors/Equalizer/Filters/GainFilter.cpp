@@ -30,7 +30,6 @@ void GainFilter::RecalculateCoefficients()
 void GainFilter::SyncState()
 {
     state_.gainDb = static_cast<float>(parameters_.gainDb);
-
     state_.bypass = parameters_.bypass;
 }
 

@@ -3,13 +3,25 @@
 namespace consolidator::dsp
 {
 
+static bool AllFiltersNeutral(const std::vector<std::unique_ptr<Filter>>& filters) noexcept
+{
+    for (const auto& f : filters)
+    {
+        if (!f->IsNeutral())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void Equalizer::Process(
     const double* input,
     double* output,
     std::size_t frameCount,
     std::size_t channelCount)
 {
-    if (filters_.empty())
+    if (filters_.empty() || AllFiltersNeutral(filters_))
     {
         const auto n = frameCount * channelCount;
         for (std::size_t i = 0; i < n; ++i)

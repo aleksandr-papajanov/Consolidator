@@ -73,6 +73,14 @@ public:
         return displayedGainReductionDb_.load(std::memory_order_relaxed);
     }
 
+    [[nodiscard]] bool IsNeutral() const noexcept override
+    {
+        return state_.bypass
+            || (state_.thresholdDb >= 0.0f
+                && state_.ratio <= 1.0f
+                && state_.outputDb == 0.0f);
+    }
+
 private:
     static constexpr double kSoftKneeWidthDb = 6.0;
     static constexpr double kMinimumLevelLinear = 1.0e-12;
@@ -105,28 +113,19 @@ private:
     void ApplyCompressorParameter(const ParameterChange& change);
     void ApplyDetectorParameter(const ParameterChange& change);
 
-    [[nodiscard]] bool IsDetectorParameter(
-        const ParameterChange& change) const noexcept;
+    [[nodiscard]] bool IsDetectorParameter(const ParameterChange& change) const noexcept;
 
-    [[nodiscard]] double CalculateLinkedDetectorInput(
-        const double* frame,
-        std::size_t channelCount) noexcept;
+    [[nodiscard]] double CalculateLinkedDetectorInput(const double* frame, std::size_t channelCount) noexcept;
 
     [[nodiscard]] double MeasureLevelDb(double detectorInput) noexcept;
 
-    [[nodiscard]] double CalculateTargetGainReductionDb(
-        double inputLevelDb) const noexcept;
+    [[nodiscard]] double CalculateTargetGainReductionDb(double inputLevelDb) const noexcept;
 
-    [[nodiscard]] double UpdateGainReductionDb(
-        double targetGainReductionDb) noexcept;
+    [[nodiscard]] double UpdateGainReductionDb(double targetGainReductionDb) noexcept;
 
-    [[nodiscard]] double ProcessSample(
-        double input,
-        double gainLinear) const noexcept;
+    [[nodiscard]] double ProcessSample(double input, double gainLinear) const noexcept;
 
-    [[nodiscard]] static double CalculateTimeCoefficient(
-        double timeMs,
-        double sampleRate) noexcept;
+    [[nodiscard]] static double CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept;
 
     void SetThreshold(float thresholdDb) noexcept;
     void SetRatio(float ratio) noexcept;

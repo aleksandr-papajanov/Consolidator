@@ -21,34 +21,51 @@ void DspChain::ApplyParameterBatch(const ParameterBatch& batch)
     }
 }
 
-void DspChain::Process(const double* input,
-                       double* interim,
-                       double* output,
-                       std::size_t frameCount,
-                       std::size_t channelCount)
+void DspChain::Process(
+    const double* input,
+    double* interim,
+    double* output,
+    std::size_t frameCount,
+    std::size_t channelCount)
 {
     ApplyPendingChanges();
 
-    if (devices_.empty())
+    const auto sampleCount = frameCount * channelCount;
+
+    const double* src = input;
+    double* dst = output;
+    bool hasProcessed = false;
+    std::size_t lastActiveIndex = 0;
+
+    for (std::size_t i = 0; i < devices_.size(); ++i)
     {
-        const auto sampleCount = frameCount * channelCount;
-        
-        for (std::size_t i = 0; i < sampleCount; ++i)
+        if (devices_[i]->IsNeutral())
         {
-            output[i] = input[i];
+            continue;
         }
-        
+
+        lastActiveIndex = i;
+
+        if (!hasProcessed)
+        {
+            devices_[i]->Process(src, interim, frameCount, channelCount);
+            src = interim;
+            hasProcessed = true;
+        }
+        else
+        {
+            devices_[i]->Process(src, interim, frameCount, channelCount);
+            src = interim;
+        }
+    }
+
+    if (!hasProcessed)
+    {
+        std::copy_n(input, sampleCount, output);
         return;
     }
 
-    devices_[0]->Process(input, interim, frameCount, channelCount);
-
-    for (std::size_t i = 1; i + 1 < devices_.size(); ++i)
-    {
-        devices_[i]->Process(interim, interim, frameCount, channelCount);
-    }
-
-    devices_.back()->Process(interim, output, frameCount, channelCount);
+    std::copy_n(src, sampleCount, output);
 }
 
 std::size_t DspChain::GetDeviceCount() const noexcept
@@ -72,7 +89,6 @@ void DspChain::ApplyPendingChanges()
     {
         ApplyChangeToDevice(change);
     }
-
     pendingChanges_.clear();
 }
 

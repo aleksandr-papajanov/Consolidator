@@ -14,15 +14,9 @@ namespace consolidator::dsp
 
 struct FilterParameters
 {
-    double frequencyHz =
-        core::settings::FilterDefaults::kDefaultFrequencyHz;
-
-    double q =
-        core::settings::FilterDefaults::kDefaultQ;
-
-    double gainDb =
-        core::settings::FilterDefaults::kDefaultGainDb;
-
+    double frequencyHz = core::settings::FilterDefaults::kDefaultFrequencyHz;
+    double q = core::settings::FilterDefaults::kDefaultQ;
+    double gainDb = core::settings::FilterDefaults::kDefaultGainDb;
     bool bypass = false;
 };
 
@@ -88,7 +82,15 @@ public:
         return detail::ToEqFilterId(elementIndex_);
     }
 
-    [[nodiscard]] BankId GetBankId() const noexcept { return bankId_; }
+    [[nodiscard]] BankId GetBankId() const noexcept
+    {
+        return bankId_;
+    }
+
+    [[nodiscard]] virtual bool IsNeutral() const noexcept
+    {
+        return parameters_.bypass;
+    }
 
     DeviceId deviceId_;
     BankId bankId_ = BankId::Bank0;

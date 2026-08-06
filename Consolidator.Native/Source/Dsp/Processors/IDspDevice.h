@@ -28,6 +28,8 @@ public:
     // For plain devices (Gain, Saturator, Compressor): Device with index 0.
     [[nodiscard]] virtual detail::ElementKind GetElementKind() const noexcept = 0;
     [[nodiscard]] virtual std::uint8_t GetElementIndex() const noexcept = 0;
+
+    [[nodiscard]] virtual bool IsNeutral() const noexcept = 0;
 };
 
 } // namespace consolidator::dsp

@@ -24,6 +24,11 @@ public:
         return state_;
     }
 
+    [[nodiscard]] bool IsNeutral() const noexcept override
+    {
+        return parameters_.bypass || parameters_.gainDb == 0.0;
+    }
+
 protected:
     void RecalculateCoefficients() override;
 

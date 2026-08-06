@@ -234,114 +234,62 @@ public:
     // ---- Accessors ----
 
     [[nodiscard]] constexpr DeviceId GetDeviceId() const noexcept 
-
-
     {
-
-
         return deviceId_;
-
-
     }
     [[nodiscard]] constexpr ParameterId GetParameterId() const noexcept 
-
     {
-
         return parameterId_;
-
     }
     [[nodiscard]] constexpr detail::ElementKind GetElementKind() const noexcept 
-
     {
-
         return elementKind_;
-
     }
     [[nodiscard]] constexpr std::uint8_t GetElementIndex() const noexcept 
-
     {
-
         return elementIndex_;
-
     }
     [[nodiscard]] constexpr BankId GetBankId() const noexcept 
-
     {
-
         return detail::ToBankId(bankId_);
-
     }
 
     [[nodiscard]] constexpr bool IsDeviceParameter() const noexcept
-
-
     {
-
-
         return elementKind_ == detail::ElementKind::Device;
-
-
     }
     [[nodiscard]] constexpr bool IsEqFilterParameter() const noexcept
-
     {
-
         return elementKind_ == detail::ElementKind::EqFilter;
-
     }
     [[nodiscard]] constexpr bool IsSaturatorDetectorParameter() const noexcept
-
     {
-
         return elementKind_ == detail::ElementKind::SaturatorDetectorFilter;
-
     }
     [[nodiscard]] constexpr bool IsCompressorDetectorParameter() const noexcept
-
     {
-
         return elementKind_ == detail::ElementKind::CompressorDetectorFilter;
-
     }
-
+    
     [[nodiscard]] constexpr EqFilterId GetEqFilterId() const noexcept
-
-
     {
-
-
         return detail::ToEqFilterId(elementIndex_);
-
-
     }
     [[nodiscard]] constexpr SaturatorDetectorFilterId GetSatDetectorFilterId() const noexcept
-
     {
-
         return detail::ToSatDetectorId(elementIndex_);
-
     }
     [[nodiscard]] constexpr CompressorDetectorFilterId GetCompDetectorFilterId() const noexcept
-
     {
-
         return detail::ToCompDetectorId(elementIndex_);
-
     }
-
     [[nodiscard]] constexpr std::uint64_t ToKey() const noexcept
-
-
     {
-
-
         return static_cast<std::uint64_t>(deviceId_)
             | (static_cast<std::uint64_t>(elementKind_) << 8U)
             | (static_cast<std::uint64_t>(elementIndex_) << 16U)
             | (static_cast<std::uint64_t>(parameterId_) << 24U)
             | (static_cast<std::uint64_t>(bankId_) << 32U);
-
-
     }
 
     friend constexpr auto operator<=>(
