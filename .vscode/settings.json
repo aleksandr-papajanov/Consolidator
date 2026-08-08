@@ -1,10 +1,15 @@
 {
   "cmake.sourceDirectory": "${workspaceFolder}/Consolidator.Native",
-  "cmake.buildDirectory": "${workspaceFolder}/Consolidator.Native/build",
+  "cmake.buildDirectory": "${workspaceFolder}/Consolidator.Native/out/build-vscode",
+  "cmake.cmakePath": "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
   "cmake.configureOnOpen": true,
   "cmake.generator": "Visual Studio 18 2026",
   "cmake.configureArgs": [
-    "-DCONSOLIDATOR_DEV=ON"
+    "-DCONSOLIDATOR_DEV=ON",
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    "-DCMAKE_TOOLCHAIN_FILE=C:/Program Files/Microsoft Visual Studio/18/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake",
+    "-DVCPKG_TARGET_TRIPLET=x64-windows-static",
+    "-DCONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX=ON"
   ],
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/Consolidator.Native/Source",

@@ -29,6 +29,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ConsolidatorCore)
 
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:ConsolidatorCore>
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>
+)
+
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
 include("${C74_MIN_API_DIR}/script/min-posttarget.cmake")

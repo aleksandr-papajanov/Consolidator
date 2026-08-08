@@ -1,45 +1,23 @@
-﻿#include "Core/Registry/InstanceRegistry.h"
+#include "Core/Registry/InstanceRegistry.h"
 
 #include <algorithm>
 
-#include "Core/Instance/ConsolidatorInstance.h"
+#include "Core/State/InstanceState.h"
 
 namespace consolidator::core
 {
 
-InstanceRegistry& InstanceRegistry::Get()
+void InstanceRegistry::RegisterInstance(InstanceId instanceId, InstanceHandle instance)
 {
-    static InstanceRegistry instance;
-    return instance;
-}
-
-InstanceId InstanceRegistry::RegisterInstance(InstanceHandle instance)
-{
-    const auto instanceId = nextInstanceId_;
-    nextInstanceId_ = InstanceId{nextInstanceId_.GetValue() + 1};
-
     instances_.emplace(instanceId, instance);
-    return instanceId;
 }
 
-void InstanceRegistry::UnregisterInstance(InstanceId instanceId)
+void InstanceRegistry::UnregisterInstance(InstanceId instanceId, const InstanceState& state)
 {
-    const auto it = groupsByInstance_.find(instanceId);
-    if (it != groupsByInstance_.end())
+    for (std::size_t bankIndex = 0; bankIndex < InstanceState::kBankCount; ++bankIndex)
     {
-        for (const auto groupId : it->second)
-        {
-            const auto groupIt = groups_.find(groupId);
-            if (groupIt != groups_.end())
-            {
-                groupIt->second.RemoveMember(instanceId);
-                if (groupIt->second.IsEmpty())
-                {
-                    groups_.erase(groupIt);
-                }
-            }
-        }
-        groupsByInstance_.erase(it);
+        const auto bankId = static_cast<dsp::BankId>(bankIndex);
+        CacheBankGroup(BankAddress{instanceId, bankId}, state.GetBankState(bankId).GetGroupId(), std::nullopt);
     }
 
     instances_.erase(instanceId);
@@ -47,119 +25,46 @@ void InstanceRegistry::UnregisterInstance(InstanceId instanceId)
 
 InstanceHandle InstanceRegistry::FindInstance(InstanceId instanceId) const noexcept
 {
-    const auto it = instances_.find(instanceId);
-    return it != instances_.end() ? it->second : nullptr;
+    const auto instanceIt = instances_.find(instanceId);
+    return instanceIt != instances_.end() ? instanceIt->second : nullptr;
+}
+
+std::span<const BankAddress> InstanceRegistry::FindGroupMembers(GroupId groupId) const noexcept
+{
+    const auto groupIt = banksByGroup_.find(groupId);
+    return groupIt != banksByGroup_.end() ? std::span<const BankAddress>{groupIt->second} : std::span<const BankAddress>{};
 }
 
 bool InstanceRegistry::Contains(InstanceId instanceId) const noexcept
 {
-    return instances_.find(instanceId) != instances_.end();
+    return instances_.contains(instanceId);
 }
 
-GroupId InstanceRegistry::CreateGroup(std::span<const InstanceId> members)
+void InstanceRegistry::CacheBankGroup(BankAddress bankAddress, std::optional<GroupId> previousGroupId, std::optional<GroupId> nextGroupId)
 {
-    const auto groupId = nextGroupId_;
-    nextGroupId_ = GroupId{nextGroupId_.GetValue() + 1};
-
-    InstanceGroup group{groupId};
-    for (const auto instanceId : members)
+    if (previousGroupId)
     {
-        group.AddMember(instanceId);
-        groupsByInstance_[instanceId].push_back(groupId);
-    }
-
-    groups_.emplace(groupId, std::move(group));
-    return groupId;
-}
-
-void InstanceRegistry::RemoveGroup(GroupId groupId)
-{
-    const auto groupIt = groups_.find(groupId);
-    if (groupIt == groups_.end())
-    {
-        return;
-    }
-
-    for (const auto member : groupIt->second.GetMembers())
-    {
-        const auto byInstanceIt = groupsByInstance_.find(member);
-        if (byInstanceIt != groupsByInstance_.end())
+        auto groupIt = banksByGroup_.find(*previousGroupId);
+        if (groupIt != banksByGroup_.end())
         {
-            std::erase(byInstanceIt->second, groupId);
-            if (byInstanceIt->second.empty())
+            std::erase_if(groupIt->second, [bankAddress](const BankAddress& candidate)
             {
-                groupsByInstance_.erase(byInstanceIt);
+                return candidate.instanceId == bankAddress.instanceId && candidate.bankId == bankAddress.bankId;
+            });
+            if (groupIt->second.empty())
+            {
+                banksByGroup_.erase(groupIt);
             }
         }
     }
 
-    groups_.erase(groupIt);
-}
-
-void InstanceRegistry::AddToGroup(GroupId groupId, InstanceId instanceId)
-{
-    const auto groupIt = groups_.find(groupId);
-    if (groupIt == groups_.end() || groupIt->second.Contains(instanceId))
+    if (nextGroupId)
     {
-        return;
-    }
-
-    groupIt->second.AddMember(instanceId);
-    groupsByInstance_[instanceId].push_back(groupId);
-}
-
-void InstanceRegistry::RemoveFromGroup(GroupId groupId, InstanceId instanceId)
-{
-    const auto groupIt = groups_.find(groupId);
-    if (groupIt == groups_.end())
-    {
-        return;
-    }
-
-    groupIt->second.RemoveMember(instanceId);
-
-    const auto byInstanceIt = groupsByInstance_.find(instanceId);
-    if (byInstanceIt != groupsByInstance_.end())
-    {
-        std::erase(byInstanceIt->second, groupId);
-        if (byInstanceIt->second.empty())
+        auto& members = banksByGroup_[*nextGroupId];
+        if (std::find(members.begin(), members.end(), bankAddress) == members.end())
         {
-            groupsByInstance_.erase(byInstanceIt);
+            members.push_back(bankAddress);
         }
-    }
-
-    if (groupIt->second.IsEmpty())
-    {
-        groups_.erase(groupIt);
-    }
-}
-
-const InstanceGroup* InstanceRegistry::FindGroup(GroupId groupId) const noexcept
-{
-    const auto it = groups_.find(groupId);
-    return it != groups_.end() ? &it->second : nullptr;
-}
-
-void InstanceRegistry::Send(InstanceId instanceId, const dsp::RoutedParameterChange& change)
-{
-    const auto handle = FindInstance(instanceId);
-    if (handle != nullptr)
-    {
-        handle->ApplyParameterChange(change);
-    }
-}
-
-void InstanceRegistry::SendToGroup(GroupId groupId, const dsp::RoutedParameterChange& change)
-{
-    const auto* group = FindGroup(groupId);
-    if (group == nullptr)
-    {
-        return;
-    }
-
-    for (const auto member : group->GetMembers())
-    {
-        Send(member, change);
     }
 }
 

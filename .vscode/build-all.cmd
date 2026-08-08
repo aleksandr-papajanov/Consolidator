@@ -8,12 +8,10 @@ set "VCPKG_TOOLCHAIN=C:\Program Files\Microsoft Visual Studio\18\Community\VC\vc
 set "SOURCE_DIR=%ROOT%\Consolidator.Native"
 set "BUILD_DIR=%SOURCE_DIR%\out\build-vscode"
 
-if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
-
 call "%VSDEVCMD%" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
-"%CMAKE%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN%" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DCONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX=ON
+"%CMAKE%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -G "Visual Studio 18 2026" -A x64 -DCONSOLIDATOR_DEV=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN%" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DCONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX=ON
 if errorlevel 1 exit /b %errorlevel%
 
 "%CMAKE%" --build "%BUILD_DIR%" --config RelWithDebInfo

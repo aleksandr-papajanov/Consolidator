@@ -1,5 +1,7 @@
 ﻿#include "Dsp/Processors/DspChain.h"
 
+#include <algorithm>
+
 namespace consolidator::dsp
 {
 
@@ -30,9 +32,8 @@ void DspChain::Process(
     const auto sampleCount = frameCount * channelCount;
 
     const double* src = input;
-    double* dst = output;
     bool hasProcessed = false;
-    std::size_t lastActiveIndex = 0;
+    bool outputContainsResult = false;
 
     for (std::size_t i = 0; i < devices_.size(); ++i)
     {
@@ -41,18 +42,19 @@ void DspChain::Process(
             continue;
         }
 
-        lastActiveIndex = i;
-
         if (!hasProcessed)
         {
-            devices_[i]->Process(src, interim, frameCount, channelCount);
-            src = interim;
+            devices_[i]->Process(src, output, frameCount, channelCount);
+            src = output;
             hasProcessed = true;
+            outputContainsResult = true;
         }
         else
         {
-            devices_[i]->Process(src, interim, frameCount, channelCount);
-            src = interim;
+            double* const destination = outputContainsResult ? interim : output;
+            devices_[i]->Process(src, destination, frameCount, channelCount);
+            src = destination;
+            outputContainsResult = !outputContainsResult;
         }
     }
 
@@ -62,7 +64,10 @@ void DspChain::Process(
         return;
     }
 
-    std::copy_n(src, sampleCount, output);
+    if (!outputContainsResult)
+    {
+        std::copy_n(src, sampleCount, output);
+    }
 }
 
 std::size_t DspChain::GetDeviceCount() const noexcept

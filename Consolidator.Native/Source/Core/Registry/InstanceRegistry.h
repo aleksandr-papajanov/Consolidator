@@ -1,55 +1,45 @@
-﻿#pragma once
+#pragma once
 
 #include <span>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
-#include "Dsp/Parameters/RoutedParameterChange.h"
 #include "Core/Groups/GroupId.h"
-#include "Core/Groups/InstanceGroup.h"
 #include "Core/Instance/InstanceId.h"
+#include "Dsp/Parameters/DspIds.h"
 
 namespace consolidator::core
 {
 
 class ConsolidatorInstance;
+class InstanceState;
 
 using InstanceHandle = ConsolidatorInstance*;
+
+struct BankAddress
+{
+    InstanceId instanceId;
+    dsp::BankId bankId;
+
+    friend bool operator==(const BankAddress&, const BankAddress&) = default;
+};
 
 class InstanceRegistry
 {
 public:
-    static InstanceRegistry& Get();
-
-    InstanceRegistry(const InstanceRegistry&) = delete;
-    InstanceRegistry& operator=(const InstanceRegistry&) = delete;
-
-    InstanceId RegisterInstance(InstanceHandle instance);
-    void UnregisterInstance(InstanceId instanceId);
+    void RegisterInstance(InstanceId instanceId, InstanceHandle instance);
+    void UnregisterInstance(InstanceId instanceId, const InstanceState& state);
 
     [[nodiscard]] InstanceHandle FindInstance(InstanceId instanceId) const noexcept;
+    [[nodiscard]] std::span<const BankAddress> FindGroupMembers(GroupId groupId) const noexcept;
     [[nodiscard]] bool Contains(InstanceId instanceId) const noexcept;
 
-    GroupId CreateGroup(std::span<const InstanceId> members);
-    void RemoveGroup(GroupId groupId);
-
-    void AddToGroup(GroupId groupId, InstanceId instanceId);
-    void RemoveFromGroup(GroupId groupId, InstanceId instanceId);
-
-    [[nodiscard]] const InstanceGroup* FindGroup(GroupId groupId) const noexcept;
-
-    void Send(InstanceId instanceId, const dsp::RoutedParameterChange& change);
-    void SendToGroup(GroupId groupId, const dsp::RoutedParameterChange& change);
+    void CacheBankGroup(BankAddress bankAddress, std::optional<GroupId> previousGroupId, std::optional<GroupId> nextGroupId);
 
 private:
-    InstanceRegistry() = default;
-
-    InstanceId nextInstanceId_{0};
-    GroupId nextGroupId_{0};
-
     std::unordered_map<InstanceId, InstanceHandle> instances_;
-    std::unordered_map<GroupId, InstanceGroup> groups_;
-    std::unordered_map<InstanceId, std::vector<GroupId>> groupsByInstance_;
+    std::unordered_map<GroupId, std::vector<BankAddress>> banksByGroup_;
 };
 
 } // namespace consolidator::core

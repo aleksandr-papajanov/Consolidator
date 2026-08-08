@@ -1,11 +1,26 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
-
+#include <memory>
+#include "Core/Commands/Commands.h"
+#include "Core/Commands/SpscCommandQueue.h"
+#include "Core/State/InstanceState.h"
 #include "Dsp/Parameters/RoutedParameterChange.h"
+
+namespace consolidator::dsp
+{
+class DspChain;
+}
 
 namespace consolidator::core
 {
+
+class ConsolidatorInstance;
+
+void HandleDspParameterChangeCommand(
+    ConsolidatorInstance& instance,
+    const DspParameterChangeCommand& command);
 
 class ConsolidatorInstance
 {
@@ -24,10 +39,27 @@ public:
                  double* referenceOutput,
                  std::size_t frameCount);
 
-    void ApplyParameterChange(const dsp::RoutedParameterChange& change);
+    void EnqueueCommand(Command command);
+
+    [[nodiscard]] const InstanceState& GetState() const noexcept;
 
 private:
+    friend class InstanceCoordinator;
+    friend void HandleDspParameterChangeCommand(
+        ConsolidatorInstance& instance,
+        const DspParameterChangeCommand& command);
+
+    [[nodiscard]] bool EnqueueLocalCommand(Command command);
+    void RecordLocalQueueOverflow() noexcept;
+    void ProcessCommandQueue();
+    void HandleCommand(const Command& command);
+
     static constexpr std::size_t kChannelCount = 2;
+
+    std::unique_ptr<dsp::DspChain> dspChain_;
+    InstanceState state_;
+    SpscCommandQueue<Command, 128> commandQueue_;
+    std::atomic<std::size_t> localQueueOverflowCount_{0};
 };
 
 } // namespace consolidator::core

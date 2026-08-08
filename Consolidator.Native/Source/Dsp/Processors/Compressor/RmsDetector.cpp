@@ -28,7 +28,13 @@ double RmsDetector::ProcessSample(double sample) noexcept
 
     const double meanSquare = squaredSum_ / static_cast<double>(sampleCount_);
 
-    return std::sqrt(std::max(meanSquare, 0.0));
+    const double levelLinear = std::sqrt(std::max(meanSquare, 0.0));
+
+    meterState_.levelLinear.store(
+        static_cast<float>(levelLinear),
+        std::memory_order_relaxed);
+
+    return levelLinear;
 }
 
 void RmsDetector::Reset() noexcept
@@ -38,6 +44,7 @@ void RmsDetector::Reset() noexcept
     writeIndex_ = 0;
     sampleCount_ = 0;
     squaredSum_ = 0.0;
+    meterState_.levelLinear.store(0.0f, std::memory_order_relaxed);
 }
 
 } // namespace consolidator::dsp

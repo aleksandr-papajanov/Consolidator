@@ -59,12 +59,20 @@ struct CompressorState
 
 struct CompressorRuntimeState
 {
+    double sampleRate = core::settings::kDefaultSampleRate;
+    double gainReductionDb = 0.0;
+
     double outputGainLinear = 1.0;
     double wetMix = 1.0;
     double dryMix = 0.0;
     double attackCoefficient = 0.0;
     double releaseCoefficient = 0.0;
     bool isNeutral = true;
+};
+
+struct CompressorMeterState
+{
+    std::atomic<float> gainReductionDb{0.0f};
 };
 
 class Compressor final : public DspDevice
@@ -98,7 +106,7 @@ public:
 
     [[nodiscard]] float GetGainReductionDb() const noexcept
     {
-        return displayedGainReductionDb_.load(std::memory_order_relaxed);
+        return meterState_.gainReductionDb.load(std::memory_order_relaxed);
     }
 
     [[nodiscard]] bool IsNeutral() const noexcept override
@@ -141,15 +149,10 @@ private:
 
     CompressorState state_;
     CompressorRuntimeState runtimeState_;
+    CompressorMeterState meterState_;
 
     Equalizer detectorEqualizer_{detail::ElementKind::CompressorDetectorFilter};
-
     RmsDetector rmsDetector_;
-
-    double sampleRate_ = core::settings::kDefaultSampleRate;
-    double gainReductionDb_ = 0.0;
-
-    std::atomic<float> displayedGainReductionDb_{0.0f};
 };
 
 } // namespace consolidator::dsp

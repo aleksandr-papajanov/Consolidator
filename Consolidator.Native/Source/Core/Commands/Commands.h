@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "Core/Groups/GroupId.h"
+#include "Core/Instance/InstanceId.h"
 #include "Dsp/Parameters/ParameterRoute.h"
 #include "Dsp/Parameters/ParameterValue.h"
 
@@ -168,5 +169,11 @@ using Command = std::variant<
     RedoCommand,
     RestoreHistoryOperationCommand
 >;
+
+struct InstanceCommand
+{
+    InstanceId sourceInstanceId;
+    Command command;
+};
 
 } // namespace consolidator::core

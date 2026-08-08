@@ -16,11 +16,11 @@ Compressor::Compressor()
     : DspDevice(DeviceId::Compressor, detail::ElementKind::Device, 0)
 {
     detectorEqualizer_.AddFilter(std::make_unique<LowShelfFilter>(
-        EqFilterId::Filter1,
+        FilterId::Filter1,
         core::settings::DetectorDefaults::kDefaultLowShelfFrequencyHz));
 
     detectorEqualizer_.AddFilter(std::make_unique<BellFilter>(
-        EqFilterId::Filter2,
+        FilterId::Filter2,
         core::settings::DetectorDefaults::kDefaultBellFrequencyHz));
 
     RecalculateRuntime();
@@ -31,9 +31,9 @@ void Compressor::Prepare(double sampleRate, std::size_t channelCount)
     assert(sampleRate > 0.0);
     assert(channelCount > 0);
 
-    sampleRate_ = std::max(sampleRate, 1.0);
+    runtimeState_.sampleRate = std::max(sampleRate, 1.0);
 
-    detectorEqualizer_.Prepare(sampleRate_, 1);
+    detectorEqualizer_.Prepare(runtimeState_.sampleRate, 1);
 
     RecalculateAttackCoefficient();
     RecalculateReleaseCoefficient();
@@ -46,9 +46,9 @@ void Compressor::Reset() noexcept
     detectorEqualizer_.Reset();
     rmsDetector_.Reset();
 
-    gainReductionDb_ = 0.0;
+    runtimeState_.gainReductionDb = 0.0;
 
-    displayedGainReductionDb_.store(0.0f, std::memory_order_relaxed);
+    meterState_.gainReductionDb.store(0.0f, std::memory_order_relaxed);
 }
 
 void Compressor::Process(
@@ -62,7 +62,7 @@ void Compressor::Process(
 
     const auto sampleCount = frameCount * channelCount;
 
-    double lastGainReductionDb = gainReductionDb_;
+    double lastGainReductionDb = runtimeState_.gainReductionDb;
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
@@ -86,7 +86,7 @@ void Compressor::Process(
         lastGainReductionDb = smoothedGainReductionDb;
     }
 
-    displayedGainReductionDb_.store(
+    meterState_.gainReductionDb.store(
         static_cast<float>(lastGainReductionDb),
         std::memory_order_relaxed);
 }
@@ -149,17 +149,17 @@ double Compressor::CalculateTargetGainReductionDb(double inputLevelDb) const noe
 
 double Compressor::UpdateGainReductionDb(double targetGainReductionDb) noexcept
 {
-    const bool isIncreasingCompression = targetGainReductionDb < gainReductionDb_;
+    const bool isIncreasingCompression = targetGainReductionDb < runtimeState_.gainReductionDb;
 
     const double coefficient = isIncreasingCompression
         ? runtimeState_.attackCoefficient
         : runtimeState_.releaseCoefficient;
 
-    gainReductionDb_ =
-        coefficient * gainReductionDb_ +
+    runtimeState_.gainReductionDb =
+        coefficient * runtimeState_.gainReductionDb +
         (1.0 - coefficient) * targetGainReductionDb;
 
-    return gainReductionDb_;
+    return runtimeState_.gainReductionDb;
 }
 
 double Compressor::ProcessSample(double input, double gainLinear) const noexcept
@@ -268,12 +268,16 @@ void Compressor::RecalculateRuntime()
 
 void Compressor::RecalculateAttackCoefficient() noexcept
 {
-    runtimeState_.attackCoefficient = CalculateTimeCoefficient(state_.attackMs, sampleRate_);
+    runtimeState_.attackCoefficient = CalculateTimeCoefficient(
+        state_.attackMs,
+        runtimeState_.sampleRate);
 }
 
 void Compressor::RecalculateReleaseCoefficient() noexcept
 {
-    runtimeState_.releaseCoefficient = CalculateTimeCoefficient(state_.releaseMs, sampleRate_);
+    runtimeState_.releaseCoefficient = CalculateTimeCoefficient(
+        state_.releaseMs,
+        runtimeState_.sampleRate);
 }
 
 void Compressor::RecalculateOutputGain()

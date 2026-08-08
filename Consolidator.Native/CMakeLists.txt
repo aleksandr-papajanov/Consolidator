@@ -21,17 +21,27 @@ if(CONSOLIDATOR_DEV)
 endif()
 
 # ---------------------------------------------------------------------------
-# ConsolidatorCore - static library, no Max/Min/API dependencies
+# ConsolidatorCore - shared library, no Max/Min/API dependencies
 # ---------------------------------------------------------------------------
-add_library(ConsolidatorCore STATIC)
+add_library(ConsolidatorCore SHARED)
+set_target_properties(ConsolidatorCore PROPERTIES
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+)
 
 target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
     Source/Core/Instance/InstanceId.h
+    Source/Core/Instance/Handlers/DspParameterChangeCommandHandler.h
+    Source/Core/Instance/Handlers/DspParameterChangeCommandHandler.cpp
+    Source/Core/Coordinator/InstanceCoordinator.h
+    Source/Core/Coordinator/InstanceCoordinator.cpp
+    Source/Core/State/InstanceState.h
     Source/Core/Groups/GroupId.h
     Source/Core/Groups/InstanceGroup.h
     Source/Core/Commands/Commands.h
+    Source/Core/Commands/CommandQueue.h
+    Source/Core/Commands/SpscCommandQueue.h
     Source/Core/Commands/DspActions.h
     Source/Core/Notifications/Notifications.h
     Source/Core/Registry/InstanceRegistry.h
