@@ -63,10 +63,13 @@ namespace SaturatorDefaults
     inline constexpr double kMinMix = 0.0;
     inline constexpr double kMaxMix = 1.0;
     inline constexpr double kDefaultMix = 1.0;
+    inline constexpr double kMaximumDetectorAmount = 8.0;
+    inline constexpr double kMaximumDriveModulation = 16.0;
 } // namespace SaturatorDefaults
 
 namespace DetectorDefaults
 {
+    inline constexpr double kMinimumTimeMs = 0.01;
     inline constexpr double kDefaultAttackMs = 10.0;
     inline constexpr double kDefaultReleaseMs = 100.0;
     inline constexpr double kDefaultLowShelfFrequencyHz = 100.0;
@@ -98,6 +101,10 @@ namespace CompressorDefaults
     inline constexpr double kMinMix = 0.0;
     inline constexpr double kMaxMix = 1.0;
     inline constexpr double kDefaultMix = 1.0;
+
+    inline constexpr double kSoftKneeWidthDb = 6.0;
+    inline constexpr double kMinimumLevelLinear = 1.0e-12;
+    inline constexpr double kMinimumGainReductionDb = -60.0;
 } // namespace CompressorDefaults
 
 // ---- Filter kind ----

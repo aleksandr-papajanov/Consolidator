@@ -99,9 +99,6 @@ public:
 
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
-    static constexpr double kMinimumFrequencyHz = 20.0;
-    static constexpr double kMinimumQ = 0.1;
-
     virtual void RecalculateCoefficients() = 0;
 
     [[nodiscard]] virtual bool CalculateIsNeutral() const noexcept;

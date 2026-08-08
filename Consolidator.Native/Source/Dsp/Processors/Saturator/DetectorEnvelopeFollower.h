@@ -7,16 +7,16 @@
 namespace consolidator::dsp
 {
 
-struct EnvelopeDetectorSettings
+struct DetectorEnvelopeFollowerSettings
 {
     double attackMs = core::settings::DetectorDefaults::kDefaultAttackMs;
     double releaseMs = core::settings::DetectorDefaults::kDefaultReleaseMs;
 };
 
-class EnvelopeDetector
+class DetectorEnvelopeFollower
 {
 public:
-    EnvelopeDetector(
+    DetectorEnvelopeFollower(
         SaturatorDetectorFilterId lowShelfId,
         SaturatorDetectorFilterId bellId);
 
@@ -35,13 +35,11 @@ public:
     void SetReleaseMs(double releaseMs);
 
 private:
-    static constexpr double kMinimumTimeMs = 0.01;
-
     void RecalculateTimeCoefficients() noexcept;
 
     Equalizer filters_{detail::ElementKind::SaturatorDetectorFilter};
 
-    EnvelopeDetectorSettings settings_;
+    DetectorEnvelopeFollowerSettings settings_;
 
     double sampleRate_ = core::settings::kDefaultSampleRate;
     double attackCoefficient_ = 0.0;

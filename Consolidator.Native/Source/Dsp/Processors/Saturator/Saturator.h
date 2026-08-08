@@ -6,18 +6,40 @@
 #include "Core/Settings/DspDeviceSettings.h"
 #include "Dsp/Parameters/DspParameter.h"
 #include "Dsp/Processors/DspDevice.h"
-#include "Dsp/Processors/Saturator/EnvelopeDetector.h"
+#include "Dsp/Processors/Saturator/DetectorEnvelopeFollower.h"
 
 namespace consolidator::dsp
 {
 
 struct SaturatorState
 {
-    DspParameter<float> drive{ParameterId::Drive, static_cast<float>(core::settings::SaturatorDefaults::kDefaultDrive), static_cast<float>(core::settings::SaturatorDefaults::kMinDrive), static_cast<float>(core::settings::SaturatorDefaults::kMaxDrive)};
-    DspParameter<float> outputDb{ParameterId::Gain, static_cast<float>(core::settings::SaturatorDefaults::kDefaultOutputDb), static_cast<float>(core::settings::SaturatorDefaults::kMinOutputDb), static_cast<float>(core::settings::SaturatorDefaults::kMaxOutputDb)};
-    DspParameter<float> mix{ParameterId::Mix, static_cast<float>(core::settings::SaturatorDefaults::kDefaultMix), static_cast<float>(core::settings::SaturatorDefaults::kMinMix), static_cast<float>(core::settings::SaturatorDefaults::kMaxMix)};
-    DspParameter<float> detectorAmount{ParameterId::Type, 1.0f, 0.0f, 8.0f};
-    DspParameter<bool> bypass{ParameterId::Bypass, false};
+    DspParameter<float> drive{
+        ParameterId::Drive,
+        static_cast<float>(core::settings::SaturatorDefaults::kDefaultDrive),
+        static_cast<float>(core::settings::SaturatorDefaults::kMinDrive),
+        static_cast<float>(core::settings::SaturatorDefaults::kMaxDrive)};
+
+    DspParameter<float> outputDb{
+        ParameterId::Gain,
+        static_cast<float>(core::settings::SaturatorDefaults::kDefaultOutputDb),
+        static_cast<float>(core::settings::SaturatorDefaults::kMinOutputDb),
+        static_cast<float>(core::settings::SaturatorDefaults::kMaxOutputDb)};
+
+    DspParameter<float> mix{
+        ParameterId::Mix,
+        static_cast<float>(core::settings::SaturatorDefaults::kDefaultMix),
+        static_cast<float>(core::settings::SaturatorDefaults::kMinMix),
+        static_cast<float>(core::settings::SaturatorDefaults::kMaxMix)};
+
+    DspParameter<float> detectorAmount{
+        ParameterId::Type,
+        1.0f,
+        0.0f,
+        8.0f};
+        
+    DspParameter<bool> bypass{
+        ParameterId::Bypass,
+        false};
 };
 
 struct SaturatorRuntimeState
@@ -72,17 +94,6 @@ public:
 private:
     static constexpr std::size_t kMaximumChannelCount = 2;
 
-    static constexpr float kMinimumDrive = 0.1f;
-    static constexpr float kMaximumDrive = 100.0f;
-
-    static constexpr float kMinimumMix = 0.0f;
-    static constexpr float kMaximumMix = 1.0f;
-
-    static constexpr float kMinimumDetectorAmount = 0.0f;
-    static constexpr float kMaximumDetectorAmount = 8.0f;
-
-    static constexpr double kMaximumDriveModulation = 16.0;
-
     bool ApplyStateParameter(
         const ParameterRoute& route,
         const ParameterValue& value) override;
@@ -91,7 +102,7 @@ private:
 
     [[nodiscard]] double ProcessSample(
         double input,
-        EnvelopeDetector& detector) const noexcept;
+        DetectorEnvelopeFollower& detector) const noexcept;
 
     [[nodiscard]] double CalculateDriveModulation(
         double envelope) const noexcept;
@@ -111,12 +122,12 @@ private:
 
     std::size_t activeChannelCount_ = kMaximumChannelCount;
 
-    std::array<EnvelopeDetector, kMaximumChannelCount> detectors_{
-        EnvelopeDetector{
+    std::array<DetectorEnvelopeFollower, kMaximumChannelCount> detectors_{
+        DetectorEnvelopeFollower{
             SaturatorDetectorFilterId::Filter1,
             SaturatorDetectorFilterId::Filter2
         },
-        EnvelopeDetector{
+        DetectorEnvelopeFollower{
             SaturatorDetectorFilterId::Filter1,
             SaturatorDetectorFilterId::Filter2
         }

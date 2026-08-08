@@ -50,12 +50,10 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Dsp/Processors/Gain/Gain.cpp
     Source/Dsp/Processors/Saturator/Saturator.h
     Source/Dsp/Processors/Saturator/Saturator.cpp
-    Source/Dsp/Processors/Saturator/EnvelopeDetector.h
-    Source/Dsp/Processors/Saturator/EnvelopeDetector.cpp
+    Source/Dsp/Processors/Saturator/DetectorEnvelopeFollower.h
+    Source/Dsp/Processors/Saturator/DetectorEnvelopeFollower.cpp
     Source/Dsp/Processors/Compressor/Compressor.h
     Source/Dsp/Processors/Compressor/Compressor.cpp
-    Source/Dsp/Processors/Compressor/CompressorSidechain.h
-    Source/Dsp/Processors/Compressor/CompressorSidechain.cpp
     Source/Dsp/Processors/Compressor/RmsDetector.h
     Source/Dsp/Processors/Compressor/RmsDetector.cpp
     Source/Dsp/Processors/Equalizer/Equalizer.h

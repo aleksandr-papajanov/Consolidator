@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <memory>
 
 #include "Dsp/Utilities/TimeCoefficient.h"
+#include "Dsp/Processors/Equalizer/Filters/BellFilter.h"
+#include "Dsp/Processors/Equalizer/Filters/LowShelfFilter.h"
 
 namespace consolidator::dsp
 {
@@ -12,6 +15,14 @@ namespace consolidator::dsp
 Compressor::Compressor()
     : DspDevice(DeviceId::Compressor, detail::ElementKind::Device, 0)
 {
+    detectorEqualizer_.AddFilter(std::make_unique<LowShelfFilter>(
+        EqFilterId::Filter1,
+        core::settings::DetectorDefaults::kDefaultLowShelfFrequencyHz));
+
+    detectorEqualizer_.AddFilter(std::make_unique<BellFilter>(
+        EqFilterId::Filter2,
+        core::settings::DetectorDefaults::kDefaultBellFrequencyHz));
+
     RecalculateRuntime();
 }
 
@@ -22,7 +33,7 @@ void Compressor::Prepare(double sampleRate, std::size_t channelCount)
 
     sampleRate_ = std::max(sampleRate, 1.0);
 
-    sidechain_.Prepare(sampleRate_);
+    detectorEqualizer_.Prepare(sampleRate_, 1);
 
     RecalculateAttackCoefficient();
     RecalculateReleaseCoefficient();
@@ -32,7 +43,7 @@ void Compressor::Prepare(double sampleRate, std::size_t channelCount)
 
 void Compressor::Reset() noexcept
 {
-    sidechain_.Reset();
+    detectorEqualizer_.Reset();
     rmsDetector_.Reset();
 
     gainReductionDb_ = 0.0;
@@ -89,13 +100,15 @@ double Compressor::CalculateLinkedDetectorInput(const double* frame, std::size_t
         linkedPeak = std::max(linkedPeak, std::abs(frame[channel]));
     }
 
-    return sidechain_.ProcessSample(linkedPeak);
+    return detectorEqualizer_.ProcessSample(linkedPeak);
 }
 
 double Compressor::MeasureLevelDb(double detectorInput) noexcept
 {
     const double rmsLevel = rmsDetector_.ProcessSample(detectorInput);
-    const double safeLevel = std::max(rmsLevel, kMinimumLevelLinear);
+    const double safeLevel = std::max(
+        rmsLevel,
+        core::settings::CompressorDefaults::kMinimumLevelLinear);
 
     return 20.0 * std::log10(safeLevel);
 }
@@ -105,7 +118,7 @@ double Compressor::CalculateTargetGainReductionDb(double inputLevelDb) const noe
     const double thresholdDb = static_cast<double>(state_.thresholdDb);
     const double ratio = static_cast<double>(state_.ratio);
     const double levelAboveThreshold = inputLevelDb - thresholdDb;
-    const double halfKnee = kSoftKneeWidthDb * 0.5;
+    const double halfKnee = core::settings::CompressorDefaults::kSoftKneeWidthDb * 0.5;
 
     if (levelAboveThreshold <= -halfKnee)
     {
@@ -126,10 +139,12 @@ double Compressor::CalculateTargetGainReductionDb(double inputLevelDb) const noe
 
         gainReductionDb =
             -(compressionSlope * kneePosition * kneePosition) /
-            (2.0 * kSoftKneeWidthDb);
+            (2.0 * core::settings::CompressorDefaults::kSoftKneeWidthDb);
     }
 
-    return std::max(gainReductionDb, kMinimumGainReductionDb);
+    return std::max(
+        gainReductionDb,
+        core::settings::CompressorDefaults::kMinimumGainReductionDb);
 }
 
 double Compressor::UpdateGainReductionDb(double targetGainReductionDb) noexcept
@@ -187,7 +202,7 @@ bool Compressor::ApplyParameter(
         return false;
     }
 
-    const bool isUpdated = sidechain_.ApplyParameter(route, value, depth + 1);
+    const bool isUpdated = detectorEqualizer_.ApplyParameter(route, value, depth + 1);
     if (isUpdated)
     {
         RecalculateRuntime();
@@ -198,50 +213,38 @@ bool Compressor::ApplyParameter(
 
 void Compressor::SetThreshold(float thresholdDb) noexcept
 {
-    state_.thresholdDb = std::clamp(
-        thresholdDb,
-        kMinimumThresholdDb,
-        kMaximumThresholdDb);
+    state_.thresholdDb = thresholdDb;
 }
 
 void Compressor::SetRatio(float ratio) noexcept
 {
-    state_.ratio = std::clamp(ratio, kMinimumRatio, kMaximumRatio);
+    state_.ratio = ratio;
 }
 
 void Compressor::SetAttack(float attackMs) noexcept
 {
-    state_.attackMs = std::clamp(
-        attackMs,
-        kMinimumAttackMs,
-        kMaximumAttackMs);
+    state_.attackMs = attackMs;
 
     RecalculateAttackCoefficient();
 }
 
 void Compressor::SetRelease(float releaseMs) noexcept
 {
-    state_.releaseMs = std::clamp(
-        releaseMs,
-        kMinimumReleaseMs,
-        kMaximumReleaseMs);
+    state_.releaseMs = releaseMs;
 
     RecalculateReleaseCoefficient();
 }
 
 void Compressor::SetOutputDb(float outputDb)
 {
-    state_.outputDb = std::clamp(
-        outputDb,
-        kMinimumOutputDb,
-        kMaximumOutputDb);
+    state_.outputDb = outputDb;
 
     RecalculateOutputGain();
 }
 
 void Compressor::SetMix(float mix) noexcept
 {
-    state_.mix = std::clamp(mix, kMinimumMix, kMaximumMix);
+    state_.mix = mix;
     RecalculateMix();
 }
 

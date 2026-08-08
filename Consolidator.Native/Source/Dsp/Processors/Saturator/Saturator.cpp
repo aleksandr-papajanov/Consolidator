@@ -70,7 +70,7 @@ void Saturator::Process(
     }
 }
 
-double Saturator::ProcessSample(double input, EnvelopeDetector& detector) const noexcept
+double Saturator::ProcessSample(double input, DetectorEnvelopeFollower& detector) const noexcept
 {
     const double envelope = detector.ProcessSample(input);
     const double modulation = CalculateDriveModulation(envelope);
@@ -90,12 +90,14 @@ double Saturator::CalculateDriveModulation(double envelope) const noexcept
     return std::clamp(
         modulation,
         1.0,
-        kMaximumDriveModulation);
+        core::settings::SaturatorDefaults::kMaximumDriveModulation);
 }
 
 double Saturator::ApplyWaveshaper(double input, double drive) const noexcept
 {
-    const double safeDrive =  std::max(drive, static_cast<double>(kMinimumDrive));
+    const double safeDrive = std::max(
+        drive,
+        core::settings::SaturatorDefaults::kMinDrive);
     const double normalization = std::tanh(safeDrive);
 
     if (normalization <= 0.0)
@@ -153,10 +155,7 @@ bool Saturator::ApplyParameter(
 
 void Saturator::SetDrive(float drive)
 {
-    state_.drive = std::clamp(
-        drive,
-        kMinimumDrive,
-        kMaximumDrive);
+    state_.drive = drive;
 
     runtimeState_.driveLinear = static_cast<double>(state_.drive);
 }
@@ -170,10 +169,7 @@ void Saturator::SetOutputDb(float outputDb)
 
 void Saturator::SetMix(float mix)
 {
-    state_.mix = std::clamp(
-        mix,
-        kMinimumMix,
-        kMaximumMix);
+    state_.mix = mix;
 
     runtimeState_.wetMix = static_cast<double>(state_.mix);
 
@@ -182,10 +178,7 @@ void Saturator::SetMix(float mix)
 
 void Saturator::SetDetectorAmount(float amount)
 {
-    state_.detectorAmount = std::clamp(
-        amount,
-        kMinimumDetectorAmount,
-        kMaximumDetectorAmount);
+    state_.detectorAmount = amount;
 
     runtimeState_.detectorAmount = static_cast<double>(state_.detectorAmount);
 }

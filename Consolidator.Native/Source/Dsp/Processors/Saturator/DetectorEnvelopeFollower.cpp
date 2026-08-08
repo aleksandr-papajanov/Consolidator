@@ -1,4 +1,4 @@
-#include "Dsp/Processors/Saturator/EnvelopeDetector.h"
+#include "Dsp/Processors/Saturator/DetectorEnvelopeFollower.h"
 
 #include <algorithm>
 #include <cmath>
@@ -10,21 +10,21 @@
 namespace consolidator::dsp
 {
 
-EnvelopeDetector::EnvelopeDetector(
+DetectorEnvelopeFollower::DetectorEnvelopeFollower(
     SaturatorDetectorFilterId lowShelfId,
     SaturatorDetectorFilterId bellId)
 {
     filters_.AddFilter(std::make_unique<LowShelfFilter>(
         detail::ToFilterId(detail::ToIndex(lowShelfId)),
-        100.0));
+        core::settings::DetectorDefaults::kDefaultLowShelfFrequencyHz));
 
     filters_.AddFilter(std::make_unique<BellFilter>(
         detail::ToFilterId(detail::ToIndex(bellId)),
-        1000.0));
+        core::settings::DetectorDefaults::kDefaultBellFrequencyHz));
     RecalculateTimeCoefficients();
 }
 
-void EnvelopeDetector::Prepare(double sampleRate)
+void DetectorEnvelopeFollower::Prepare(double sampleRate)
 {
     sampleRate_ = std::max(sampleRate, 1.0);
 
@@ -34,14 +34,14 @@ void EnvelopeDetector::Prepare(double sampleRate)
     Reset();
 }
 
-void EnvelopeDetector::Reset() noexcept
+void DetectorEnvelopeFollower::Reset() noexcept
 {
     filters_.Reset();
 
     envelope_ = 0.0;
 }
 
-double EnvelopeDetector::ProcessSample(double input) noexcept
+double DetectorEnvelopeFollower::ProcessSample(double input) noexcept
 {
     const double filtered = filters_.ProcessSample(input);
     const double rectified = std::abs(filtered);
@@ -58,7 +58,7 @@ double EnvelopeDetector::ProcessSample(double input) noexcept
     return envelope_;
 }
 
-bool EnvelopeDetector::ApplyParameter(
+bool DetectorEnvelopeFollower::ApplyParameter(
     const ParameterRoute& route,
     const ParameterValue& value,
     std::size_t depth)
@@ -66,19 +66,23 @@ bool EnvelopeDetector::ApplyParameter(
     return filters_.ApplyParameter(route, value, depth);
 }
 
-void EnvelopeDetector::SetAttackMs(double attackMs)
+void DetectorEnvelopeFollower::SetAttackMs(double attackMs)
 {
-    settings_.attackMs = std::max(attackMs, kMinimumTimeMs);
+    settings_.attackMs = std::max(
+        attackMs,
+        core::settings::DetectorDefaults::kMinimumTimeMs);
     RecalculateTimeCoefficients();
 }
 
-void EnvelopeDetector::SetReleaseMs(double releaseMs)
+void DetectorEnvelopeFollower::SetReleaseMs(double releaseMs)
 {
-    settings_.releaseMs = std::max(releaseMs, kMinimumTimeMs);
+    settings_.releaseMs = std::max(
+        releaseMs,
+        core::settings::DetectorDefaults::kMinimumTimeMs);
     RecalculateTimeCoefficients();
 }
 
-void EnvelopeDetector::RecalculateTimeCoefficients() noexcept
+void DetectorEnvelopeFollower::RecalculateTimeCoefficients() noexcept
 {
     attackCoefficient_ = CalculateTimeCoefficient(settings_.attackMs, sampleRate_);
     releaseCoefficient_ = CalculateTimeCoefficient(settings_.releaseMs, sampleRate_);
