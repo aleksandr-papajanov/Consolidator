@@ -86,12 +86,14 @@ constexpr std::uint8_t ToIndex(FilterId id) noexcept
     return static_cast<std::uint8_t>(id);
 }
 
-constexpr std::uint8_t ToIndex(SaturatorDetectorFilterId id) noexcept
+constexpr std::uint8_t ToIndex(
+    SaturatorDetectorFilterId id) noexcept
 {
     return static_cast<std::uint8_t>(id);
 }
 
-constexpr std::uint8_t ToIndex(CompressorDetectorFilterId id) noexcept
+constexpr std::uint8_t ToIndex(
+    CompressorDetectorFilterId id) noexcept
 {
     return static_cast<std::uint8_t>(id);
 }

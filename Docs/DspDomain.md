@@ -2,7 +2,7 @@
 
 ## Назначение
 
-`Consolidator.Native/Source/Dsp` — независимый DSP-слой обработки аудио. Он не зависит от Max/Min и содержит цепочку устройств, параметры, обработчики аудио и runtime-состояние.
+`Consolidator.Native/Source/Dsp` — независимый DSP-слой обработки аудио. Он не зависит от Max/Min и содержит цепочку устройств, обработчики аудио и runtime-состояние. Общие parameter-типы находятся в `Source/Core/Parameters`.
 
 Главная цепочка собирается `DspChainBuilder`:
 
@@ -16,11 +16,11 @@ Input Gain → Saturator → Compressor → Equalizer banks → Output Gain
 
 Все аудиоустройства наследуются от `DspDevice` и имеют:
 
-- `*State` — пользовательские параметры;
+- `*State` — пользовательские параметры из `Source/Core/State`;
 - `*RuntimeState` — производные DSP-величины и изменяемая audio-thread память;
 - `RecalculateRuntime()` — пересчёт runtime после успешного изменения параметра.
 
-Параметры хранятся в `DspParameter<T>`. Он содержит локальный `ParameterId`, текущее значение и диапазон. Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; processor-классы не должны дублировать их литералами.
+Параметры хранятся в `DspParameter<T>` из `Core/Parameters`. Он содержит локальный `ParameterId`, текущее значение и диапазон. Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; processor-классы не должны дублировать их литералами.
 
 ## Маршрутизация параметров
 

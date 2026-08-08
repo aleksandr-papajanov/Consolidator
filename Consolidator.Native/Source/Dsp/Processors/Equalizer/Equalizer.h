@@ -6,17 +6,12 @@
 #include <optional>
 #include <vector>
 
-#include "Dsp/Parameters/DspParameter.h"
+#include "Core/State/EqualizerState.h"
 #include "Dsp/Processors/Equalizer/Filters/Filter.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
 {
-
-struct EqualizerState
-{
-    DspParameter<bool> bypass{ParameterId::Bypass, false};
-};
 
 struct EqualizerRuntimeState
 {

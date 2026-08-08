@@ -20,8 +20,8 @@ dsp::RouteNodeId ToRouteNodeId(dsp::BankId bankId) noexcept
         dsp::detail::ToIndex(bankId));
 }
 
-DspParameterChangeCommand CreateCommandForBank(
-    const DspParameterChangeCommand& command,
+ChangeDspParameterCommand CreateCommandForBank(
+    const ChangeDspParameterCommand& command,
     dsp::BankId bankId)
 {
     const auto& route = command.route;
@@ -112,17 +112,17 @@ void InstanceCoordinator::RouteCommand(const InstanceCommand& command)
         [this, sourceInstanceId = command.sourceInstanceId](const auto& typedCommand)
         {
             using CommandType = std::decay_t<decltype(typedCommand)>;
-            if constexpr (std::is_same_v<CommandType, DspParameterChangeCommand>)
+            if constexpr (std::is_same_v<CommandType, ChangeDspParameterCommand>)
             {
-                RouteDspParameterChangeCommand(sourceInstanceId, typedCommand);
+                RouteChangeDspParameterCommand(sourceInstanceId, typedCommand);
             }
         },
         command.command);
 }
 
-void InstanceCoordinator::RouteDspParameterChangeCommand(
+void InstanceCoordinator::RouteChangeDspParameterCommand(
     InstanceId sourceInstanceId,
-    const DspParameterChangeCommand& command)
+    const ChangeDspParameterCommand& command)
 {
     auto* const source = registry_.FindInstance(sourceInstanceId);
     if (source == nullptr)

@@ -6,8 +6,8 @@
 
 #include "Core/Groups/GroupId.h"
 #include "Core/Instance/InstanceId.h"
-#include "Dsp/Parameters/ParameterRoute.h"
-#include "Dsp/Parameters/ParameterValue.h"
+#include "Core/Parameters/ParameterRoute.h"
+#include "Core/Parameters/ParameterValue.h"
 
 namespace consolidator::core
 {
@@ -38,7 +38,7 @@ using SessionId = std::string;
 //
 // Every change is addressed by a hierarchical ParameterRoute + ParameterValue.
 
-struct DspParameterChangeCommand
+struct ChangeDspParameterCommand
 {
     dsp::ParameterRoute route;
     dsp::ParameterValue value;
@@ -148,7 +148,7 @@ struct FailFitCommand
 // ---- Command variant ----
 
 using Command = std::variant<
-    DspParameterChangeCommand,
+    ChangeDspParameterCommand,
     JoinGroupsCommand,
     CommitGroupCommand,
     CommitAllGroupsCommand,

@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "Core/Coordinator/InstanceCoordinator.h"
-#include "Core/Instance/Handlers/DspParameterChangeCommandHandler.h"
+#include "Core/Instance/Handlers/ChangeDspParameterCommandHandler.h"
 #include "Dsp/DspChainBuilder.h"
 #include "Dsp/Processors/DspChain.h"
 
@@ -68,9 +68,9 @@ void ConsolidatorInstance::HandleCommand(const Command& command)
         [this](const auto& typedCommand)
         {
             using CommandType = std::decay_t<decltype(typedCommand)>;
-            if constexpr (std::is_same_v<CommandType, DspParameterChangeCommand>)
+            if constexpr (std::is_same_v<CommandType, ChangeDspParameterCommand>)
             {
-                HandleDspParameterChangeCommand(*this, typedCommand);
+                HandleChangeDspParameterCommand(*this, typedCommand);
             }
         },
         command);

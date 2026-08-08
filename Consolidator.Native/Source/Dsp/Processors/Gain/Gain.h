@@ -3,22 +3,11 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "Core/Settings/DspDeviceSettings.h"
-#include "Dsp/Parameters/DspParameter.h"
+#include "Core/State/GainState.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
 {
-
-struct GainState
-{
-    DspParameter<float> gainDb{
-        ParameterId::Gain,
-        static_cast<float>(core::settings::GainDefaults::kDefaultGainDb),
-        static_cast<float>(core::settings::GainDefaults::kMinGainDb),
-        static_cast<float>(core::settings::GainDefaults::kMaxGainDb)};
-    DspParameter<bool> bypass{ParameterId::Bypass, false};
-};
 
 struct GainRuntimeState
 {

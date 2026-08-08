@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "Dsp/Parameters/DspIds.h"
+#include "Core/Parameters/DspIds.h"
 
 namespace consolidator::dsp
 {
@@ -36,8 +36,8 @@ public:
     constexpr ParameterRoute(
         DeviceId deviceId,
         ParameterId parameterId) noexcept
-        : deviceId_(deviceId)
-        , parameterId_(parameterId)
+        : deviceId_(deviceId),
+          parameterId_(parameterId)
     {
     }
 
@@ -46,10 +46,10 @@ public:
         DeviceId deviceId,
         ParameterId parameterId,
         NodeIds... nodeIds) noexcept
-        : deviceId_(deviceId)
-        , parameterId_(parameterId)
-        , nodes_{static_cast<RouteNodeId>(nodeIds)...}
-        , depth_(sizeof...(nodeIds))
+        : deviceId_(deviceId),
+          parameterId_(parameterId),
+          nodes_{static_cast<RouteNodeId>(nodeIds)...},
+          depth_(sizeof...(nodeIds))
     {
         static_assert(sizeof...(nodeIds) <= kMaximumDepth);
     }
@@ -69,7 +69,8 @@ public:
         return depth_;
     }
 
-    [[nodiscard]] constexpr RouteNodeId GetNode(std::size_t depth) const noexcept
+    [[nodiscard]] constexpr RouteNodeId GetNode(
+        std::size_t depth) const noexcept
     {
         return nodes_[depth];
     }
@@ -77,6 +78,7 @@ public:
 private:
     DeviceId deviceId_;
     ParameterId parameterId_;
+
     std::array<RouteNodeId, kMaximumDepth> nodes_{};
     std::size_t depth_ = 0;
 };

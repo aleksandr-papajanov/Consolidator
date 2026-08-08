@@ -35,9 +35,9 @@ private:
     void UnregisterInstance(InstanceId instanceId);
     void WorkerLoop(std::stop_token stopToken);
     void RouteCommand(const InstanceCommand& command);
-    void RouteDspParameterChangeCommand(
+    void RouteChangeDspParameterCommand(
         InstanceId sourceInstanceId,
-        const DspParameterChangeCommand& command);
+        const ChangeDspParameterCommand& command);
     void EnqueueForInstance(InstanceId instanceId, Command command);
     void RetryPendingDeliveries();
 

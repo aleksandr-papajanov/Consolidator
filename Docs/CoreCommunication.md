@@ -35,6 +35,25 @@ it caches `GroupId → BankAddress[]`, where `BankAddress` is an `(InstanceId,
 BankId)` pair. Group-management commands will update both the bank state and
 this index.
 
+User-facing DSP state is also part of `Source/Core/State`: one file per device
+state (`GainState`, `SaturatorState`, `CompressorState`, `EqualizerState`, and
+`FilterState`). DSP runtime and meter state remain private implementation
+details of their respective devices under `Source/Dsp`.
+
+## Parameter domain
+
+The shared parameter model lives in `Source/Core/Parameters`:
+
+- device, bank, filter, and parameter identifiers;
+- `ParameterValue`;
+- `ParameterRoute`;
+- `RoutedParameterChange`;
+- `DspParameter<T>`.
+
+These types are in Core because commands, instance state, coordination, and
+DSP processing all use them. They retain the `consolidator::dsp` namespace to
+express their DSP domain meaning.
+
 ## Command flow
 
 The control and audio responsibilities are separated:
@@ -60,8 +79,8 @@ segment of `ParameterRoute` for each target bank before publication.
 
 ## DSP commands
 
-`DspParameterChangeCommand` is the first supported command. Its execution is
-implemented by `Instance/Handlers/DspParameterChangeCommandHandler.cpp`.
+`ChangeDspParameterCommand` is the first supported command. Its execution is
+implemented by `Instance/Handlers/ChangeDspParameterCommandHandler.cpp`.
 `ConsolidatorInstance` does not expose DSP parameter application as public API.
 
 At the beginning of every audio callback, `ConsolidatorInstance::Process()`

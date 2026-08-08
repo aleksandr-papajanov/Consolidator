@@ -1,5 +1,5 @@
 ﻿#include "Dsp/DspChainBuilder.h"
-#include "Dsp/Parameters/RoutedParameterChange.h"
+#include "Core/Parameters/RoutedParameterChange.h"
 #include "Dsp/Processors/Compressor/Compressor.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"

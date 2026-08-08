@@ -6,7 +6,7 @@
 #include "Core/Commands/Commands.h"
 #include "Core/Commands/SpscCommandQueue.h"
 #include "Core/State/InstanceState.h"
-#include "Dsp/Parameters/RoutedParameterChange.h"
+#include "Core/Parameters/RoutedParameterChange.h"
 
 namespace consolidator::dsp
 {
@@ -18,9 +18,9 @@ namespace consolidator::core
 
 class ConsolidatorInstance;
 
-void HandleDspParameterChangeCommand(
+void HandleChangeDspParameterCommand(
     ConsolidatorInstance& instance,
-    const DspParameterChangeCommand& command);
+    const ChangeDspParameterCommand& command);
 
 class ConsolidatorInstance
 {
@@ -45,9 +45,9 @@ public:
 
 private:
     friend class InstanceCoordinator;
-    friend void HandleDspParameterChangeCommand(
+    friend void HandleChangeDspParameterCommand(
         ConsolidatorInstance& instance,
-        const DspParameterChangeCommand& command);
+        const ChangeDspParameterCommand& command);
 
     [[nodiscard]] bool EnqueueLocalCommand(Command command);
     void RecordLocalQueueOverflow() noexcept;

@@ -7,8 +7,8 @@ namespace consolidator::core
 
 class ConsolidatorInstance;
 
-void HandleDspParameterChangeCommand(
+void HandleChangeDspParameterCommand(
     ConsolidatorInstance& instance,
-    const DspParameterChangeCommand& command);
+    const ChangeDspParameterCommand& command);
 
 } // namespace consolidator::core

@@ -1,6 +1,6 @@
 #include "Core/Instance/ConsolidatorInstance.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
-#include "Dsp/Parameters/RoutedParameterChange.h"
+#include "Core/Parameters/RoutedParameterChange.h"
 
 #include <cassert>
 #include <array>
@@ -32,7 +32,7 @@ int main()
     assert(std::equal(mainInput.begin(), mainInput.end(), mainOutput.begin()));
     assert(std::equal(referenceInput.begin(), referenceInput.end(), referenceOutput.begin()));
 
-    instance.EnqueueCommand(consolidator::core::DspParameterChangeCommand{
+    instance.EnqueueCommand(consolidator::core::ChangeDspParameterCommand{
         consolidator::dsp::ParameterRoute{
             consolidator::dsp::DeviceId::MainInputGain,
             consolidator::dsp::ParameterId::Gain},

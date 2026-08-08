@@ -7,7 +7,7 @@
 
 #include "Core/Groups/GroupId.h"
 #include "Core/Instance/InstanceId.h"
-#include "Dsp/Parameters/DspIds.h"
+#include "Core/Parameters/DspIds.h"
 
 namespace consolidator::core
 {

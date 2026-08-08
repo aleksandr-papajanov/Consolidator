@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 
-#include "Dsp/Parameters/RoutedParameterChange.h"
+#include "Core/Parameters/RoutedParameterChange.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp

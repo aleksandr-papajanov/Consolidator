@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Dsp/Parameters/ParameterRoute.h"
-#include "Dsp/Parameters/ParameterValue.h"
+#include "Core/Parameters/ParameterRoute.h"
+#include "Core/Parameters/ParameterValue.h"
 
 namespace consolidator::dsp
 {
