@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Dsp/Parameters/ParameterChange.h"
+#include "Dsp/Parameters/RoutedParameterChange.h"
 #include "Core/Groups/GroupId.h"
 #include "Core/Groups/InstanceGroup.h"
 #include "Core/Instance/InstanceId.h"
@@ -38,8 +38,8 @@ public:
 
     [[nodiscard]] const InstanceGroup* FindGroup(GroupId groupId) const noexcept;
 
-    void Send(InstanceId instanceId, const dsp::ParameterChange& change);
-    void SendToGroup(GroupId groupId, const dsp::ParameterChange& change);
+    void Send(InstanceId instanceId, const dsp::RoutedParameterChange& change);
+    void SendToGroup(GroupId groupId, const dsp::RoutedParameterChange& change);
 
 private:
     InstanceRegistry() = default;

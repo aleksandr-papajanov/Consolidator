@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-#include "Dsp/Parameters/ParameterChange.h"
+#include "Dsp/Parameters/RoutedParameterChange.h"
 
 namespace consolidator::core
 {
@@ -24,7 +24,7 @@ public:
                  double* referenceOutput,
                  std::size_t frameCount);
 
-    void ApplyParameterChange(const dsp::ParameterChange& change);
+    void ApplyParameterChange(const dsp::RoutedParameterChange& change);
 
 private:
     static constexpr std::size_t kChannelCount = 2;

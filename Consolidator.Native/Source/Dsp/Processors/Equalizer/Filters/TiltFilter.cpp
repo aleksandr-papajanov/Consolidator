@@ -1,19 +1,17 @@
 #include "Dsp/Processors/Equalizer/Filters/TiltFilter.h"
 
-#include "Dsp/Parameters/ParameterChange.h"
-
 namespace consolidator::dsp
 {
 
 TiltFilter::TiltFilter(
-    EqFilterId filterId,
+    FilterId FilterId,
     double pivotHz)
     : Filter(
           DeviceId::Equalizer,
           detail::ElementKind::EqFilter,
-          detail::ToIndex(filterId)),
-      lowShelf_(filterId, pivotHz),
-      highShelf_(filterId, pivotHz)
+          detail::ToIndex(FilterId)),
+      lowShelf_(FilterId, pivotHz),
+      highShelf_(FilterId, pivotHz)
 {
     InitializeParameters(
         pivotHz,
@@ -44,7 +42,7 @@ double TiltFilter::ProcessSample(
     double input,
     std::size_t channel) noexcept
 {
-    if (GetParameters().bypass)
+    if (GetState().bypass)
     {
         return input;
     }
@@ -61,50 +59,42 @@ void TiltFilter::RecalculateCoefficients()
     ApplyInternalParameters();
 }
 
+bool TiltFilter::CalculateIsNeutral() const noexcept
+{
+    return state_.bypass || state_.gainDb == 0.0;
+}
+
 void TiltFilter::ApplyInternalParameters()
 {
-    const auto& parameters = GetParameters();
-    const auto filterId = GetEqFilterId();
-    const auto bankId = GetBankId();
+    const auto& parameters = GetState();
+    const auto filterNode = static_cast<RouteNodeId>(
+        static_cast<std::uint8_t>(RouteNodeId::Filter1) +
+        detail::ToIndex(GetFilterId()));
 
-    lowShelf_.bankId_ = bankId;
-    highShelf_.bankId_ = bankId;
+    const auto applyParameter = [filterNode](
+                                    Filter& filter,
+                                    ParameterId parameterId,
+                                    float value)
+    {
+        const ParameterRoute route{
+            DeviceId::Equalizer,
+            parameterId,
+            filterNode};
 
-    lowShelf_.ApplyParameterChange(
-        ParameterChange{
-            ParameterAddress::EqFilterFrequency(bankId, filterId),
-            ParameterValue{
-                static_cast<float>(parameters.frequencyHz)}});
+        filter.ApplyParameter(route, ParameterValue{value}, 1);
+    };
 
-    lowShelf_.ApplyParameterChange(
-        ParameterChange{
-            ParameterAddress::EqFilterQ(bankId, filterId),
-            ParameterValue{
-                static_cast<float>(parameters.q)}});
+    const float frequencyHz = static_cast<float>(parameters.frequencyHz);
+    const float q = static_cast<float>(parameters.q);
+    const float halfGainDb = static_cast<float>(parameters.gainDb * 0.5);
 
-    lowShelf_.ApplyParameterChange(
-        ParameterChange{
-            ParameterAddress::EqFilterGain(bankId, filterId),
-            ParameterValue{
-                static_cast<float>(-parameters.gainDb * 0.5)}});
+    applyParameter(lowShelf_, ParameterId::Frequency, frequencyHz);
+    applyParameter(lowShelf_, ParameterId::Q, q);
+    applyParameter(lowShelf_, ParameterId::Gain, -halfGainDb);
 
-    highShelf_.ApplyParameterChange(
-        ParameterChange{
-            ParameterAddress::EqFilterFrequency(bankId, filterId),
-            ParameterValue{
-                static_cast<float>(parameters.frequencyHz)}});
-
-    highShelf_.ApplyParameterChange(
-        ParameterChange{
-            ParameterAddress::EqFilterQ(bankId, filterId),
-            ParameterValue{
-                static_cast<float>(parameters.q)}});
-
-    highShelf_.ApplyParameterChange(
-        ParameterChange{
-            ParameterAddress::EqFilterGain(bankId, filterId),
-            ParameterValue{
-                static_cast<float>(parameters.gainDb * 0.5)}});
+    applyParameter(highShelf_, ParameterId::Frequency, frequencyHz);
+    applyParameter(highShelf_, ParameterId::Q, q);
+    applyParameter(highShelf_, ParameterId::Gain, halfGainDb);
 }
 
 } // namespace consolidator::dsp

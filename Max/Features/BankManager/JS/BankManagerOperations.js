@@ -86,22 +86,22 @@ BankManagerOperations.prototype.Apply = function(action, bankId, bypass) {
     }
 };
 
-BankManagerOperations.prototype.ResetFilter = function(bankId, filterId) {
+BankManagerOperations.prototype.ResetFilter = function(bankId, FilterId) {
     var manager = this.manager;
     var instance = manager.FocusedInstance();
     var bank = instance && instance.banks[Number(bankId) - 1];
-    if (!bank || !isFinite(filterId)) return;
-    manager.SendHostCommand("eq.reset_filter", [bank.id, filterId]);
+    if (!bank || !isFinite(FilterId)) return;
+    manager.SendHostCommand("eq.reset_filter", [bank.id, FilterId]);
 };
 
 BankManagerOperations.prototype.HandleDetectorReset = function(values) {
     if (values.length !== 2) return;
     var manager = this.manager;
     var device = String(values[0]);
-    var filterId = Number(values[1]);
+    var FilterId = Number(values[1]);
     if ((device !== "compressor" && device !== "saturator") ||
-        !isFinite(filterId) || filterId < 1 || filterId > 2) return;
-    manager.SendDetectorReset(device, filterId);
+        !isFinite(FilterId) || FilterId < 1 || FilterId > 2) return;
+    manager.SendDetectorReset(device, FilterId);
 };
 
 BankManagerOperations.prototype.StartProcessorMatch = function(device, operation) {

@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "Core/Groups/GroupId.h"
-#include "Dsp/Parameters/ParameterAddress.h"
+#include "Dsp/Parameters/ParameterRoute.h"
 #include "Dsp/Parameters/ParameterValue.h"
 
 namespace consolidator::core
@@ -35,12 +35,11 @@ using SessionId = std::string;
 //   - Saturator: drive/output/mix/bypass/reset
 //   - Saturator detector: frequency/Q/gain
 //
-// Every possible change is addressed via ParameterAddress (DeviceKind,
-// ElementId, ParameterId) + ParameterValue.
+// Every change is addressed by a hierarchical ParameterRoute + ParameterValue.
 
 struct DspParameterChangeCommand
 {
-    dsp::ParameterAddress address;
+    dsp::ParameterRoute route;
     dsp::ParameterValue value;
 };
 

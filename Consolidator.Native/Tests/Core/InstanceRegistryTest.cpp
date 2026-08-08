@@ -49,8 +49,12 @@ int main()
     registry.RemoveFromGroup(groupA, idB);
     assert(groupAInfo->GetMembers().size() == 2);
 
-    // --- Routing: ParameterChange to a single instance (no crash) ---
-    const auto change = consolidator::core::ParameterChange::Set(0, 0.5);
+    // --- Routing: parameter route to a single instance (no crash) ---
+    const consolidator::dsp::RoutedParameterChange change{
+        consolidator::dsp::ParameterRoute{
+            consolidator::dsp::DeviceId::MainInputGain,
+            consolidator::dsp::ParameterId::Gain},
+        consolidator::dsp::ParameterValue{0.5f}};
     registry.Send(idA, change);
     registry.SendToGroup(groupA, change);
 

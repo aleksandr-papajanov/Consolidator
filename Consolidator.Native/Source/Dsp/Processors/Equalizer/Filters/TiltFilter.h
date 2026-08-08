@@ -11,7 +11,7 @@ namespace consolidator::dsp
 class TiltFilter final : public Filter
 {
 public:
-    TiltFilter(EqFilterId filterId, double pivotHz);
+    TiltFilter(FilterId FilterId, double pivotHz);
 
     void Prepare(double sampleRate, std::size_t channelCount) override;
 
@@ -21,6 +21,8 @@ public:
 
 protected:
     void RecalculateCoefficients() override;
+
+    [[nodiscard]] bool CalculateIsNeutral() const noexcept override;
 
 private:
     void ApplyInternalParameters();

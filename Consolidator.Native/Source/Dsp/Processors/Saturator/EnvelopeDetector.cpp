@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numbers>
+#include <memory>
+
+#include "Dsp/Processors/Equalizer/Filters/BellFilter.h"
+#include "Dsp/Processors/Equalizer/Filters/LowShelfFilter.h"
 
 namespace consolidator::dsp
 {
@@ -10,9 +13,14 @@ namespace consolidator::dsp
 EnvelopeDetector::EnvelopeDetector(
     SaturatorDetectorFilterId lowShelfId,
     SaturatorDetectorFilterId bellId)
-    : lowShelf_(detail::ToEqFilterId(detail::ToIndex(lowShelfId)), 100.0)
-    , bell_(detail::ToEqFilterId(detail::ToIndex(bellId)), 1000.0)
 {
+    filters_.AddFilter(std::make_unique<LowShelfFilter>(
+        detail::ToFilterId(detail::ToIndex(lowShelfId)),
+        100.0));
+
+    filters_.AddFilter(std::make_unique<BellFilter>(
+        detail::ToFilterId(detail::ToIndex(bellId)),
+        1000.0));
     RecalculateTimeCoefficients();
 }
 
@@ -20,8 +28,7 @@ void EnvelopeDetector::Prepare(double sampleRate)
 {
     sampleRate_ = std::max(sampleRate, 1.0);
 
-    lowShelf_.Prepare(sampleRate_, 1);
-    bell_.Prepare(sampleRate_, 1);
+    filters_.Prepare(sampleRate_, 1);
 
     RecalculateTimeCoefficients();
     Reset();
@@ -29,15 +36,14 @@ void EnvelopeDetector::Prepare(double sampleRate)
 
 void EnvelopeDetector::Reset() noexcept
 {
-    lowShelf_.Reset();
-    bell_.Reset();
+    filters_.Reset();
 
     envelope_ = 0.0;
 }
 
 double EnvelopeDetector::ProcessSample(double input) noexcept
 {
-    const double filtered = bell_.ProcessSample(lowShelf_.ProcessSample(input, 0), 0);
+    const double filtered = filters_.ProcessSample(input);
     const double rectified = std::abs(filtered);
 
     const double coefficient =
@@ -52,22 +58,12 @@ double EnvelopeDetector::ProcessSample(double input) noexcept
     return envelope_;
 }
 
-void EnvelopeDetector::ApplyParameterChange(
-    const ParameterChange& change)
+bool EnvelopeDetector::ApplyParameter(
+    const ParameterRoute& route,
+    const ParameterValue& value,
+    std::size_t depth)
 {
-    const auto& addr = change.address;
-
-    if (addr.GetElementKind() == detail::ElementKind::SaturatorDetectorFilter)
-    {
-        if (addr.GetElementIndex() == 0)
-        {
-            lowShelf_.ApplyParameterChange(change);
-        }
-        else
-        {
-            bell_.ApplyParameterChange(change);
-        }
-    }
+    return filters_.ApplyParameter(route, value, depth);
 }
 
 void EnvelopeDetector::SetAttackMs(double attackMs)
@@ -86,14 +82,6 @@ void EnvelopeDetector::RecalculateTimeCoefficients() noexcept
 {
     attackCoefficient_ = CalculateTimeCoefficient(settings_.attackMs, sampleRate_);
     releaseCoefficient_ = CalculateTimeCoefficient(settings_.releaseMs, sampleRate_);
-}
-
-double EnvelopeDetector::CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept
-{
-    const double safeTimeMs = std::max(timeMs, kMinimumTimeMs);
-    const double safeSampleRate = std::max(sampleRate, 1.0);
-    const double timeSeconds = safeTimeMs * 0.001;
-    return std::exp(-1.0 / (timeSeconds * safeSampleRate));
 }
 
 } // namespace consolidator::dsp

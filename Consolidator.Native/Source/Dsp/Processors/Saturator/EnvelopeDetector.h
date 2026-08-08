@@ -1,30 +1,35 @@
 #pragma once
 
-#include "Dsp/Parameters/ParameterChange.h"
-#include "Dsp/Parameters/ParameterAddress.h"
-#include "Dsp/Processors/Equalizer/Filters/BellFilter.h"
-#include "Dsp/Processors/Equalizer/Filters/LowShelfFilter.h"
+#include "Core/Settings/DspDeviceSettings.h"
+#include "Dsp/Processors/Equalizer/Equalizer.h"
+#include "Dsp/Utilities/TimeCoefficient.h"
 
 namespace consolidator::dsp
 {
 
 struct EnvelopeDetectorSettings
 {
-    double attackMs = 10.0;
-    double releaseMs = 100.0;
+    double attackMs = core::settings::DetectorDefaults::kDefaultAttackMs;
+    double releaseMs = core::settings::DetectorDefaults::kDefaultReleaseMs;
 };
 
 class EnvelopeDetector
 {
 public:
-    EnvelopeDetector(SaturatorDetectorFilterId lowShelfId, SaturatorDetectorFilterId bellId);
+    EnvelopeDetector(
+        SaturatorDetectorFilterId lowShelfId,
+        SaturatorDetectorFilterId bellId);
 
     void Prepare(double sampleRate);
     void Reset() noexcept;
 
     [[nodiscard]] double ProcessSample(double input) noexcept;
 
-    void ApplyParameterChange(const ParameterChange& change);
+
+    bool ApplyParameter(
+        const ParameterRoute& route,
+        const ParameterValue& value,
+        std::size_t depth);
 
     void SetAttackMs(double attackMs);
     void SetReleaseMs(double releaseMs);
@@ -34,14 +39,11 @@ private:
 
     void RecalculateTimeCoefficients() noexcept;
 
-    [[nodiscard]] static double CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept;
-
-    LowShelfFilter lowShelf_;
-    BellFilter bell_;
+    Equalizer filters_{detail::ElementKind::SaturatorDetectorFilter};
 
     EnvelopeDetectorSettings settings_;
 
-    double sampleRate_ = 48000.0;
+    double sampleRate_ = core::settings::kDefaultSampleRate;
     double attackCoefficient_ = 0.0;
     double releaseCoefficient_ = 0.0;
     double envelope_ = 0.0;

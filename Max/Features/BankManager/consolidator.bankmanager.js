@@ -14,9 +14,9 @@ outlets = 3;
 // processor_bypass_operation <compressor|saturator> <0|1> from processor controls.
 // link.assign|link.detach: <linkId> <instanceId> <bankId>.
 // link.operation: <linkId> <sourceId> <revision> <join|commit|reset|bypass> <bypass|-1>.
-// link.filter_bypass: <linkId> <sourceId> <revision> <filterId> <0|1>.
-// link.filter_reset: <linkId> <sourceId> <revision> <filterId>.
-// link.processor_detector_reset: <linkId> <sourceId> <revision> <device> <filterId>.
+// link.filter_bypass: <linkId> <sourceId> <revision> <FilterId> <0|1>.
+// link.filter_reset: <linkId> <sourceId> <revision> <FilterId>.
+// link.processor_detector_reset: <linkId> <sourceId> <revision> <device> <FilterId>.
 // link.processor_match: <linkId> <sourceId> <revision> <device> <onset|level>.
 // link.processor_bypass: <linkId> <sourceId> <revision> <compressor|saturator> <0|1>.
 
@@ -167,13 +167,13 @@ BankManager.prototype.SendProcessorBypass = function(device, bypass) {
     this.SendHostCommand(device + ".set_bypass", [Number(bypass) !== 0 ? 1 : 0]);
 };
 
-BankManager.prototype.SendDetectorReset = function(device, filterId) {
+BankManager.prototype.SendDetectorReset = function(device, FilterId) {
     var definition = FilterDefinitionCatalog.Processors()[device];
     if (!definition) return;
     var parameters = ["gain", "frequency", "q", "bypass"];
     for (var index = 0; index < parameters.length; ++index) {
         var parameter = parameters[index];
-        var key = "detector." + filterId + "." + parameter;
+        var key = "detector." + FilterId + "." + parameter;
         var defaultValue;
         for (var parameterIndex = 0;
              parameterIndex < definition.parameters.length;
@@ -186,7 +186,7 @@ BankManager.prototype.SendDetectorReset = function(device, filterId) {
         }
         if (!isFinite(defaultValue)) continue;
         this.SendHostCommand(device + ".set_detector_parameter", [
-            Number(filterId), parameter, defaultValue
+            Number(FilterId), parameter, defaultValue
         ]);
     }
 };
@@ -274,8 +274,8 @@ BankManager.prototype.ParseCoordinatorDirectory = function(values) {
     mgraphics.redraw();
 };
 
-BankManager.prototype.ExecuteFilterReset = function(bankId, filterId) {
-    this.operations.ResetFilter(bankId, filterId);
+BankManager.prototype.ExecuteFilterReset = function(bankId, FilterId) {
+    this.operations.ResetFilter(bankId, FilterId);
 };
 
 BankManager.prototype.FindLocalLinkedBank = function(linkId) {
@@ -421,8 +421,8 @@ BankManager.prototype.NextLinkRevision = function(linkId) {
     return this.operations.NextRevision(linkId);
 };
 
-BankManager.prototype.PublishEqPreview = function(bankId, filterId, parameterIndex, absoluteValue) {
-    outlet(2, "eq_preview", Number(bankId), Number(filterId),
+BankManager.prototype.PublishEqPreview = function(bankId, FilterId, parameterIndex, absoluteValue) {
+    outlet(2, "eq_preview", Number(bankId), Number(FilterId),
         Number(parameterIndex), Number(absoluteValue));
 };
 
@@ -431,8 +431,8 @@ BankManager.prototype.PublishProcessorPreview = function(device, parameter, abso
         Number(absoluteValue));
 };
 
-BankManager.prototype.PublishLinkBypass = function(linkId, filterId, bypass) {
-    this.operations.PublishFilterBypass(linkId, filterId, bypass);
+BankManager.prototype.PublishLinkBypass = function(linkId, FilterId, bypass) {
+    this.operations.PublishFilterBypass(linkId, FilterId, bypass);
 };
 
 BankManager.prototype.SynchronizeCoordinator = function() {
@@ -504,9 +504,9 @@ function processor_detector_reset() {
             "processor_detector_reset", arrayfromargs(arguments));
     }
 }
-function eq_filter_reset(bankId, filterId) {
+function eq_filter_reset(bankId, FilterId) {
     if (inlet === 0) bankManager.messageRouter.HandleLocal(
-        "eq_filter_reset", [bankId, filterId]);
+        "eq_filter_reset", [bankId, FilterId]);
 }
 function bank_action(action, value) {
     if (inlet !== 0) return;

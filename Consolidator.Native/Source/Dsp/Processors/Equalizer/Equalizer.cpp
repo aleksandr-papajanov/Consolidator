@@ -1,19 +1,8 @@
 ﻿#include "Dsp/Processors/Equalizer/Equalizer.h"
 
+
 namespace consolidator::dsp
 {
-
-static bool AllFiltersNeutral(const std::vector<std::unique_ptr<Filter>>& filters) noexcept
-{
-    for (const auto& f : filters)
-    {
-        if (!f->IsNeutral())
-        {
-            return false;
-        }
-    }
-    return true;
-}
 
 void Equalizer::Process(
     const double* input,
@@ -21,7 +10,7 @@ void Equalizer::Process(
     std::size_t frameCount,
     std::size_t channelCount)
 {
-    if (filters_.empty() || AllFiltersNeutral(filters_))
+    if (IsNeutral())
     {
         const auto n = frameCount * channelCount;
         for (std::size_t i = 0; i < n; ++i)
@@ -45,37 +34,112 @@ void Equalizer::Process(
     }
 }
 
-void Equalizer::ApplyParameterChange(
-    const ParameterChange& change)
+void Equalizer::Prepare(double sampleRate, std::size_t channelCount)
 {
-    if (change.address.GetBankId() != bankId_)
+    for (auto& filter : filters_)
     {
-        return;
+        filter->Prepare(sampleRate, channelCount);
     }
 
-    if (change.address.GetElementKind() != detail::ElementKind::Device)
+    Reset();
+    RecalculateRuntime();
+}
+
+void Equalizer::Reset() noexcept
+{
+    for (auto& filter : filters_)
     {
-        if (auto* f = FindFilter(
-                change.address.GetElementKind(),
-                change.address.GetElementIndex()))
-        {
-            f->ApplyParameterChange(change);
-        }
-        return;
+        filter->Reset();
+    }
+}
+
+double Equalizer::ProcessSample(double input) noexcept
+{
+    double output = input;
+
+    for (auto& filter : filters_)
+    {
+        output = filter->ProcessSample(output, 0);
     }
 
-    for (auto& f : filters_)
+    return output;
+}
+
+bool Equalizer::ApplyParameter(
+    const ParameterRoute& route,
+    const ParameterValue& value,
+    std::size_t depth)
+{
+    if (route.GetDeviceId() != GetDeviceId())
     {
-        f->ApplyParameterChange(change);
+        return false;
     }
+
+    if (depth == route.GetDepth())
+    {
+        return DspDevice::ApplyParameter(route, value, depth);
+    }
+
+    const RouteNodeId node = route.GetNode(depth);
+    const std::size_t filterOffset =
+        static_cast<std::size_t>(RouteNodeId::Filter1);
+
+    if (static_cast<std::size_t>(node) < filterOffset)
+    {
+        return ApplyParameter(route, value, depth + 1);
+    }
+
+    const std::size_t filterIndex = static_cast<std::size_t>(node) - filterOffset;
+    auto* filter = GetFilter(filterIndex);
+    if (filter == nullptr)
+    {
+        return false;
+    }
+
+    const bool isUpdated = filter->ApplyParameter(route, value, depth + 1);
+    if (isUpdated)
+    {
+        RecalculateRuntime();
+    }
+
+    return isUpdated;
 }
 
 void Equalizer::AddFilter(std::unique_ptr<Filter> filter)
 {
-    if (filter)
+    if (filter != nullptr)
     {
         filters_.push_back(std::move(filter));
+        RecalculateRuntime();
     }
+}
+
+bool Equalizer::ApplyStateParameter(
+    const ParameterRoute& route,
+    const ParameterValue& value)
+{
+    return state_.bypass.Apply(route, value);
+}
+
+void Equalizer::RecalculateRuntime()
+{
+    runtimeState_.isNeutral = state_.bypass.value;
+
+    if (runtimeState_.isNeutral)
+    {
+        return;
+    }
+
+    for (const auto& filter : filters_)
+    {
+        if (!filter->IsNeutral())
+        {
+            runtimeState_.isNeutral = false;
+            return;
+        }
+    }
+
+    runtimeState_.isNeutral = true;
 }
 
 Filter* Equalizer::GetFilter(std::size_t index) noexcept
@@ -94,7 +158,8 @@ Filter* Equalizer::FindFilter(
 {
     for (auto& f : filters_)
     {
-        if (f->GetElementKind() == elementKind &&
+        if ((filterElementKind_ != detail::ElementKind::EqFilter ||
+             f->GetElementKind() == elementKind) &&
             f->GetElementIndex() == elementIndex)
         {
             return f.get();
@@ -109,7 +174,8 @@ const Filter* Equalizer::FindFilter(
 {
     for (const auto& f : filters_)
     {
-        if (f->GetElementKind() == elementKind &&
+        if ((filterElementKind_ != detail::ElementKind::EqFilter ||
+             f->GetElementKind() == elementKind) &&
             f->GetElementIndex() == elementIndex)
         {
             return f.get();

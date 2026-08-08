@@ -4,12 +4,13 @@
 #include <cassert>
 #include <cmath>
 
-#include "Dsp/Parameters/ParameterHelper.h"
+#include "Dsp/Utilities/TimeCoefficient.h"
 
 namespace consolidator::dsp
 {
 
 Compressor::Compressor()
+    : DspDevice(DeviceId::Compressor, detail::ElementKind::Device, 0)
 {
     RecalculateRuntime();
 }
@@ -136,8 +137,8 @@ double Compressor::UpdateGainReductionDb(double targetGainReductionDb) noexcept
     const bool isIncreasingCompression = targetGainReductionDb < gainReductionDb_;
 
     const double coefficient = isIncreasingCompression
-        ? runtime_.attackCoefficient
-        : runtime_.releaseCoefficient;
+        ? runtimeState_.attackCoefficient
+        : runtimeState_.releaseCoefficient;
 
     gainReductionDb_ =
         coefficient * gainReductionDb_ +
@@ -148,88 +149,51 @@ double Compressor::UpdateGainReductionDb(double targetGainReductionDb) noexcept
 
 double Compressor::ProcessSample(double input, double gainLinear) const noexcept
 {
-    const double compressed = input * gainLinear * runtime_.outputGainLinear;
+    const double compressed = input * gainLinear * runtimeState_.outputGainLinear;
 
-    return compressed * runtime_.wetMix + input * runtime_.dryMix;
+    return compressed * runtimeState_.wetMix + input * runtimeState_.dryMix;
 }
 
-void Compressor::ApplyParameterChange(const ParameterChange& change)
+bool Compressor::ApplyStateParameter(
+    const ParameterRoute& route,
+    const ParameterValue& value)
 {
-    if (IsDetectorParameter(change))
+    return state_.thresholdDb.Apply(route, value) ||
+           state_.ratio.Apply(route, value) ||
+           state_.attackMs.Apply(route, value) ||
+           state_.releaseMs.Apply(route, value) ||
+           state_.outputDb.Apply(route, value) ||
+           state_.mix.Apply(route, value) ||
+           state_.bypass.Apply(route, value);
+}
+
+bool Compressor::ApplyParameter(
+    const ParameterRoute& route,
+    const ParameterValue& value,
+    std::size_t depth)
+{
+    if (route.GetDeviceId() != GetDeviceId())
     {
-        ApplyDetectorParameter(change);
-        return;
+        return false;
     }
 
-    ApplyCompressorParameter(change);
-}
-
-bool Compressor::IsDetectorParameter(const ParameterChange& change) const noexcept
-{
-    return change.address.GetElementKind() == detail::ElementKind::CompressorDetectorFilter;
-}
-
-void Compressor::ApplyDetectorParameter(const ParameterChange& change)
-{
-    sidechain_.ApplyParameterChange(change);
-}
-
-void Compressor::ApplyCompressorParameter(const ParameterChange& change)
-{
-    switch (change.address.GetParameterId())
+    if (depth == route.GetDepth())
     {
-    case ParameterId::Threshold:
-        if (const auto* value = TryGetValue<float>(change))
-        {
-            SetThreshold(*value);
-        }
-        break;
-
-    case ParameterId::Ratio:
-        if (const auto* value = TryGetValue<float>(change))
-        {
-            SetRatio(*value);
-        }
-        break;
-
-    case ParameterId::Attack:
-        if (const auto* value = TryGetValue<float>(change))
-        {
-            SetAttack(*value);
-        }
-        break;
-
-    case ParameterId::Release:
-        if (const auto* value = TryGetValue<float>(change))
-        {
-            SetRelease(*value);
-        }
-        break;
-
-    case ParameterId::Gain:
-        if (const auto* value = TryGetValue<float>(change))
-        {
-            SetOutputDb(*value);
-        }
-        break;
-
-    case ParameterId::Mix:
-        if (const auto* value = TryGetValue<float>(change))
-        {
-            SetMix(*value);
-        }
-        break;
-
-    case ParameterId::Bypass:
-        if (const auto* value = TryGetValue<bool>(change))
-        {
-            SetBypass(*value);
-        }
-        break;
-
-    default:
-        break;
+        return DspDevice::ApplyParameter(route, value, depth);
     }
+
+    if (route.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+
+    const bool isUpdated = sidechain_.ApplyParameter(route, value, depth + 1);
+    if (isUpdated)
+    {
+        RecalculateRuntime();
+    }
+
+    return isUpdated;
 }
 
 void Compressor::SetThreshold(float thresholdDb) noexcept
@@ -293,7 +257,7 @@ void Compressor::RecalculateRuntime()
     RecalculateOutputGain();
     RecalculateMix();
 
-    runtime_.isNeutral = state_.bypass
+    runtimeState_.isNeutral = state_.bypass
         || (state_.thresholdDb >= 0.0f
             && state_.ratio <= 1.0f
             && state_.outputDb == 0.0f);
@@ -301,32 +265,23 @@ void Compressor::RecalculateRuntime()
 
 void Compressor::RecalculateAttackCoefficient() noexcept
 {
-    runtime_.attackCoefficient = CalculateTimeCoefficient(state_.attackMs, sampleRate_);
+    runtimeState_.attackCoefficient = CalculateTimeCoefficient(state_.attackMs, sampleRate_);
 }
 
 void Compressor::RecalculateReleaseCoefficient() noexcept
 {
-    runtime_.releaseCoefficient = CalculateTimeCoefficient(state_.releaseMs, sampleRate_);
+    runtimeState_.releaseCoefficient = CalculateTimeCoefficient(state_.releaseMs, sampleRate_);
 }
 
 void Compressor::RecalculateOutputGain()
 {
-    runtime_.outputGainLinear = std::pow(10.0, static_cast<double>(state_.outputDb) / 20.0);
+    runtimeState_.outputGainLinear = std::pow(10.0, static_cast<double>(state_.outputDb) / 20.0);
 }
 
 void Compressor::RecalculateMix() noexcept
 {
-    runtime_.wetMix = static_cast<double>(state_.mix);
-    runtime_.dryMix = 1.0 - runtime_.wetMix;
-}
-
-double Compressor::CalculateTimeCoefficient(double timeMs, double sampleRate) noexcept
-{
-    const double safeTimeMs = std::max(timeMs, 0.01);
-    const double safeSampleRate = std::max(sampleRate, 1.0);
-    const double timeSeconds = safeTimeMs * 0.001;
-
-    return std::exp(-1.0 / (timeSeconds * safeSampleRate));
+    runtimeState_.wetMix = static_cast<double>(state_.mix);
+    runtimeState_.dryMix = 1.0 - runtimeState_.wetMix;
 }
 
 } // namespace consolidator::dsp

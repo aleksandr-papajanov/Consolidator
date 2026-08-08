@@ -16,11 +16,11 @@ double GainDbToAmplitude(double gainDb)
 
 } // namespace
 
-BellFilter::BellFilter(EqFilterId filterId, double frequencyHz)
+BellFilter::BellFilter(FilterId FilterId, double frequencyHz)
     : Filter(
           DeviceId::Equalizer,
           detail::ElementKind::EqFilter,
-          detail::ToIndex(filterId))
+          detail::ToIndex(FilterId))
 {
     InitializeParameters(
         frequencyHz,
@@ -28,14 +28,13 @@ BellFilter::BellFilter(EqFilterId filterId, double frequencyHz)
         core::settings::FilterDefaults::kDefaultGainDb);
 
     RecalculateCoefficients();
-    SyncState();
 }
 
 void BellFilter::RecalculateCoefficients()
 {
-    const double amplitude = GainDbToAmplitude(parameters_.gainDb);
-    const double omega = 2.0 * std::numbers::pi * parameters_.frequencyHz / sampleRate_;
-    const double alpha = std::sin(omega) / (2.0 * parameters_.q);
+    const double amplitude = GainDbToAmplitude(state_.gainDb);
+    const double omega = 2.0 * std::numbers::pi * state_.frequencyHz / GetSampleRate();
+    const double alpha = std::sin(omega) / (2.0 * state_.q);
 
     const double a0 = 1.0 + alpha / amplitude;
     const double inverseA0 = 1.0 / a0;
@@ -49,15 +48,6 @@ void BellFilter::RecalculateCoefficients()
     coefficients.a2 = (1.0 - alpha / amplitude) * inverseA0;
 
     SetNormalizedCoefficients(coefficients);
-    SyncState();
-}
-
-void BellFilter::SyncState()
-{
-    state_.frequency = static_cast<float>(parameters_.frequencyHz);
-    state_.q = static_cast<float>(parameters_.q);
-    state_.gainDb = static_cast<float>(parameters_.gainDb);
-    state_.bypass = parameters_.bypass;
 }
 
 } // namespace consolidator::dsp

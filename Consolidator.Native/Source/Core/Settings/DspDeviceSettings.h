@@ -2,7 +2,7 @@
 
 #include <array>
 
-#include "Dsp/Parameters/ParameterAddress.h"
+#include "Dsp/Parameters/DspIds.h"
 
 namespace consolidator::core::settings
 {
@@ -65,6 +65,14 @@ namespace SaturatorDefaults
     inline constexpr double kDefaultMix = 1.0;
 } // namespace SaturatorDefaults
 
+namespace DetectorDefaults
+{
+    inline constexpr double kDefaultAttackMs = 10.0;
+    inline constexpr double kDefaultReleaseMs = 100.0;
+    inline constexpr double kDefaultLowShelfFrequencyHz = 100.0;
+    inline constexpr double kDefaultBellFrequencyHz = 1000.0;
+} // namespace DetectorDefaults
+
 namespace CompressorDefaults
 {
     inline constexpr double kMinThresholdDb = -60.0;
@@ -107,7 +115,7 @@ enum class FilterKind
 
 struct FilterSettings
 {
-    dsp::EqFilterId elementId = dsp::EqFilterId::Filter1;
+    dsp::FilterId elementId = dsp::FilterId::Filter1;
     FilterKind kind = FilterKind::Bell;
     RangedValue<double> frequencyHz{
         FilterDefaults::kMinFrequencyHz,
@@ -138,7 +146,7 @@ struct EqualizerSettings
     std::array<FilterSettings, kBandCount> bands
     {{
         {
-            dsp::EqFilterId::Filter1,
+            dsp::FilterId::Filter1,
             FilterKind::GainFilter,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, FilterDefaults::kDefaultFrequencyHz },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -146,7 +154,7 @@ struct EqualizerSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter2,
+            dsp::FilterId::Filter2,
             FilterKind::Tilt,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 1000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -154,7 +162,7 @@ struct EqualizerSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter3,
+            dsp::FilterId::Filter3,
             FilterKind::LowShelf,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 100.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -162,7 +170,7 @@ struct EqualizerSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter4,
+            dsp::FilterId::Filter4,
             FilterKind::HighShelf,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 10000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -170,7 +178,7 @@ struct EqualizerSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter5,
+            dsp::FilterId::Filter5,
             FilterKind::Bell,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 1000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -178,7 +186,7 @@ struct EqualizerSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter6,
+            dsp::FilterId::Filter6,
             FilterKind::Bell,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 2000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -186,7 +194,7 @@ struct EqualizerSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter7,
+            dsp::FilterId::Filter7,
             FilterKind::Bell,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 4000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -218,7 +226,7 @@ struct DetectorFilterSettings
     std::array<FilterSettings, kBandCount> bands
     {{
         {
-            dsp::EqFilterId::Filter1,
+            dsp::FilterId::Filter1,
             FilterKind::LowShelf,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 100.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
@@ -226,7 +234,7 @@ struct DetectorFilterSettings
             BypassSetting{false}
         },
         {
-            dsp::EqFilterId::Filter1,
+            dsp::FilterId::Filter1,
             FilterKind::Bell,
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 1000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },

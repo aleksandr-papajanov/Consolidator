@@ -3,20 +3,38 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
-#include "Dsp/Parameters/ParameterAddress.h"
+#include "Dsp/Parameters/DspParameter.h"
 #include "Dsp/Processors/Equalizer/Filters/Filter.h"
-#include "Dsp/Processors/IDspDevice.h"
+#include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
 {
 
-class Equalizer final : public IDspDevice
+struct EqualizerState
+{
+    DspParameter<bool> bypass{ParameterId::Bypass, false};
+};
+
+struct EqualizerRuntimeState
+{
+    bool isNeutral = true;
+};
+
+class Equalizer final : public DspDevice
 {
 public:
     explicit Equalizer(BankId bankId) noexcept
-        : bankId_(bankId)
+        : DspDevice(DeviceId::Equalizer, detail::ElementKind::Device, detail::ToIndex(bankId))
+        , bankId_(bankId)
+    {
+    }
+
+    explicit Equalizer(detail::ElementKind filterElementKind) noexcept
+        : DspDevice(DeviceId::Equalizer, detail::ElementKind::Device, 0)
+        , filterElementKind_(filterElementKind)
     {
     }
 
@@ -26,41 +44,31 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    void ApplyParameterChange(
-        const ParameterChange& change) override;
-
     void AddFilter(std::unique_ptr<Filter> filter);
 
-    [[nodiscard]] DeviceId GetDeviceId() const noexcept override
-    {
-        return DeviceId::Equalizer;
-    }
+    void Prepare(double sampleRate, std::size_t channelCount);
+    void Reset() noexcept;
 
-    [[nodiscard]] detail::ElementKind GetElementKind() const noexcept override
-    {
-        return detail::ElementKind::Device;
-    }
+    [[nodiscard]] double ProcessSample(double input) noexcept;
 
-    [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override
-    {
-        return detail::ToIndex(bankId_);
-    }
-
-    [[nodiscard]] BankId GetBankId() const noexcept
+    [[nodiscard]] const std::optional<BankId>& GetBankId() const noexcept
     {
         return bankId_;
     }
 
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
-        for (const auto& f : filters_)
-        {
-            if (!f->IsNeutral())
-            {
-                return false;
-            }
-        }
-        return true;
+        return runtimeState_.isNeutral;
+    }
+
+    [[nodiscard]] const EqualizerState& GetState() const noexcept
+    {
+        return state_;
+    }
+
+    [[nodiscard]] const EqualizerRuntimeState& GetRuntimeState() const noexcept
+    {
+        return runtimeState_;
     }
 
     [[nodiscard]] std::size_t GetFilterCount() const noexcept
@@ -73,7 +81,17 @@ public:
     [[nodiscard]] const Filter* GetFilter(
         std::size_t index) const noexcept;
 
+    bool ApplyParameter(
+        const ParameterRoute& route,
+        const ParameterValue& value,
+        std::size_t depth) override;
+
 private:
+    bool ApplyStateParameter(
+        const ParameterRoute& route,
+        const ParameterValue& value) override;
+    void RecalculateRuntime() override;
+
     [[nodiscard]] Filter* FindFilter(
         detail::ElementKind elementKind,
         std::uint8_t elementIndex) noexcept;
@@ -82,7 +100,10 @@ private:
         detail::ElementKind elementKind,
         std::uint8_t elementIndex) const noexcept;
 
-    BankId bankId_;
+    std::optional<BankId> bankId_;
+    detail::ElementKind filterElementKind_ = detail::ElementKind::EqFilter;
+    EqualizerState state_;
+    EqualizerRuntimeState runtimeState_;
     std::vector<std::unique_ptr<Filter>> filters_;
 };
 

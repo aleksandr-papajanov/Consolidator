@@ -5,32 +5,21 @@
 namespace consolidator::dsp
 {
 
-GainFilter::GainFilter(EqFilterId filterId)
+GainFilter::GainFilter(FilterId FilterId)
     : Filter(
           DeviceId::Equalizer,
           detail::ElementKind::EqFilter,
-          detail::ToIndex(filterId))
+          detail::ToIndex(FilterId))
 {
     RecalculateCoefficients();
-    SyncState();
 }
 
 void GainFilter::RecalculateCoefficients()
 {
-    coefficients_.b0 = std::pow(10.0, parameters_.gainDb / 20.0);
+    BiquadCoefficients coefficients;
+    coefficients.b0 = std::pow(10.0, state_.gainDb / 20.0);
 
-    coefficients_.b1 = 0.0;
-    coefficients_.b2 = 0.0;
-    coefficients_.a1 = 0.0;
-    coefficients_.a2 = 0.0;
-
-    SyncState();
-}
-
-void GainFilter::SyncState()
-{
-    state_.gainDb = static_cast<float>(parameters_.gainDb);
-    state_.bypass = parameters_.bypass;
+    SetNormalizedCoefficients(coefficients);
 }
 
 } // namespace consolidator::dsp

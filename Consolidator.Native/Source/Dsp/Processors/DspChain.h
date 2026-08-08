@@ -4,9 +4,8 @@
 #include <span>
 #include <vector>
 
-#include "Dsp/Parameters/ParameterBatch.h"
-#include "Dsp/Parameters/ParameterChange.h"
-#include "Dsp/Processors/IDspDevice.h"
+#include "Dsp/Parameters/RoutedParameterChange.h"
+#include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
 {
@@ -20,10 +19,8 @@ public:
     DspChain(const DspChain&) = delete;
     DspChain& operator=(const DspChain&) = delete;
 
-    void AddDevice(std::unique_ptr<IDspDevice> device);
-
-    void ApplyParameterChange(const ParameterChange& change);
-    void ApplyParameterBatch(const ParameterBatch& batch);
+    void AddDevice(std::unique_ptr<DspDevice> device);
+    void ApplyParameterChange(const RoutedParameterChange& change);
 
     void Process(const double* input,
                  double* interim,
@@ -33,15 +30,11 @@ public:
 
     [[nodiscard]] std::size_t GetDeviceCount() const noexcept;
 
-    [[nodiscard]] IDspDevice* GetDevice(std::size_t index) noexcept;
-    [[nodiscard]] const IDspDevice* GetDevice(std::size_t index) const noexcept;
+    [[nodiscard]] DspDevice* GetDevice(std::size_t index) noexcept;
+    [[nodiscard]] const DspDevice* GetDevice(std::size_t index) const noexcept;
 
 private:
-    void ApplyPendingChanges();
-    void ApplyChangeToDevice(const ParameterChange& change);
-
-    std::vector<std::unique_ptr<IDspDevice>> devices_;
-    std::vector<ParameterChange> pendingChanges_;
+    std::vector<std::unique_ptr<DspDevice>> devices_;
 };
 
 } // namespace consolidator::dsp

@@ -40,11 +40,12 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Logging/Log.cpp
     Source/Core/Settings/DspDeviceSettings.h
     Source/Dsp/Parameters/ParameterValue.h
-    Source/Dsp/Parameters/ParameterAddress.h
-    Source/Dsp/Parameters/ParameterChange.h
-    Source/Dsp/Parameters/ParameterBatch.h
-    Source/Dsp/Parameters/ParameterHelper.h
-    Source/Dsp/Processors/IDspDevice.h
+    Source/Dsp/Parameters/DspIds.h
+    Source/Dsp/Parameters/DspParameter.h
+    Source/Dsp/Parameters/ParameterRoute.h
+    Source/Dsp/Parameters/RoutedParameterChange.h
+    Source/Dsp/Processors/DspNode.h
+    Source/Dsp/Utilities/TimeCoefficient.h
     Source/Dsp/Processors/Gain/Gain.h
     Source/Dsp/Processors/Gain/Gain.cpp
     Source/Dsp/Processors/Saturator/Saturator.h

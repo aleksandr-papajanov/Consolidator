@@ -95,7 +95,7 @@ function anything() {
 function inletassist(index) {
     assist(index === 0
         ? "Host output: event or snapshot atom message"
-        : "Analyzer UI state: eq_preview <bankId> <filterId> <parameterIndex> <absoluteValue>; filter_limits <bankId> <filterId> <parameterIndex> <minimum> <maximum>");
+        : "Analyzer UI state: eq_preview <bankId> <FilterId> <parameterIndex> <absoluteValue>; filter_limits <bankId> <FilterId> <parameterIndex> <minimum> <maximum>");
 }
 
 function outletassist(index) {

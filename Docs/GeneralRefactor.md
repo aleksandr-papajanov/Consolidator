@@ -372,7 +372,7 @@ Consolidator.Messaging
 ```cpp
 struct SetEqParameterCommand {
     BankId bankId;
-    FilterId filterId;
+    FilterId FilterId;
     EqParameter parameter;
     double value;
 };

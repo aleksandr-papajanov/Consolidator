@@ -4,8 +4,8 @@
 #include <cstddef>
 
 #include "Core/Settings/DspDeviceSettings.h"
-#include "Dsp/Parameters/ParameterAddress.h"
-#include "Dsp/Processors/IDspDevice.h"
+#include "Dsp/Parameters/DspParameter.h"
+#include "Dsp/Processors/DspDevice.h"
 #include "Dsp/Processors/Saturator/EnvelopeDetector.h"
 
 namespace consolidator::dsp
@@ -13,23 +13,14 @@ namespace consolidator::dsp
 
 struct SaturatorState
 {
-    float drive =
-        static_cast<float>(
-            core::settings::SaturatorDefaults::kDefaultDrive);
-
-    float outputDb =
-        static_cast<float>(
-            core::settings::SaturatorDefaults::kDefaultOutputDb);
-
-    float mix =
-        static_cast<float>(
-            core::settings::SaturatorDefaults::kDefaultMix);
-
-    float detectorAmount = 1.0f;
-    bool bypass = false;
+    DspParameter<float> drive{ParameterId::Drive, static_cast<float>(core::settings::SaturatorDefaults::kDefaultDrive), static_cast<float>(core::settings::SaturatorDefaults::kMinDrive), static_cast<float>(core::settings::SaturatorDefaults::kMaxDrive)};
+    DspParameter<float> outputDb{ParameterId::Gain, static_cast<float>(core::settings::SaturatorDefaults::kDefaultOutputDb), static_cast<float>(core::settings::SaturatorDefaults::kMinOutputDb), static_cast<float>(core::settings::SaturatorDefaults::kMaxOutputDb)};
+    DspParameter<float> mix{ParameterId::Mix, static_cast<float>(core::settings::SaturatorDefaults::kDefaultMix), static_cast<float>(core::settings::SaturatorDefaults::kMinMix), static_cast<float>(core::settings::SaturatorDefaults::kMaxMix)};
+    DspParameter<float> detectorAmount{ParameterId::Type, 1.0f, 0.0f, 8.0f};
+    DspParameter<bool> bypass{ParameterId::Bypass, false};
 };
 
-struct SaturatorRuntime
+struct SaturatorRuntimeState
 {
     double driveLinear = 1.0;
     double outputGainLinear = 1.0;
@@ -41,7 +32,7 @@ struct SaturatorRuntime
     bool isNeutral = true;
 };
 
-class Saturator final : public IDspDevice
+class Saturator final : public DspDevice
 {
 public:
     Saturator();
@@ -58,32 +49,24 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    void ApplyParameterChange(
-        const ParameterChange& change) override;
-
-    [[nodiscard]] DeviceId GetDeviceId() const noexcept override
-    {
-        return DeviceId::Saturator;
-    }
-
-    [[nodiscard]] detail::ElementKind GetElementKind() const noexcept override
-    {
-        return detail::ElementKind::Device;
-    }
-
-    [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override
-    {
-        return 0;
-    }
-
     [[nodiscard]] const SaturatorState& GetState() const noexcept
     {
         return state_;
     }
 
+    [[nodiscard]] const SaturatorRuntimeState& GetRuntimeState() const noexcept
+    {
+        return runtimeState_;
+    }
+
+    bool ApplyParameter(
+        const ParameterRoute& route,
+        const ParameterValue& value,
+        std::size_t depth) override;
+
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
-        return runtime_.isNeutral;
+        return runtimeState_.isNeutral;
     }
 
 private:
@@ -100,13 +83,11 @@ private:
 
     static constexpr double kMaximumDriveModulation = 16.0;
 
-    void RecalculateRuntime();
+    bool ApplyStateParameter(
+        const ParameterRoute& route,
+        const ParameterValue& value) override;
+    void RecalculateRuntime() override;
 
-    void ApplyDeviceParameter(
-        const ParameterChange& change);
-
-    void ApplyDetectorParameter(
-        const ParameterChange& change);
 
     [[nodiscard]] double ProcessSample(
         double input,
@@ -126,7 +107,7 @@ private:
     void SetBypass(bool bypass) noexcept;
 
     SaturatorState state_;
-    SaturatorRuntime runtime_;
+    SaturatorRuntimeState runtimeState_;
 
     std::size_t activeChannelCount_ = kMaximumChannelCount;
 

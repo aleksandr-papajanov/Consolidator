@@ -1,46 +1,124 @@
 #include "Dsp/Processors/Equalizer/Filters/Filter.h"
+
 #include <algorithm>
 #include <cmath>
-#include "Dsp/Parameters/ParameterHelper.h"
+
+
 namespace consolidator::dsp
 {
-Filter::Filter(DeviceId deviceId, detail::ElementKind elementKind, std::uint8_t elementIndex)
-    : deviceId_(deviceId), elementKind_(elementKind), elementIndex_(elementIndex) {}
-void Filter::Prepare(double sampleRate, std::size_t channelCount) { sampleRate_ = std::max(sampleRate, 1.0); activeChannelCount_ = std::clamp<std::size_t>(channelCount, 1, kMaximumChannelCount); }
-void Filter::Reset() noexcept { for (auto& s : channelStates_) { s.z1 = 0.0; s.z2 = 0.0; } }
-void Filter::Process(const double* input, double* output, std::size_t frameCount, std::size_t channelCount)
+
+Filter::Filter(
+    DeviceId deviceId,
+    detail::ElementKind elementKind,
+    std::uint8_t elementIndex)
+    : DspDevice(deviceId, elementKind, elementIndex)
 {
-    for (std::size_t frame = 0; frame < frameCount; ++frame)
-        for (std::size_t ch = 0; ch < std::min(channelCount, activeChannelCount_); ++ch)
-            output[frame * channelCount + ch] = ProcessSample(input[frame * channelCount + ch], ch);
 }
-void Filter::ApplyParameterChange(const ParameterChange& change)
+
+void Filter::Prepare(double sampleRate, std::size_t channelCount)
 {
-    switch (change.address.GetParameterId())
+    runtimeState_.sampleRate = std::max(sampleRate, 1.0);
+    runtimeState_.activeChannelCount = std::clamp<std::size_t>(
+        channelCount,
+        1,
+        kMaximumChannelCount);
+
+    RecalculateCoefficients();
+    RecalculateRuntime();
+}
+
+void Filter::Reset() noexcept
+{
+    for (auto& channelState : runtimeState_.channelStates)
     {
-    case ParameterId::Frequency: if (auto* v = TryGetValue<float>(change)) SetFrequency(*v); break;
-    case ParameterId::Q: if (auto* v = TryGetValue<float>(change)) SetQ(*v); break;
-    case ParameterId::Gain: if (auto* v = TryGetValue<float>(change)) SetGain(*v); break;
-    case ParameterId::Bypass: if (auto* v = TryGetValue<bool>(change)) SetBypass(*v); break;
-    default: break;
+        channelState.z1 = 0.0;
+        channelState.z2 = 0.0;
     }
 }
+
+void Filter::Process(
+    const double* input,
+    double* output,
+    std::size_t frameCount,
+    std::size_t channelCount)
+{
+    const std::size_t activeChannels = std::min(channelCount, runtimeState_.activeChannelCount);
+
+    for (std::size_t frame = 0; frame < frameCount; ++frame)
+    {
+        const auto frameOffset = frame * channelCount;
+        for (std::size_t channel = 0; channel < activeChannels; ++channel)
+        {
+            const auto sampleIndex = frameOffset + channel;
+            output[sampleIndex] = ProcessSample(input[sampleIndex], channel);
+        }
+    }
+}
+
+bool Filter::ApplyStateParameter(
+    const ParameterRoute& route,
+    const ParameterValue& value)
+{
+    const bool isUpdated =
+        state_.frequencyHz.Apply(route, value) ||
+        state_.q.Apply(route, value) ||
+        state_.gainDb.Apply(route, value) ||
+        state_.bypass.Apply(route, value);
+
+    if (isUpdated)
+    {
+        RecalculateCoefficients();
+    }
+
+    return isUpdated;
+}
+
+bool Filter::IsNeutral() const noexcept
+{
+    return runtimeState_.isNeutral;
+}
+
 double Filter::ProcessSample(double input, std::size_t channel) noexcept
 {
-    if (channel >= channelStates_.size()) return input;
+    if (channel >= runtimeState_.channelStates.size())
+    {
+        return input;
+    }
+
     return ProcessActiveSample(input, channel);
 }
+
 double Filter::ProcessActiveSample(double input, std::size_t channel) noexcept
 {
-    auto& m = channelStates_[channel];
-    const double out = coefficients_.b0 * input + m.z1;
-    m.z1 = coefficients_.b1 * input - coefficients_.a1 * out + m.z2;
-    m.z2 = coefficients_.b2 * input - coefficients_.a2 * out;
-    return out;
+    auto& memory = runtimeState_.channelStates[channel];
+    const double output = runtimeState_.coefficients.b0 * input + memory.z1;
+
+    memory.z1 = runtimeState_.coefficients.b1 * input - runtimeState_.coefficients.a1 * output + memory.z2;
+    memory.z2 = runtimeState_.coefficients.b2 * input - runtimeState_.coefficients.a2 * output;
+
+    return output;
 }
-void Filter::SetFrequency(float f) { parameters_.frequencyHz = std::clamp(static_cast<double>(f), kMinimumFrequencyHz, sampleRate_ * 0.49); RecalculateCoefficients(); }
-void Filter::SetQ(float q) { parameters_.q = std::max(static_cast<double>(q), kMinimumQ); RecalculateCoefficients(); }
-void Filter::SetGain(float g) { parameters_.gainDb = static_cast<double>(g); RecalculateCoefficients(); }
-void Filter::SetBypass(bool b) noexcept { parameters_.bypass = b; SetNeutral(b); }
-double Filter::GetMaximumFrequencyHz() const noexcept { return sampleRate_ * 0.49; }
+
+void Filter::RecalculateRuntime() noexcept
+{
+    runtimeState_.isNeutral = CalculateIsNeutral();
+}
+
+bool Filter::CalculateIsNeutral() const noexcept
+{
+    const auto& coefficients = runtimeState_.coefficients;
+
+    return state_.bypass ||
+           (coefficients.b0 == 1.0 &&
+            coefficients.b1 == 0.0 &&
+            coefficients.b2 == 0.0 &&
+            coefficients.a1 == 0.0 &&
+            coefficients.a2 == 0.0);
+}
+
+double Filter::GetMaximumFrequencyHz() const noexcept
+{
+    return runtimeState_.sampleRate * 0.49;
+}
+
 } // namespace consolidator::dsp

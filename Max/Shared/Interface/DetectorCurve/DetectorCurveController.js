@@ -32,7 +32,7 @@ DetectorCurveController.prototype.FindFilterAt = function(x, y) {
         var dy = Number(y) - markerY;
         var distance = dx * dx + dy * dy;
         if (distance <= closestDistance) {
-            closest = { filterId: index + 1, filter: filter };
+            closest = { FilterId: index + 1, filter: filter };
             closestDistance = distance;
         }
     }
@@ -44,35 +44,35 @@ DetectorCurveController.prototype.BeginDrag = function(x, y, option, control) {
     if (!match) return;
     if (control) {
         match.filter.bypass = !match.filter.bypass;
-        this.EmitForFilter(match.filterId, "bypass", match.filter.bypass ? 1 : 0);
+        this.EmitForFilter(match.FilterId, "bypass", match.filter.bypass ? 1 : 0);
         if (match.filter.bypass) {
-            this.model.SetListen(match.filterId, 0);
-            outlet(0, "detector_listen", match.filterId, 0);
+            this.model.SetListen(match.FilterId, 0);
+            outlet(0, "detector_listen", match.FilterId, 0);
         }
         mgraphics.redraw();
         return;
     }
     if (option) {
         if (match.filter.bypass) return;
-        var enabled = this.model.IsListening(match.filterId) ? 0 : 1;
-        this.model.SetListen(match.filterId, enabled);
-        outlet(0, "detector_listen", match.filterId, enabled);
+        var enabled = this.model.IsListening(match.FilterId) ? 0 : 1;
+        this.model.SetListen(match.FilterId, enabled);
+        outlet(0, "detector_listen", match.FilterId, enabled);
         mgraphics.redraw();
         return;
     }
     var now = new Date().getTime();
-    if (this.lastClickFilterId === match.filterId && now - this.lastClickTime <= 600) {
+    if (this.lastClickFilterId === match.FilterId && now - this.lastClickTime <= 600) {
         this.lastClickFilterId = 0;
         this.lastClickTime = 0;
-        this.dragFilterId = match.filterId;
+        this.dragFilterId = match.FilterId;
         this.dragStart = null;
         this.Emit("reset", 1);
         mgraphics.redraw();
         return;
     }
-    this.lastClickFilterId = match.filterId;
+    this.lastClickFilterId = match.FilterId;
     this.lastClickTime = now;
-    this.dragFilterId = match.filterId;
+    this.dragFilterId = match.FilterId;
     this.dragStart = {
         x: Number(x),
         y: Number(y),
@@ -132,14 +132,14 @@ DetectorCurveController.prototype.Emit = function(parameter, value) {
 };
 
 DetectorCurveController.prototype.EmitForFilter = function(
-    filterId,
+    FilterId,
     parameter,
     value
 ) {
-    outlet(0, "detector_absolute", Number(filterId), parameter, value);
+    outlet(0, "detector_absolute", Number(FilterId), parameter, value);
 };
 
-DetectorCurveController.prototype.SetListen = function(filterId) {
-    this.model.SetListen(filterId, arguments.length > 1 ? arguments[1] : 0);
+DetectorCurveController.prototype.SetListen = function(FilterId) {
+    this.model.SetListen(FilterId, arguments.length > 1 ? arguments[1] : 0);
     mgraphics.redraw();
 };

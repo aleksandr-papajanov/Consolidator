@@ -2,6 +2,12 @@
 
 ## Общий принцип
 
+## Статус проекта
+
+Проект находится на стадии активного прототипирования. Обратная совместимость,
+fallback-пути и миграционные адаптеры не требуются, если они мешают улучшению архитектуры.
+Предпочитать прямое удаление устаревшего API и однозначную новую модель.
+
 Код должен быть современным, модульным, объектным и легко читаемым.
 
 Главная цель — не просто заставить систему работать, а сохранить понятную архитектуру,
@@ -250,21 +256,336 @@ Core → Optimization
 
 ## 18. Форматирование (style consistency)
 
-Все файлы следуют единому вертикальному стилю.
+## C++ Code Formatting Rules
 
-Запрещено:
-- Схлопывать несколько членов класса/struct в одну строку через `;`
-- Писать тело метода в одной строке с объявлением (кроме тривиальных `= default`)
-- Размещать несколько `case` в одной строке
-- Использовать `{ ... }` на одной строке для тел методов длиннее 5-10 символов
-- Смешивать объявления и реализацию в заголовочных файлах
+При форматировании C++-кода необходимо улучшать только читаемость и визуальную структуру. Не изменять архитектуру, поведение, алгоритмы, публичный API или семантику кода без отдельного запроса.
 
-Каждый метод, каждое поле, каждый параметр — на отдельной строке.
-Исключение: короткие `getter`-ы (1-3 строки) могут быть определены прямо в классе.
+### Общие правила
 
-Форматирование должно быть одинаковым во всём проекте.
-Не начинать новый файл в другом стиле.
-Придерживаться стиля, уже сложившегося в остальных файлах.
+* Открывающую фигурную скобку размещать на новой строке.
+* Всегда использовать фигурные скобки для `if`, `for`, `while`, `switch` и других управляющих конструкций, даже если тело состоит из одной строки.
+* Не размещать несколько инструкций или объявлений функций в одной строке.
+* Между логическими блоками оставлять одну пустую строку.
+* Не добавлять избыточные пустые строки.
+* Закрытие namespace оформлять комментарием:
+
+### Порядок include
+
+Сначала подключать заголовок текущего файла, затем стандартную библиотеку, затем заголовки проекта:
+
+```cpp
+#include "Dsp/Processors/Gain/Gain.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include "Dsp/Parameters/ParameterHelper.h"
+```
+
+Между этими группами оставлять пустую строку.
+
+Добавлять прямой include стандартного заголовка, если тип из него используется непосредственно в файле. Например:
+
+```cpp
+#include <cstdint>
+```
+
+для `std::uint8_t`.
+
+### Сигнатуры функций
+
+Короткую сигнатуру оставлять в одной строке:
+
+```cpp
+void Gain::RecalculateRuntime()
+```
+
+Длинную сигнатуру переносить по одному аргументу на строку:
+
+```cpp
+void Equalizer::Process(
+    const double* input,
+    double* output,
+    std::size_t frameCount,
+    std::size_t channelCount)
+```
+
+То же правило применять к объявлениям в заголовочных файлах:
+
+```cpp
+void Process(
+    const double* input,
+    double* output,
+    std::size_t frameCount,
+    std::size_t channelCount) override;
+```
+
+Не переносить сигнатуру без необходимости, если она хорошо помещается в одну строку.
+
+### Конструкторы и списки инициализации
+
+Для короткого конструктора допустимо:
+
+```cpp
+explicit Gain(DeviceId deviceId) noexcept
+    : deviceId_(deviceId)
+{
+}
+```
+
+Если список инициализации длинный, каждый сложный элемент размещать отдельно:
+
+```cpp
+TiltFilter::TiltFilter(
+    FilterId FilterId,
+    double pivotHz)
+    : Filter(
+          DeviceId::Equalizer,
+          detail::ElementKind::EqFilter,
+          detail::ToIndex(FilterId)),
+      lowShelf_(FilterId, pivotHz),
+      highShelf_(FilterId, pivotHz)
+{
+}
+```
+
+### Условия и ранние возвраты
+
+Условия оформлять развёрнуто:
+
+```cpp
+if (filter != nullptr)
+{
+    filters_.push_back(std::move(filter));
+}
+```
+
+Для раннего возврата использовать отдельный блок:
+
+```cpp
+if (change.address.GetDeviceId() != deviceId_)
+{
+    return;
+}
+```
+
+Составные условия переносить так, чтобы операторы были визуально заметны:
+
+```cpp
+if (filter->GetElementKind() == elementKind &&
+    filter->GetElementIndex() == elementIndex)
+{
+    return filter.get();
+}
+```
+
+### Switch
+
+Каждый `case` оформлять отдельным блоком. Не размещать условие, вызов и `break` в одной строке:
+
+```cpp
+switch (change.address.GetParameterId())
+{
+case ParameterId::Gain:
+    if (const auto* value = TryGetValue<float>(change))
+    {
+        state_.gainDb = *value;
+        RecalculateRuntime();
+    }
+    break;
+
+case ParameterId::Bypass:
+    if (const auto* value = TryGetValue<bool>(change))
+    {
+        state_.bypass = *value;
+    }
+    break;
+
+default:
+    break;
+}
+```
+
+При чтении значения через `TryGetValue` использовать `const auto*`, если значение не изменяется.
+
+### Локальные переменные
+
+Использовать понятные имена вместо однобуквенных сокращений:
+
+```cpp
+const double amplitude = GainDbToAmplitude(parameters_.gainDb);
+const double cosine = std::cos(omega);
+const double inverseA0 = 1.0 / a0;
+```
+
+Вместо:
+
+```cpp
+const double amp = ...;
+const double cosO = ...;
+const double invA0 = ...;
+```
+
+Исключение составляют общепринятые математические обозначения, такие как `q`, `a0`, `b0`, `z1`, `z2`.
+
+Не переименовывать публичные поля, параметры или API только ради форматирования.
+
+### Выражения и вычисления
+
+Простое выражение оставлять в одной строке:
+
+```cpp
+const auto sampleCount = frameCount * channelCount;
+```
+
+Длинное вычисление переносить по логическим частям:
+
+```cpp
+runtime_.outputGainLinear =
+    std::pow(
+        10.0,
+        static_cast<double>(state_.outputDb) / 20.0);
+```
+
+Для длинных арифметических выражений разбивать формулу так, чтобы структура была видна:
+
+```cpp
+coefficients.b0 =
+    gain *
+    ((gain + 1.0) -
+     (gain - 1.0) * cosine +
+     gainRootTerm) *
+    inverseA0;
+```
+
+### Временные значения
+
+Если значение используется несколько раз или улучшает читаемость, сохранять его в локальную переменную:
+
+```cpp
+const double cosine = std::cos(omega);
+```
+
+В обработке аудиобуфера использовать понятные промежуточные значения:
+
+```cpp
+const double detectorInput = CalculateLinkedDetectorInput(input + frameOffset, channelCount);
+const double inputLevelDb = MeasureLevelDb(detectorInput);
+```
+
+Не создавать временные переменные, если они только усложняют простой код.
+
+### Классы
+
+Соблюдать порядок секций:
+
+1. `public`
+2. `protected`
+3. `private`
+
+Между крупными группами методов оставлять пустую строку.
+
+Сначала размещать конструкторы и основные методы, затем getters, затем внутренние методы и поля.
+
+Пример:
+
+```cpp
+class Gain final : public IDspDevice
+{
+public:
+    explicit Gain(DeviceId deviceId) noexcept;
+
+    void Process(
+        const double* input,
+        double* output,
+        std::size_t frameCount,
+        std::size_t channelCount) override;
+
+    void ApplyParameterChange(const ParameterChange& change) override;
+
+    [[nodiscard]] DeviceId GetDeviceId() const noexcept override
+    {
+        return deviceId_;
+    }
+
+private:
+    void RecalculateRuntime();
+
+    DeviceId deviceId_;
+    GainState state_;
+    GainRuntime runtime_;
+};
+```
+
+### Inline-методы
+
+Короткие getters допускается оставлять inline, но тело оформлять на нескольких строках:
+
+```cpp
+[[nodiscard]] const GainState& GetState() const noexcept
+{
+    return state_;
+}
+```
+
+Не оформлять их в одну строку:
+
+```cpp
+[[nodiscard]] const GainState& GetState() const noexcept { return state_; }
+```
+
+Простой составной возврат также переносить по логическим частям:
+
+```cpp
+[[nodiscard]] bool IsNeutral() const noexcept override
+{
+    return state_.bypass ||
+           runtime_.linearGain == 1.0;
+}
+```
+
+### Константы
+
+Каждую константу объявлять отдельно:
+
+```cpp
+static constexpr float kMinimumAttackMs = 0.01f;
+static constexpr float kMaximumAttackMs = 2000.0f;
+```
+
+Не объединять несколько констант в одном объявлении:
+
+```cpp
+static constexpr float kMinimumAttackMs = 0.01f,
+                       kMaximumAttackMs = 2000.0f;
+```
+
+Связанные минимальные и максимальные значения группировать рядом.
+
+### Указатели
+
+При проверке указателей использовать явное сравнение с `nullptr`, когда это улучшает читаемость:
+
+```cpp
+if (filter != nullptr)
+{
+    // ...
+}
+```
+
+В простом guard-условии допустима непосредственная проверка, но стиль должен быть единообразным в пределах файла.
+
+### Атрибуты
+
+Использовать `[[nodiscard]]` для методов, возвращаемое значение которых не должно игнорироваться:
+
+```cpp
+[[nodiscard]] Filter* GetFilter(std::size_t index) noexcept;
+```
+
+Не добавлять атрибуты, если это может изменить существующие требования сборки или вызвать нежелательные предупреждения, без отдельного запроса.
 
 ---
 ## Критерий качества

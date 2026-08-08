@@ -7,12 +7,12 @@ namespace consolidator::dsp
 {
 
 LowShelfFilter::LowShelfFilter(
-    EqFilterId filterId,
+    FilterId FilterId,
     double frequencyHz)
     : Filter(
           DeviceId::Equalizer,
           detail::ElementKind::EqFilter,
-          detail::ToIndex(filterId))
+          detail::ToIndex(FilterId))
 {
     InitializeParameters(
         frequencyHz,
@@ -20,20 +20,19 @@ LowShelfFilter::LowShelfFilter(
         core::settings::FilterDefaults::kDefaultGainDb);
 
     RecalculateCoefficients();
-    SyncState();
 }
 
 void LowShelfFilter::RecalculateCoefficients()
 {
     const double gain =
-        std::pow(10.0, parameters_.gainDb / 40.0);
+        std::pow(10.0, state_.gainDb / 40.0);
 
     const double omega =
-        2.0 * std::numbers::pi * parameters_.frequencyHz / sampleRate_;
+        2.0 * std::numbers::pi * state_.frequencyHz / GetSampleRate();
 
     const double sine = std::sin(omega);
     const double cosine = std::cos(omega);
-    const double alpha = sine / (2.0 * parameters_.q);
+    const double alpha = sine / (2.0 * state_.q);
     const double gainRootTerm =
         2.0 * std::sqrt(gain) * alpha;
 
@@ -80,15 +79,6 @@ void LowShelfFilter::RecalculateCoefficients()
         inverseA0;
 
     SetNormalizedCoefficients(coefficients);
-    SyncState();
-}
-
-void LowShelfFilter::SyncState()
-{
-    state_.frequency = static_cast<float>(parameters_.frequencyHz);
-    state_.q = static_cast<float>(parameters_.q);
-    state_.gainDb = static_cast<float>(parameters_.gainDb);
-    state_.bypass = parameters_.bypass;
 }
 
 } // namespace consolidator::dsp

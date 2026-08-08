@@ -324,9 +324,9 @@ AnalyzerViewController.prototype.SetLinkColor = function(values) {
         ? spectrumOptions.filter
         : color;
     this.state.linkId = nextLinkId;
-    for (var filterId in this.state.filterCurves) {
-        if (this.state.filterCurves.hasOwnProperty(filterId)) {
-            this.state.filterCurves[filterId].color = this.state.linkColor;
+    for (var FilterId in this.state.filterCurves) {
+        if (this.state.filterCurves.hasOwnProperty(FilterId)) {
+            this.state.filterCurves[FilterId].color = this.state.linkColor;
         }
     }
     this.RequestRedraw();
@@ -351,18 +351,18 @@ AnalyzerViewController.prototype.SetCurveSettings = function(values) {
 
 AnalyzerViewController.prototype.SetFilterCurve = function(values) {
     if (values.length < 6) return;
-    var filterId = Number(values[0]);
+    var FilterId = Number(values[0]);
     var active = Number(values[1]) !== 0;
     var curve = values.slice(6).map(Number);
-    if (!isFinite(filterId) || (active && this.state.curveSettings.pointCount > 0 && curve.length !== this.state.curveSettings.pointCount)) return;
-    var definition = FilterDefinitionCatalog.Eq()[filterId];
+    if (!isFinite(FilterId) || (active && this.state.curveSettings.pointCount > 0 && curve.length !== this.state.curveSettings.pointCount)) return;
+    var definition = FilterDefinitionCatalog.Eq()[FilterId];
     if (!definition) return;
     var frequencyParameter = String(values[4]) === "tilt" ? "pivot" : "freq";
     var qLimit = this.DefinitionLimit(definition, "q");
     var frequencyLimit = this.DefinitionLimit(definition, frequencyParameter);
     var gainLimit = this.DefinitionLimit(definition, "gain");
     var item = {
-        filterId: filterId,
+        FilterId: FilterId,
         active: active,
         frequency: Number(values[2]),
         gain: Number(values[3]),
@@ -376,7 +376,7 @@ AnalyzerViewController.prototype.SetFilterCurve = function(values) {
         gainMaximum: gainLimit.maximum
     };
     this.UpsertHandle(item);
-    this.state.filterCurves[String(filterId)] = {
+    this.state.filterCurves[String(FilterId)] = {
         curve: curve,
         color: this.state.linkColor || spectrumOptions.filter,
         type: item.type,
@@ -388,7 +388,7 @@ AnalyzerViewController.prototype.SetFilterCurve = function(values) {
 
 AnalyzerViewController.prototype.UpsertHandle = function(handle) {
     for (var index = 0; index < this.state.handles.length; ++index) {
-        if (this.state.handles[index].filterId === handle.filterId) {
+        if (this.state.handles[index].FilterId === handle.FilterId) {
             this.state.handles[index] = handle;
             return;
         }
@@ -443,10 +443,10 @@ AnalyzerViewController.prototype.ReadOperationAvailability = function(values, se
         var bankOccupied = false;
         for (var filterIndex = 0; filterIndex < filterCount; ++filterIndex) {
             if (position + 2 >= values.length) return availability;
-            var filterId = Number(values[position++]);
+            var FilterId = Number(values[position++]);
             var filterBypass = Number(values[position++]) !== 0;
             var valueCount = Number(values[position++]);
-            var definition = FilterDefinitionCatalog.Eq()[filterId];
+            var definition = FilterDefinitionCatalog.Eq()[FilterId];
             if (!isFinite(valueCount) || valueCount < 0 || position + valueCount > values.length) {
                 return availability;
             }
@@ -482,15 +482,15 @@ AnalyzerViewController.prototype.ReadOperationAvailability = function(values, se
 AnalyzerViewController.prototype.SetFilterLimits = function(values) {
     if (values.length !== 5) return;
     var bankId = Number(values[0]);
-    var filterId = Number(values[1]);
+    var FilterId = Number(values[1]);
     var parameterIndex = Number(values[2]);
     var minimum = Number(values[3]);
     var maximum = Number(values[4]);
-    if (!isFinite(bankId) || !isFinite(filterId) ||
+    if (!isFinite(bankId) || !isFinite(FilterId) ||
         !isFinite(parameterIndex) || !isFinite(minimum) || !isFinite(maximum) ||
         maximum < minimum) return;
     this.state.filterLimits[
-        String(bankId) + ":" + String(filterId) + ":" + String(parameterIndex)
+        String(bankId) + ":" + String(FilterId) + ":" + String(parameterIndex)
     ] = {
         minimum: minimum,
         maximum: maximum
@@ -500,12 +500,12 @@ AnalyzerViewController.prototype.SetFilterLimits = function(values) {
 AnalyzerViewController.prototype.SetEqPreview = function(values) {
     if (values.length !== 4) return;
     var bankId = Number(values[0]);
-    var filterId = Number(values[1]);
+    var FilterId = Number(values[1]);
     var parameterIndex = Number(values[2]);
     var value = Number(values[3]);
     if (bankId !== this.state.selectedBankId || !isFinite(value)) return;
-    var definition = FilterDefinitionCatalog.Eq()[filterId];
-    var handle = this.FindHandle(filterId);
+    var definition = FilterDefinitionCatalog.Eq()[FilterId];
+    var handle = this.FindHandle(FilterId);
     if (!definition || !handle || parameterIndex < 0 ||
         parameterIndex >= definition.parameters.length) return;
     var parameter = definition.parameters[parameterIndex].name;
@@ -517,13 +517,13 @@ AnalyzerViewController.prototype.SetEqPreview = function(values) {
 };
 
 AnalyzerViewController.prototype.ParameterLimit = function(handle, parameterName, minimum, maximum) {
-    var definition = FilterDefinitionCatalog.Eq()[handle.filterId];
+    var definition = FilterDefinitionCatalog.Eq()[handle.FilterId];
     if (!definition) return { minimum: minimum, maximum: maximum };
     for (var index = 0; index < definition.parameters.length; ++index) {
         if (definition.parameters[index].name !== parameterName) continue;
         return this.state.filterLimits[
             String(this.state.selectedBankId) + ":" +
-            String(handle.filterId) + ":" + String(index)
+            String(handle.FilterId) + ":" + String(index)
         ] || { minimum: minimum, maximum: maximum };
     }
     return { minimum: minimum, maximum: maximum };
@@ -589,7 +589,7 @@ AnalyzerViewController.prototype.OnClick = function(x, y, button, cmd, shift, ca
     if (this.HandleViewControl(x, y)) return;
     if (this.state.mode !== "spectrum") return;
     var handle = this.FindHandleAt(x, y);
-    this.state.selectedHandleId = handle ? handle.filterId : null;
+    this.state.selectedHandleId = handle ? handle.FilterId : null;
     if (handle && Boolean(ctrl)) {
         this.lastClickFilterId = null;
         this.ToggleBypass(handle);
@@ -598,7 +598,7 @@ AnalyzerViewController.prototype.OnClick = function(x, y, button, cmd, shift, ca
     if (handle && !handle.active) return;
     if (handle) {
         var now = new Date().getTime();
-        if (this.lastClickFilterId === handle.filterId && now - this.lastClickTime <= 600) {
+        if (this.lastClickFilterId === handle.FilterId && now - this.lastClickTime <= 600) {
             this.lastClickFilterId = null;
             this.lastClickTime = 0;
             this.state.dragHandleId = null;
@@ -607,12 +607,12 @@ AnalyzerViewController.prototype.OnClick = function(x, y, button, cmd, shift, ca
             this.RequestRedraw();
             return;
         }
-        this.lastClickFilterId = handle.filterId;
+        this.lastClickFilterId = handle.FilterId;
         this.lastClickTime = now;
     } else {
         this.lastClickFilterId = null;
     }
-    this.state.dragHandleId = handle ? handle.filterId : null;
+    this.state.dragHandleId = handle ? handle.FilterId : null;
     if (!handle) return;
     this.state.historyOperation += 1;
     this.state.activeHistoryOperationId = "spectrum." +
@@ -648,7 +648,7 @@ AnalyzerViewController.prototype.OnDoubleClick = function(x, y, button, cmd, shi
     if (this.state.mode !== "spectrum") return;
     var handle = this.FindHandleAt(x, y);
     if (!handle) return;
-    this.state.selectedHandleId = handle.filterId;
+    this.state.selectedHandleId = handle.FilterId;
     this.state.dragHandleId = null;
     this.state.dragStart = null;
     this.ResetFilter(handle);
@@ -745,7 +745,7 @@ AnalyzerViewController.prototype.OnDrag = function(x, y, button, cmd, shift, cap
     if (Boolean(option) && start.qMaximum > start.qMinimum) {
         var qRatio = spectrumGeometry.Clamp((start.y - y) / bottom, -1, 1);
         handle.q = spectrumGeometry.Clamp(start.q * Math.pow(8, qRatio), start.qMinimum, start.qMaximum);
-        this.SendParameter(handle.filterId, "q", handle.q);
+        this.SendParameter(handle.FilterId, "q", handle.q);
     }
     else {
         handle.frequency = spectrumGeometry.Clamp(
@@ -758,10 +758,10 @@ AnalyzerViewController.prototype.OnDrag = function(x, y, button, cmd, shift, cap
             start.gainMinimum,
             start.gainMaximum
         );
-        if (handle.type === "gain") this.SendParameter(handle.filterId, "gain", handle.gain);
+        if (handle.type === "gain") this.SendParameter(handle.FilterId, "gain", handle.gain);
         else {
-            this.SendParameter(handle.filterId, handle.type === "tilt" ? "pivot" : "freq", handle.frequency);
-            this.SendParameter(handle.filterId, "gain", handle.gain);
+            this.SendParameter(handle.FilterId, handle.type === "tilt" ? "pivot" : "freq", handle.frequency);
+            this.SendParameter(handle.FilterId, "gain", handle.gain);
         }
     }
     this.RequestRedraw();
@@ -776,9 +776,9 @@ AnalyzerViewController.prototype.OnMouseUp = function() {
     this.state.activeHistoryOperationId = "";
 };
 
-AnalyzerViewController.prototype.FindHandle = function(filterId) {
+AnalyzerViewController.prototype.FindHandle = function(FilterId) {
     for (var index = 0; index < this.state.handles.length; ++index) {
-        if (this.state.handles[index].filterId === filterId && this.state.handles[index].active) return this.state.handles[index];
+        if (this.state.handles[index].FilterId === FilterId && this.state.handles[index].active) return this.state.handles[index];
     }
     return null;
 };
@@ -805,19 +805,19 @@ AnalyzerViewController.prototype.FindHandleAt = function(x, y) {
     return closest;
 };
 
-AnalyzerViewController.prototype.SendParameter = function(filterId, parameter, value) {
+AnalyzerViewController.prototype.SendParameter = function(FilterId, parameter, value) {
     this.state.requestId += 1;
     outlet(0, "command", 1, "spectrum", this.state.requestId, "eq.set_parameter",
-        this.state.selectedBankId, filterId, parameter, value);
+        this.state.selectedBankId, FilterId, parameter, value);
 };
 
 AnalyzerViewController.prototype.ToggleBypass = function(handle) {
     handle.active = !handle.active;
-    var curve = this.state.filterCurves[String(handle.filterId)];
+    var curve = this.state.filterCurves[String(handle.FilterId)];
     if (curve) curve.active = handle.active;
     this.state.requestId += 1;
     outlet(0, "command", 1, "spectrum", this.state.requestId, "eq.set_bypass",
-        this.state.selectedBankId, handle.filterId, handle.active ? 0 : 1);
+        this.state.selectedBankId, handle.FilterId, handle.active ? 0 : 1);
     this.state.dragHandleId = null;
     this.state.dragStart = null;
     this.RequestRedraw();
@@ -830,6 +830,6 @@ AnalyzerViewController.prototype.ResetFilter = function(handle) {
     this.state.requestId += 1;
     outlet(0, [
         "command", 1, "spectrum", this.state.requestId, "eq.reset_filter",
-        this.state.selectedBankId, handle.filterId
+        this.state.selectedBankId, handle.FilterId
     ]);
 };

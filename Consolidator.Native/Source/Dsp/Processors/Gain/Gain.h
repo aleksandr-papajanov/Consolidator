@@ -4,28 +4,33 @@
 #include <cstdint>
 
 #include "Core/Settings/DspDeviceSettings.h"
-#include "Dsp/Processors/IDspDevice.h"
+#include "Dsp/Parameters/DspParameter.h"
+#include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
 {
 
 struct GainState
 {
-    float gainDb = static_cast<float>(core::settings::GainDefaults::kDefaultGainDb);
-    bool bypass = false;
+    DspParameter<float> gainDb{
+        ParameterId::Gain,
+        static_cast<float>(core::settings::GainDefaults::kDefaultGainDb),
+        static_cast<float>(core::settings::GainDefaults::kMinGainDb),
+        static_cast<float>(core::settings::GainDefaults::kMaxGainDb)};
+    DspParameter<bool> bypass{ParameterId::Bypass, false};
 };
 
-struct GainRuntime
+struct GainRuntimeState
 {
     double linearGain = 1.0;
     bool isNeutral = true;
 };
 
-class Gain final : public IDspDevice
+class Gain final : public DspDevice
 {
 public:
     explicit Gain(DeviceId deviceId) noexcept
-        : deviceId_(deviceId)
+        : DspDevice(deviceId, detail::ElementKind::Device, 0)
     {
     }
 
@@ -35,39 +40,26 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    void ApplyParameterChange(const ParameterChange& change) override;
-
-    [[nodiscard]] DeviceId GetDeviceId() const noexcept override
-    {
-        return deviceId_;
-    }
-
-    [[nodiscard]] detail::ElementKind GetElementKind() const noexcept override
-    {
-        return detail::ElementKind::Device;
-    }
-
-    [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override
-    {
-        return 0;
-    }
 
     [[nodiscard]] const GainState& GetState() const noexcept
     {
         return state_;
     }
 
+    [[nodiscard]] const GainRuntimeState& GetRuntimeState() const noexcept
+    {
+        return runtimeState_;
+    }
+
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
-        return runtime_.isNeutral;
+        return runtimeState_.isNeutral;
     }
 
 private:
-    void RecalculateRuntime();
-
-    DeviceId deviceId_;
+    void RecalculateRuntime() override;
     GainState state_;
-    GainRuntime runtime_;
+    GainRuntimeState runtimeState_;
 };
 
 } // namespace consolidator::dsp

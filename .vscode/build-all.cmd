@@ -5,7 +5,7 @@ set "ROOT=%~dp0.."
 set "VSDEVCMD=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"
 set "CMAKE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 set "VCPKG_TOOLCHAIN=C:\Program Files\Microsoft Visual Studio\18\Community\VC\vcpkg\scripts\buildsystems\vcpkg.cmake"
-set "SOURCE_DIR=%ROOT%\Native\Consolidator"
+set "SOURCE_DIR=%ROOT%\Consolidator.Native"
 set "BUILD_DIR=%SOURCE_DIR%\out\build-vscode"
 
 if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"

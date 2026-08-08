@@ -58,12 +58,12 @@ AnalyzerController.prototype.ForwardCommand = function(name, values) {
 };
 
 AnalyzerController.prototype.FlushEqParameterCommand = function(values) {
-    var filterId = Number(values[5]);
+    var FilterId = Number(values[5]);
     var parameterName = String(values[6]);
-    var parameters = FilterDefinitionCatalog.Eq()[filterId].parameters;
+    var parameters = FilterDefinitionCatalog.Eq()[FilterId].parameters;
     for (var parameterIndex = 0; parameterIndex < parameters.length; ++parameterIndex) {
         if (parameters[parameterIndex].name === parameterName) {
-            outlet(0, "link_filter_local", Number(values[4]), filterId,
+            outlet(0, "link_filter_local", Number(values[4]), FilterId,
                 parameterIndex, Number(values[7]));
             break;
         }
@@ -195,7 +195,7 @@ function outletassist(index) {
         ? "command 1 analyzer <requestId> analyzer.set_view <visible> <spectrum|analysis>; fit.start <pointCount> <curve...>; analyzer.clear; history.begin <operationId>, history.end <operationId>; eq.set_parameter, eq.set_bypass, eq.reset_filter; bank.action <join|commit|reset|bypass> <optional 0|1>"
         : (index === 1
             ? "mode spectrum|analysis for the unified Analyzer View"
-            : "eq_parameter_absolute_preview|eq_parameter_absolute_gesture <bankId> <filterId> <parameter> <absoluteValue>; eq_filter_reset <bankId> <filterId>"));
+            : "eq_parameter_absolute_preview|eq_parameter_absolute_gesture <bankId> <FilterId> <parameter> <absoluteValue>; eq_filter_reset <bankId> <FilterId>"));
 }
 
 setinletassist(-1, inletassist);

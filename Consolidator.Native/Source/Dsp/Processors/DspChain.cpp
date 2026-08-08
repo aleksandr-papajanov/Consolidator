@@ -3,23 +3,22 @@
 namespace consolidator::dsp
 {
 
-void DspChain::AddDevice(std::unique_ptr<IDspDevice> device)
+void DspChain::AddDevice(std::unique_ptr<DspDevice> device)
 {
     devices_.push_back(std::move(device));
 }
 
-void DspChain::ApplyParameterChange(const ParameterChange& change)
+void DspChain::ApplyParameterChange(const RoutedParameterChange& change)
 {
-    pendingChanges_.push_back(change);
-}
-
-void DspChain::ApplyParameterBatch(const ParameterBatch& batch)
-{
-    for (const auto& change : batch.GetChanges())
+    for (auto& device : devices_)
     {
-        pendingChanges_.push_back(change);
+        if (device->GetDeviceId() == change.route.GetDeviceId())
+        {
+            device->ApplyParameter(change.route, change.value, 0);
+        }
     }
 }
+
 
 void DspChain::Process(
     const double* input,
@@ -28,8 +27,6 @@ void DspChain::Process(
     std::size_t frameCount,
     std::size_t channelCount)
 {
-    ApplyPendingChanges();
-
     const auto sampleCount = frameCount * channelCount;
 
     const double* src = input;
@@ -73,34 +70,14 @@ std::size_t DspChain::GetDeviceCount() const noexcept
     return devices_.size();
 }
 
-IDspDevice* DspChain::GetDevice(std::size_t index) noexcept
+DspDevice* DspChain::GetDevice(std::size_t index) noexcept
 {
     return index < devices_.size() ? devices_[index].get() : nullptr;
 }
 
-const IDspDevice* DspChain::GetDevice(std::size_t index) const noexcept
+const DspDevice* DspChain::GetDevice(std::size_t index) const noexcept
 {
     return index < devices_.size() ? devices_[index].get() : nullptr;
-}
-
-void DspChain::ApplyPendingChanges()
-{
-    for (const auto& change : pendingChanges_)
-    {
-        ApplyChangeToDevice(change);
-    }
-    pendingChanges_.clear();
-}
-
-void DspChain::ApplyChangeToDevice(const ParameterChange& change)
-{
-    for (auto& device : devices_)
-    {
-        if (device->GetDeviceId() == change.address.GetDeviceId())
-        {
-            device->ApplyParameterChange(change);
-        }
-    }
 }
 
 } // namespace consolidator::dsp

@@ -1,14 +1,14 @@
-﻿#pragma once
+#pragma once
 
-#include "Dsp/Parameters/ParameterAddress.h"
+#include "Dsp/Parameters/ParameterRoute.h"
 #include "Dsp/Parameters/ParameterValue.h"
 
 namespace consolidator::dsp
 {
 
-struct ParameterChange
+struct RoutedParameterChange
 {
-    ParameterAddress address;
+    ParameterRoute route;
     ParameterValue value;
 };
 

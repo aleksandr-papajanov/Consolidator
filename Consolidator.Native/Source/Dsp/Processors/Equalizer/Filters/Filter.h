@@ -5,19 +5,30 @@
 #include <cstdint>
 
 #include "Core/Settings/DspDeviceSettings.h"
-#include "Dsp/Parameters/ParameterAddress.h"
-#include "Dsp/Parameters/ParameterChange.h"
-#include "Dsp/Processors/IDspDevice.h"
+#include "Dsp/Parameters/DspParameter.h"
+#include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
 {
 
-struct FilterParameters
+struct FilterState
 {
-    double frequencyHz = core::settings::FilterDefaults::kDefaultFrequencyHz;
-    double q = core::settings::FilterDefaults::kDefaultQ;
-    double gainDb = core::settings::FilterDefaults::kDefaultGainDb;
-    bool bypass = false;
+    DspParameter<float> frequencyHz{
+        ParameterId::Frequency,
+        static_cast<float>(core::settings::FilterDefaults::kDefaultFrequencyHz),
+        static_cast<float>(core::settings::FilterDefaults::kMinFrequencyHz),
+        static_cast<float>(core::settings::FilterDefaults::kMaxFrequencyHz)};
+    DspParameter<float> q{
+        ParameterId::Q,
+        static_cast<float>(core::settings::FilterDefaults::kDefaultQ),
+        static_cast<float>(core::settings::FilterDefaults::kMinQ),
+        static_cast<float>(core::settings::FilterDefaults::kMaxQ)};
+    DspParameter<float> gainDb{
+        ParameterId::Gain,
+        static_cast<float>(core::settings::FilterDefaults::kDefaultGainDb),
+        static_cast<float>(core::settings::FilterDefaults::kMinGainDb),
+        static_cast<float>(core::settings::FilterDefaults::kMaxGainDb)};
+    DspParameter<bool> bypass{ParameterId::Bypass, false};
 };
 
 struct BiquadCoefficients
@@ -35,31 +46,56 @@ struct FilterMemory
     double z2 = 0.0;
 };
 
-class Filter : public IDspDevice
+struct FilterRuntimeState
+{
+    BiquadCoefficients coefficients;
+    std::array<FilterMemory, 2> channelStates{};
+    double sampleRate = core::settings::kDefaultSampleRate;
+    std::size_t activeChannelCount = 2;
+    bool isNeutral = true;
+};
+
+class Filter : public DspDevice
 {
 public:
-    Filter(DeviceId deviceId, detail::ElementKind elementKind, std::uint8_t elementIndex);
+    Filter(
+        DeviceId deviceId,
+        detail::ElementKind elementKind,
+        std::uint8_t elementIndex);
 
-    virtual void Prepare(double sampleRate, std::size_t channelCount);
+    virtual void Prepare(
+        double sampleRate,
+        std::size_t channelCount);
+
     virtual void Reset() noexcept;
 
-    void Process(const double* input, double* output, std::size_t frameCount, std::size_t channelCount) override;
-    void ApplyParameterChange(const ParameterChange& change) override;
+    void Process(
+        const double* input,
+        double* output,
+        std::size_t frameCount,
+        std::size_t channelCount) override;
 
-    [[nodiscard]] DeviceId GetDeviceId() const noexcept override { return deviceId_; }
-    [[nodiscard]] detail::ElementKind GetElementKind() const noexcept override { return elementKind_; }
-    [[nodiscard]] std::uint8_t GetElementIndex() const noexcept override { return elementIndex_; }
 
-    [[nodiscard]] virtual double ProcessSample(double input, std::size_t channel) noexcept;
+    [[nodiscard]] virtual double ProcessSample(
+        double input,
+        std::size_t channel) noexcept;
 
-    [[nodiscard]] const FilterParameters& GetParameters() const noexcept { return parameters_; }
-    [[nodiscard]] EqFilterId GetEqFilterId() const noexcept { return detail::ToEqFilterId(elementIndex_); }
-    [[nodiscard]] BankId GetBankId() const noexcept { return bankId_; }
+    [[nodiscard]] FilterId GetFilterId() const noexcept
+    {
+        return detail::ToFilterId(GetElementIndex());
+    }
 
-    [[nodiscard]] bool IsNeutral() const noexcept override { return isNeutral_; }
+    [[nodiscard]] bool IsNeutral() const noexcept override;
 
-    DeviceId deviceId_;
-    BankId bankId_ = BankId::Bank0;
+    [[nodiscard]] virtual const FilterState& GetState() const noexcept
+    {
+        return state_;
+    }
+
+    [[nodiscard]] const FilterRuntimeState& GetRuntimeState() const noexcept
+    {
+        return runtimeState_;
+    }
 
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
@@ -68,32 +104,46 @@ protected:
 
     virtual void RecalculateCoefficients() = 0;
 
-    void SetNormalizedCoefficients(const BiquadCoefficients& c) noexcept { coefficients_ = c; }
-    [[nodiscard]] double GetSampleRate() const noexcept { return sampleRate_; }
+    [[nodiscard]] virtual bool CalculateIsNeutral() const noexcept;
 
-    void InitializeParameters(double f, double q, double g) noexcept
-    { parameters_.frequencyHz = f; parameters_.q = q; parameters_.gainDb = g; }
+    void SetNormalizedCoefficients(
+        const BiquadCoefficients& coefficients) noexcept
+    {
+        runtimeState_.coefficients = coefficients;
+    }
 
-    void SetNeutral(bool v) noexcept { isNeutral_ = v; }
+    [[nodiscard]] double GetSampleRate() const noexcept
+    {
+        return runtimeState_.sampleRate;
+    }
 
-    detail::ElementKind elementKind_;
-    std::uint8_t elementIndex_;
-    FilterParameters parameters_;
-    BiquadCoefficients coefficients_;
-    std::array<FilterMemory, kMaximumChannelCount> channelStates_{};
-    double sampleRate_ = core::settings::kDefaultSampleRate;
-    std::size_t activeChannelCount_ = kMaximumChannelCount;
+    void InitializeParameters(
+        double frequencyHz,
+        double q,
+        double gainDb) noexcept
+    {
+        state_.frequencyHz = frequencyHz;
+        state_.q = q;
+        state_.gainDb = gainDb;
+    }
+
+    void RecalculateRuntime() noexcept;
+
+    FilterState state_{};
+    FilterRuntimeState runtimeState_;
 
 private:
-    void SetFrequency(float f);
-    void SetQ(float q);
-    void SetGain(float gainDb);
-    void SetBypass(bool bypass) noexcept;
+    bool ApplyStateParameter(
+        const ParameterRoute& route,
+        const ParameterValue& value) override;
 
-    [[nodiscard]] double ProcessActiveSample(double input, std::size_t channel) noexcept;
+
+    [[nodiscard]] double ProcessActiveSample(
+        double input,
+        std::size_t channel) noexcept;
+
     [[nodiscard]] double GetMaximumFrequencyHz() const noexcept;
 
-    bool isNeutral_ = true;
 };
 
 } // namespace consolidator::dsp

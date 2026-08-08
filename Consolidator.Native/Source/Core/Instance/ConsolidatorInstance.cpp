@@ -22,7 +22,7 @@ void ConsolidatorInstance::Process(const double* mainInput,
     std::copy_n(referenceInput, sampleCount, referenceOutput);
 }
 
-void ConsolidatorInstance::ApplyParameterChange(const dsp::ParameterChange&)
+void ConsolidatorInstance::ApplyParameterChange(const dsp::RoutedParameterChange&)
 {
     // Placeholder. Parameter application will be added with the DSP layer.
 }

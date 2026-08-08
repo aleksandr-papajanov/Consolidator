@@ -98,23 +98,23 @@ ProcessorControlsController.prototype.SendDetectorDefinitions = function() {
         var definition = this.processorDefinitions[device];
         if (!definition || device !== this.visualDevice) continue;
         var detectorDefinitions = FilterDefinitionCatalog.Detector();
-        for (var filterId in detectorDefinitions) {
-            if (!detectorDefinitions.hasOwnProperty(filterId)) continue;
-            filterId = Number(filterId);
-            var gain = this.FindParameter(definition, "detector." + filterId + ".gain");
+        for (var FilterId in detectorDefinitions) {
+            if (!detectorDefinitions.hasOwnProperty(FilterId)) continue;
+            FilterId = Number(FilterId);
+            var gain = this.FindParameter(definition, "detector." + FilterId + ".gain");
             var frequency = this.FindParameter(
-                definition, "detector." + filterId + ".frequency");
-            var q = this.FindParameter(definition, "detector." + filterId + ".q");
+                definition, "detector." + FilterId + ".frequency");
+            var q = this.FindParameter(definition, "detector." + FilterId + ".q");
             var bypass = this.FindParameter(
-                definition, "detector." + filterId + ".bypass");
+                definition, "detector." + FilterId + ".bypass");
             if (!gain || !frequency || !q || !bypass) {
-                outlet(2, "error", "missing_detector_definition", device, filterId,
+                outlet(2, "error", "missing_detector_definition", device, FilterId,
                     !gain ? "gain" : !frequency ? "frequency" : !q ? "q" : "bypass");
                 continue;
             }
             outlet(1, [
                 "script", "sendbox", device + ".detectorCurve", "definition",
-                filterId,
+                FilterId,
                 gain.minimum, gain.maximum, gain.defaultValue,
                 frequency.minimum, frequency.maximum, frequency.defaultValue,
                 q.minimum, q.maximum, q.defaultValue,
@@ -278,9 +278,9 @@ ProcessorControlsController.prototype.FindParameter = function(definition, name)
     return null;
 };
 
-ProcessorControlsController.prototype.IsDetectorId = function(filterId) {
+ProcessorControlsController.prototype.IsDetectorId = function(FilterId) {
     var detectors = FilterDefinitionCatalog.Detector();
-    return detectors.hasOwnProperty(Number(filterId));
+    return detectors.hasOwnProperty(Number(FilterId));
 };
 
 ProcessorControlsController.prototype.FindFilterParameter = function(definition, controlId) {
@@ -310,10 +310,10 @@ ProcessorControlsController.prototype.ToNormalized = function(definition, absolu
     return (value - definition.minimum) / (definition.maximum - definition.minimum);
 };
 
-ProcessorControlsController.prototype.ResetDetector = function(device, filterId) {
-    outlet(3, "processor_detector_reset", String(device), Number(filterId));
+ProcessorControlsController.prototype.ResetDetector = function(device, FilterId) {
+    outlet(3, "processor_detector_reset", String(device), Number(FilterId));
     outlet(1, ["script", "sendbox", device + ".detectorCurve", "reset",
-        Number(filterId)]);
+        Number(FilterId)]);
 };
 
 ProcessorControlsController.prototype.HandleProcessorLimits = function(device, parameter, minimum, maximum) {
@@ -369,21 +369,21 @@ ProcessorControlsController.prototype.HandleLocal = function(values) {
     if (values.length < 2) return;
     var device = String(values[0]);
     if (device === "filter") {
-        var filterId = Number(values[1]);
+        var FilterId = Number(values[1]);
         var parameterName = String(values[2]);
         if (parameterName === "bypass") {
             var bypassValue = Number(values[3]) ? 1 : 0;
-            this.RememberValue(["filter", filterId, "bypass", bypassValue]);
-            this.SendCommand("eq.set_bypass", [this.selectedBankId, filterId, bypassValue]);
+            this.RememberValue(["filter", FilterId, "bypass", bypassValue]);
+            this.SendCommand("eq.set_bypass", [this.selectedBankId, FilterId, bypassValue]);
             return;
         }
-        var parameter = this.FindFilterParameter(this.filterDefinitions[filterId], parameterName);
+        var parameter = this.FindFilterParameter(this.filterDefinitions[FilterId], parameterName);
         if (parameter) {
             var normalizedValue = Math.max(0, Math.min(1, Number(values[3])));
-            this.RememberValue(["filter", filterId, parameterName, normalizedValue]);
+            this.RememberValue(["filter", FilterId, parameterName, normalizedValue]);
             this.SendCommand("eq.set_parameter", [
                 this.selectedBankId,
-                filterId,
+                FilterId,
                 parameter.name,
                 this.ToAbsolute(parameter, normalizedValue)
             ]);
@@ -835,10 +835,10 @@ ProcessorControlsController.prototype.SendValue = function(fields) {
     outlet(1, ["script", "sendbox", varName, "set", value]);
 };
 
-ProcessorControlsController.prototype.SendDetectorListen = function(device, filterId, enabled) {
+ProcessorControlsController.prototype.SendDetectorListen = function(device, FilterId, enabled) {
     if (device !== this.visualDevice) return;
     outlet(1, ["script", "sendbox", device + ".detectorCurve",
-        "listen", Number(filterId), enabled ? 1 : 0]);
+        "listen", Number(FilterId), enabled ? 1 : 0]);
 };
 
 ProcessorControlsController.prototype.HandleEqSnapshot = function(values) {
@@ -852,19 +852,19 @@ ProcessorControlsController.prototype.HandleEqSnapshot = function(values) {
         position++;
         var filterCount = Number(values[position++]);
         for (var filterIndex = 0; filterIndex < filterCount; filterIndex++) {
-            var filterId = Number(values[position++]);
+            var FilterId = Number(values[position++]);
             var bypass = Number(values[position++]);
             var valueCount = Number(values[position++]);
-            var definition = this.filterDefinitions[filterId];
+            var definition = this.filterDefinitions[FilterId];
             if (bankId === this.selectedBankId && definition) {
                 for (var valueIndex = 0; valueIndex < valueCount; valueIndex++) {
                     var parameter = definition.parameters[valueIndex];
                     this.SendValue([
-                        "filter", filterId, this.FilterControlId(parameter.name),
+                        "filter", FilterId, this.FilterControlId(parameter.name),
                         this.ToNormalized(parameter, values[position + valueIndex])
                     ]);
                 }
-                this.SendValue(["filter", filterId, "bypass", bypass]);
+                this.SendValue(["filter", FilterId, "bypass", bypass]);
             }
             position += valueCount;
         }
@@ -970,7 +970,7 @@ ProcessorControlsController.prototype.SendDetectorSnapshot = function(device, va
 
 ProcessorControlsController.prototype.SendDetectorCurve = function(
     device,
-    filterId,
+    FilterId,
     bypass,
     gainDb,
     frequencyHz,
@@ -982,7 +982,7 @@ ProcessorControlsController.prototype.SendDetectorCurve = function(
         "sendbox",
         device + ".detectorCurve",
         "detector",
-        filterId,
+        FilterId,
         Number(bypass) ? 1 : 0,
         Number(gainDb),
         Number(frequencyHz),

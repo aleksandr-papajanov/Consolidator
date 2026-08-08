@@ -1,5 +1,5 @@
 ﻿#include "Dsp/DspChainBuilder.h"
-#include "Dsp/Parameters/ParameterAddress.h"
+#include "Dsp/Parameters/RoutedParameterChange.h"
 #include "Dsp/Processors/Compressor/Compressor.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"
@@ -41,6 +41,10 @@ int main()
     assert(equalizer->GetBankId() == BankId::Bank0);
     assert(equalizer->GetFilterCount() == 7);
 
+    const Equalizer detectorEqualizer{
+        detail::ElementKind::CompressorDetectorFilter};
+    assert(!detectorEqualizer.GetBankId().has_value());
+
     // Band 0: GainFilter
     const auto* gainFilter = dynamic_cast<const GainFilter*>(equalizer->GetFilter(0));
     assert(gainFilter != nullptr);
@@ -50,13 +54,17 @@ int main()
     // Band 4: BellFilter at 1000 Hz
     const auto* bell0 = dynamic_cast<const BellFilter*>(equalizer->GetFilter(4));
     assert(bell0 != nullptr);
-    assert(bell0->GetParameters().frequencyHz == 1000.0);
+    assert(bell0->GetState().frequencyHz == 1000.0);
     assert(bell0->GetElementKind() == detail::ElementKind::EqFilter);
     assert(bell0->GetElementIndex() == 4);
 
     // Change Filter3 frequency on Bank0 — should NOT affect other banks or filters
-    const ParameterChange freqChange{
-        ParameterAddress::EqFilterFrequency(BankId::Bank0, EqFilterId::Filter3),
+    const RoutedParameterChange freqChange{
+        ParameterRoute{
+            DeviceId::Equalizer,
+            ParameterId::Frequency,
+            RouteNodeId::Bank0,
+            RouteNodeId::Filter3},
         ParameterValue{1200.0f}
     };
     chain->ApplyParameterChange(freqChange);
@@ -64,22 +72,37 @@ int main()
 
     const auto* lowShelf = dynamic_cast<const LowShelfFilter*>(equalizer->GetFilter(2));
     assert(lowShelf != nullptr);
-    assert(lowShelf->GetParameters().frequencyHz == 1200.0);
+    assert(lowShelf->GetState().frequencyHz == 1200.0);
     assert(lowShelf->GetElementKind() == detail::ElementKind::EqFilter);
     assert(lowShelf->GetElementIndex() == 2);
-    assert(bell0->GetParameters().frequencyHz == 1000.0); // untouched
+    assert(bell0->GetState().frequencyHz == 1000.0); // untouched
+    assert(equalizer->IsNeutral());
 
-    // Batch: Saturator drive + Compressor threshold
-    ParameterBatch batch;
-    batch.Add(ParameterChange{
-        ParameterAddress::SaturatorDrive(),
-        ParameterValue{2.0f}
-    });
-    batch.Add(ParameterChange{
-        ParameterAddress::CompressorThreshold(),
-        ParameterValue{-18.0f}
-    });
-    chain->ApplyParameterBatch(batch);
+    chain->ApplyParameterChange(RoutedParameterChange{
+        ParameterRoute{
+            DeviceId::Equalizer,
+            ParameterId::Gain,
+            RouteNodeId::Bank0,
+            RouteNodeId::Filter3},
+        ParameterValue{6.0f}});
+    chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
+    assert(!equalizer->IsNeutral());
+
+    chain->ApplyParameterChange(RoutedParameterChange{
+        ParameterRoute{
+            DeviceId::Equalizer,
+            ParameterId::Bypass,
+            RouteNodeId::Bank0},
+        ParameterValue{true}});
+    chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
+    assert(equalizer->IsNeutral());
+
+    chain->ApplyParameterChange(RoutedParameterChange{
+        ParameterRoute{DeviceId::Saturator, ParameterId::Drive},
+        ParameterValue{2.0f}});
+    chain->ApplyParameterChange(RoutedParameterChange{
+        ParameterRoute{DeviceId::Compressor, ParameterId::Threshold},
+        ParameterValue{-18.0f}});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
 
     assert(static_cast<const Saturator*>(chain->GetDevice(1))->GetState().drive == 2.0f);

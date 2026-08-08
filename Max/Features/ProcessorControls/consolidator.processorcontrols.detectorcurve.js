@@ -24,8 +24,8 @@ function paint() {
     detectorCurveRenderer.Paint(detectorCurveViewModel);
 }
 
-function detector(filterId, bypass, gainDb, frequencyHz, q) {
-    if (detectorCurveViewModel.SetDetector(filterId, bypass, gainDb, frequencyHz, q)) {
+function detector(FilterId, bypass, gainDb, frequencyHz, q) {
+    if (detectorCurveViewModel.SetDetector(FilterId, bypass, gainDb, frequencyHz, q)) {
         mgraphics.redraw();
     }
 }
@@ -41,24 +41,24 @@ function definition() {
     }
 }
 
-function listen(filterId, enabled) {
-    detectorCurveController.SetListen(filterId, enabled);
+function listen(FilterId, enabled) {
+    detectorCurveController.SetListen(FilterId, enabled);
 }
 
 function link_color(linkId, red, green, blue, alpha) {
     detectorCurveViewModel.SetLinkColor(linkId, red, green, blue, alpha);
     mgraphics.redraw();
 }
-function limits(filterId, parameter, minimum, maximum) {
-    detectorCurveViewModel.SetLimit(filterId, parameter, minimum, maximum);
+function limits(FilterId, parameter, minimum, maximum) {
+    detectorCurveViewModel.SetLimit(FilterId, parameter, minimum, maximum);
     mgraphics.redraw();
 }
-function preview(filterId, parameter, value) {
-    detectorCurveViewModel.SetPreview(filterId, parameter, value);
+function preview(FilterId, parameter, value) {
+    detectorCurveViewModel.SetPreview(FilterId, parameter, value);
     mgraphics.redraw();
 }
-function reset(filterId) {
-    detectorCurveViewModel.Reset(filterId);
+function reset(FilterId) {
+    detectorCurveViewModel.Reset(FilterId);
     mgraphics.redraw();
 }
 function onresize() {
@@ -79,7 +79,7 @@ function ondrag(x, y, button, mod1, shift, caps, option) {
 
 function inletassist(index) {
     assist(index === 0
-        ? "detector <filterId> <bypass> <gainDb> <frequencyHz> <q>; definition, listen, limits, preview, link_color; output detector_absolute or detector_listen"
+        ? "detector <FilterId> <bypass> <gainDb> <frequencyHz> <q>; definition, listen, limits, preview, link_color; output detector_absolute or detector_listen"
         : "");
 }
 

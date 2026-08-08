@@ -21,9 +21,9 @@ SpectrumRenderer.prototype.PaintSpectrum = function(state, width, height) {
         settings.current, settings.currentLineWidth);
     this.DrawSpectrumGrid(width, bottom);
     this.DrawCurve(state.totalCurve, width, bottom, settings.total, settings.totalLineWidth);
-    for (var filterId in state.filterCurves) {
-        if (state.filterCurves.hasOwnProperty(filterId)) {
-            var filterCurve = state.filterCurves[filterId];
+    for (var FilterId in state.filterCurves) {
+        if (state.filterCurves.hasOwnProperty(FilterId)) {
+            var filterCurve = state.filterCurves[FilterId];
             if (filterCurve.active && filterCurve.type !== "gain") {
                 this.DrawCurve(filterCurve.curve, width, bottom,
                     filterCurve.color, settings.filterLineWidth);
@@ -132,7 +132,7 @@ SpectrumRenderer.prototype.DrawHandles = function(state, width, bottom) {
             ? spectrumOptions.gainHandleX
             : spectrumGeometry.FrequencyToX(handle.frequency, width);
         var y = spectrumGeometry.DbToY(handle.gain, bottom);
-        var filterVisual = state.filterCurves[handle.filterId];
+        var filterVisual = state.filterCurves[handle.FilterId];
         var color = filterVisual
             ? filterVisual.color
             : spectrumOptions.handle;

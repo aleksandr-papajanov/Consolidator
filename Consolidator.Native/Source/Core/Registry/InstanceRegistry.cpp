@@ -140,7 +140,7 @@ const InstanceGroup* InstanceRegistry::FindGroup(GroupId groupId) const noexcept
     return it != groups_.end() ? &it->second : nullptr;
 }
 
-void InstanceRegistry::Send(InstanceId instanceId, const dsp::ParameterChange& change)
+void InstanceRegistry::Send(InstanceId instanceId, const dsp::RoutedParameterChange& change)
 {
     const auto handle = FindInstance(instanceId);
     if (handle != nullptr)
@@ -149,7 +149,7 @@ void InstanceRegistry::Send(InstanceId instanceId, const dsp::ParameterChange& c
     }
 }
 
-void InstanceRegistry::SendToGroup(GroupId groupId, const dsp::ParameterChange& change)
+void InstanceRegistry::SendToGroup(GroupId groupId, const dsp::RoutedParameterChange& change)
 {
     const auto* group = FindGroup(groupId);
     if (group == nullptr)

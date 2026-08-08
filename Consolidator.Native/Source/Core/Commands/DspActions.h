@@ -2,7 +2,7 @@
 
 #include <variant>
 
-#include "Dsp/Parameters/ParameterAddress.h"
+#include "Dsp/Parameters/ParameterRoute.h"
 
 namespace consolidator::core
 {
@@ -23,7 +23,7 @@ struct ResetEqualizer
 
 struct ResetEqFilter
 {
-    dsp::EqFilterId filterId;
+    dsp::FilterId FilterId;
 };
 
 struct ResetGain

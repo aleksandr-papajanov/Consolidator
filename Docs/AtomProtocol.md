@@ -43,7 +43,7 @@ already the complete target response and is fitted directly.
 ```text
 snapshot <version> host eq <revision> <selectedBank> <bankCount>
     <bankId> <bankName> <bypass> <filterCount>
-        <filterId> <bypass> <valueCount> <absoluteValue...>
+        <FilterId> <bypass> <valueCount> <absoluteValue...>
 ```
 
 EQ has hidden system bank `0` and fixed user banks `1..6`; counts frame every
