@@ -16,3 +16,16 @@ Do not build, run tests, or perform other verification unless the user
 explicitly asks for it. Do not announce an intended action and then stop
 before completing the current request. Continue the requested work until its
 scope is finished; do not pause for intermediate confirmation.
+
+## Сборка
+
+Для полной сборки проекта использовать `.vscode/build-all.cmd` из корня
+репозитория. Скрипт сам настраивает CMake и собирает конфигурацию
+`RelWithDebInfo`. Не использовать альтернативные команды сборки без явного
+запроса пользователя.
+
+## Перед коммитом
+
+Перед созданием коммита проверять затронутую документацию. Если изменение
+затрагивает архитектуру, правила, структуру проекта или workflow, обновлять
+соответствующую документацию в том же изменении.

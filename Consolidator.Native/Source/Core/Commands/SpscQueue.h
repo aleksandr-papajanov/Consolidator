@@ -10,10 +10,16 @@ namespace consolidator::core
 {
 
 template <typename T, std::size_t Capacity>
-class SpscCommandQueue
+class SpscQueue
 {
 public:
     static_assert(Capacity > 1);
+
+    [[nodiscard]] bool CanEnqueue() const noexcept
+    {
+        const auto writeIndex = writeIndex_.load(std::memory_order_relaxed);
+        return Next(writeIndex) != readIndex_.load(std::memory_order_acquire);
+    }
 
     [[nodiscard]] bool TryEnqueue(T command)
     {

@@ -12,11 +12,6 @@ namespace consolidator::core
 namespace
 {
 
-void QueueResponse(ConsolidatorInstance& instance, StateResponse response)
-{
-    instance.QueueStateResponse(std::move(response));
-}
-
 void ReadState(
     ConsolidatorInstance& instance,
     const StateCommand& command,
@@ -54,7 +49,7 @@ void WriteState(
 
 } // namespace
 
-void HandleStateCommand(
+StateResponse HandleStateCommand(
     ConsolidatorInstance& instance,
     const StateCommand& command)
 {
@@ -79,7 +74,7 @@ void HandleStateCommand(
 
     response.truncated = response.entries.truncated;
 
-    QueueResponse(instance, std::move(response));
+    return response;
 }
 
 } // namespace consolidator::core

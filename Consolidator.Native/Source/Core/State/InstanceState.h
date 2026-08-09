@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <variant>
 #include "Core/State/BankState.h"
-#include "Core/Instance/InstanceId.h"
+#include "Core/Ids/InstanceId.h"
 #include "Core/State/StateProtocol.h"
 
 namespace consolidator::core

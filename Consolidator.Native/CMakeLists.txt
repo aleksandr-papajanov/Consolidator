@@ -31,15 +31,30 @@ set_target_properties(ConsolidatorCore PROPERTIES
 target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
-    Source/Core/Instance/InstanceId.h
+    Source/Core/Ids/InstanceId.h
+    Source/Core/Ids/GroupId.h
+    Source/Core/Ids/DspIds.h
     Source/Core/Instance/Handlers/StateCommandHandler.h
     Source/Core/Instance/Handlers/StateCommandHandler.cpp
+    Source/Core/Instance/Queues/InstanceCommandQueue.h
+    Source/Core/Instance/Queues/InstanceCommandQueue.cpp
+    Source/Core/Instance/Queues/InstanceResponseQueue.h
+    Source/Core/Instance/Queues/InstanceResponseQueue.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
-    Source/Core/Coordinator/StateRouter.h
-    Source/Core/Coordinator/StateRouter.cpp
-    Source/Core/Coordinator/StateResponseCollector.h
-    Source/Core/Coordinator/StateResponseCollector.cpp
+    Source/Core/Coordinator/Delivery/CommandDeliveryQueue.h
+    Source/Core/Coordinator/Delivery/CommandDeliveryQueue.cpp
+    Source/Core/Coordinator/Routing/CommandRouter.h
+    Source/Core/Coordinator/Routing/CommandRouterTopology.cpp
+    Source/Core/Coordinator/Routing/CommandRouterDelivery.cpp
+    Source/Core/Coordinator/Routing/CommandRouterDispatch.cpp
+    Source/Core/Coordinator/Routing/CommandRouterGroup.cpp
+    Source/Core/Coordinator/Routing/CommandRouterPlan.cpp
+    Source/Core/Coordinator/Routing/CommandRouterRoute.cpp
+    Source/Core/Coordinator/Routing/StateRouter.h
+    Source/Core/Coordinator/Routing/StateRouter.cpp
+    Source/Core/Coordinator/Routing/StateResponsePublisher.h
+    Source/Core/Coordinator/Routing/StateResponsePublisher.cpp
     Source/Core/State/InstanceState.h
     Source/Core/State/BankState.h
     Source/Core/State/GainState.h
@@ -48,11 +63,9 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/State/EqualizerState.h
     Source/Core/State/FilterState.h
     Source/Core/State/StateProtocol.h
-    Source/Core/Groups/GroupId.h
-    Source/Core/Groups/InstanceGroup.h
     Source/Core/Commands/Commands.h
-    Source/Core/Commands/CommandQueue.h
-    Source/Core/Commands/SpscCommandQueue.h
+    Source/Core/Commands/ConcurrentQueue.h
+    Source/Core/Commands/SpscQueue.h
     Source/Core/Commands/DspActions.h
     Source/Core/Notifications/Notifications.h
     Source/Core/Registry/InstanceRegistry.h
@@ -61,7 +74,6 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Logging/Log.cpp
     Source/Core/Settings/DspDeviceSettings.h
     Source/Core/Parameters/ParameterValue.h
-    Source/Core/Parameters/DspIds.h
     Source/Core/Parameters/DspParameter.h
     Source/Dsp/Utilities/TimeCoefficient.h
     Source/Dsp/Processors/Gain/Gain.h

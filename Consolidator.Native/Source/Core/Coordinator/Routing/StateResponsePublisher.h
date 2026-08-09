@@ -2,23 +2,23 @@
 
 #include <cstdint>
 
-#include "Core/Commands/CommandQueue.h"
+#include "Core/Commands/ConcurrentQueue.h"
 #include "Core/Notifications/Notifications.h"
 
 namespace consolidator::core
 {
 
-class StateResponseCollector
+class StateResponsePublisher
 {
 public:
-    StateResponseCollector(
-        CommandQueue<StateResponse>& output,
+    StateResponsePublisher(
+        ConcurrentQueue<StateResponse>& output,
         std::uint16_t responseCount) noexcept;
 
     void Publish(StateResponse response, std::uint16_t responseIndex);
 
 private:
-    CommandQueue<StateResponse>& output_;
+    ConcurrentQueue<StateResponse>& output_;
     std::uint16_t responseCount_;
 };
 

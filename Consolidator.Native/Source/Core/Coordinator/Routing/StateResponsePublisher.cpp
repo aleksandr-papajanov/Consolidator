@@ -1,19 +1,19 @@
-#include "Core/Coordinator/StateResponseCollector.h"
+#include "Core/Coordinator/Routing/StateResponsePublisher.h"
 
 #include <utility>
 
 namespace consolidator::core
 {
 
-StateResponseCollector::StateResponseCollector(
-    CommandQueue<StateResponse>& output,
+StateResponsePublisher::StateResponsePublisher(
+    ConcurrentQueue<StateResponse>& output,
     std::uint16_t responseCount) noexcept
     : output_(output)
     , responseCount_(responseCount)
 {
 }
 
-void StateResponseCollector::Publish(
+void StateResponsePublisher::Publish(
     StateResponse response,
     std::uint16_t responseIndex)
 {

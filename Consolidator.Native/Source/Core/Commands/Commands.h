@@ -4,8 +4,8 @@
 #include <variant>
 #include <vector>
 
-#include "Core/Groups/GroupId.h"
-#include "Core/Instance/InstanceId.h"
+#include "Core/Ids/GroupId.h"
+#include "Core/Ids/InstanceId.h"
 #include "Core/Parameters/ParameterValue.h"
 #include "Core/State/StateProtocol.h"
 

@@ -9,7 +9,7 @@ namespace consolidator::core
 {
 
 template <typename T>
-class CommandQueue
+class ConcurrentQueue
 {
 public:
     void Enqueue(T command)

@@ -4,8 +4,8 @@
 #include <cstddef>
 #include <optional>
 
-#include "Core/Groups/GroupId.h"
-#include "Core/Parameters/DspIds.h"
+#include "Core/Ids/GroupId.h"
+#include "Core/Ids/DspIds.h"
 
 namespace consolidator::core
 {

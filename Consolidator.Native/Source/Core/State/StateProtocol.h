@@ -8,9 +8,9 @@
 #include <utility>
 #include <variant>
 
-#include "Core/Groups/GroupId.h"
-#include "Core/Instance/InstanceId.h"
-#include "Core/Parameters/DspIds.h"
+#include "Core/Ids/GroupId.h"
+#include "Core/Ids/InstanceId.h"
+#include "Core/Ids/DspIds.h"
 #include "Core/Parameters/ParameterValue.h"
 
 namespace consolidator::core

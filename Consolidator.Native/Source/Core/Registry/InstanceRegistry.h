@@ -5,9 +5,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Core/Groups/GroupId.h"
-#include "Core/Instance/InstanceId.h"
-#include "Core/Parameters/DspIds.h"
+#include "Core/Ids/GroupId.h"
+#include "Core/Ids/InstanceId.h"
+#include "Core/Ids/DspIds.h"
 
 namespace consolidator::core
 {

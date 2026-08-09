@@ -7,7 +7,7 @@ namespace consolidator::core
 
 class ConsolidatorInstance;
 
-void HandleStateCommand(
+[[nodiscard]] StateResponse HandleStateCommand(
     ConsolidatorInstance& instance,
     const StateCommand& command);
 
