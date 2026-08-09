@@ -24,22 +24,23 @@ Input Gain → Saturator → Compressor → Equalizer banks → Output Gain
 
 ## Маршрутизация параметров
 
-Параметры передаются как `StateEntry` с `StateField::DspParameter` и точным `ParameterRoute`:
+Параметры передаются как `StateEntry` с `StateField::DspParameter`. `StatePath`
+является единым адресом topology и DSP-параметров:
 
 ```cpp
 StateEntry{
     StatePath{
         .field = StateField::DspParameter,
-        .parameterRoute = ParameterRoute{
-            DeviceId::Equalizer,
-            ParameterId::Gain,
-            RouteNodeId::Bank0,
-            RouteNodeId::Filter3}},
+        .deviceId = DeviceId::Equalizer,
+        .parameterId = ParameterId::Gain,
+        .nodes = {RouteNodeId::Bank0, RouteNodeId::Filter3},
+        .depth = 2},
     StateValue{6.0f}
 };
 ```
 
-`ParameterRoute` имеет фиксированную глубину и не выделяет память. Каждый composite-узел consumes свой segment и передаёт маршрут дальше:
+`StatePath` имеет фиксированную глубину и не выделяет память. Каждый
+composite-узел получает тот же `StateEntry` и передаёт его дальше:
 
 ```text
 DspChain → DspDevice → Equalizer → Filter → DspParameter
@@ -48,6 +49,22 @@ DspChain → DspDevice → Equalizer → Filter → DspParameter
 Для Saturator и Compressor detector route проходит через `RouteNodeId::Detector`, затем в их detector equalizer и соответствующий filter.
 
 После успешного изменения leaf parameter вызывается `RecalculateRuntime()` затронутого устройства. Это гарантирует актуальный `isNeutral` и производные коэффициенты.
+
+## Единый state-контракт
+
+Каждый узел DSP реализует `IStateNode` напрямую:
+
+```text
+DspChain : IStateNode
+  → DspDevice : IStateNode
+    → Equalizer / Filter : IStateNode
+```
+
+`ReadState(query, output)` читает собственные значения или делегирует чтение
+дочерним узлам. `WriteState(entry, applied)` принимает тот же адрес и значение,
+применяет их либо делегирует запись дочернему узлу, после чего возвращает
+фактически принятое значение. Отдельных parameter-command, route-объектов,
+fallback-веток и compatibility-адаптеров нет.
 
 ## Equalizer и detectors
 

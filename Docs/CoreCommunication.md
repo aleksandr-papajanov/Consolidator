@@ -46,8 +46,7 @@ The shared parameter model lives in `Source/Core/Parameters`:
 
 - device, bank, filter, and parameter identifiers;
 - `ParameterValue`;
-- `ParameterRoute`;
-- `ParameterRoute` inside a `StatePath` for DSP parameter state;
+- `StatePath` — единственный адресный тип состояния;
 - `DspParameter<T>`.
 
 These types are in Core because commands, instance state, coordination, and
@@ -75,7 +74,7 @@ coordinator queue. It does not mutate DSP state.
 The coordinator owns the only consumer worker for the global queue. It decides
 whether a DSP command applies to the source instance only or to every bank in
 the selected bank's group. For linked equalizer banks, it rewrites the bank
-segment of `ParameterRoute` for each target bank before publication.
+bank segment directly in each target `StatePath` before publication.
 
 ## State protocol
 
@@ -124,7 +123,7 @@ StateCommand { Read | Write, StateMessage }
   -> coordinator global queue
   -> instance local queue
   -> StateCommandHandler on the audio owner
-  -> StateResponse { requestId, operation, StateSnapshot }
+  -> StateResponse { requestId, responseInstanceId, operation, StateResponseEntries }
   -> instance response queue
 ```
 
@@ -133,10 +132,10 @@ device, bank-node, or parameter path narrows the result. `IStateNode`
 receives the path and appends only matching entries. `InstanceState` appends
 topology entries, while `DspChain` delegates to each `DspDevice`.
 
-`StateSnapshot` has fixed capacity because it can be produced by the audio
-thread. Responses are queued without allocation. If the response queue is
-full, the instance retains one pending response and retries it at the next
-audio callback; the overflow counter records the event.
+Read requests use a small bounded entry list; responses use a larger bounded
+`StateResponseEntries` list. Responses are queued without allocation on the
+audio thread. A fixed pending FIFO retries delivery when the response queue is
+full.
 
 DSP values use `DspParameter<T>` and are exported by their owning device.
 Topology values (`InstanceId`, banks, and groups) are exported directly by
