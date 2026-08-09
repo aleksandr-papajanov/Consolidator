@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 #include "Core/Parameters/DspParameter.h"
 
@@ -108,19 +109,43 @@ public:
 
         if (!parameterValue)
         {
+            core::StateEntry rejected{entry.path, entry.value};
+            rejected.status = core::StateWriteStatus::Rejected;
+            (void)applied.TryAppend(std::move(rejected));
             return core::StateWriteStatus::Rejected;
         }
         if (!WriteParameter(route, *parameterValue, 0))
         {
+            const auto previousSize = applied.size;
             ReadState(entry.path, applied);
-            return applied.size != 0
+            const auto status = applied.size != previousSize
                 ? core::StateWriteStatus::Unchanged
                 : core::StateWriteStatus::Rejected;
+            if (applied.size == previousSize)
+            {
+                core::StateEntry rejected{entry.path, entry.value};
+                rejected.status = status;
+                (void)applied.TryAppend(std::move(rejected));
+            }
+            else
+            {
+                for (std::size_t index = previousSize; index < applied.size; ++index)
+                {
+                    applied.entries[index].status = status;
+                }
+            }
+            return status;
         }
 
+        const auto previousSize = applied.size;
         ReadState(entry.path, applied);
+        for (std::size_t index = previousSize; index < applied.size; ++index)
+        {
+            applied.entries[index].status = core::StateWriteStatus::Applied;
+        }
         return core::StateWriteStatus::Applied;
     }
+
 
 
 protected:
@@ -135,7 +160,15 @@ protected:
         candidate.instanceId = path.instanceId;
         if (path.Matches(candidate))
         {
-            (void)snapshot.TryAppend(core::StateEntry{candidate, core::StateValue{parameter.value}});
+            core::StateEntry entry{candidate, core::StateValue{parameter.value}};
+            if constexpr (!std::is_same_v<T, bool>)
+            {
+                entry.physicalMinimum = ParameterValue{parameter.minimum};
+                entry.physicalMaximum = ParameterValue{parameter.maximum};
+                entry.minimum = entry.physicalMinimum;
+                entry.maximum = entry.physicalMaximum;
+            }
+            (void)snapshot.TryAppend(std::move(entry));
         }
     }
 

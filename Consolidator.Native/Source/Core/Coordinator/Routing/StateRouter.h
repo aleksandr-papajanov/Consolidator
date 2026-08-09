@@ -20,6 +20,12 @@ public:
         InstanceId sourceInstanceId,
         const StatePath& path) const;
 
+    [[nodiscard]] static bool IsBankOwned(const StatePath& path) noexcept;
+
+    [[nodiscard]] std::vector<GroupId> ResolveAffectedGroups(
+        InstanceId instanceId,
+        const StatePath& changedPath) const;
+
     [[nodiscard]] static StateEntry ForBank(StateEntry entry, dsp::BankId bankId);
 
 private:

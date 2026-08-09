@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Commands/Commands.h"
+#include "Core/Notifications/Notifications.h"
 
 namespace consolidator::core
 {

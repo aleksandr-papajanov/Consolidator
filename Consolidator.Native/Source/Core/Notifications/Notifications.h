@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <variant>
 
 #include "Core/State/StateProtocol.h"
@@ -23,11 +22,12 @@ struct StateResponse
 
 // ---- Notifications: reactions to commands, produced by the system ----
 
-struct ParameterUpdatedNotification
+struct ParameterStateNotification
 {
-    std::string device;
-    std::string parameter;
-    double value = 0.0;
+    StatePath path;
+    dsp::ParameterValue value;
+    dsp::ParameterValue minimum;
+    dsp::ParameterValue maximum;
 };
 
 struct FitCompletedNotification
@@ -62,7 +62,7 @@ struct HistoryOperationRestoredNotification
 };
 
 using Notification = std::variant<
-    ParameterUpdatedNotification,
+    ParameterStateNotification,
     FitCompletedNotification,
     FitFailedNotification,
     FitCancelledNotification,

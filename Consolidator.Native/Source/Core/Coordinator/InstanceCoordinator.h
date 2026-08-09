@@ -11,6 +11,7 @@
 #include "Core/Coordinator/Delivery/CommandDeliveryQueue.h"
 #include "Core/Coordinator/Routing/CommandRouter.h"
 #include "Core/Coordinator/Routing/StateRouter.h"
+#include "Core/Coordinator/Routing/ParameterConstraintResolver.h"
 #include "Core/Notifications/Notifications.h"
 #include "Core/Registry/InstanceRegistry.h"
 
@@ -45,6 +46,7 @@ private:
     InstanceId nextInstanceId_{0};
     InstanceRegistry registry_;
     StateRouter stateRouter_;
+    ParameterConstraintResolver constraintResolver_;
     ConcurrentQueue<StateResponse> coordinatorResponses_;
     CommandDeliveryQueue deliveryQueue_;
     CommandRouter commandRouter_;

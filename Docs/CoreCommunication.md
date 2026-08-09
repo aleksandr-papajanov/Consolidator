@@ -153,6 +153,15 @@ All state access uses one protocol:
 
 ```text
 StateCommand { Read | Write, StateMessage }
+
+Parameter entries also carry their physical range and the computed effective
+absolute `minimum`/`maximum`. The physical range is owned by the
+`DspParameter`; the effective range is resolved from the current group topology
+by `ParameterConstraintResolver` and is used both to validate writes and to
+drive the UI control range.
+
+The resolver reads an atomically published `ParameterStateView` assembled on
+the audio thread. It never reads a live `DspChain` from the coordinator thread.
   -> coordinator global queue
   -> InstanceCommandQueue on the audio owner
   -> StateCommandHandler returns a response

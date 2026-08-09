@@ -149,10 +149,25 @@ struct StatePath
 
 using StateValue = std::variant<std::monostate, bool, std::int32_t, float, InstanceId, dsp::BankId, GroupId>;
 
+enum class StateWriteStatus : std::uint8_t
+{
+    NotHandled,
+    Applied,
+    Unchanged,
+    Rejected
+};
+
 struct StateEntry
 {
     StatePath path;
     StateValue value;
+    // Physical limits belong to the parameter state. The public minimum and
+    // maximum are effective absolute limits for the current topology.
+    std::optional<dsp::ParameterValue> physicalMinimum;
+    std::optional<dsp::ParameterValue> physicalMaximum;
+    std::optional<dsp::ParameterValue> minimum;
+    std::optional<dsp::ParameterValue> maximum;
+    std::optional<StateWriteStatus> status;
 };
 
 template <typename Route>
@@ -202,14 +217,6 @@ enum class StateOperation : std::uint8_t
 {
     Read,
     Write
-};
-
-enum class StateWriteStatus : std::uint8_t
-{
-    NotHandled,
-    Applied,
-    Unchanged,
-    Rejected
 };
 
 struct StateMessage

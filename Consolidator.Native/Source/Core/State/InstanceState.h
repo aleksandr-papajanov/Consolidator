@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <variant>
 #include "Core/State/BankState.h"
 #include "Core/Ids/InstanceId.h"
@@ -115,7 +116,9 @@ inline StateWriteStatus InstanceState::WriteState(const StateEntry& entry, State
                 ? StateWriteStatus::Unchanged
                 : StateWriteStatus::Applied;
             selectedBankId_ = *value;
-            (void)applied.TryAppend(StateEntry{entry.path, StateValue{*value}});
+            StateEntry appliedEntry{entry.path, StateValue{*value}};
+            appliedEntry.status = status;
+            (void)applied.TryAppend(std::move(appliedEntry));
             return status;
         }
         return StateWriteStatus::Rejected;
@@ -141,7 +144,8 @@ inline StateWriteStatus InstanceState::WriteState(const StateEntry& entry, State
                     StateEntry appliedEntry;
                     appliedEntry.path = entry.path;
                     appliedEntry.value = entry.value;
-                    (void)applied.TryAppend(appliedEntry);
+                    appliedEntry.status = status;
+                    (void)applied.TryAppend(std::move(appliedEntry));
                     return status;
                 }
                 else
@@ -153,7 +157,8 @@ inline StateWriteStatus InstanceState::WriteState(const StateEntry& entry, State
                     StateEntry appliedEntry;
                     appliedEntry.path = entry.path;
                     appliedEntry.value = entry.value;
-                    (void)applied.TryAppend(appliedEntry);
+                    appliedEntry.status = status;
+                    (void)applied.TryAppend(std::move(appliedEntry));
                     return status;
                 }
             }

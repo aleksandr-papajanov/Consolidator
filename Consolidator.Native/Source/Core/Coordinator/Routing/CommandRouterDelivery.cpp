@@ -42,19 +42,11 @@ void CommandRouter::PublishAndDeliver(
     for (auto& batch : plan.batches)
     {
         auto& message = batch.command.message;
-
-        message.requestId =
-            sourceCommand.message.requestId;
-
-        message.responseInstanceId =
-            sourceCommand.message.responseInstanceId;
-
+        message.requestId = sourceCommand.message.requestId;
+        message.responseInstanceId = sourceCommand.message.responseInstanceId;
         message.responseIndex = responseIndex++;
         message.responseCount = responseCount;
-
-        deliveryQueue_.Enqueue(
-            batch.instanceId,
-            std::move(batch.command));
+        deliveryQueue_.Enqueue(batch.instanceId, std::move(batch.command));
     }
 }
 

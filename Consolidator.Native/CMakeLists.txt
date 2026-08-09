@@ -53,6 +53,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Coordinator/Routing/CommandRouterRoute.cpp
     Source/Core/Coordinator/Routing/StateRouter.h
     Source/Core/Coordinator/Routing/StateRouter.cpp
+    Source/Core/Coordinator/Routing/ParameterConstraintResolver.h
+    Source/Core/Coordinator/Routing/ParameterConstraintResolver.cpp
     Source/Core/Coordinator/Routing/StateResponsePublisher.h
     Source/Core/Coordinator/Routing/StateResponsePublisher.cpp
     Source/Core/State/InstanceState.h
@@ -63,6 +65,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/State/EqualizerState.h
     Source/Core/State/FilterState.h
     Source/Core/State/StateProtocol.h
+    Source/Core/State/ParameterStateView.h
     Source/Core/Commands/Commands.h
     Source/Core/Commands/ConcurrentQueue.h
     Source/Core/Commands/SpscQueue.h

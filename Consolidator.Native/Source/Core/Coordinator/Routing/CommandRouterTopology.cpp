@@ -1,7 +1,9 @@
 #include "Core/Coordinator/Routing/CommandRouter.h"
 
 #include <cstdint>
+#include <algorithm>
 #include <optional>
+#include <utility>
 
 #include "Core/Coordinator/Delivery/CommandDeliveryQueue.h"
 #include "Core/Instance/ConsolidatorInstance.h"
@@ -12,10 +14,12 @@ namespace consolidator::core
 CommandRouter::CommandRouter(
     InstanceRegistry& registry,
     const StateRouter& stateRouter,
+    const ParameterConstraintResolver& constraintResolver,
     CommandDeliveryQueue& deliveryQueue,
     ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept
     : registry_(registry)
     , stateRouter_(stateRouter)
+    , constraintResolver_(constraintResolver)
     , deliveryQueue_(deliveryQueue)
     , coordinatorResponses_(coordinatorResponses)
 {
@@ -27,7 +31,8 @@ std::optional<dsp::BankId> TryGetBankId(
 bool CommandRouter::ApplyTopologyWrite(
     InstanceId sourceInstanceId,
     const StateEntry& entry,
-    StateResponseEntries& applied)
+    StateResponseEntries& applied,
+    std::vector<BankAddress>& affectedBanks)
 {
     auto* source =
         registry_.FindInstance(sourceInstanceId);
@@ -67,12 +72,46 @@ bool CommandRouter::ApplyTopologyWrite(
         return false;
     }
 
+    if (status == StateWriteStatus::Rejected)
+    {
+        auto rejected = entry;
+        rejected.status = StateWriteStatus::Rejected;
+        (void)applied.TryAppend(std::move(rejected));
+        return true;
+    }
+
     if (changedBank)
     {
+        const auto appendUnique = [&affectedBanks](BankAddress bank)
+        {
+            if (std::find(affectedBanks.begin(), affectedBanks.end(), bank) == affectedBanks.end())
+            {
+                affectedBanks.push_back(bank);
+            }
+        };
+
+        if (previousGroup)
+        {
+            for (const auto& member : registry_.FindGroupMembers(*previousGroup))
+            {
+                appendUnique(member);
+            }
+        }
+
         const auto& sourceState =
             static_cast<const InstanceState&>(source->GetState());
         const auto nextGroup =
             sourceState.GetBankState(changedBank->bankId).GetGroupId();
+
+        if (nextGroup)
+        {
+            for (const auto& member : registry_.FindGroupMembers(*nextGroup))
+            {
+                appendUnique(member);
+            }
+        }
+
+        appendUnique(*changedBank);
 
         registry_.CacheBankGroup(
             *changedBank,

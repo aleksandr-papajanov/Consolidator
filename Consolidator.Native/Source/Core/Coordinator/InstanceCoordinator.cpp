@@ -16,8 +16,9 @@ InstanceCoordinator& InstanceCoordinator::Get()
 
 InstanceCoordinator::InstanceCoordinator()
     : stateRouter_(registry_)
+    , constraintResolver_(registry_, stateRouter_)
     , deliveryQueue_(registry_)
-    , commandRouter_(registry_, stateRouter_, deliveryQueue_, coordinatorResponses_)
+    , commandRouter_(registry_, stateRouter_, constraintResolver_, deliveryQueue_, coordinatorResponses_)
     , worker_([this](std::stop_token stopToken)
       {
           WorkerLoop(stopToken);
@@ -88,6 +89,12 @@ void InstanceCoordinator::DrainInstanceResponses()
     {
         while (const auto response = instance->TryDequeueResponse())
         {
+            for (std::size_t index = 0; index < response->entries.size; ++index)
+            {
+                constraintResolver_.Enrich(
+                    response->appliedInstanceId,
+                    response->entries.entries[index]);
+            }
             coordinatorResponses_.Enqueue(std::move(*response));
         }
     }

@@ -5,6 +5,7 @@
 #include "Core/Commands/ConcurrentQueue.h"
 #include "Core/Commands/Commands.h"
 #include "Core/Coordinator/Routing/StateRouter.h"
+#include "Core/Coordinator/Routing/ParameterConstraintResolver.h"
 #include "Core/Notifications/Notifications.h"
 #include "Core/Registry/InstanceRegistry.h"
 
@@ -19,6 +20,7 @@ public:
     CommandRouter(
         InstanceRegistry& registry,
         const StateRouter& stateRouter,
+        const ParameterConstraintResolver& constraintResolver,
         CommandDeliveryQueue& deliveryQueue,
         ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept;
 
@@ -69,10 +71,12 @@ private:
     [[nodiscard]] bool ApplyTopologyWrite(
         InstanceId sourceInstanceId,
         const StateEntry& entry,
-        StateResponseEntries& applied);
+        StateResponseEntries& applied,
+        std::vector<BankAddress>& affectedBanks);
 
     InstanceRegistry& registry_;
     const StateRouter& stateRouter_;
+    const ParameterConstraintResolver& constraintResolver_;
     CommandDeliveryQueue& deliveryQueue_;
     ConcurrentQueue<StateResponse>& coordinatorResponses_;
 };
