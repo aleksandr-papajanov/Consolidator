@@ -42,9 +42,10 @@ details of their respective devices under `Source/Dsp`.
 
 ## Parameter domain
 
-The shared parameter model lives in `Source/Core/Parameters`:
+The shared parameter model is split between `Source/Core/Ids` and
+`Source/Core/Parameters`:
 
-- device, bank, filter, and parameter identifiers;
+- device, bank, filter, and parameter identifiers in `Source/Core/Ids`;
 - `ParameterValue`;
 - `StatePath` — единственный адресный тип состояния;
 - `DspParameter<T>`.
@@ -60,21 +61,25 @@ The control and audio responsibilities are separated:
 ```text
 Max / instance control code
   -> ConsolidatorInstance::EnqueueCommand()
-  -> InstanceCoordinator global queue
-  -> coordinator worker routes command by bank topology
-  -> target instance local SPSC queue
+  -> InstanceCoordinator global ConcurrentQueue
+  -> CommandRouter routes command by topology
+  -> CommandDeliveryQueue preserves per-instance order and retries delivery
+  -> target InstanceCommandQueue
   -> audio thread: ConsolidatorInstance::Process()
-  -> local handler
+  -> StateCommandHandler returns StateResponse
+  -> InstanceResponseQueue
   -> DSP chain
 ```
 
 An instance's public `EnqueueCommand()` only forwards a command to the global
 coordinator queue. It does not mutate DSP state.
 
-The coordinator owns the only consumer worker for the global queue. It decides
-whether a DSP command applies to the source instance only or to every bank in
-the selected bank's group. For linked equalizer banks, it rewrites the bank
-bank segment directly in each target `StatePath` before publication.
+The coordinator owns the only consumer worker for the global queue. Its
+`CommandRouter` decides whether a DSP command applies to the source instance
+only or to every bank in the selected bank's group. For linked equalizer banks,
+it rewrites the bank segment directly in each target `StatePath` before
+publication. `StateRouter` resolves related targets, while
+`StateResponsePublisher` adds multipart response metadata.
 
 ## State protocol
 
@@ -101,26 +106,37 @@ DSP parameter writes are no longer a separate command type.
 `ConsolidatorInstance` does not expose DSP parameter application as public API.
 
 At the beginning of every audio callback, `ConsolidatorInstance::Process()`
-drains the local queue and invokes handlers. DSP state is therefore changed on
-the same audio thread that subsequently calls `DspChain::Process()`.
+asks `InstanceCommandQueue` to execute local commands. The queue does not
+dequeue a command while `InstanceResponseQueue` has no capacity for its single
+response. DSP state is therefore changed on the same audio thread that
+subsequently calls `DspChain::Process()`.
 
 ## Threading and queue policy
 
-The global coordinator queue is mutex-based because it is not consumed by an
-audio thread. The local queue is a fixed-capacity single-producer/
-single-consumer lock-free queue:
+`ConcurrentQueue` is mutex-based because coordinator queues are not consumed by
+an audio thread. `SpscQueue` is a generic fixed-capacity
+single-producer/single-consumer lock-free queue. The instance command and
+response wrappers use it with these roles:
 
-- producer: the coordinator worker;
-- consumer: the target instance's audio callback.
+- command queue producer: the coordinator worker;
+- command queue consumer: the target instance's audio callback;
+- response queue producer: the target instance's audio callback;
+- response queue consumer: the coordinator worker.
 
 The audio thread takes no mutex while draining its local queue. If that queue
-is full, the command is retained by the coordinator as a pending delivery and
-is retried by the worker; it is not silently discarded.
+is full, `CommandDeliveryQueue` retains the command in a FIFO queue belonging to
+that instance and retries it on the coordinator worker; later commands for the
+same instance cannot overtake it and commands are not silently discarded.
+Pending delivery storage is currently unbounded. Latest-value coalescing is not
+enabled because replacing an older request would also require an explicit
+protocol policy for its response.
 
-Responses use one common coordinator queue. The audio thread writes to the
-instance-local SPSC response queue; the coordinator worker drains local
-responses into the common queue. A bounded retry FIFO on each instance keeps a
-temporarily full response queue from immediately losing a state response.
+Responses use one common coordinator `ConcurrentQueue`. The audio thread writes
+to the instance-local `InstanceResponseQueue`; the coordinator worker drains
+local responses into the common queue. `InstanceCommandQueue` applies
+backpressure before executing a command, so a response is never created without
+capacity to enqueue it. The current command variant therefore has the explicit
+invariant that every local command produces exactly one response.
 
 `latest value wins` for repeated DSP parameter updates is intentionally not yet
 implemented. The next optimization is a per-instance parameter mailbox keyed
@@ -138,8 +154,9 @@ All state access uses one protocol:
 ```text
 StateCommand { Read | Write, StateMessage }
   -> coordinator global queue
-  -> instance local queue
-  -> StateCommandHandler on the audio owner
+  -> InstanceCommandQueue on the audio owner
+  -> StateCommandHandler returns a response
+  -> InstanceResponseQueue
   -> StateResponse { requestId, responseInstanceId, appliedInstanceId, operation,
                      responseIndex, responseCount, isFinal, truncated }
   -> coordinator response queue
@@ -174,9 +191,10 @@ current value; `Rejected` identifies a recognized but invalid write. A
 One linked write may produce multiple responses. `responseIndex`,
 `responseCount`, and `isFinal` make completion explicit, while
 `appliedInstanceId` identifies the instance whose state changed.
-`StateResponseCollector` owns numbering and publication of coordinator response
+`StateResponsePublisher` owns numbering and publication of coordinator response
 parts. `StateRouter` contains cross-instance equalizer target resolution and
-bank-path rewriting.
+bank-path rewriting. `CommandDeliveryQueue` owns ordered retry delivery to
+instance command queues.
 
 DSP values use `DspParameter<T>` and are exported by their owning device.
 Topology values (`InstanceId`, banks, and groups) are exported directly by
