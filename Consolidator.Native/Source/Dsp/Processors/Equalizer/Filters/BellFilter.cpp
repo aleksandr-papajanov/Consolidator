@@ -32,9 +32,9 @@ BellFilter::BellFilter(FilterId FilterId, double frequencyHz)
 
 void BellFilter::RecalculateCoefficients()
 {
-    const double amplitude = GainDbToAmplitude(state_.gainDb);
-    const double omega = 2.0 * std::numbers::pi * state_.frequencyHz / GetSampleRate();
-    const double alpha = std::sin(omega) / (2.0 * state_.q);
+    const double amplitude = GainDbToAmplitude(runtimeState_.gainDb);
+    const double omega = 2.0 * std::numbers::pi * runtimeState_.frequencyHz / GetSampleRate();
+    const double alpha = std::sin(omega) / (2.0 * runtimeState_.q);
 
     const double a0 = 1.0 + alpha / amplitude;
     const double inverseA0 = 1.0 / a0;

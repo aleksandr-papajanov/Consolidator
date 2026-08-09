@@ -1,11 +1,13 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <memory>
-#include <optional>
 #include <span>
 #include <vector>
 
 #include "Dsp/Processors/DspDevice.h"
+#include "Core/Instance/Queues/DspUpdateMailbox.h"
 
 namespace consolidator::core
 {
@@ -24,8 +26,7 @@ public:
     DspChain& operator=(const DspChain&) = delete;
 
     void AddDevice(std::unique_ptr<DspDevice> device);
-    void ReadState(const core::StatePath& path, core::StateResponseEntries& snapshot) const;
-    core::StateWriteStatus WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied);
+    void ApplyRuntimeUpdates(const core::DspStateBatch& batch);
 
     void Process(const double* input,
                  double* interim,
@@ -39,6 +40,8 @@ public:
     [[nodiscard]] const DspDevice* GetDevice(std::size_t index) const noexcept;
 
 private:
+    static constexpr std::size_t kMaximumDevices = 64;
+
     std::vector<std::unique_ptr<DspDevice>> devices_;
 };
 

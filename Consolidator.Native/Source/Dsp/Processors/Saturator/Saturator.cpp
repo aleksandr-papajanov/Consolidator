@@ -108,18 +108,49 @@ double Saturator::ApplyWaveshaper(double input, double drive) const noexcept
     return std::tanh(input * safeDrive) / normalization;
 }
 
-bool Saturator::WriteOwnParameter(
+bool Saturator::ApplyOwnParameter(
     const core::StatePath& route,
     const ParameterValue& value)
 {
-    return state_.drive.Apply(route, value) ||
-           state_.outputDb.Apply(route, value) ||
-           state_.mix.Apply(route, value) ||
-           state_.detectorAmount.Apply(route, value) ||
-           state_.bypass.Apply(route, value);
+    if (route.GetParameterId() == ParameterId::Drive)
+    {
+        const auto* updated = std::get_if<float>(&value);
+        if (updated == nullptr) return false;
+        runtimeState_.drive = *updated;
+        return true;
+    }
+    if (route.GetParameterId() == ParameterId::Gain)
+    {
+        const auto* updated = std::get_if<float>(&value);
+        if (updated == nullptr) return false;
+        runtimeState_.outputDb = *updated;
+        return true;
+    }
+    if (route.GetParameterId() == ParameterId::Mix)
+    {
+        const auto* updated = std::get_if<float>(&value);
+        if (updated == nullptr) return false;
+        runtimeState_.mix = *updated;
+        return true;
+    }
+    if (route.GetParameterId() == ParameterId::Type)
+    {
+        const auto* updated = std::get_if<float>(&value);
+        if (updated == nullptr) return false;
+        runtimeState_.detectorAmountTarget = *updated;
+        return true;
+    }
+    if (route.GetParameterId() == ParameterId::Bypass)
+    {
+        const auto* updated = std::get_if<bool>(&value);
+        if (updated == nullptr) return false;
+        runtimeState_.bypass = *updated;
+        return true;
+    }
+    return false;
 }
 
-bool Saturator::WriteParameter(
+bool Saturator::ApplyParameter(
     const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
@@ -131,7 +162,7 @@ bool Saturator::WriteParameter(
 
     if (depth == route.GetDepth())
     {
-        return DspDevice::WriteParameter(route, value, depth);
+        return DspDevice::ApplyParameter(route, value, depth);
     }
 
     if (route.GetNode(depth) != RouteNodeId::Detector)
@@ -142,61 +173,69 @@ bool Saturator::WriteParameter(
     bool isUpdated = false;
     for (auto& detector : detectors_)
     {
-        isUpdated = detector.WriteParameter(route, value, depth + 1) || isUpdated;
-    }
-
-    if (isUpdated)
-    {
-        RecalculateRuntime();
+        isUpdated = detector.ApplyParameter(route, value, depth + 1) || isUpdated;
     }
 
     return isUpdated;
 }
 
+bool Saturator::StageRuntimeUpdate(
+    const core::StatePath& route,
+    const ParameterValue& value)
+{
+    return ApplyParameter(route, value, 0);
+}
+
+void Saturator::CommitRuntimeUpdates()
+{
+    for (auto& detector : detectors_)
+    {
+        detector.CommitRuntimeUpdates();
+    }
+    RecalculateRuntime();
+}
+
 void Saturator::SetDrive(float drive)
 {
-    state_.drive = drive;
-
-    runtimeState_.driveLinear = static_cast<double>(state_.drive);
+    runtimeState_.drive = drive;
+    runtimeState_.driveLinear = static_cast<double>(runtimeState_.drive);
 }
 
 void Saturator::SetOutputDb(float outputDb)
 {
-    state_.outputDb = outputDb;
+    runtimeState_.outputDb = outputDb;
 
     runtimeState_.outputGainLinear = std::pow(10.0, static_cast<double>(outputDb) / 20.0);
 }
 
 void Saturator::SetMix(float mix)
 {
-    state_.mix = mix;
-
-    runtimeState_.wetMix = static_cast<double>(state_.mix);
+    runtimeState_.mix = mix;
+    runtimeState_.wetMix = static_cast<double>(runtimeState_.mix);
 
     runtimeState_.dryMix = 1.0 - runtimeState_.wetMix;
 }
 
 void Saturator::SetDetectorAmount(float amount)
 {
-    state_.detectorAmount = amount;
-
-    runtimeState_.detectorAmount = static_cast<double>(state_.detectorAmount);
+    runtimeState_.detectorAmountTarget = amount;
+    runtimeState_.detectorAmount = static_cast<double>(runtimeState_.detectorAmountTarget);
 }
 
 void Saturator::SetBypass(bool bypass) noexcept
 {
-    state_.bypass = bypass;
+    runtimeState_.bypass = bypass;
 }
 
 void Saturator::RecalculateRuntime()
 {
-    SetDrive(state_.drive);
-    SetOutputDb(state_.outputDb);
-    SetMix(state_.mix);
-    SetDetectorAmount(state_.detectorAmount);
-    SetBypass(state_.bypass);
+    SetDrive(runtimeState_.drive);
+    SetOutputDb(runtimeState_.outputDb);
+    SetMix(runtimeState_.mix);
+    SetDetectorAmount(runtimeState_.detectorAmountTarget);
+    SetBypass(runtimeState_.bypass);
 
-    runtimeState_.isNeutral = state_.bypass
+    runtimeState_.isNeutral = runtimeState_.bypass
         || (runtimeState_.driveLinear == 1.0
             && runtimeState_.outputGainLinear == 1.0
             && runtimeState_.wetMix == 1.0);

@@ -1,9 +1,10 @@
 #include "Core/Coordinator/Routing/CommandRouter.h"
 
+#include <cstddef>
 #include <type_traits>
 #include <utility>
 
-#include "Core/Coordinator/Delivery/CommandDeliveryQueue.h"
+#include "Core/Instance/ConsolidatorInstance.h"
 
 namespace consolidator::core
 {
@@ -50,9 +51,43 @@ void CommandRouter::RouteRead(
     InstanceId sourceInstanceId,
     const StateCommand& command)
 {
-    deliveryQueue_.Enqueue(
+    auto* instance = registry_.FindInstance(sourceInstanceId);
+    if (instance == nullptr)
+    {
+        return;
+    }
+
+    StateResponse response{
+        command.message.requestId,
+        command.message.responseInstanceId,
         sourceInstanceId,
-        command);
+        StateOperation::Read,
+        {}};
+
+    if (command.message.entries.size == 0)
+    {
+        instance->GetStateStore().ReadState(
+            StatePath::Instance(sourceInstanceId),
+            response.entries);
+    }
+    else
+    {
+        for (std::size_t index = 0; index < command.message.entries.size; ++index)
+        {
+            auto query = command.message.entries.entries[index].path;
+            query.instanceId = sourceInstanceId;
+            instance->GetStateStore().ReadState(query, response.entries);
+        }
+    }
+
+    response.truncated = response.entries.truncated;
+    for (std::size_t index = 0; index < response.entries.size; ++index)
+    {
+        constraintResolver_.Enrich(
+            sourceInstanceId,
+            response.entries.entries[index]);
+    }
+    coordinatorResponses_.Enqueue(std::move(response));
 }
 
 void CommandRouter::RouteWrite(
@@ -62,9 +97,7 @@ void CommandRouter::RouteWrite(
     auto plan =
         BuildWritePlan(sourceInstanceId, command);
 
-    PublishAndDeliver(
-        command,
-        std::move(plan));
+    PublishResponse(std::move(plan));
 }
 
 } // namespace consolidator::core

@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cstdint>
 #include <vector>
 
 #include "Core/Commands/ConcurrentQueue.h"
 #include "Core/Commands/Commands.h"
+#include "Core/Instance/Queues/DspUpdateMailbox.h"
 #include "Core/Coordinator/Routing/StateRouter.h"
 #include "Core/Coordinator/Routing/ParameterConstraintResolver.h"
 #include "Core/Notifications/Notifications.h"
@@ -12,8 +14,6 @@
 namespace consolidator::core
 {
 
-class CommandDeliveryQueue;
-
 class CommandRouter
 {
 public:
@@ -21,22 +21,22 @@ public:
         InstanceRegistry& registry,
         const StateRouter& stateRouter,
         const ParameterConstraintResolver& constraintResolver,
-        CommandDeliveryQueue& deliveryQueue,
         ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept;
 
     void Route(const InstanceCommand& command);
 
 private:
-    struct RoutedBatch
-    {
-        InstanceId instanceId;
-        StateCommand command{StateOperation::Write, {}};
-    };
-
     struct WritePlan
     {
-        StateResponse topologyResponse;
-        std::vector<RoutedBatch> batches;
+        struct PendingDspUpdate
+        {
+            InstanceId instanceId;
+            DspUpdate update;
+        };
+
+        StateResponse coordinatorResponse;
+        std::vector<StatePath> affectedConstraintPaths;
+        std::vector<PendingDspUpdate> pendingDspUpdates;
     };
 
     void RouteStateCommand(
@@ -60,13 +60,21 @@ private:
         const StateEntry& entry,
         WritePlan& plan);
 
-    [[nodiscard]] RoutedBatch& GetOrCreateBatch(
-        WritePlan& plan,
-        InstanceId instanceId);
+    [[nodiscard]] bool ApplyStateStoreWrite(
+        InstanceId targetInstanceId,
+        const StateEntry& entry,
+        WritePlan& plan);
 
-    void PublishAndDeliver(
-        const StateCommand& sourceCommand,
-        WritePlan plan);
+    void CollectConstraintDependencyPaths(
+        InstanceId targetInstanceId,
+        const StateEntry& entry,
+        WritePlan& plan);
+
+    void PublishResponse(WritePlan plan);
+
+    void PublishDspUpdates(WritePlan& plan);
+    void RefreshConstraintEntries(WritePlan& plan);
+    void PublishStateResponse(WritePlan plan);
 
     [[nodiscard]] bool ApplyTopologyWrite(
         InstanceId sourceInstanceId,
@@ -77,7 +85,6 @@ private:
     InstanceRegistry& registry_;
     const StateRouter& stateRouter_;
     const ParameterConstraintResolver& constraintResolver_;
-    CommandDeliveryQueue& deliveryQueue_;
     ConcurrentQueue<StateResponse>& coordinatorResponses_;
 };
 

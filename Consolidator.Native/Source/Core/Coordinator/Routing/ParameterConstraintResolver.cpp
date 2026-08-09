@@ -46,7 +46,18 @@ bool ParameterConstraintResolver::ReadParameter(
         return false;
     }
 
-    return instance->ReadPublishedParameterState(path, result);
+    StateResponseEntries stateStoreEntries;
+    instance->GetStateStore().ReadState(path, stateStoreEntries);
+    for (std::size_t index = 0; index < stateStoreEntries.size; ++index)
+    {
+        if (stateStoreEntries.entries[index].path.Matches(path))
+        {
+            result = stateStoreEntries.entries[index];
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool ParameterConstraintResolver::Validate(
@@ -71,7 +82,7 @@ bool ParameterConstraintResolver::Validate(
 
     const auto delta = static_cast<double>(std::get<float>(requested.value)) -
         static_cast<double>(std::get<float>(source.value));
-    auto targets = stateRouter_.ResolveTargets(sourceInstanceId, requested.path);
+    auto targets = stateRouter_.ResolveWriteTargets(sourceInstanceId, requested.path);
     if (targets.empty())
     {
         return IsInRange(source, delta);
@@ -139,7 +150,7 @@ void ParameterConstraintResolver::Enrich(
         return;
     }
 
-    auto targets = stateRouter_.ResolveTargets(sourceInstanceId, entry.path);
+    auto targets = stateRouter_.ResolveConstraintDependencies(sourceInstanceId, entry.path);
     if (targets.empty())
     {
         if (entry.physicalMinimum && entry.physicalMaximum &&
@@ -189,8 +200,8 @@ void ParameterConstraintResolver::Enrich(
     if (initialized)
     {
         const auto sourceValue = std::get<float>(entry.value);
-        entry.minimum = ParameterValue{sourceValue + minimumDelta};
-        entry.maximum = ParameterValue{sourceValue + maximumDelta};
+        entry.minimum = dsp::ParameterValue{sourceValue + minimumDelta};
+        entry.maximum = dsp::ParameterValue{sourceValue + maximumDelta};
     }
 }
 

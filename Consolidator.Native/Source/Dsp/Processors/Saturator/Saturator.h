@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 
-#include "Core/State/SaturatorState.h"
 #include "Dsp/Processors/DspDevice.h"
 #include "Dsp/Processors/Saturator/DetectorEnvelopeFollower.h"
 
@@ -12,6 +11,11 @@ namespace consolidator::dsp
 
 struct SaturatorRuntimeState
 {
+    float drive = 1.0f;
+    float outputDb = 0.0f;
+    float mix = 1.0f;
+    float detectorAmountTarget = 1.0f;
+    bool bypass = false;
     double driveLinear = 1.0;
     double outputGainLinear = 1.0;
     double wetMix = 1.0;
@@ -37,11 +41,6 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    [[nodiscard]] const SaturatorState& GetState() const noexcept
-    {
-        return state_;
-    }
-
     [[nodiscard]] const SaturatorRuntimeState& GetRuntimeState() const noexcept
     {
         return runtimeState_;
@@ -52,30 +51,26 @@ public:
         return detectors_[channel];
     }
 
-    bool WriteParameter(
+    bool ApplyParameter(
         const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth) override;
+
+    bool StageRuntimeUpdate(
+        const core::StatePath& route,
+        const ParameterValue& value) override;
+
+    void CommitRuntimeUpdates() override;
 
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
         return runtimeState_.isNeutral;
     }
 
-    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
-    {
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Drive}, state_.drive);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Gain}, state_.outputDb);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Mix}, state_.mix);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Type}, state_.detectorAmount);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Bypass}, state_.bypass);
-        detectors_[0].GetEqualizer().ReadAtRoute(path, snapshot, DeviceId::Saturator, RouteNodeId::Detector);
-    }
-
 private:
     static constexpr std::size_t kMaximumChannelCount = 2;
 
-    bool WriteOwnParameter(
+    bool ApplyOwnParameter(
         const core::StatePath& route,
         const ParameterValue& value) override;
     void RecalculateRuntime() override;
@@ -98,7 +93,6 @@ private:
     void SetDetectorAmount(float amount);
     void SetBypass(bool bypass) noexcept;
 
-    SaturatorState state_;
     SaturatorRuntimeState runtimeState_;
 
     std::size_t activeChannelCount_ = kMaximumChannelCount;

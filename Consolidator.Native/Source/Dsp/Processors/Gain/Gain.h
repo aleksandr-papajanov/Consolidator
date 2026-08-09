@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "Core/State/GainState.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
@@ -11,6 +10,8 @@ namespace consolidator::dsp
 
 struct GainRuntimeState
 {
+    float gainDb = 0.0f;
+    bool bypass = false;
     double linearGain = 1.0;
     bool isNeutral = true;
 };
@@ -30,11 +31,6 @@ public:
         std::size_t channelCount) override;
 
 
-    [[nodiscard]] const GainState& GetState() const noexcept
-    {
-        return state_;
-    }
-
     [[nodiscard]] const GainRuntimeState& GetRuntimeState() const noexcept
     {
         return runtimeState_;
@@ -45,15 +41,12 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
-    {
-        AppendParameter(path, snapshot, core::StatePath{GetDeviceId(), ParameterId::Gain}, state_.gainDb);
-        AppendParameter(path, snapshot, core::StatePath{GetDeviceId(), ParameterId::Bypass}, state_.bypass);
-    }
+    bool StageRuntimeUpdate(
+        const core::StatePath& path,
+        const ParameterValue& value) override;
 
 private:
     void RecalculateRuntime() override;
-    GainState state_;
     GainRuntimeState runtimeState_;
 };
 

@@ -34,21 +34,14 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Ids/InstanceId.h
     Source/Core/Ids/GroupId.h
     Source/Core/Ids/DspIds.h
-    Source/Core/Instance/Handlers/StateCommandHandler.h
-    Source/Core/Instance/Handlers/StateCommandHandler.cpp
-    Source/Core/Instance/Queues/InstanceCommandQueue.h
-    Source/Core/Instance/Queues/InstanceCommandQueue.cpp
-    Source/Core/Instance/Queues/InstanceResponseQueue.h
-    Source/Core/Instance/Queues/InstanceResponseQueue.cpp
+    Source/Core/Instance/Queues/DspUpdateMailbox.h
+    Source/Core/Instance/Queues/DspUpdateMailbox.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
-    Source/Core/Coordinator/Delivery/CommandDeliveryQueue.h
-    Source/Core/Coordinator/Delivery/CommandDeliveryQueue.cpp
     Source/Core/Coordinator/Routing/CommandRouter.h
     Source/Core/Coordinator/Routing/CommandRouterTopology.cpp
     Source/Core/Coordinator/Routing/CommandRouterDelivery.cpp
     Source/Core/Coordinator/Routing/CommandRouterDispatch.cpp
-    Source/Core/Coordinator/Routing/CommandRouterGroup.cpp
     Source/Core/Coordinator/Routing/CommandRouterPlan.cpp
     Source/Core/Coordinator/Routing/CommandRouterRoute.cpp
     Source/Core/Coordinator/Routing/StateRouter.h
@@ -58,6 +51,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Coordinator/Routing/StateResponsePublisher.h
     Source/Core/Coordinator/Routing/StateResponsePublisher.cpp
     Source/Core/State/InstanceState.h
+    Source/Core/State/StateStore.h
+    Source/Core/State/StateStore.cpp
     Source/Core/State/BankState.h
     Source/Core/State/GainState.h
     Source/Core/State/SaturatorState.h
@@ -65,7 +60,6 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/State/EqualizerState.h
     Source/Core/State/FilterState.h
     Source/Core/State/StateProtocol.h
-    Source/Core/State/ParameterStateView.h
     Source/Core/Commands/Commands.h
     Source/Core/Commands/ConcurrentQueue.h
     Source/Core/Commands/SpscQueue.h

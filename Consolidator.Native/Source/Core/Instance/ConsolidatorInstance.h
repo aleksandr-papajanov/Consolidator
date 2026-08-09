@@ -1,15 +1,13 @@
 #pragma once
 
 #include <cstddef>
-#include <atomic>
 #include <memory>
+#include <span>
 
 #include "Core/Commands/Commands.h"
-#include "Core/Instance/Queues/InstanceCommandQueue.h"
-#include "Core/Instance/Queues/InstanceResponseQueue.h"
-#include "Core/Notifications/Notifications.h"
 #include "Core/State/InstanceState.h"
-#include "Core/State/ParameterStateView.h"
+#include "Core/State/StateStore.h"
+#include "Core/Instance/Queues/DspUpdateMailbox.h"
 
 namespace consolidator::dsp
 {
@@ -20,13 +18,13 @@ namespace consolidator::core
 {
 
 class ConsolidatorInstance;
-class CommandDeliveryQueue;
-
 class ConsolidatorInstance
 {
 public:
     ConsolidatorInstance();
     ~ConsolidatorInstance();
+
+    void Initialize();
 
     ConsolidatorInstance(const ConsolidatorInstance&) = delete;
     ConsolidatorInstance& operator=(const ConsolidatorInstance&) = delete;
@@ -42,30 +40,24 @@ public:
     void EnqueueCommand(Command command);
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
-    [[nodiscard]] InstanceState& GetState() noexcept { return state_; }
-    [[nodiscard]] const InstanceState& GetState() const noexcept { return state_; }
+    [[nodiscard]] StateStore& GetStateStore() noexcept { return stateStore_; }
+    [[nodiscard]] const StateStore& GetStateStore() const noexcept { return stateStore_; }
     [[nodiscard]] dsp::DspChain& GetDspChain() noexcept;
-
-    [[nodiscard]] bool ReadPublishedParameterState(
-        const StatePath& path,
-        StateEntry& result) const;
 
 private:
     friend class InstanceCoordinator;
-    friend class CommandDeliveryQueue;
+    friend class CommandRouter;
 
-    [[nodiscard]] bool EnqueueLocalCommand(Command command);
-    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
-    void RecordLocalQueueOverflow() noexcept;
-    void PublishParameterStateView();
-
+    void PublishDspUpdates(std::span<const DspUpdate> updates);
+    void PublishInitialRuntimeState();
     static constexpr std::size_t kChannelCount = 2;
 
     std::unique_ptr<dsp::DspChain> dspChain_;
     InstanceState state_;
-    InstanceCommandQueue commandQueue_;
-    InstanceResponseQueue responseQueue_;
-    std::shared_ptr<const ParameterStateView> publishedParameterState_;
+    StateStore stateStore_;
+    DspUpdateMailbox dspUpdateMailbox_;
+    std::uint64_t nextDspRevision_ = 0;
+    bool initialized_ = false;
 };
 
 } // namespace consolidator::core

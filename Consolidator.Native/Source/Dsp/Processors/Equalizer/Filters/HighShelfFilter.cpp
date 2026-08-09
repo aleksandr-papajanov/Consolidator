@@ -24,13 +24,13 @@ HighShelfFilter::HighShelfFilter(
 
 void HighShelfFilter::RecalculateCoefficients()
 {
-    const double gain = std::pow(10.0, state_.gainDb / 40.0);
+    const double gain = std::pow(10.0, runtimeState_.gainDb / 40.0);
 
-    const double omega = 2.0 * std::numbers::pi * state_.frequencyHz / GetSampleRate();
+    const double omega = 2.0 * std::numbers::pi * runtimeState_.frequencyHz / GetSampleRate();
 
     const double sine = std::sin(omega);
     const double cosine = std::cos(omega);
-    const double alpha = sine / (2.0 * state_.q);
+    const double alpha = sine / (2.0 * runtimeState_.q);
     const double gainRootTerm = 2.0 * std::sqrt(gain) * alpha;
 
     const double a0 =

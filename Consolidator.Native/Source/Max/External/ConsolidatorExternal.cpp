@@ -13,6 +13,7 @@ struct ConsolidatorExternal::Impl
 ConsolidatorExternal::ConsolidatorExternal()
     : impl_(std::make_unique<Impl>())
 {
+    impl_->instance.Initialize();
 }
 
 ConsolidatorExternal::~ConsolidatorExternal() = default;

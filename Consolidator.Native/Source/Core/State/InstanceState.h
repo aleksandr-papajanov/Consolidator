@@ -31,6 +31,7 @@ public:
 
 private:
     friend class InstanceCoordinator;
+    friend class StateStore;
 
     void SetInstanceId(InstanceId instanceId) noexcept { instanceId_ = instanceId; }
     void SetSelectedBankId(dsp::BankId bankId) noexcept { selectedBankId_ = bankId; }

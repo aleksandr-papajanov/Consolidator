@@ -6,7 +6,6 @@
 #include <optional>
 #include <vector>
 
-#include "Core/State/EqualizerState.h"
 #include "Dsp/Processors/Equalizer/Filters/Filter.h"
 #include "Dsp/Processors/DspDevice.h"
 
@@ -15,6 +14,7 @@ namespace consolidator::dsp
 
 struct EqualizerRuntimeState
 {
+    bool bypass = false;
     bool isNeutral = true;
 };
 
@@ -56,18 +56,6 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
-    void ReadAtRoute(
-        const core::StatePath& path,
-        core::StateSnapshot& snapshot,
-        DeviceId deviceId,
-        RouteNodeId parentNode) const;
-
-    [[nodiscard]] const EqualizerState& GetState() const noexcept
-    {
-        return state_;
-    }
-
     [[nodiscard]] const EqualizerRuntimeState& GetRuntimeState() const noexcept
     {
         return runtimeState_;
@@ -83,13 +71,19 @@ public:
     [[nodiscard]] const Filter* GetFilter(
         std::size_t index) const noexcept;
 
-    bool WriteParameter(
+    bool ApplyParameter(
         const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth) override;
 
+    bool StageRuntimeUpdate(
+        const core::StatePath& route,
+        const ParameterValue& value) override;
+
+    void CommitRuntimeUpdates() override;
+
 private:
-    bool WriteOwnParameter(
+    bool ApplyOwnParameter(
         const core::StatePath& route,
         const ParameterValue& value) override;
     void RecalculateRuntime() override;
@@ -104,7 +98,6 @@ private:
 
     std::optional<BankId> bankId_;
     detail::ElementKind filterElementKind_ = detail::ElementKind::EqFilter;
-    EqualizerState state_;
     EqualizerRuntimeState runtimeState_;
     std::vector<std::unique_ptr<Filter>> filters_;
 };

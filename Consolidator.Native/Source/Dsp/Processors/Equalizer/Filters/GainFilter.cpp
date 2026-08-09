@@ -17,7 +17,7 @@ GainFilter::GainFilter(FilterId FilterId)
 void GainFilter::RecalculateCoefficients()
 {
     BiquadCoefficients coefficients;
-    coefficients.b0 = std::pow(10.0, state_.gainDb / 20.0);
+    coefficients.b0 = std::pow(10.0, runtimeState_.gainDb / 20.0);
 
     SetNormalizedCoefficients(coefficients);
 }

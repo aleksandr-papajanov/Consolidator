@@ -241,6 +241,8 @@ int main()
 {
     ConsolidatorInstance first;
     ConsolidatorInstance second;
+    first.Initialize();
+    second.Initialize();
     const std::vector<ConsolidatorInstance*> instances{&first, &second};
     std::uint64_t requestId = 1;
 

@@ -1,43 +1,43 @@
 #include "Dsp/Processors/DspChain.h"
 
 #include <algorithm>
+#include <cassert>
 
 namespace consolidator::dsp
 {
 
 void DspChain::AddDevice(std::unique_ptr<DspDevice> device)
 {
+    assert(devices_.size() < kMaximumDevices);
     devices_.push_back(std::move(device));
 }
 
-void DspChain::ReadState(const core::StatePath& path, core::StateResponseEntries& snapshot) const
+void DspChain::ApplyRuntimeUpdates(const core::DspStateBatch& batch)
 {
-    for (const auto& device : devices_)
+    std::array<bool, kMaximumDevices> dirtyDevices{};
+    for (std::size_t updateIndex = 0; updateIndex < batch.count; ++updateIndex)
     {
-        device->ReadState(path, snapshot);
-    }
-}
-
-core::StateWriteStatus DspChain::WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied)
-{
-    if (!entry.path.deviceId)
-    {
-        return core::StateWriteStatus::NotHandled;
-    }
-
-    for (const auto& device : devices_)
-    {
-        if (device->GetDeviceId() != *entry.path.deviceId)
+        const auto& update = batch.updates[updateIndex];
+        for (std::size_t deviceIndex = 0;
+             deviceIndex < devices_.size();
+             ++deviceIndex)
         {
-            continue;
-        }
-        const auto status = device->WriteState(entry, applied);
-        if (status != core::StateWriteStatus::NotHandled)
-        {
-            return status;
+            if (devices_[deviceIndex]->StageRuntimeUpdate(update.path, update.value))
+            {
+                dirtyDevices[deviceIndex] = true;
+                break;
+            }
         }
     }
-    return core::StateWriteStatus::NotHandled;
+    for (std::size_t deviceIndex = 0;
+         deviceIndex < devices_.size();
+         ++deviceIndex)
+    {
+        if (dirtyDevices[deviceIndex])
+        {
+            devices_[deviceIndex]->CommitRuntimeUpdates();
+        }
+    }
 }
 
 void DspChain::Process(

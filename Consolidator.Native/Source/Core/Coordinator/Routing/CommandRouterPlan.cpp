@@ -10,7 +10,7 @@ CommandRouter::WritePlan CommandRouter::BuildWritePlan(
     const StateCommand& command)
 {
     WritePlan plan{
-        .topologyResponse = StateResponse{
+        .coordinatorResponse = StateResponse{
             command.message.requestId,
             command.message.responseInstanceId,
             sourceInstanceId,

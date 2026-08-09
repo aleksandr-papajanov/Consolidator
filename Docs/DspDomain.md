@@ -16,11 +16,24 @@ Input Gain → Saturator → Compressor → Equalizer banks → Output Gain
 
 Все аудиоустройства наследуются от `DspDevice` и имеют:
 
-- `*State` — пользовательские параметры из `Source/Core/State`;
-- `*RuntimeState` — производные DSP-величины и изменяемая audio-thread память;
-- `RecalculateRuntime()` — пересчёт runtime после успешного изменения параметра.
+- `*RuntimeState` — локальная DSP-копия target values, производные величины и
+  изменяемая audio-thread память;
+- `RecalculateRuntime()` — пересчёт runtime после применения update batch.
 
-Параметры хранятся в `DspParameter<T>` из `Core/Parameters`. Он содержит локальный `ParameterId`, текущее значение и диапазон. Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; processor-классы не должны дублировать их литералами.
+Пользовательские `*State` принадлежат coordinator-owned `StateStore` и не
+изменяются DSP. `ChainState` хранит отдельные input/output gain, top-level
+devices, EQ banks, EQ filters и detector filters. DSP получает `DspStateBatch` через latest-value mailbox. Для
+каждого `StatePath` mailbox хранит только последнее значение в атомарно
+упакованном слоте; update содержит
+монотонный `revision` для диагностики и порядка внутри batch. Audio thread
+применяет batch перед `Process()`. Несхлопываемые события (например,
+reset) должны идти отдельной event queue.
+
+Параметры хранятся в `DspParameter<T>` из `Core/Parameters`, но только внутри
+`StateStore`. Он содержит локальный `ParameterId`, текущее значение и диапазон.
+Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; DSP
+processor-классы не должны дублировать пользовательские параметры или их
+диапазоны.
 
 ## Маршрутизация параметров
 
@@ -43,28 +56,21 @@ StateEntry{
 composite-узел получает тот же `StateEntry` и передаёт его дальше:
 
 ```text
-DspChain → DspDevice → Equalizer → Filter → DspParameter
+StateStore → DspUpdateMailbox → DspChain → DspDevice → RuntimeState
 ```
 
 Для Saturator и Compressor detector route проходит через `RouteNodeId::Detector`, затем в их detector equalizer и соответствующий filter.
 
-После успешного изменения leaf parameter вызывается `RecalculateRuntime()` затронутого устройства. Это гарантирует актуальный `isNeutral` и производные коэффициенты.
+В batch сначала staging-ятся все target values, затем один раз вызывается
+`CommitRuntimeUpdates()` у каждого устройства. Это гарантирует актуальный
+`isNeutral` и производные коэффициенты без повторного пересчёта после каждого
+параметра. DSP не возвращает пользовательское состояние обратно в coordinator.
 
-## Единый state-контракт
+## State boundary
 
-Каждый узел DSP реализует `IStateNode` напрямую:
-
-```text
-DspChain : IStateNode
-  → DspDevice : IStateNode
-    → Equalizer / Filter : IStateNode
-```
-
-`ReadState(query, output)` читает собственные значения или делегирует чтение
-дочерним узлам. `WriteState(entry, applied)` принимает тот же адрес и значение,
-применяет их либо делегирует запись дочернему узлу, после чего возвращает
-фактически принятое значение. Отдельных parameter-command, route-объектов,
-fallback-веток и compatibility-адаптеров нет.
+`StateStore` implements all user-facing reads and writes. DSP devices expose
+only `StageRuntimeUpdate(path, value)`, `CommitRuntimeUpdates()` and `Process()`.
+They do not participate in state reads or coordinator command routing.
 
 ## Equalizer и detectors
 

@@ -7,20 +7,6 @@
 namespace consolidator::dsp
 {
 
-void Filter::ReadAtRoute(
-    const core::StatePath& path,
-    core::StateSnapshot& snapshot,
-    DeviceId deviceId,
-    RouteNodeId parentNode) const
-{
-    const auto filterNode = static_cast<RouteNodeId>(
-        static_cast<std::uint8_t>(RouteNodeId::Filter1) + GetElementIndex());
-    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Frequency, parentNode, filterNode}, state_.frequencyHz);
-    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Q, parentNode, filterNode}, state_.q);
-    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Gain, parentNode, filterNode}, state_.gainDb);
-    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Bypass, parentNode, filterNode}, state_.bypass);
-}
-
 Filter::Filter(
     DeviceId deviceId,
     detail::ElementKind elementKind,
@@ -69,15 +55,39 @@ void Filter::Process(
     }
 }
 
-bool Filter::WriteOwnParameter(
+bool Filter::ApplyOwnParameter(
     const core::StatePath& route,
     const ParameterValue& value)
 {
-    const bool isUpdated =
-        state_.frequencyHz.Apply(route, value) ||
-        state_.q.Apply(route, value) ||
-        state_.gainDb.Apply(route, value) ||
-        state_.bypass.Apply(route, value);
+    bool isUpdated = false;
+    if (route.GetParameterId() == ParameterId::Frequency)
+    {
+        const auto* v = std::get_if<float>(&value);
+        if (v == nullptr) return false;
+        runtimeState_.frequencyHz = *v;
+        isUpdated = true;
+    }
+    else if (route.GetParameterId() == ParameterId::Q)
+    {
+        const auto* v = std::get_if<float>(&value);
+        if (v == nullptr) return false;
+        runtimeState_.q = *v;
+        isUpdated = true;
+    }
+    else if (route.GetParameterId() == ParameterId::Gain)
+    {
+        const auto* v = std::get_if<float>(&value);
+        if (v == nullptr) return false;
+        runtimeState_.gainDb = *v;
+        isUpdated = true;
+    }
+    else if (route.GetParameterId() == ParameterId::Bypass)
+    {
+        const auto* v = std::get_if<bool>(&value);
+        if (v == nullptr) return false;
+        runtimeState_.bypass = *v;
+        isUpdated = true;
+    }
 
     if (isUpdated)
     {
@@ -90,6 +100,11 @@ bool Filter::WriteOwnParameter(
 bool Filter::IsNeutral() const noexcept
 {
     return runtimeState_.isNeutral;
+}
+
+void Filter::CommitRuntimeUpdates()
+{
+    RecalculateRuntime();
 }
 
 double Filter::ProcessSample(double input, std::size_t channel) noexcept
@@ -122,7 +137,7 @@ bool Filter::CalculateIsNeutral() const noexcept
 {
     const auto& coefficients = runtimeState_.coefficients;
 
-    return state_.bypass ||
+    return runtimeState_.bypass ||
            (coefficients.b0 == 1.0 &&
             coefficients.b1 == 0.0 &&
             coefficients.b2 == 0.0 &&

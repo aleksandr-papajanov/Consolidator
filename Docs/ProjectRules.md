@@ -34,7 +34,7 @@ fallback-пути, миграционные адаптеры, compatibility alia
 | Элемент | Стиль | Пример |
 |---|---|---|
 | Классы, структуры | **PascalCase** | `ConsolidatorInstance`, `ParameterSmoother` |
-| Методы (включая static) | **PascalCase** | `Process()`, `GetState()` |
+| Методы (включая static) | **PascalCase** | `Process()`, `GetRuntimeState()` |
 | Пространства имён | **PascalCase** | `consolidator::core`, `consolidator::dsp` |
 | Переменные (локальные) | **camelCase** | `frameCount`, `sampleRate` |
 | Поля классов | **camelCase_** (trailing underscore) | `instanceId_`, `buffer_` |
@@ -392,7 +392,7 @@ switch (change.address.GetParameterId())
 case ParameterId::Gain:
     if (const auto* value = TryGetValue<float>(change))
     {
-        state_.gainDb = *value;
+        runtime_.gainDb = *value;
         RecalculateRuntime();
     }
     break;
@@ -400,7 +400,7 @@ case ParameterId::Gain:
 case ParameterId::Bypass:
     if (const auto* value = TryGetValue<bool>(change))
     {
-        state_.bypass = *value;
+        runtime_.bypass = *value;
     }
     break;
 
@@ -447,7 +447,7 @@ const auto sampleCount = frameCount * channelCount;
 runtime_.outputGainLinear =
     std::pow(
         10.0,
-        static_cast<double>(state_.outputDb) / 20.0);
+        static_cast<double>(runtime_.outputDb) / 20.0);
 ```
 
 Для длинных арифметических выражений разбивать формулу так, чтобы структура была видна:
@@ -515,8 +515,7 @@ private:
     void RecalculateRuntime();
 
     DeviceId deviceId_;
-    GainState state_;
-    GainRuntime runtime_;
+    GainRuntimeState runtime_;
 };
 ```
 
@@ -525,16 +524,16 @@ private:
 Короткие getters допускается оставлять inline, но тело оформлять на нескольких строках:
 
 ```cpp
-[[nodiscard]] const GainState& GetState() const noexcept
+[[nodiscard]] const GainRuntimeState& GetRuntimeState() const noexcept
 {
-    return state_;
+    return runtime_;
 }
 ```
 
 Не оформлять их в одну строку:
 
 ```cpp
-[[nodiscard]] const GainState& GetState() const noexcept { return state_; }
+[[nodiscard]] const GainRuntimeState& GetRuntimeState() const noexcept { return runtime_; }
 ```
 
 Простой составной возврат также переносить по логическим частям:
@@ -542,7 +541,7 @@ private:
 ```cpp
 [[nodiscard]] bool IsNeutral() const noexcept override
 {
-    return state_.bypass ||
+    return runtime_.bypass ||
            runtime_.linearGain == 1.0;
 }
 ```

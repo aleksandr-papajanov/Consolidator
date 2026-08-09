@@ -132,6 +132,8 @@ struct StatePath
     std::array<dsp::RouteNodeId, 3> nodes{};
     std::size_t depth = 0;
 
+    friend constexpr bool operator==(const StatePath&, const StatePath&) noexcept = default;
+
     [[nodiscard]] bool Matches(const StatePath& candidate) const noexcept
     {
         if (instanceId && instanceId != candidate.instanceId) return false;
@@ -152,6 +154,9 @@ using StateValue = std::variant<std::monostate, bool, std::int32_t, float, Insta
 enum class StateWriteStatus : std::uint8_t
 {
     NotHandled,
+    // The authoritative StateStore changed and the runtime update was
+    // published to the instance mailbox. It does not mean the audio thread
+    // applied it.
     Applied,
     Unchanged,
     Rejected

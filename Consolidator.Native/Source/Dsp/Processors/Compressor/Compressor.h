@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "Core/State/CompressorState.h"
 #include "Dsp/Processors/Compressor/RmsDetector.h"
 #include "Dsp/Processors/DspDevice.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"
@@ -14,6 +13,13 @@ namespace consolidator::dsp
 
 struct CompressorRuntimeState
 {
+    float thresholdDb = -12.0f;
+    float ratio = 4.0f;
+    float attackMs = 5.0f;
+    float releaseMs = 100.0f;
+    float outputDb = 0.0f;
+    float mix = 1.0f;
+    bool bypass = false;
     double sampleRate = core::settings::kDefaultSampleRate;
     double gainReductionDb = 0.0;
     double outputGainLinear = 1.0;
@@ -43,20 +49,21 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
-    [[nodiscard]] const CompressorState& GetState() const noexcept
-    {
-        return state_;
-    }
-
     [[nodiscard]] const CompressorRuntimeState& GetRuntimeState() const noexcept
     {
         return runtimeState_;
     }
 
-    bool WriteParameter(
+    bool ApplyParameter(
         const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth) override;
+
+    bool StageRuntimeUpdate(
+        const core::StatePath& route,
+        const ParameterValue& value) override;
+
+    void CommitRuntimeUpdates() override;
 
     [[nodiscard]] float GetGainReductionDb() const noexcept
     {
@@ -73,20 +80,8 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
-    {
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Threshold}, state_.thresholdDb);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Ratio}, state_.ratio);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Attack}, state_.attackMs);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Release}, state_.releaseMs);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Gain}, state_.outputDb);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Mix}, state_.mix);
-        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Bypass}, state_.bypass);
-        detectorEqualizer_.ReadAtRoute(path, snapshot, DeviceId::Compressor, RouteNodeId::Detector);
-    }
-
 private:
-    bool WriteOwnParameter(
+    bool ApplyOwnParameter(
         const core::StatePath& route,
         const ParameterValue& value) override;
 
@@ -119,7 +114,6 @@ private:
     void SetMix(float mix) noexcept;
     void SetBypass(bool bypass) noexcept;
 
-    CompressorState state_;
     CompressorRuntimeState runtimeState_;
     CompressorMeterState meterState_;
 

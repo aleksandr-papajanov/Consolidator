@@ -5,7 +5,6 @@
 #include <cstdint>
 
 #include "Core/Settings/DspDeviceSettings.h"
-#include "Core/State/FilterState.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::dsp
@@ -28,6 +27,10 @@ struct FilterMemory
 
 struct FilterRuntimeState
 {
+    float frequencyHz = 1000.0f;
+    float q = 0.707f;
+    float gainDb = 0.0f;
+    bool bypass = false;
     BiquadCoefficients coefficients;
     std::array<FilterMemory, 2> channelStates{};
     double sampleRate = core::settings::kDefaultSampleRate;
@@ -55,6 +58,14 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) override;
 
+    bool ApplyParameter(
+        const core::StatePath& route,
+        const ParameterValue& value,
+        std::size_t depth)
+    {
+        return DspDevice::ApplyParameter(route, value, depth);
+    }
+
 
     [[nodiscard]] virtual double ProcessSample(
         double input,
@@ -67,21 +78,12 @@ public:
 
     [[nodiscard]] bool IsNeutral() const noexcept override;
 
-    [[nodiscard]] virtual const FilterState& GetState() const noexcept
-    {
-        return state_;
-    }
+    void CommitRuntimeUpdates() override;
 
     [[nodiscard]] const FilterRuntimeState& GetRuntimeState() const noexcept
     {
         return runtimeState_;
     }
-
-    void ReadAtRoute(
-        const core::StatePath& path,
-        core::StateSnapshot& snapshot,
-        DeviceId deviceId,
-        RouteNodeId parentNode) const;
 
 
 protected:
@@ -106,18 +108,17 @@ protected:
         double q,
         double gainDb) noexcept
     {
-        state_.frequencyHz = frequencyHz;
-        state_.q = q;
-        state_.gainDb = gainDb;
+        runtimeState_.frequencyHz = static_cast<float>(frequencyHz);
+        runtimeState_.q = static_cast<float>(q);
+        runtimeState_.gainDb = static_cast<float>(gainDb);
     }
 
     void RecalculateRuntime() noexcept;
 
-    FilterState state_{};
     FilterRuntimeState runtimeState_;
 
 private:
-    bool WriteOwnParameter(
+    bool ApplyOwnParameter(
         const core::StatePath& route,
         const ParameterValue& value) override;
 

@@ -1,6 +1,10 @@
 #include "Core/Instance/ConsolidatorInstance.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <exception>
+#include <optional>
+#include <type_traits>
 #include <utility>
 
 #include "Core/Coordinator/InstanceCoordinator.h"
@@ -10,16 +14,52 @@
 namespace consolidator::core
 {
 
+namespace
+{
+
+std::optional<dsp::ParameterValue> ToParameterValue(const StateValue& value)
+{
+    return std::visit(
+        [](const auto& typedValue) -> std::optional<dsp::ParameterValue>
+        {
+            using ValueType = std::decay_t<decltype(typedValue)>;
+            if constexpr (std::is_same_v<ValueType, bool> ||
+                          std::is_same_v<ValueType, std::int32_t> ||
+                          std::is_same_v<ValueType, float>)
+            {
+                return dsp::ParameterValue{typedValue};
+            }
+            return std::nullopt;
+        },
+        value);
+}
+
+} // namespace
+
 ConsolidatorInstance::ConsolidatorInstance()
     : dspChain_(dsp::DspChainBuilder{}.BuildStandardChain())
+    , stateStore_(state_)
 {
-    InstanceCoordinator::Get().RegisterInstance(*this);
-    PublishParameterStateView();
 }
 
 ConsolidatorInstance::~ConsolidatorInstance()
 {
-    InstanceCoordinator::Get().UnregisterInstance(state_.GetInstanceId());
+    if (initialized_)
+    {
+        InstanceCoordinator::Get().UnregisterInstance(state_.GetInstanceId());
+    }
+}
+
+void ConsolidatorInstance::Initialize()
+{
+    if (initialized_)
+    {
+        return;
+    }
+
+    InstanceCoordinator::Get().RegisterInstance(*this);
+    PublishInitialRuntimeState();
+    initialized_ = true;
 }
 
 void ConsolidatorInstance::Process(const double* mainInput,
@@ -28,8 +68,11 @@ void ConsolidatorInstance::Process(const double* mainInput,
                                    double* referenceOutput,
                                    std::size_t frameCount)
 {
-    commandQueue_.Process(*this, responseQueue_);
-    PublishParameterStateView();
+    DspStateBatch batch;
+    if (dspUpdateMailbox_.ConsumeLatest(batch))
+    {
+        dspChain_->ApplyRuntimeUpdates(batch);
+    }
     dspChain_->Process(mainInput, referenceOutput, mainOutput, frameCount, kChannelCount);
     std::copy_n(referenceInput, frameCount * kChannelCount, referenceOutput);
 }
@@ -49,55 +92,49 @@ dsp::DspChain& ConsolidatorInstance::GetDspChain() noexcept
     return *dspChain_;
 }
 
-bool ConsolidatorInstance::ReadPublishedParameterState(
-    const StatePath& path,
-    StateEntry& result) const
+void ConsolidatorInstance::PublishDspUpdates(std::span<const DspUpdate> updates)
 {
-    auto query = path;
-    query.instanceId = state_.GetInstanceId();
-    const auto view = std::atomic_load_explicit(
-        &publishedParameterState_,
-        std::memory_order_acquire);
-    if (!view)
+    for (std::size_t index = 0; index < updates.size(); ++index)
     {
-        return false;
+        auto update = updates[index];
+        update.revision = ++nextDspRevision_;
+        dspUpdateMailbox_.Publish(update);
     }
-    for (std::size_t index = 0; index < view->entries.size; ++index)
-    {
-        if (view->entries.entries[index].path.Matches(query))
-        {
-            result = view->entries.entries[index];
-            return true;
-        }
-    }
-    return false;
 }
 
-void ConsolidatorInstance::PublishParameterStateView()
+void ConsolidatorInstance::PublishInitialRuntimeState()
 {
-    auto view = std::make_shared<ParameterStateView>();
-    dspChain_->ReadState(
+    StateResponseEntries snapshot;
+    stateStore_.ReadState(
         StatePath::Instance(state_.GetInstanceId()),
-        view->entries);
-    std::atomic_store_explicit(
-        &publishedParameterState_,
-        std::shared_ptr<const ParameterStateView>{std::move(view)},
-        std::memory_order_release);
-}
+        snapshot);
 
-bool ConsolidatorInstance::EnqueueLocalCommand(Command command)
-{
-    return commandQueue_.TryEnqueue(std::move(command));
-}
-
-void ConsolidatorInstance::RecordLocalQueueOverflow() noexcept
-{
-    commandQueue_.RecordOverflow();
-}
-
-std::optional<StateResponse> ConsolidatorInstance::TryDequeueResponse()
-{
-    return responseQueue_.TryDequeue();
+    DspStateBatch initialBatch;
+    for (std::size_t index = 0; index < snapshot.size; ++index)
+    {
+        const auto& entry = snapshot.entries[index];
+        if (entry.path.field != StateField::DspParameter)
+        {
+            continue;
+        }
+        const auto value = ToParameterValue(entry.value);
+        if (!value)
+        {
+            continue;
+        }
+        dspUpdateMailbox_.RegisterPath(entry.path);
+        if (initialBatch.count == initialBatch.updates.size())
+        {
+            std::terminate();
+        }
+        initialBatch.updates[initialBatch.count++] = DspUpdate{
+            entry.path,
+            *value,
+            0};
+    }
+    PublishDspUpdates(std::span<const DspUpdate>{
+        initialBatch.updates.data(),
+        initialBatch.count});
 }
 
 } // namespace consolidator::core

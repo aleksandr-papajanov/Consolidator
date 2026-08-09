@@ -5,7 +5,6 @@
 #include <optional>
 #include <utility>
 
-#include "Core/Coordinator/Delivery/CommandDeliveryQueue.h"
 #include "Core/Instance/ConsolidatorInstance.h"
 
 namespace consolidator::core
@@ -15,12 +14,10 @@ CommandRouter::CommandRouter(
     InstanceRegistry& registry,
     const StateRouter& stateRouter,
     const ParameterConstraintResolver& constraintResolver,
-    CommandDeliveryQueue& deliveryQueue,
     ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept
     : registry_(registry)
     , stateRouter_(stateRouter)
     , constraintResolver_(constraintResolver)
-    , deliveryQueue_(deliveryQueue)
     , coordinatorResponses_(coordinatorResponses)
 {
 }
@@ -59,13 +56,13 @@ bool CommandRouter::ApplyTopologyWrite(
             BankAddress{sourceInstanceId, *bankId};
 
         const auto& sourceState =
-            static_cast<const InstanceState&>(source->GetState());
+            static_cast<const InstanceState&>(source->GetStateStore().GetTopology());
         previousGroup =
             sourceState.GetBankState(*bankId).GetGroupId();
     }
 
     const auto status =
-        source->GetState().WriteState(entry, applied);
+        source->GetStateStore().GetTopology().WriteState(entry, applied);
 
     if (status == StateWriteStatus::NotHandled)
     {
@@ -99,7 +96,7 @@ bool CommandRouter::ApplyTopologyWrite(
         }
 
         const auto& sourceState =
-            static_cast<const InstanceState&>(source->GetState());
+            static_cast<const InstanceState&>(source->GetStateStore().GetTopology());
         const auto nextGroup =
             sourceState.GetBankState(changedBank->bankId).GetGroupId();
 

@@ -2,11 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <optional>
-#include <type_traits>
-#include <utility>
 
-#include "Core/Parameters/DspParameter.h"
+#include "Core/Ids/DspIds.h"
+#include "Core/Parameters/ParameterValue.h"
+#include "Core/State/StateProtocol.h"
 
 namespace consolidator::dsp
 {
@@ -32,23 +31,18 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) = 0;
 
-    virtual bool WriteParameter(
-        const core::StatePath& route,
-        const ParameterValue& value,
-        std::size_t depth)
+    virtual bool StageRuntimeUpdate(
+        const core::StatePath& path,
+        const ParameterValue& value)
     {
-        if (route.GetDeviceId() != deviceId_ || depth != route.GetDepth())
-        {
-            return false;
-        }
+        (void)path;
+        (void)value;
+        return false;
+    }
 
-        if (!WriteOwnParameter(route, value))
-        {
-            return false;
-        }
-
+    virtual void CommitRuntimeUpdates()
+    {
         RecalculateRuntime();
-        return true;
     }
 
     [[nodiscard]] DeviceId GetDeviceId() const noexcept
@@ -68,114 +62,31 @@ public:
 
     [[nodiscard]] virtual bool IsNeutral() const noexcept = 0;
 
-    virtual void ReadState(
-        const core::StatePath& query,
-        core::StateResponseEntries& output) const
-    {
-        (void)query;
-        (void)output;
-    }
-
-    core::StateWriteStatus WriteState(
-        const core::StateEntry& entry,
-        core::StateResponseEntries& applied)
-    {
-        if (entry.path.field != core::StateField::DspParameter ||
-            !entry.path.deviceId || !entry.path.parameterId)
-        {
-            return core::StateWriteStatus::NotHandled;
-        }
-
-        core::StatePath route{*entry.path.deviceId, *entry.path.parameterId};
-        for (std::size_t index = 0; index < entry.path.depth; ++index)
-        {
-            route = route.WithNode(entry.path.nodes[index]);
-        }
-
-        const auto parameterValue = std::visit(
-            [](const auto& value) -> std::optional<ParameterValue>
-            {
-                using ValueType = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<ValueType, bool> ||
-                              std::is_same_v<ValueType, std::int32_t> ||
-                              std::is_same_v<ValueType, float>)
-                {
-                    return ParameterValue{value};
-                }
-
-                return std::nullopt;
-            },
-            entry.value);
-
-        if (!parameterValue)
-        {
-            core::StateEntry rejected{entry.path, entry.value};
-            rejected.status = core::StateWriteStatus::Rejected;
-            (void)applied.TryAppend(std::move(rejected));
-            return core::StateWriteStatus::Rejected;
-        }
-        if (!WriteParameter(route, *parameterValue, 0))
-        {
-            const auto previousSize = applied.size;
-            ReadState(entry.path, applied);
-            const auto status = applied.size != previousSize
-                ? core::StateWriteStatus::Unchanged
-                : core::StateWriteStatus::Rejected;
-            if (applied.size == previousSize)
-            {
-                core::StateEntry rejected{entry.path, entry.value};
-                rejected.status = status;
-                (void)applied.TryAppend(std::move(rejected));
-            }
-            else
-            {
-                for (std::size_t index = previousSize; index < applied.size; ++index)
-                {
-                    applied.entries[index].status = status;
-                }
-            }
-            return status;
-        }
-
-        const auto previousSize = applied.size;
-        ReadState(entry.path, applied);
-        for (std::size_t index = previousSize; index < applied.size; ++index)
-        {
-            applied.entries[index].status = core::StateWriteStatus::Applied;
-        }
-        return core::StateWriteStatus::Applied;
-    }
-
-
-
 protected:
-    template <typename T>
-    static void AppendParameter(
-        const core::StatePath& path,
-        core::StateResponseEntries& snapshot,
-        core::StatePath route,
-        const DspParameter<T>& parameter)
+    virtual bool ApplyParameter(
+        const core::StatePath& route,
+        const ParameterValue& value,
+        std::size_t depth)
     {
-        auto candidate = core::ToStatePath(route.WithParameter(parameter.id));
-        candidate.instanceId = path.instanceId;
-        if (path.Matches(candidate))
+        if (route.GetDeviceId() != deviceId_ || depth != route.GetDepth())
         {
-            core::StateEntry entry{candidate, core::StateValue{parameter.value}};
-            if constexpr (!std::is_same_v<T, bool>)
-            {
-                entry.physicalMinimum = ParameterValue{parameter.minimum};
-                entry.physicalMaximum = ParameterValue{parameter.maximum};
-                entry.minimum = entry.physicalMinimum;
-                entry.maximum = entry.physicalMaximum;
-            }
-            (void)snapshot.TryAppend(std::move(entry));
+            return false;
         }
+
+        if (!ApplyOwnParameter(route, value))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    virtual bool WriteOwnParameter(
+    virtual bool ApplyOwnParameter(
         const core::StatePath& route,
         const ParameterValue& value)
     {
+        (void)route;
+        (void)value;
         return false;
     }
 

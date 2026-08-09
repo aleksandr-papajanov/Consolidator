@@ -42,7 +42,7 @@ double TiltFilter::ProcessSample(
     double input,
     std::size_t channel) noexcept
 {
-    if (GetState().bypass)
+    if (runtimeState_.bypass)
     {
         return input;
     }
@@ -61,12 +61,11 @@ void TiltFilter::RecalculateCoefficients()
 
 bool TiltFilter::CalculateIsNeutral() const noexcept
 {
-    return state_.bypass || state_.gainDb == 0.0;
+    return runtimeState_.bypass || runtimeState_.gainDb == 0.0;
 }
 
 void TiltFilter::ApplyInternalParameters()
 {
-    const auto& parameters = GetState();
     const auto filterNode = static_cast<RouteNodeId>(
         static_cast<std::uint8_t>(RouteNodeId::Filter1) +
         detail::ToIndex(GetFilterId()));
@@ -81,12 +80,12 @@ void TiltFilter::ApplyInternalParameters()
             parameterId,
             filterNode};
 
-        filter.WriteParameter(route, ParameterValue{value}, 1);
+        filter.ApplyParameter(route, ParameterValue{value}, 1);
     };
 
-    const float frequencyHz = static_cast<float>(parameters.frequencyHz);
-    const float q = static_cast<float>(parameters.q);
-    const float halfGainDb = static_cast<float>(parameters.gainDb * 0.5);
+    const float frequencyHz = runtimeState_.frequencyHz;
+    const float q = runtimeState_.q;
+    const float halfGainDb = runtimeState_.gainDb * 0.5f;
 
     applyParameter(lowShelf_, ParameterId::Frequency, frequencyHz);
     applyParameter(lowShelf_, ParameterId::Q, q);

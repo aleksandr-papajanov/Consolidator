@@ -65,7 +65,7 @@ double Equalizer::ProcessSample(double input) noexcept
     return output;
 }
 
-bool Equalizer::WriteParameter(
+bool Equalizer::ApplyParameter(
     const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
@@ -77,7 +77,7 @@ bool Equalizer::WriteParameter(
 
     if (depth == route.GetDepth())
     {
-        return DspDevice::WriteParameter(route, value, depth);
+        return DspDevice::ApplyParameter(route, value, depth);
     }
 
     const RouteNodeId node = route.GetNode(depth);
@@ -86,7 +86,7 @@ bool Equalizer::WriteParameter(
 
     if (static_cast<std::size_t>(node) < filterOffset)
     {
-        return WriteParameter(route, value, depth + 1);
+        return ApplyParameter(route, value, depth + 1);
     }
 
     const std::size_t filterIndex = static_cast<std::size_t>(node) - filterOffset;
@@ -96,13 +96,23 @@ bool Equalizer::WriteParameter(
         return false;
     }
 
-    const bool isUpdated = filter->WriteParameter(route, value, depth + 1);
-    if (isUpdated)
-    {
-        RecalculateRuntime();
-    }
+    return filter->ApplyParameter(route, value, depth + 1);
+}
 
-    return isUpdated;
+bool Equalizer::StageRuntimeUpdate(
+    const core::StatePath& route,
+    const ParameterValue& value)
+{
+    return ApplyParameter(route, value, 0);
+}
+
+void Equalizer::CommitRuntimeUpdates()
+{
+    for (const auto& filter : filters_)
+    {
+        filter->CommitRuntimeUpdates();
+    }
+    RecalculateRuntime();
 }
 
 void Equalizer::AddFilter(std::unique_ptr<Filter> filter)
@@ -114,45 +124,26 @@ void Equalizer::AddFilter(std::unique_ptr<Filter> filter)
     }
 }
 
-void Equalizer::ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const
-{
-    if (!bankId_)
-    {
-        return;
-    }
-
-    const auto bankNode = static_cast<RouteNodeId>(
-        static_cast<std::uint8_t>(RouteNodeId::Bank0) + detail::ToIndex(*bankId_));
-    AppendParameter(path, snapshot, core::StatePath{DeviceId::Equalizer, ParameterId::Bypass, bankNode}, state_.bypass);
-
-    for (const auto& filter : filters_)
-    {
-        filter->ReadAtRoute(path, snapshot, DeviceId::Equalizer, bankNode);
-    }
-}
-
-void Equalizer::ReadAtRoute(
-    const core::StatePath& path,
-    core::StateSnapshot& snapshot,
-    DeviceId deviceId,
-    RouteNodeId parentNode) const
-{
-    for (const auto& filter : filters_)
-    {
-        filter->ReadAtRoute(path, snapshot, deviceId, parentNode);
-    }
-}
-
-bool Equalizer::WriteOwnParameter(
+bool Equalizer::ApplyOwnParameter(
     const core::StatePath& route,
     const ParameterValue& value)
 {
-    return state_.bypass.Apply(route, value);
+    if (route.GetParameterId() != ParameterId::Bypass)
+    {
+        return false;
+    }
+    const auto* bypass = std::get_if<bool>(&value);
+    if (bypass == nullptr)
+    {
+        return false;
+    }
+    runtimeState_.bypass = *bypass;
+    return true;
 }
 
 void Equalizer::RecalculateRuntime()
 {
-    if (state_.bypass.value)
+    if (runtimeState_.bypass)
     {
         runtimeState_.isNeutral = true;
         return;

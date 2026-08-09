@@ -115,8 +115,8 @@ double Compressor::MeasureLevelDb(double detectorInput) noexcept
 
 double Compressor::CalculateTargetGainReductionDb(double inputLevelDb) const noexcept
 {
-    const double thresholdDb = static_cast<double>(state_.thresholdDb);
-    const double ratio = static_cast<double>(state_.ratio);
+    const double thresholdDb = static_cast<double>(runtimeState_.thresholdDb);
+    const double ratio = static_cast<double>(runtimeState_.ratio);
     const double levelAboveThreshold = inputLevelDb - thresholdDb;
     const double halfKnee = core::settings::CompressorDefaults::kSoftKneeWidthDb * 0.5;
 
@@ -169,20 +169,22 @@ double Compressor::ProcessSample(double input, double gainLinear) const noexcept
     return compressed * runtimeState_.wetMix + input * runtimeState_.dryMix;
 }
 
-bool Compressor::WriteOwnParameter(
+bool Compressor::ApplyOwnParameter(
     const core::StatePath& route,
     const ParameterValue& value)
 {
-    return state_.thresholdDb.Apply(route, value) ||
-           state_.ratio.Apply(route, value) ||
-           state_.attackMs.Apply(route, value) ||
-           state_.releaseMs.Apply(route, value) ||
-           state_.outputDb.Apply(route, value) ||
-           state_.mix.Apply(route, value) ||
-           state_.bypass.Apply(route, value);
+    const auto parameterId = route.GetParameterId();
+    if (parameterId == ParameterId::Threshold) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.thresholdDb = *v; return true; }
+    if (parameterId == ParameterId::Ratio) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.ratio = *v; return true; }
+    if (parameterId == ParameterId::Attack) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.attackMs = *v; return true; }
+    if (parameterId == ParameterId::Release) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.releaseMs = *v; return true; }
+    if (parameterId == ParameterId::Gain) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.outputDb = *v; return true; }
+    if (parameterId == ParameterId::Mix) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.mix = *v; return true; }
+    if (parameterId == ParameterId::Bypass) { const auto* v = std::get_if<bool>(&value); if (v == nullptr) return false; runtimeState_.bypass = *v; return true; }
+    return false;
 }
 
-bool Compressor::WriteParameter(
+bool Compressor::ApplyParameter(
     const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
@@ -194,7 +196,7 @@ bool Compressor::WriteParameter(
 
     if (depth == route.GetDepth())
     {
-        return DspDevice::WriteParameter(route, value, depth);
+        return DspDevice::ApplyParameter(route, value, depth);
     }
 
     if (route.GetNode(depth) != RouteNodeId::Detector)
@@ -202,55 +204,63 @@ bool Compressor::WriteParameter(
         return false;
     }
 
-    const bool isUpdated = detectorEqualizer_.WriteParameter(route, value, depth + 1);
-    if (isUpdated)
-    {
-        RecalculateRuntime();
-    }
-
+    const bool isUpdated = detectorEqualizer_.ApplyParameter(route, value, depth + 1);
     return isUpdated;
+}
+
+bool Compressor::StageRuntimeUpdate(
+    const core::StatePath& route,
+    const ParameterValue& value)
+{
+    return ApplyParameter(route, value, 0);
+}
+
+void Compressor::CommitRuntimeUpdates()
+{
+    detectorEqualizer_.CommitRuntimeUpdates();
+    RecalculateRuntime();
 }
 
 void Compressor::SetThreshold(float thresholdDb) noexcept
 {
-    state_.thresholdDb = thresholdDb;
+    runtimeState_.thresholdDb = thresholdDb;
 }
 
 void Compressor::SetRatio(float ratio) noexcept
 {
-    state_.ratio = ratio;
+    runtimeState_.ratio = ratio;
 }
 
 void Compressor::SetAttack(float attackMs) noexcept
 {
-    state_.attackMs = attackMs;
+    runtimeState_.attackMs = attackMs;
 
     RecalculateAttackCoefficient();
 }
 
 void Compressor::SetRelease(float releaseMs) noexcept
 {
-    state_.releaseMs = releaseMs;
+    runtimeState_.releaseMs = releaseMs;
 
     RecalculateReleaseCoefficient();
 }
 
 void Compressor::SetOutputDb(float outputDb)
 {
-    state_.outputDb = outputDb;
+    runtimeState_.outputDb = outputDb;
 
     RecalculateOutputGain();
 }
 
 void Compressor::SetMix(float mix) noexcept
 {
-    state_.mix = mix;
+    runtimeState_.mix = mix;
     RecalculateMix();
 }
 
 void Compressor::SetBypass(bool bypass) noexcept
 {
-    state_.bypass = bypass;
+    runtimeState_.bypass = bypass;
 }
 
 void Compressor::RecalculateRuntime()
@@ -260,34 +270,34 @@ void Compressor::RecalculateRuntime()
     RecalculateOutputGain();
     RecalculateMix();
 
-    runtimeState_.isNeutral = state_.bypass
-        || (state_.thresholdDb >= 0.0f
-            && state_.ratio <= 1.0f
-            && state_.outputDb == 0.0f);
+    runtimeState_.isNeutral = runtimeState_.bypass
+        || (runtimeState_.thresholdDb >= 0.0f
+            && runtimeState_.ratio <= 1.0f
+            && runtimeState_.outputDb == 0.0f);
 }
 
 void Compressor::RecalculateAttackCoefficient() noexcept
 {
     runtimeState_.attackCoefficient = CalculateTimeCoefficient(
-        state_.attackMs,
+        runtimeState_.attackMs,
         runtimeState_.sampleRate);
 }
 
 void Compressor::RecalculateReleaseCoefficient() noexcept
 {
     runtimeState_.releaseCoefficient = CalculateTimeCoefficient(
-        state_.releaseMs,
+        runtimeState_.releaseMs,
         runtimeState_.sampleRate);
 }
 
 void Compressor::RecalculateOutputGain()
 {
-    runtimeState_.outputGainLinear = std::pow(10.0, static_cast<double>(state_.outputDb) / 20.0);
+    runtimeState_.outputGainLinear = std::pow(10.0, static_cast<double>(runtimeState_.outputDb) / 20.0);
 }
 
 void Compressor::RecalculateMix() noexcept
 {
-    runtimeState_.wetMix = static_cast<double>(state_.mix);
+    runtimeState_.wetMix = static_cast<double>(runtimeState_.mix);
     runtimeState_.dryMix = 1.0 - runtimeState_.wetMix;
 }
 

@@ -24,22 +24,15 @@ void WriteParameter(
     consolidator::core::StatePath route,
     ParameterValue value)
 {
-    consolidator::core::StatePath path;
-    path.field = consolidator::core::StateField::DspParameter;
-    path.deviceId = route.GetDeviceId();
-    path.parameterId = route.GetParameterId();
-    path.depth = route.GetDepth();
-    for (std::size_t index = 0; index < path.depth; ++index)
-    {
-        path.nodes[index] = route.GetNode(index);
-    }
-    consolidator::core::StateResponseEntries applied;
-    const auto status = chain.WriteState(
-        {path, std::visit([](const auto& item) -> consolidator::core::StateValue { return item; }, value)},
-        applied);
-    assert(status == consolidator::core::StateWriteStatus::Applied ||
-           status == consolidator::core::StateWriteStatus::Unchanged);
-    assert(applied.size == 1);
+    static std::uint64_t revision = 0;
+    consolidator::core::DspStateBatch batch;
+    batch.updates[0] = consolidator::core::DspUpdate{
+        route,
+        value,
+        ++revision};
+    batch.count = 1;
+    batch.revision = revision;
+    chain.ApplyRuntimeUpdates(batch);
 }
 
 } // namespace

@@ -26,10 +26,12 @@ public:
     [[nodiscard]] double ProcessSample(double input) noexcept;
 
 
-    bool WriteParameter(
+    bool ApplyParameter(
         const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth);
+
+    void CommitRuntimeUpdates();
 
     void SetAttackMs(double attackMs);
     void SetReleaseMs(double releaseMs);

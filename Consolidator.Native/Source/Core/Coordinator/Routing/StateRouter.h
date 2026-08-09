@@ -16,19 +16,25 @@ public:
     {
     }
 
-    [[nodiscard]] std::vector<BankAddress> ResolveTargets(
+    [[nodiscard]] std::vector<BankAddress> ResolveWriteTargets(
         InstanceId sourceInstanceId,
         const StatePath& path) const;
 
-    [[nodiscard]] static bool IsBankOwned(const StatePath& path) noexcept;
+    [[nodiscard]] std::vector<BankAddress> ResolveConstraintDependencies(
+        InstanceId sourceInstanceId,
+        const StatePath& path) const;
 
-    [[nodiscard]] std::vector<GroupId> ResolveAffectedGroups(
-        InstanceId instanceId,
-        const StatePath& changedPath) const;
+    [[nodiscard]] std::vector<StatePath> ResolveTopologyConstraintDependencies(
+        const std::vector<BankAddress>& affectedBanks) const;
+
+    [[nodiscard]] static bool IsBankOwned(const StatePath& path) noexcept;
 
     [[nodiscard]] static StateEntry ForBank(StateEntry entry, dsp::BankId bankId);
 
 private:
+    [[nodiscard]] std::vector<BankAddress> ResolveConnectedComponent(
+        std::vector<BankAddress> seeds) const;
+
     const InstanceRegistry& registry_;
 };
 
