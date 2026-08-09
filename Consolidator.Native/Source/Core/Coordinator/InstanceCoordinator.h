@@ -24,10 +24,7 @@ public:
     static InstanceCoordinator& Get();
 
     void EnqueueCommand(InstanceId sourceInstanceId, Command command);
-    void RequestState(InstanceId instanceId, ReadStateCommand command);
     [[nodiscard]] std::optional<StateResponse> TryDequeueResponse(InstanceId instanceId);
-
-    [[nodiscard]] std::optional<BankState> GetBankState(InstanceId instanceId, dsp::BankId bankId) const;
 
     ~InstanceCoordinator();
 
@@ -43,9 +40,12 @@ private:
     void UnregisterInstance(InstanceId instanceId);
     void WorkerLoop(std::stop_token stopToken);
     void RouteCommand(const InstanceCommand& command);
-    void RouteChangeDspParameterCommand(
+    void RouteStateCommand(
         InstanceId sourceInstanceId,
-        const ChangeDspParameterCommand& command);
+        const StateCommand& command);
+    [[nodiscard]] std::vector<BankAddress> ResolveWriteTargets(
+        InstanceId sourceInstanceId,
+        const StatePath& path) const;
 
     void EnqueueForInstance(InstanceId instanceId, Command command);
     void RetryPendingDeliveries();
@@ -60,6 +60,7 @@ private:
     InstanceRegistry registry_;
     CommandQueue<InstanceCommand> commandQueue_;
     std::vector<PendingLocalCommand> pendingDeliveries_;
+    std::vector<StateResponse> pendingResponses_;
     mutable std::mutex registryMutex_;
     std::mutex wakeMutex_;
     std::condition_variable_any wakeCondition_;

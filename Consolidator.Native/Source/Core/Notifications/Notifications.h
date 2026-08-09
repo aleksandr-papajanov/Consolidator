@@ -11,7 +11,9 @@ namespace consolidator::core
 struct StateResponse
 {
     RequestId requestId;
-    StateSnapshot snapshot;
+    InstanceId responseInstanceId{0};
+    StateOperation operation;
+    StateResponseEntries entries;
 };
 
 // ---- Notifications: reactions to commands, produced by the system ----

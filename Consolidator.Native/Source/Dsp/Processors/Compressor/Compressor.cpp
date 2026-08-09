@@ -1,4 +1,4 @@
-﻿#include "Dsp/Processors/Compressor/Compressor.h"
+#include "Dsp/Processors/Compressor/Compressor.h"
 
 #include <algorithm>
 #include <cassert>
@@ -169,8 +169,8 @@ double Compressor::ProcessSample(double input, double gainLinear) const noexcept
     return compressed * runtimeState_.wetMix + input * runtimeState_.dryMix;
 }
 
-bool Compressor::ApplyStateParameter(
-    const ParameterRoute& route,
+bool Compressor::WriteOwnParameter(
+    const core::StatePath& route,
     const ParameterValue& value)
 {
     return state_.thresholdDb.Apply(route, value) ||
@@ -182,8 +182,8 @@ bool Compressor::ApplyStateParameter(
            state_.bypass.Apply(route, value);
 }
 
-bool Compressor::ApplyParameter(
-    const ParameterRoute& route,
+bool Compressor::WriteParameter(
+    const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
 {
@@ -194,7 +194,7 @@ bool Compressor::ApplyParameter(
 
     if (depth == route.GetDepth())
     {
-        return DspDevice::ApplyParameter(route, value, depth);
+        return DspDevice::WriteParameter(route, value, depth);
     }
 
     if (route.GetNode(depth) != RouteNodeId::Detector)
@@ -202,7 +202,7 @@ bool Compressor::ApplyParameter(
         return false;
     }
 
-    const bool isUpdated = detectorEqualizer_.ApplyParameter(route, value, depth + 1);
+    const bool isUpdated = detectorEqualizer_.WriteParameter(route, value, depth + 1);
     if (isUpdated)
     {
         RecalculateRuntime();

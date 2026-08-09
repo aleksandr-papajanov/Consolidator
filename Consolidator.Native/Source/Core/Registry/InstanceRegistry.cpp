@@ -40,6 +40,17 @@ bool InstanceRegistry::Contains(InstanceId instanceId) const noexcept
     return instances_.contains(instanceId);
 }
 
+std::vector<InstanceHandle> InstanceRegistry::GetInstances() const
+{
+    std::vector<InstanceHandle> instances;
+    instances.reserve(instances_.size());
+    for (const auto& [instanceId, instance] : instances_)
+    {
+        instances.push_back(instance);
+    }
+    return instances;
+}
+
 void InstanceRegistry::CacheBankGroup(BankAddress bankAddress, std::optional<GroupId> previousGroupId, std::optional<GroupId> nextGroupId)
 {
     if (previousGroupId)

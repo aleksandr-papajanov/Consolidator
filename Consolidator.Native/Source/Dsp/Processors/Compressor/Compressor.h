@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <atomic>
 #include <cstddef>
@@ -53,8 +53,8 @@ public:
         return runtimeState_;
     }
 
-    bool ApplyParameter(
-        const ParameterRoute& route,
+    bool WriteParameter(
+        const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth) override;
 
@@ -73,21 +73,21 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
+    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
     {
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Threshold}, state_.thresholdDb);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Ratio}, state_.ratio);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Attack}, state_.attackMs);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Release}, state_.releaseMs);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Gain}, state_.outputDb);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Mix}, state_.mix);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Bypass}, state_.bypass);
-        detectorEqualizer_.AppendState(path, snapshot, DeviceId::Compressor, RouteNodeId::Detector);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Threshold}, state_.thresholdDb);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Ratio}, state_.ratio);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Attack}, state_.attackMs);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Release}, state_.releaseMs);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Gain}, state_.outputDb);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Mix}, state_.mix);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Bypass}, state_.bypass);
+        detectorEqualizer_.ReadState(path, snapshot, DeviceId::Compressor, RouteNodeId::Detector);
     }
 
 private:
-    bool ApplyStateParameter(
-        const ParameterRoute& route,
+    bool WriteOwnParameter(
+        const core::StatePath& route,
         const ParameterValue& value) override;
 
     void RecalculateRuntime() override;

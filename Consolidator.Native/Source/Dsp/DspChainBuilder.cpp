@@ -1,4 +1,4 @@
-﻿#include "Dsp/DspChainBuilder.h"
+#include "Dsp/DspChainBuilder.h"
 
 #include "Core/Settings/DspDeviceSettings.h"
 #include "Dsp/Processors/Equalizer/Filters/BellFilter.h"

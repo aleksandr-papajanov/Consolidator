@@ -58,12 +58,12 @@ double DetectorEnvelopeFollower::ProcessSample(double input) noexcept
     return envelope_;
 }
 
-bool DetectorEnvelopeFollower::ApplyParameter(
-    const ParameterRoute& route,
+bool DetectorEnvelopeFollower::WriteParameter(
+    const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
 {
-    return filters_.ApplyParameter(route, value, depth);
+    return filters_.WriteParameter(route, value, depth);
 }
 
 void DetectorEnvelopeFollower::SetAttackMs(double attackMs)

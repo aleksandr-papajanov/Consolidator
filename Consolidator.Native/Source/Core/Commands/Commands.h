@@ -6,7 +6,6 @@
 
 #include "Core/Groups/GroupId.h"
 #include "Core/Instance/InstanceId.h"
-#include "Core/Parameters/ParameterRoute.h"
 #include "Core/Parameters/ParameterValue.h"
 #include "Core/State/StateProtocol.h"
 
@@ -15,16 +14,16 @@ namespace consolidator::core
 
 // ---- Forward declarations / placeholders for yet-unimplemented types ----
 
-enum class AnalyzerViewMode
-{
-    Spectrum,
-    Curve
-};
+// enum class AnalyzerViewMode
+// {
+//     Spectrum,
+//     Curve
+// };
 
-struct FitResult
-{
-    // Placeholder
-};
+// struct FitResult
+// {
+//     // Placeholder
+// };
 
 using SessionId = std::string;
 
@@ -37,145 +36,138 @@ using SessionId = std::string;
 //   - Saturator: drive/output/mix/bypass/reset
 //   - Saturator detector: frequency/Q/gain
 //
-// Every change is addressed by a hierarchical ParameterRoute + ParameterValue.
+// Every change is addressed by a hierarchical core::StatePath + ParameterValue.
 
-struct ChangeDspParameterCommand
+struct StateCommand
 {
-    dsp::ParameterRoute route;
-    dsp::ParameterValue value;
-};
-
-struct ReadStateCommand
-{
-    RequestId requestId;
-    StatePath path;
+    StateOperation operation;
+    StateMessage message;
 };
 
 // ---- Group commands ----
 
-struct JoinGroupsCommand
-{
-    std::vector<GroupId> groupIds;
-};
+// struct JoinGroupsCommand
+// {
+//     std::vector<GroupId> groupIds;
+// };
 
-struct CommitGroupCommand
-{
-    GroupId groupId;
-};
+// struct CommitGroupCommand
+// {
+//     GroupId groupId;
+// };
 
-struct CommitAllGroupsCommand
-{
-};
+// struct CommitAllGroupsCommand
+// {
+// };
 
-struct SelectGroupCommand
-{
-    GroupId groupId;
-};
+// struct SelectGroupCommand
+// {
+//     GroupId groupId;
+// };
 
-struct SetBankLinkCommand
-{
-    GroupId bankId;
-    std::string linkId;
-};
+// struct SetBankLinkCommand
+// {
+//     GroupId bankId;
+//     std::string linkId;
+// };
 
-struct ResetGroupCommand
-{
-    GroupId groupId;
-};
+// struct ResetGroupCommand
+// {
+//     GroupId groupId;
+// };
 
-struct ResetAllGroupsCommand
-{
-};
+// struct ResetAllGroupsCommand
+// {
+// };
 
-// ---- Analyzer commands ----
+// // ---- Analyzer commands ----
 
-struct ClearAnalyzerCommand
-{
-};
+// struct ClearAnalyzerCommand
+// {
+// };
 
-struct SetAnalyzerViewCommand
-{
-    bool visible = false;
-    AnalyzerViewMode mode = AnalyzerViewMode::Spectrum;
-};
+// struct SetAnalyzerViewCommand
+// {
+//     bool visible = false;
+//     AnalyzerViewMode mode = AnalyzerViewMode::Spectrum;
+// };
 
-// ---- History commands ----
+// // ---- History commands ----
 
-struct BeginHistoryCommand
-{
-    std::string operationId;
-};
+// struct BeginHistoryCommand
+// {
+//     std::string operationId;
+// };
 
-struct EndHistoryCommand
-{
-    std::string operationId;
-};
+// struct EndHistoryCommand
+// {
+//     std::string operationId;
+// };
 
-struct UndoCommand
-{
-};
+// struct UndoCommand
+// {
+// };
 
-struct RedoCommand
-{
-};
+// struct RedoCommand
+// {
+// };
 
-struct RestoreHistoryOperationCommand
-{
-    std::string operationId;
-    bool isUndo = false;
-};
+// struct RestoreHistoryOperationCommand
+// {
+//     std::string operationId;
+//     bool isUndo = false;
+// };
 
-// ---- Fit commands ----
+// // ---- Fit commands ----
 
-struct StartFitCommand
-{
-    std::vector<double> curveDb;
-};
+// struct StartFitCommand
+// {
+//     std::vector<double> curveDb;
+// };
 
-struct CancelFitCommand
-{
-    SessionId sessionId;
-};
+// struct CancelFitCommand
+// {
+//     SessionId sessionId;
+// };
 
-struct ClearFitCommand
-{
-};
+// struct ClearFitCommand
+// {
+// };
 
-struct CompleteFitCommand
-{
-    FitResult result;
-};
+// struct CompleteFitCommand
+// {
+//     FitResult result;
+// };
 
-struct FailFitCommand
-{
-    SessionId sessionId;
-    std::string error;
-};
+// struct FailFitCommand
+// {
+//     SessionId sessionId;
+//     std::string error;
+// };
 
 // ---- Command variant ----
 
 using Command = std::variant<
-    ChangeDspParameterCommand,
-    ReadStateCommand,
-    JoinGroupsCommand,
-    CommitGroupCommand,
-    CommitAllGroupsCommand,
-    SelectGroupCommand,
-    SetBankLinkCommand,
-    ResetGroupCommand,
-    ResetAllGroupsCommand,
-    ClearAnalyzerCommand,
-    SetAnalyzerViewCommand,
-    StartFitCommand,
-    CancelFitCommand,
-    ClearFitCommand,
-    CompleteFitCommand,
-    FailFitCommand,
-    BeginHistoryCommand,
-    EndHistoryCommand,
-    UndoCommand,
-    RedoCommand,
-    RestoreHistoryOperationCommand
+    StateCommand
+    // JoinGroupsCommand,
+    // CommitGroupCommand,
+    // CommitAllGroupsCommand,
+    // SelectGroupCommand,
+    // SetBankLinkCommand,
+    // ResetGroupCommand,
+    // ResetAllGroupsCommand,
+    // ClearAnalyzerCommand,
+    // SetAnalyzerViewCommand,
+    // StartFitCommand,
+    // CancelFitCommand,
+    // ClearFitCommand,
+    // CompleteFitCommand,
+    // FailFitCommand,
+    // BeginHistoryCommand,
+    // EndHistoryCommand,
+    // UndoCommand,
+    // RedoCommand,
+    // RestoreHistoryOperationCommand
 >;
 
 struct InstanceCommand

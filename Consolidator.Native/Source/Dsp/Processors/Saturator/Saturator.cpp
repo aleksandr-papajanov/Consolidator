@@ -1,4 +1,4 @@
-﻿#include "Dsp/Processors/Saturator/Saturator.h"
+#include "Dsp/Processors/Saturator/Saturator.h"
 
 #include <algorithm>
 #include <cassert>
@@ -108,8 +108,8 @@ double Saturator::ApplyWaveshaper(double input, double drive) const noexcept
     return std::tanh(input * safeDrive) / normalization;
 }
 
-bool Saturator::ApplyStateParameter(
-    const ParameterRoute& route,
+bool Saturator::WriteOwnParameter(
+    const core::StatePath& route,
     const ParameterValue& value)
 {
     return state_.drive.Apply(route, value) ||
@@ -119,8 +119,8 @@ bool Saturator::ApplyStateParameter(
            state_.bypass.Apply(route, value);
 }
 
-bool Saturator::ApplyParameter(
-    const ParameterRoute& route,
+bool Saturator::WriteParameter(
+    const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
 {
@@ -131,7 +131,7 @@ bool Saturator::ApplyParameter(
 
     if (depth == route.GetDepth())
     {
-        return DspDevice::ApplyParameter(route, value, depth);
+        return DspDevice::WriteParameter(route, value, depth);
     }
 
     if (route.GetNode(depth) != RouteNodeId::Detector)
@@ -142,7 +142,7 @@ bool Saturator::ApplyParameter(
     bool isUpdated = false;
     for (auto& detector : detectors_)
     {
-        isUpdated = detector.ApplyParameter(route, value, depth + 1) || isUpdated;
+        isUpdated = detector.WriteParameter(route, value, depth + 1) || isUpdated;
     }
 
     if (isUpdated)

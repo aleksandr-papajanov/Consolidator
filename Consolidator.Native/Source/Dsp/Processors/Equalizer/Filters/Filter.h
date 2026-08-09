@@ -77,13 +77,13 @@ public:
         return runtimeState_;
     }
 
-    void AppendState(
+    void ReadState(
         const core::StatePath& path,
         core::StateSnapshot& snapshot,
         DeviceId deviceId,
         RouteNodeId parentNode) const;
 
-    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
+    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
 
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
@@ -118,8 +118,8 @@ protected:
     FilterRuntimeState runtimeState_;
 
 private:
-    bool ApplyStateParameter(
-        const ParameterRoute& route,
+    bool WriteOwnParameter(
+        const core::StatePath& route,
         const ParameterValue& value) override;
 
 

@@ -4,8 +4,7 @@
 #include <utility>
 
 #include "Core/Coordinator/InstanceCoordinator.h"
-#include "Core/Instance/Handlers/ChangeDspParameterCommandHandler.h"
-#include "Core/Instance/Handlers/ReadStateCommandHandler.h"
+#include "Core/Instance/Handlers/StateCommandHandler.h"
 #include "Dsp/DspChainBuilder.h"
 #include "Dsp/Processors/DspChain.h"
 
@@ -29,12 +28,18 @@ void ConsolidatorInstance::Process(const double* mainInput,
                                    double* referenceOutput,
                                    std::size_t frameCount)
 {
-    if (pendingResponse_)
+    while (pendingResponseCount_ > 0)
     {
-        if (responseQueue_.TryEnqueue(std::move(*pendingResponse_)))
+        if (!responseQueue_.TryEnqueue(std::move(pendingResponses_[0])))
         {
-            pendingResponse_.reset();
+            break;
         }
+
+        for (std::size_t index = 1; index < pendingResponseCount_; ++index)
+        {
+            pendingResponses_[index - 1] = std::move(pendingResponses_[index]);
+        }
+        --pendingResponseCount_;
     }
 
     ProcessCommandQueue();
@@ -50,6 +55,19 @@ void ConsolidatorInstance::EnqueueCommand(Command command)
 InstanceId ConsolidatorInstance::GetInstanceId() const noexcept
 {
     return state_.GetInstanceId();
+}
+
+dsp::DspChain& ConsolidatorInstance::GetDspChain() noexcept
+{
+    return *dspChain_;
+}
+
+void ConsolidatorInstance::QueueStateResponse(StateResponse response) noexcept
+{
+    if (!responseQueue_.TryEnqueue(response))
+    {
+        StorePendingResponse(std::move(response));
+    }
 }
 
 bool ConsolidatorInstance::EnqueueLocalCommand(Command command)
@@ -76,13 +94,9 @@ void ConsolidatorInstance::HandleCommand(const Command& command)
         [this](const auto& typedCommand)
         {
             using CommandType = std::decay_t<decltype(typedCommand)>;
-            if constexpr (std::is_same_v<CommandType, ChangeDspParameterCommand>)
+            if constexpr (std::is_same_v<CommandType, StateCommand>)
             {
-                HandleChangeDspParameterCommand(*this, typedCommand);
-            }
-            else if constexpr (std::is_same_v<CommandType, ReadStateCommand>)
-            {
-                HandleReadStateCommand(*this, typedCommand);
+                HandleStateCommand(*this, typedCommand);
             }
         },
         command);
@@ -96,6 +110,16 @@ std::optional<StateResponse> ConsolidatorInstance::TryDequeueResponse()
 void ConsolidatorInstance::RecordResponseQueueOverflow() noexcept
 {
     responseQueueOverflowCount_.fetch_add(1, std::memory_order_relaxed);
+}
+
+void ConsolidatorInstance::StorePendingResponse(StateResponse response) noexcept
+{
+    if (pendingResponseCount_ < pendingResponses_.size())
+    {
+        pendingResponses_[pendingResponseCount_++] = std::move(response);
+    }
+
+    RecordResponseQueueOverflow();
 }
 
 } // namespace consolidator::core

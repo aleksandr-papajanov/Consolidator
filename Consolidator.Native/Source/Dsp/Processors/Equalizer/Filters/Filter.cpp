@@ -7,7 +7,7 @@
 namespace consolidator::dsp
 {
 
-void Filter::AppendState(
+void Filter::ReadState(
     const core::StatePath& path,
     core::StateSnapshot& snapshot,
     DeviceId deviceId,
@@ -15,15 +15,15 @@ void Filter::AppendState(
 {
     const auto filterNode = static_cast<RouteNodeId>(
         static_cast<std::uint8_t>(RouteNodeId::Filter1) + GetElementIndex());
-    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Frequency, parentNode, filterNode}, state_.frequencyHz);
-    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Q, parentNode, filterNode}, state_.q);
-    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Gain, parentNode, filterNode}, state_.gainDb);
-    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Bypass, parentNode, filterNode}, state_.bypass);
+    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Frequency, parentNode, filterNode}, state_.frequencyHz);
+    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Q, parentNode, filterNode}, state_.q);
+    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Gain, parentNode, filterNode}, state_.gainDb);
+    AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Bypass, parentNode, filterNode}, state_.bypass);
 }
 
-void Filter::AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const
+void Filter::ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const
 {
-    AppendState(path, snapshot, DeviceId::Equalizer, RouteNodeId::Detector);
+    ReadState(path, snapshot, DeviceId::Equalizer, RouteNodeId::Detector);
 }
 
 Filter::Filter(
@@ -74,8 +74,8 @@ void Filter::Process(
     }
 }
 
-bool Filter::ApplyStateParameter(
-    const ParameterRoute& route,
+bool Filter::WriteOwnParameter(
+    const core::StatePath& route,
     const ParameterValue& value)
 {
     const bool isUpdated =

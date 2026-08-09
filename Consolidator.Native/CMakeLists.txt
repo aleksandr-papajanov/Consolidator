@@ -32,10 +32,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
     Source/Core/Instance/InstanceId.h
-    Source/Core/Instance/Handlers/ChangeDspParameterCommandHandler.h
-    Source/Core/Instance/Handlers/ChangeDspParameterCommandHandler.cpp
-    Source/Core/Instance/Handlers/ReadStateCommandHandler.h
-    Source/Core/Instance/Handlers/ReadStateCommandHandler.cpp
+    Source/Core/Instance/Handlers/StateCommandHandler.h
+    Source/Core/Instance/Handlers/StateCommandHandler.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
     Source/Core/State/InstanceState.h
@@ -46,7 +44,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/State/EqualizerState.h
     Source/Core/State/FilterState.h
     Source/Core/State/StateProtocol.h
-    Source/Core/State/IStateSource.h
+    Source/Core/State/IStateNode.h
     Source/Core/Groups/GroupId.h
     Source/Core/Groups/InstanceGroup.h
     Source/Core/Commands/Commands.h
@@ -62,9 +60,6 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Parameters/ParameterValue.h
     Source/Core/Parameters/DspIds.h
     Source/Core/Parameters/DspParameter.h
-    Source/Core/Parameters/ParameterRoute.h
-    Source/Core/Parameters/RoutedParameterChange.h
-    Source/Dsp/Processors/DspNode.h
     Source/Dsp/Utilities/TimeCoefficient.h
     Source/Dsp/Processors/Gain/Gain.h
     Source/Dsp/Processors/Gain/Gain.cpp

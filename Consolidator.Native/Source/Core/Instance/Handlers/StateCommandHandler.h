@@ -7,8 +7,8 @@ namespace consolidator::core
 
 class ConsolidatorInstance;
 
-void HandleReadStateCommand(
+void HandleStateCommand(
     ConsolidatorInstance& instance,
-    const ReadStateCommand& command);
+    const StateCommand& command);
 
 } // namespace consolidator::core

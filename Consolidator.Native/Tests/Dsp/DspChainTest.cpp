@@ -1,5 +1,5 @@
-﻿#include "Dsp/DspChainBuilder.h"
-#include "Core/Parameters/RoutedParameterChange.h"
+#include "Dsp/DspChainBuilder.h"
+#include "Core/State/StateProtocol.h"
 #include "Dsp/Processors/Compressor/Compressor.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"
@@ -15,6 +15,30 @@
 #include <memory>
 
 using namespace consolidator::dsp;
+
+namespace
+{
+
+void WriteParameter(
+    DspChain& chain,
+    consolidator::core::StatePath route,
+    ParameterValue value)
+{
+    consolidator::core::StatePath path;
+    path.field = consolidator::core::StateField::DspParameter;
+    path.deviceId = route.GetDeviceId();
+    path.parameterId = route.GetParameterId();
+    path.depth = route.GetDepth();
+    for (std::size_t index = 0; index < path.depth; ++index)
+    {
+        path.nodes[index] = route.GetNode(index);
+    }
+    consolidator::core::StateResponseEntries applied;
+    assert(chain.WriteState({path, std::visit([](const auto& item) -> consolidator::core::StateValue { return item; }, value)}, applied));
+    assert(applied.size == 1);
+}
+
+} // namespace
 
 int main()
 {
@@ -59,15 +83,14 @@ int main()
     assert(bell0->GetElementIndex() == 4);
 
     // Change Filter3 frequency on Bank0 — should NOT affect other banks or filters
-    const RoutedParameterChange freqChange{
-        ParameterRoute{
+    WriteParameter(
+        *chain,
+        consolidator::core::StatePath{
             DeviceId::Equalizer,
             ParameterId::Frequency,
             RouteNodeId::Bank0,
             RouteNodeId::Filter3},
-        ParameterValue{1200.0f}
-    };
-    chain->ApplyParameterChange(freqChange);
+        ParameterValue{1200.0f});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
 
     const auto* lowShelf = dynamic_cast<const LowShelfFilter*>(equalizer->GetFilter(2));
@@ -78,31 +101,31 @@ int main()
     assert(bell0->GetState().frequencyHz == 1000.0); // untouched
     assert(equalizer->IsNeutral());
 
-    chain->ApplyParameterChange(RoutedParameterChange{
-        ParameterRoute{
+    WriteParameter(*chain,
+        consolidator::core::StatePath{
             DeviceId::Equalizer,
             ParameterId::Gain,
             RouteNodeId::Bank0,
             RouteNodeId::Filter3},
-        ParameterValue{6.0f}});
+        ParameterValue{6.0f});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
     assert(!equalizer->IsNeutral());
 
-    chain->ApplyParameterChange(RoutedParameterChange{
-        ParameterRoute{
+    WriteParameter(*chain,
+        consolidator::core::StatePath{
             DeviceId::Equalizer,
             ParameterId::Bypass,
             RouteNodeId::Bank0},
-        ParameterValue{true}});
+        ParameterValue{true});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
     assert(equalizer->IsNeutral());
 
-    chain->ApplyParameterChange(RoutedParameterChange{
-        ParameterRoute{DeviceId::Saturator, ParameterId::Drive},
-        ParameterValue{2.0f}});
-    chain->ApplyParameterChange(RoutedParameterChange{
-        ParameterRoute{DeviceId::Compressor, ParameterId::Threshold},
-        ParameterValue{-18.0f}});
+    WriteParameter(*chain,
+        consolidator::core::StatePath{DeviceId::Saturator, ParameterId::Drive},
+        ParameterValue{2.0f});
+    WriteParameter(*chain,
+        consolidator::core::StatePath{DeviceId::Compressor, ParameterId::Threshold},
+        ParameterValue{-18.0f});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
 
     assert(static_cast<const Saturator*>(chain->GetDevice(1))->GetState().drive == 2.0f);

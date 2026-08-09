@@ -1,4 +1,4 @@
-﻿#include "Dsp/Processors/Gain/Gain.h"
+#include "Dsp/Processors/Gain/Gain.h"
 
 #include <algorithm>
 #include <cmath>

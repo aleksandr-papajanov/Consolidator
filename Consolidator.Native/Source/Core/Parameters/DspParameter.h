@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <variant>
 
-#include "Core/Parameters/ParameterRoute.h"
+#include "Core/State/StateProtocol.h"
 #include "Core/Parameters/ParameterValue.h"
 
 namespace consolidator::dsp
@@ -25,7 +25,7 @@ struct DspParameter
         return *this;
     }
 
-    [[nodiscard]] bool Apply(const ParameterRoute& route, const ParameterValue& updatedValue) noexcept
+    [[nodiscard]] bool Apply(const core::StatePath& route, const ParameterValue& updatedValue) noexcept
     {
         if (route.GetParameterId() != id)
         {
@@ -58,7 +58,7 @@ struct DspParameter<bool>
     constexpr operator bool() const noexcept { return value; }
     constexpr DspParameter& operator=(bool updatedValue) noexcept { value = updatedValue; return *this; }
 
-    [[nodiscard]] bool Apply(const ParameterRoute& route, const ParameterValue& updatedValue) noexcept
+    [[nodiscard]] bool Apply(const core::StatePath& route, const ParameterValue& updatedValue) noexcept
     {
         if (route.GetParameterId() != id)
         {

@@ -1,4 +1,4 @@
-﻿#include "Dsp/Processors/Equalizer/Equalizer.h"
+#include "Dsp/Processors/Equalizer/Equalizer.h"
 
 
 namespace consolidator::dsp
@@ -65,8 +65,8 @@ double Equalizer::ProcessSample(double input) noexcept
     return output;
 }
 
-bool Equalizer::ApplyParameter(
-    const ParameterRoute& route,
+bool Equalizer::WriteParameter(
+    const core::StatePath& route,
     const ParameterValue& value,
     std::size_t depth)
 {
@@ -77,7 +77,7 @@ bool Equalizer::ApplyParameter(
 
     if (depth == route.GetDepth())
     {
-        return DspDevice::ApplyParameter(route, value, depth);
+        return DspDevice::WriteParameter(route, value, depth);
     }
 
     const RouteNodeId node = route.GetNode(depth);
@@ -86,7 +86,7 @@ bool Equalizer::ApplyParameter(
 
     if (static_cast<std::size_t>(node) < filterOffset)
     {
-        return ApplyParameter(route, value, depth + 1);
+        return WriteParameter(route, value, depth + 1);
     }
 
     const std::size_t filterIndex = static_cast<std::size_t>(node) - filterOffset;
@@ -96,7 +96,7 @@ bool Equalizer::ApplyParameter(
         return false;
     }
 
-    const bool isUpdated = filter->ApplyParameter(route, value, depth + 1);
+    const bool isUpdated = filter->WriteParameter(route, value, depth + 1);
     if (isUpdated)
     {
         RecalculateRuntime();
@@ -114,7 +114,7 @@ void Equalizer::AddFilter(std::unique_ptr<Filter> filter)
     }
 }
 
-void Equalizer::AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const
+void Equalizer::ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const
 {
     if (!bankId_)
     {
@@ -123,15 +123,15 @@ void Equalizer::AppendState(const core::StatePath& path, core::StateSnapshot& sn
 
     const auto bankNode = static_cast<RouteNodeId>(
         static_cast<std::uint8_t>(RouteNodeId::Bank0) + detail::ToIndex(*bankId_));
-    AppendParameter(path, snapshot, ParameterRoute{DeviceId::Equalizer, ParameterId::Bypass, bankNode}, state_.bypass);
+    AppendParameter(path, snapshot, core::StatePath{DeviceId::Equalizer, ParameterId::Bypass, bankNode}, state_.bypass);
 
     for (const auto& filter : filters_)
     {
-        filter->AppendState(path, snapshot, DeviceId::Equalizer, bankNode);
+        filter->ReadState(path, snapshot, DeviceId::Equalizer, bankNode);
     }
 }
 
-void Equalizer::AppendState(
+void Equalizer::ReadState(
     const core::StatePath& path,
     core::StateSnapshot& snapshot,
     DeviceId deviceId,
@@ -139,12 +139,12 @@ void Equalizer::AppendState(
 {
     for (const auto& filter : filters_)
     {
-        filter->AppendState(path, snapshot, deviceId, parentNode);
+        filter->ReadState(path, snapshot, deviceId, parentNode);
     }
 }
 
-bool Equalizer::ApplyStateParameter(
-    const ParameterRoute& route,
+bool Equalizer::WriteOwnParameter(
+    const core::StatePath& route,
     const ParameterValue& value)
 {
     return state_.bypass.Apply(route, value);
@@ -204,7 +204,7 @@ const Filter* Equalizer::FindFilter(
     {
         if ((filterElementKind_ != detail::ElementKind::EqFilter ||
              f->GetElementKind() == elementKind) &&
-            f->GetElementIndex() == elementIndex)
+             f->GetElementIndex() == elementIndex)
         {
             return f.get();
         }

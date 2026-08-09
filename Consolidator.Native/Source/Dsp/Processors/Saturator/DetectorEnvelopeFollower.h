@@ -26,8 +26,8 @@ public:
     [[nodiscard]] double ProcessSample(double input) noexcept;
 
 
-    bool ApplyParameter(
-        const ParameterRoute& route,
+    bool WriteParameter(
+        const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth);
 

@@ -1,12 +1,11 @@
-﻿#pragma once
+#pragma once
 
 #include <memory>
 #include <optional>
 #include <span>
 #include <vector>
 
-#include "Core/Parameters/RoutedParameterChange.h"
-#include "Core/State/IStateSource.h"
+#include "Core/State/IStateNode.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::core
@@ -16,7 +15,7 @@ namespace consolidator::core
 namespace consolidator::dsp
 {
 
-class DspChain final : public core::IStateSource
+class DspChain final : public core::IStateNode
 {
 public:
     DspChain() = default;
@@ -26,8 +25,8 @@ public:
     DspChain& operator=(const DspChain&) = delete;
 
     void AddDevice(std::unique_ptr<DspDevice> device);
-    void ApplyParameterChange(const RoutedParameterChange& change);
-    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
+    void ReadState(const core::StatePath& path, core::StateResponseEntries& snapshot) const override;
+    bool WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied) override;
 
     void Process(const double* input,
                  double* interim,

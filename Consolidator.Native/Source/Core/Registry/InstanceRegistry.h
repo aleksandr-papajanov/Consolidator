@@ -34,6 +34,7 @@ public:
     [[nodiscard]] InstanceHandle FindInstance(InstanceId instanceId) const noexcept;
     [[nodiscard]] std::span<const BankAddress> FindGroupMembers(GroupId groupId) const noexcept;
     [[nodiscard]] bool Contains(InstanceId instanceId) const noexcept;
+    [[nodiscard]] std::vector<InstanceHandle> GetInstances() const;
 
     void CacheBankGroup(BankAddress bankAddress, std::optional<GroupId> previousGroupId, std::optional<GroupId> nextGroupId);
 

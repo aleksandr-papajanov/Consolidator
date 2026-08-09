@@ -5,6 +5,25 @@
 namespace consolidator::dsp
 {
 
+enum class RouteNodeId : std::uint8_t
+{
+    Detector,
+    Bank0,
+    Bank1,
+    Bank2,
+    Bank3,
+    Bank4,
+    Bank5,
+    Bank6,
+    Filter1,
+    Filter2,
+    Filter3,
+    Filter4,
+    Filter5,
+    Filter6,
+    Filter7
+};
+
 enum class DeviceId : std::uint8_t
 {
     MainInputGain,

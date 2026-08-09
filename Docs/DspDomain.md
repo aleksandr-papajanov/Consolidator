@@ -24,16 +24,18 @@ Input Gain → Saturator → Compressor → Equalizer banks → Output Gain
 
 ## Маршрутизация параметров
 
-Параметры передаются как `RoutedParameterChange`:
+Параметры передаются как `StateEntry` с `StateField::DspParameter` и точным `ParameterRoute`:
 
 ```cpp
-RoutedParameterChange{
-    ParameterRoute{
-        DeviceId::Equalizer,
-        ParameterId::Gain,
-        RouteNodeId::Bank0,
-        RouteNodeId::Filter3},
-    ParameterValue{6.0f}
+StateEntry{
+    StatePath{
+        .field = StateField::DspParameter,
+        .parameterRoute = ParameterRoute{
+            DeviceId::Equalizer,
+            ParameterId::Gain,
+            RouteNodeId::Bank0,
+            RouteNodeId::Filter3}},
+    StateValue{6.0f}
 };
 ```
 

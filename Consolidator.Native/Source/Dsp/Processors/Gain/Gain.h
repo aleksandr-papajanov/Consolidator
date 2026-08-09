@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -45,10 +45,10 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
+    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
     {
-        AppendParameter(path, snapshot, ParameterRoute{GetDeviceId(), ParameterId::Gain}, state_.gainDb);
-        AppendParameter(path, snapshot, ParameterRoute{GetDeviceId(), ParameterId::Bypass}, state_.bypass);
+        AppendParameter(path, snapshot, core::StatePath{GetDeviceId(), ParameterId::Gain}, state_.gainDb);
+        AppendParameter(path, snapshot, core::StatePath{GetDeviceId(), ParameterId::Bypass}, state_.bypass);
     }
 
 private:

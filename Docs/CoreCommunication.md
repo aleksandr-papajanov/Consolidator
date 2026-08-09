@@ -47,7 +47,7 @@ The shared parameter model lives in `Source/Core/Parameters`:
 - device, bank, filter, and parameter identifiers;
 - `ParameterValue`;
 - `ParameterRoute`;
-- `RoutedParameterChange`;
+- `ParameterRoute` inside a `StatePath` for DSP parameter state;
 - `DspParameter<T>`.
 
 These types are in Core because commands, instance state, coordination, and
@@ -77,10 +77,16 @@ whether a DSP command applies to the source instance only or to every bank in
 the selected bank's group. For linked equalizer banks, it rewrites the bank
 segment of `ParameterRoute` for each target bank before publication.
 
-## DSP commands
+## State protocol
 
-`ChangeDspParameterCommand` is the first supported command. Its execution is
-implemented by `Instance/Handlers/ChangeDspParameterCommandHandler.cpp`.
+Addressable state uses one bidirectional `StateCommand` protocol. A command
+contains a `StateOperation` (`Read` or `Write`) and a bounded `StateMessage` of
+`StateEntry` values. `StatePath` is a prefix query for reads and a complete
+address for writes. `IStateNode` owns both operations: `ReadState()` appends
+matching values, while `WriteState()` appends only values actually applied
+after validation.
+
+DSP parameter writes are no longer a separate command type.
 `ConsolidatorInstance` does not expose DSP parameter application as public API.
 
 At the beginning of every audio callback, `ConsolidatorInstance::Process()`
@@ -105,25 +111,25 @@ implemented. The next optimization is a per-instance parameter mailbox keyed
 by parameter address, while rare event commands continue to use the SPSC
 queue.
 
-## State reads
+## State reads and writes
 
 `InstanceCoordinator` is the command/response boundary; `InstanceRegistry`
 remains only an index of instance references and group membership. It never
 stores a copy of an instance or DSP state.
 
-All reads use one protocol:
+All state access uses one protocol:
 
 ```text
-ReadStateCommand { requestId, StatePath }
+StateCommand { Read | Write, StateMessage }
   -> coordinator global queue
   -> instance local queue
-  -> ReadStateCommandHandler on the audio owner
-  -> StateResponse { requestId, StateSnapshot }
+  -> StateCommandHandler on the audio owner
+  -> StateResponse { requestId, operation, StateSnapshot }
   -> instance response queue
 ```
 
-`StatePath` is a prefix path. An empty path requests all state; an instance,
-device, bank-node, or parameter path narrows the result. `IStateSource`
+For reads, `StatePath` is a prefix path. An empty query requests all state; an instance,
+device, bank-node, or parameter path narrows the result. `IStateNode`
 receives the path and appends only matching entries. `InstanceState` appends
 topology entries, while `DspChain` delegates to each `DspDevice`.
 

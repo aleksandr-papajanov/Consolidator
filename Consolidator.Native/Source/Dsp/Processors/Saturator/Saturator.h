@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <array>
 #include <cstddef>
@@ -52,8 +52,8 @@ public:
         return detectors_[channel];
     }
 
-    bool ApplyParameter(
-        const ParameterRoute& route,
+    bool WriteParameter(
+        const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth) override;
 
@@ -62,21 +62,21 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
+    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
     {
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Drive}, state_.drive);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Gain}, state_.outputDb);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Mix}, state_.mix);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Type}, state_.detectorAmount);
-        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Bypass}, state_.bypass);
-        detectors_[0].GetEqualizer().AppendState(path, snapshot, DeviceId::Saturator, RouteNodeId::Detector);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Drive}, state_.drive);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Gain}, state_.outputDb);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Mix}, state_.mix);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Type}, state_.detectorAmount);
+        AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Bypass}, state_.bypass);
+        detectors_[0].GetEqualizer().ReadState(path, snapshot, DeviceId::Saturator, RouteNodeId::Detector);
     }
 
 private:
     static constexpr std::size_t kMaximumChannelCount = 2;
 
-    bool ApplyStateParameter(
-        const ParameterRoute& route,
+    bool WriteOwnParameter(
+        const core::StatePath& route,
         const ParameterValue& value) override;
     void RecalculateRuntime() override;
 

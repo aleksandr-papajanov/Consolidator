@@ -2,12 +2,12 @@
 
 #include <atomic>
 #include <cstddef>
+#include <array>
 #include <memory>
 #include "Core/Commands/Commands.h"
 #include "Core/Commands/SpscCommandQueue.h"
 #include "Core/State/InstanceState.h"
 #include "Core/Notifications/Notifications.h"
-#include "Core/Parameters/RoutedParameterChange.h"
 
 namespace consolidator::dsp
 {
@@ -19,13 +19,9 @@ namespace consolidator::core
 
 class ConsolidatorInstance;
 
-void HandleReadStateCommand(
+void HandleStateCommand(
     ConsolidatorInstance& instance,
-    const ReadStateCommand& command);
-
-void HandleChangeDspParameterCommand(
-    ConsolidatorInstance& instance,
-    const ChangeDspParameterCommand& command);
+    const StateCommand& command);
 
 class ConsolidatorInstance
 {
@@ -47,20 +43,21 @@ public:
     void EnqueueCommand(Command command);
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
-    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
-    void RecordResponseQueueOverflow() noexcept;
+    [[nodiscard]] InstanceState& GetState() noexcept { return state_; }
+    [[nodiscard]] dsp::DspChain& GetDspChain() noexcept;
+    void QueueStateResponse(StateResponse response) noexcept;
 
 private:
     friend class InstanceCoordinator;
-    friend void HandleReadStateCommand(
+    friend void HandleStateCommand(
         ConsolidatorInstance& instance,
-        const ReadStateCommand& command);
-    friend void HandleChangeDspParameterCommand(
-        ConsolidatorInstance& instance,
-        const ChangeDspParameterCommand& command);
+        const StateCommand& command);
 
     [[nodiscard]] bool EnqueueLocalCommand(Command command);
+    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
     void RecordLocalQueueOverflow() noexcept;
+    void RecordResponseQueueOverflow() noexcept;
+    void StorePendingResponse(StateResponse response) noexcept;
     void ProcessCommandQueue();
     void HandleCommand(const Command& command);
 
@@ -71,8 +68,9 @@ private:
     SpscCommandQueue<Command, 128> commandQueue_;
     std::atomic<std::size_t> localQueueOverflowCount_{0};
     std::atomic<std::size_t> responseQueueOverflowCount_{0};
-    SpscCommandQueue<StateResponse, 32> responseQueue_;
-    std::optional<StateResponse> pendingResponse_;
+    SpscCommandQueue<StateResponse, 4> responseQueue_;
+    std::array<StateResponse, 4> pendingResponses_{};
+    std::size_t pendingResponseCount_{0};
 };
 
 } // namespace consolidator::core

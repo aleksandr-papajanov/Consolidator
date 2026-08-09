@@ -9,11 +9,15 @@ int main()
     consolidator::core::ConsolidatorInstance instance;
 
 
-    instance.EnqueueCommand(consolidator::core::ChangeDspParameterCommand{
-        consolidator::dsp::ParameterRoute{
-            consolidator::dsp::DeviceId::MainInputGain,
-            consolidator::dsp::ParameterId::Gain},
-        consolidator::dsp::ParameterValue{6.0f}});
+    consolidator::core::StateRequestEntries entries;
+    consolidator::core::StatePath path;
+    path.field = consolidator::core::StateField::DspParameter;
+    path.deviceId = consolidator::dsp::DeviceId::MainInputGain;
+    path.parameterId = consolidator::dsp::ParameterId::Gain;
+    assert(entries.TryAppend({path, 6.0f}));
+    instance.EnqueueCommand(consolidator::core::StateCommand{
+        consolidator::core::StateOperation::Write,
+        {1, instance.GetInstanceId(), entries}});
 
     return 0;
 }

@@ -5,12 +5,12 @@
 #include <cstdint>
 #include "Core/State/BankState.h"
 #include "Core/Instance/InstanceId.h"
-#include "Core/State/IStateSource.h"
+#include "Core/State/IStateNode.h"
 
 namespace consolidator::core
 {
 
-class InstanceState final : public IStateSource
+class InstanceState final : public IStateNode
 {
 public:
     static constexpr std::size_t kBankCount = 7;
@@ -21,9 +21,14 @@ public:
     [[nodiscard]] dsp::BankId GetSelectedBankId() const noexcept { return selectedBankId_; }
     [[nodiscard]] const BankState& GetBankState(dsp::BankId bankId) const noexcept;
 
-    void AppendState(
+    void ReadState(
         const StatePath& path,
-        StateSnapshot& snapshot) const override;
+        StateResponseEntries& snapshot) const override;
+
+    bool WriteState(const StateEntry&, StateResponseEntries&) override
+    {
+        return false;
+    }
 
 private:
     friend class InstanceCoordinator;
@@ -54,22 +59,30 @@ inline const BankState& InstanceState::GetBankState(dsp::BankId bankId) const no
     return banks_[dsp::detail::ToIndex(bankId)];
 }
 
-inline void InstanceState::AppendState(
+inline void InstanceState::ReadState(
     const StatePath& path,
-    StateSnapshot& snapshot) const
+    StateResponseEntries& snapshot) const
 {
     StatePath instancePath;
     instancePath.instanceId = instanceId_;
+    instancePath.field = StateField::InstanceId;
     if (path.Matches(instancePath))
     {
         (void)snapshot.TryAppend(StateEntry{instancePath, StateValue{instanceId_}});
     }
 
+    StatePath selectedBankPath = instancePath;
+    selectedBankPath.field = StateField::SelectedBank;
+    if (path.Matches(selectedBankPath))
+    {
+        (void)snapshot.TryAppend(StateEntry{selectedBankPath, StateValue{selectedBankId_}});
+    }
+
     for (const auto& bank : banks_)
     {
         StatePath bankPath = instancePath;
-        bankPath.depth = 1;
-        bankPath.nodes[0] = static_cast<dsp::RouteNodeId>(
+        bankPath.field = StateField::BankId;
+        bankPath.bankNode = static_cast<dsp::RouteNodeId>(
             static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0) +
             dsp::detail::ToIndex(bank.GetBankId()));
         if (path.Matches(bankPath))
@@ -80,6 +93,7 @@ inline void InstanceState::AppendState(
         if (bank.GetGroupId())
         {
             StatePath groupPath = bankPath;
+            groupPath.field = StateField::GroupId;
             if (path.Matches(groupPath))
             {
                 (void)snapshot.TryAppend(StateEntry{groupPath, StateValue{*bank.GetGroupId()}});

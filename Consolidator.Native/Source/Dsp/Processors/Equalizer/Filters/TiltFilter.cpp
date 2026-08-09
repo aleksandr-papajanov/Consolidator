@@ -76,12 +76,12 @@ void TiltFilter::ApplyInternalParameters()
                                     ParameterId parameterId,
                                     float value)
     {
-        const ParameterRoute route{
+        const core::StatePath route{
             DeviceId::Equalizer,
             parameterId,
             filterNode};
 
-        filter.ApplyParameter(route, ParameterValue{value}, 1);
+        filter.WriteParameter(route, ParameterValue{value}, 1);
     };
 
     const float frequencyHz = static_cast<float>(parameters.frequencyHz);

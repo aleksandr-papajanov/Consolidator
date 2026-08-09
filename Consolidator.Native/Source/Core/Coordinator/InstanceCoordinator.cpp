@@ -1,7 +1,8 @@
 #include "Core/Coordinator/InstanceCoordinator.h"
 
-#include <cstdint>
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 
@@ -20,24 +21,33 @@ dsp::RouteNodeId ToRouteNodeId(dsp::BankId bankId) noexcept
         dsp::detail::ToIndex(bankId));
 }
 
-ChangeDspParameterCommand CreateCommandForBank(
-    const ChangeDspParameterCommand& command,
+StateEntry CreateEntryForBank(
+    const StateEntry& entry,
     dsp::BankId bankId)
 {
-    const auto& route = command.route;
-    const auto bankNodeId = ToRouteNodeId(bankId);
-
-    if (route.GetDepth() == 1)
+    auto result = entry;
+    if (!result.path.deviceId || !result.path.parameterId)
     {
-        return {dsp::ParameterRoute{route.GetDeviceId(), route.GetParameterId(), bankNodeId}, command.value};
+        return result;
     }
 
-    if (route.GetDepth() == 2)
+    const core::StatePath route{
+        *result.path.deviceId,
+        *result.path.parameterId,
+        result.path.depth > 0 ? result.path.nodes[0] : dsp::RouteNodeId::Bank0};
+    result.path.deviceId = route.GetDeviceId();
+    result.path.parameterId = route.GetParameterId();
+    result.path.depth = route.GetDepth();
+    result.path.nodes[0] = ToRouteNodeId(bankId);
+    if (result.path.depth > 1)
     {
-        return {dsp::ParameterRoute{route.GetDeviceId(), route.GetParameterId(), bankNodeId, route.GetNode(1)}, command.value};
+        result.path.nodes[1] = route.GetNode(1);
     }
-
-    return {dsp::ParameterRoute{route.GetDeviceId(), route.GetParameterId(), bankNodeId, route.GetNode(1), route.GetNode(2)}, command.value};
+    if (result.path.depth > 2)
+    {
+        result.path.nodes[2] = route.GetNode(2);
+    }
+    return result;
 }
 
 } // namespace
@@ -86,28 +96,37 @@ void InstanceCoordinator::EnqueueCommand(InstanceId sourceInstanceId, Command co
     wakeCondition_.notify_one();
 }
 
-void InstanceCoordinator::RequestState(InstanceId instanceId, ReadStateCommand command)
-{
-    EnqueueCommand(instanceId, std::move(command));
-}
-
 std::optional<StateResponse> InstanceCoordinator::TryDequeueResponse(InstanceId instanceId)
 {
     std::lock_guard lock{registryMutex_};
-    auto* instance = registry_.FindInstance(instanceId);
-    return instance == nullptr ? std::nullopt : instance->TryDequeueResponse();
-}
-
-std::optional<BankState> InstanceCoordinator::GetBankState(InstanceId instanceId, dsp::BankId bankId) const
-{
-    std::lock_guard lock{registryMutex_};
-    const auto* instance = registry_.FindInstance(instanceId);
-    if (instance == nullptr)
+    auto pendingIt = std::find_if(
+        pendingResponses_.begin(),
+        pendingResponses_.end(),
+        [instanceId](const StateResponse& response)
+        {
+            return response.responseInstanceId == instanceId;
+        });
+    if (pendingIt != pendingResponses_.end())
     {
-        return std::nullopt;
+        auto response = std::move(*pendingIt);
+        pendingResponses_.erase(pendingIt);
+        return response;
     }
 
-    return instance->state_.GetBankState(bankId);
+    for (auto* instance : registry_.GetInstances())
+    {
+        while (const auto response = instance->TryDequeueResponse())
+        {
+            if (response->responseInstanceId == instanceId)
+            {
+                return response;
+            }
+
+            pendingResponses_.push_back(*response);
+        }
+    }
+
+    return std::nullopt;
 }
 
 void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
@@ -136,18 +155,18 @@ void InstanceCoordinator::RouteCommand(const InstanceCommand& command)
         [this, sourceInstanceId = command.sourceInstanceId](const auto& typedCommand)
         {
             using CommandType = std::decay_t<decltype(typedCommand)>;
-            if constexpr (std::is_same_v<CommandType, ChangeDspParameterCommand>)
+            if constexpr (std::is_same_v<CommandType, StateCommand>)
             {
-                RouteChangeDspParameterCommand(sourceInstanceId, typedCommand);
+                RouteStateCommand(sourceInstanceId, typedCommand);
             }
         },
         command.command);
 }
 
 
-void InstanceCoordinator::RouteChangeDspParameterCommand(
+void InstanceCoordinator::RouteStateCommand(
     InstanceId sourceInstanceId,
-    const ChangeDspParameterCommand& command)
+    const StateCommand& command)
 {
     auto* const source = registry_.FindInstance(sourceInstanceId);
     if (source == nullptr)
@@ -155,24 +174,52 @@ void InstanceCoordinator::RouteChangeDspParameterCommand(
         return;
     }
 
-    if (command.route.GetDeviceId() != dsp::DeviceId::Equalizer)
+    if (command.operation == StateOperation::Read || command.message.entries.size != 1)
     {
         EnqueueForInstance(sourceInstanceId, command);
         return;
+    }
+
+    const auto& entry = command.message.entries.entries[0];
+    const auto targets = ResolveWriteTargets(sourceInstanceId, entry.path);
+    if (targets.empty())
+    {
+        EnqueueForInstance(sourceInstanceId, command);
+        return;
+    }
+
+    for (const auto target : targets)
+    {
+        auto routed = command;
+        routed.message.entries.entries[0] = CreateEntryForBank(entry, target.bankId);
+        EnqueueForInstance(target.instanceId, std::move(routed));
+    }
+}
+
+std::vector<BankAddress> InstanceCoordinator::ResolveWriteTargets(
+    InstanceId sourceInstanceId,
+    const StatePath& path) const
+{
+    if (!path.deviceId || *path.deviceId != dsp::DeviceId::Equalizer)
+    {
+        return {};
+    }
+
+    const auto* source = registry_.FindInstance(sourceInstanceId);
+    if (source == nullptr)
+    {
+        return {};
     }
 
     const auto sourceBankId = source->state_.GetSelectedBankId();
     const auto groupId = source->state_.GetBankState(sourceBankId).GetGroupId();
     if (!groupId)
     {
-        EnqueueForInstance(sourceInstanceId, CreateCommandForBank(command, sourceBankId));
-        return;
+        return {BankAddress{sourceInstanceId, sourceBankId}};
     }
 
-    for (const auto target : registry_.FindGroupMembers(*groupId))
-    {
-        EnqueueForInstance(target.instanceId, CreateCommandForBank(command, target.bankId));
-    }
+    const auto members = registry_.FindGroupMembers(*groupId);
+    return {members.begin(), members.end()};
 }
 
 void InstanceCoordinator::EnqueueForInstance(InstanceId instanceId, Command command)

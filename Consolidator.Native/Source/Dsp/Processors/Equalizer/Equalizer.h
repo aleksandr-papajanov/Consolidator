@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -56,8 +56,8 @@ public:
         return runtimeState_.isNeutral;
     }
 
-    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
-    void AppendState(
+    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
+    void ReadState(
         const core::StatePath& path,
         core::StateSnapshot& snapshot,
         DeviceId deviceId,
@@ -83,14 +83,14 @@ public:
     [[nodiscard]] const Filter* GetFilter(
         std::size_t index) const noexcept;
 
-    bool ApplyParameter(
-        const ParameterRoute& route,
+    bool WriteParameter(
+        const core::StatePath& route,
         const ParameterValue& value,
         std::size_t depth) override;
 
 private:
-    bool ApplyStateParameter(
-        const ParameterRoute& route,
+    bool WriteOwnParameter(
+        const core::StatePath& route,
         const ParameterValue& value) override;
     void RecalculateRuntime() override;
 

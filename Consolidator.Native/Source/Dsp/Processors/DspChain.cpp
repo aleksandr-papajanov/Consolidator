@@ -10,23 +10,30 @@ void DspChain::AddDevice(std::unique_ptr<DspDevice> device)
     devices_.push_back(std::move(device));
 }
 
-void DspChain::ApplyParameterChange(const RoutedParameterChange& change)
-{
-    for (auto& device : devices_)
-    {
-        if (device->GetDeviceId() == change.route.GetDeviceId())
-        {
-            device->ApplyParameter(change.route, change.value, 0);
-        }
-    }
-}
-
-void DspChain::AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const
+void DspChain::ReadState(const core::StatePath& path, core::StateResponseEntries& snapshot) const
 {
     for (const auto& device : devices_)
     {
-        device->AppendState(path, snapshot);
+        device->ReadState(path, snapshot);
     }
+}
+
+bool DspChain::WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied)
+{
+    if (!entry.path.deviceId)
+    {
+        return false;
+    }
+
+    for (const auto& device : devices_)
+    {
+        if (device->GetDeviceId() == *entry.path.deviceId)
+        {
+            return device->WriteState(entry, applied);
+        }
+    }
+
+    return false;
 }
 
 void DspChain::Process(

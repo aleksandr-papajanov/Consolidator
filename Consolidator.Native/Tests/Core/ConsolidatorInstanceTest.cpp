@@ -1,10 +1,13 @@
 #include "Core/Instance/ConsolidatorInstance.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
-#include "Core/Parameters/RoutedParameterChange.h"
+#include "Core/State/StateProtocol.h"
 
 #include <cassert>
 #include <array>
 #include <algorithm>
+#include <chrono>
+#include <optional>
+#include <thread>
 
 int main()
 {
@@ -32,19 +35,34 @@ int main()
     assert(std::equal(mainInput.begin(), mainInput.end(), mainOutput.begin()));
     assert(std::equal(referenceInput.begin(), referenceInput.end(), referenceOutput.begin()));
 
-    instance.EnqueueCommand(consolidator::core::ChangeDspParameterCommand{
-        consolidator::dsp::ParameterRoute{
-            consolidator::dsp::DeviceId::MainInputGain,
-            consolidator::dsp::ParameterId::Gain},
-        consolidator::dsp::ParameterValue{6.0f}});
+    consolidator::core::StateRequestEntries writeEntries;
+    consolidator::core::StatePath gainPath;
+    gainPath.field = consolidator::core::StateField::DspParameter;
+    gainPath.deviceId = consolidator::dsp::DeviceId::MainInputGain;
+    gainPath.parameterId = consolidator::dsp::ParameterId::Gain;
+    assert(writeEntries.TryAppend({gainPath, 6.0f}));
+    instance.EnqueueCommand(consolidator::core::StateCommand{
+        consolidator::core::StateOperation::Write,
+        {1, instance.GetInstanceId(), writeEntries}});
 
-    mainInput.fill(1.0);
-    instance.Process(mainInput.data(), referenceInput.data(),
-                     mainOutput.data(), referenceOutput.data(),
-                     frameCount);
+    std::optional<consolidator::core::StateResponse> response;
+    for (std::size_t attempt = 0; attempt < 50 && !response; ++attempt)
+    {
+        mainInput.fill(1.0);
+        instance.Process(mainInput.data(), referenceInput.data(),
+                         mainOutput.data(), referenceOutput.data(),
+                         frameCount);
+        response = consolidator::core::InstanceCoordinator::Get().TryDequeueResponse(
+            instance.GetInstanceId());
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
 
     assert(mainOutput.front() > mainInput.front());
     assert(std::equal(referenceInput.begin(), referenceInput.end(), referenceOutput.begin()));
+
+    assert(response.has_value());
+    assert(response->operation == consolidator::core::StateOperation::Write);
+    assert(response->entries.size == 1);
 
     return 0;
 }
