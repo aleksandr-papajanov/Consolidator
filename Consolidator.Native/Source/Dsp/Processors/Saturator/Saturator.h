@@ -47,6 +47,11 @@ public:
         return runtimeState_;
     }
 
+    [[nodiscard]] const DetectorEnvelopeFollower& GetDetector(std::size_t channel) const noexcept
+    {
+        return detectors_[channel];
+    }
+
     bool ApplyParameter(
         const ParameterRoute& route,
         const ParameterValue& value,
@@ -55,6 +60,16 @@ public:
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
         return runtimeState_.isNeutral;
+    }
+
+    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
+    {
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Drive}, state_.drive);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Gain}, state_.outputDb);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Mix}, state_.mix);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Type}, state_.detectorAmount);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Saturator, ParameterId::Bypass}, state_.bypass);
+        detectors_[0].GetEqualizer().AppendState(path, snapshot, DeviceId::Saturator, RouteNodeId::Detector);
     }
 
 private:

@@ -77,6 +77,14 @@ public:
         return runtimeState_;
     }
 
+    void AppendState(
+        const core::StatePath& path,
+        core::StateSnapshot& snapshot,
+        DeviceId deviceId,
+        RouteNodeId parentNode) const;
+
+    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
+
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
     virtual void RecalculateCoefficients() = 0;

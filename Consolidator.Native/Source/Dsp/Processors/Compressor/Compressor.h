@@ -63,15 +63,33 @@ public:
         return meterState_.gainReductionDb.load(std::memory_order_relaxed);
     }
 
+    [[nodiscard]] const Equalizer& GetDetectorEqualizer() const noexcept
+    {
+        return detectorEqualizer_;
+    }
+
     [[nodiscard]] bool IsNeutral() const noexcept override
     {
         return runtimeState_.isNeutral;
+    }
+
+    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override
+    {
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Threshold}, state_.thresholdDb);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Ratio}, state_.ratio);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Attack}, state_.attackMs);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Release}, state_.releaseMs);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Gain}, state_.outputDb);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Mix}, state_.mix);
+        AppendParameter(path, snapshot, ParameterRoute{DeviceId::Compressor, ParameterId::Bypass}, state_.bypass);
+        detectorEqualizer_.AppendState(path, snapshot, DeviceId::Compressor, RouteNodeId::Detector);
     }
 
 private:
     bool ApplyStateParameter(
         const ParameterRoute& route,
         const ParameterValue& value) override;
+
     void RecalculateRuntime() override;
     void RecalculateAttackCoefficient() noexcept;
     void RecalculateReleaseCoefficient() noexcept;

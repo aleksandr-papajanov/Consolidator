@@ -1,11 +1,11 @@
 #include "Core/Instance/ConsolidatorInstance.h"
 
-#include <algorithm>
 #include <type_traits>
 #include <utility>
 
 #include "Core/Coordinator/InstanceCoordinator.h"
 #include "Core/Instance/Handlers/ChangeDspParameterCommandHandler.h"
+#include "Core/Instance/Handlers/ReadStateCommandHandler.h"
 #include "Dsp/DspChainBuilder.h"
 #include "Dsp/Processors/DspChain.h"
 
@@ -29,6 +29,14 @@ void ConsolidatorInstance::Process(const double* mainInput,
                                    double* referenceOutput,
                                    std::size_t frameCount)
 {
+    if (pendingResponse_)
+    {
+        if (responseQueue_.TryEnqueue(std::move(*pendingResponse_)))
+        {
+            pendingResponse_.reset();
+        }
+    }
+
     ProcessCommandQueue();
     dspChain_->Process(mainInput, referenceOutput, mainOutput, frameCount, kChannelCount);
     std::copy_n(referenceInput, frameCount * kChannelCount, referenceOutput);
@@ -37,6 +45,11 @@ void ConsolidatorInstance::Process(const double* mainInput,
 void ConsolidatorInstance::EnqueueCommand(Command command)
 {
     InstanceCoordinator::Get().EnqueueCommand(state_.GetInstanceId(), std::move(command));
+}
+
+InstanceId ConsolidatorInstance::GetInstanceId() const noexcept
+{
+    return state_.GetInstanceId();
 }
 
 bool ConsolidatorInstance::EnqueueLocalCommand(Command command)
@@ -57,11 +70,6 @@ void ConsolidatorInstance::ProcessCommandQueue()
     }
 }
 
-const InstanceState& ConsolidatorInstance::GetState() const noexcept
-{
-    return state_;
-}
-
 void ConsolidatorInstance::HandleCommand(const Command& command)
 {
     std::visit(
@@ -72,8 +80,22 @@ void ConsolidatorInstance::HandleCommand(const Command& command)
             {
                 HandleChangeDspParameterCommand(*this, typedCommand);
             }
+            else if constexpr (std::is_same_v<CommandType, ReadStateCommand>)
+            {
+                HandleReadStateCommand(*this, typedCommand);
+            }
         },
         command);
+}
+
+std::optional<StateResponse> ConsolidatorInstance::TryDequeueResponse()
+{
+    return responseQueue_.TryDequeue();
+}
+
+void ConsolidatorInstance::RecordResponseQueueOverflow() noexcept
+{
+    responseQueueOverflowCount_.fetch_add(1, std::memory_order_relaxed);
 }
 
 } // namespace consolidator::core

@@ -6,6 +6,7 @@
 #include "Core/Commands/Commands.h"
 #include "Core/Commands/SpscCommandQueue.h"
 #include "Core/State/InstanceState.h"
+#include "Core/Notifications/Notifications.h"
 #include "Core/Parameters/RoutedParameterChange.h"
 
 namespace consolidator::dsp
@@ -17,6 +18,10 @@ namespace consolidator::core
 {
 
 class ConsolidatorInstance;
+
+void HandleReadStateCommand(
+    ConsolidatorInstance& instance,
+    const ReadStateCommand& command);
 
 void HandleChangeDspParameterCommand(
     ConsolidatorInstance& instance,
@@ -41,10 +46,15 @@ public:
 
     void EnqueueCommand(Command command);
 
-    [[nodiscard]] const InstanceState& GetState() const noexcept;
+    [[nodiscard]] InstanceId GetInstanceId() const noexcept;
+    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
+    void RecordResponseQueueOverflow() noexcept;
 
 private:
     friend class InstanceCoordinator;
+    friend void HandleReadStateCommand(
+        ConsolidatorInstance& instance,
+        const ReadStateCommand& command);
     friend void HandleChangeDspParameterCommand(
         ConsolidatorInstance& instance,
         const ChangeDspParameterCommand& command);
@@ -60,6 +70,9 @@ private:
     InstanceState state_;
     SpscCommandQueue<Command, 128> commandQueue_;
     std::atomic<std::size_t> localQueueOverflowCount_{0};
+    std::atomic<std::size_t> responseQueueOverflowCount_{0};
+    SpscCommandQueue<StateResponse, 32> responseQueue_;
+    std::optional<StateResponse> pendingResponse_;
 };
 
 } // namespace consolidator::core

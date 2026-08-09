@@ -3,8 +3,16 @@
 #include <string>
 #include <variant>
 
+#include "Core/State/StateProtocol.h"
+
 namespace consolidator::core
 {
+
+struct StateResponse
+{
+    RequestId requestId;
+    StateSnapshot snapshot;
+};
 
 // ---- Notifications: reactions to commands, produced by the system ----
 

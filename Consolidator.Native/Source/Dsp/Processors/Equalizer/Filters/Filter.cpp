@@ -7,6 +7,25 @@
 namespace consolidator::dsp
 {
 
+void Filter::AppendState(
+    const core::StatePath& path,
+    core::StateSnapshot& snapshot,
+    DeviceId deviceId,
+    RouteNodeId parentNode) const
+{
+    const auto filterNode = static_cast<RouteNodeId>(
+        static_cast<std::uint8_t>(RouteNodeId::Filter1) + GetElementIndex());
+    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Frequency, parentNode, filterNode}, state_.frequencyHz);
+    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Q, parentNode, filterNode}, state_.q);
+    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Gain, parentNode, filterNode}, state_.gainDb);
+    AppendParameter(path, snapshot, ParameterRoute{deviceId, ParameterId::Bypass, parentNode, filterNode}, state_.bypass);
+}
+
+void Filter::AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const
+{
+    AppendState(path, snapshot, DeviceId::Equalizer, RouteNodeId::Detector);
+}
+
 Filter::Filter(
     DeviceId deviceId,
     detail::ElementKind elementKind,

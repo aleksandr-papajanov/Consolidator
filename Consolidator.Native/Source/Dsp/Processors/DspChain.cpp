@@ -1,4 +1,4 @@
-﻿#include "Dsp/Processors/DspChain.h"
+#include "Dsp/Processors/DspChain.h"
 
 #include <algorithm>
 
@@ -21,6 +21,13 @@ void DspChain::ApplyParameterChange(const RoutedParameterChange& change)
     }
 }
 
+void DspChain::AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const
+{
+    for (const auto& device : devices_)
+    {
+        device->AppendState(path, snapshot);
+    }
+}
 
 void DspChain::Process(
     const double* input,
@@ -30,30 +37,29 @@ void DspChain::Process(
     std::size_t channelCount)
 {
     const auto sampleCount = frameCount * channelCount;
-
-    const double* src = input;
+    const double* source = input;
     bool hasProcessed = false;
     bool outputContainsResult = false;
 
-    for (std::size_t i = 0; i < devices_.size(); ++i)
+    for (const auto& device : devices_)
     {
-        if (devices_[i]->IsNeutral())
+        if (device->IsNeutral())
         {
             continue;
         }
 
         if (!hasProcessed)
         {
-            devices_[i]->Process(src, output, frameCount, channelCount);
-            src = output;
+            device->Process(source, output, frameCount, channelCount);
+            source = output;
             hasProcessed = true;
             outputContainsResult = true;
         }
         else
         {
-            double* const destination = outputContainsResult ? interim : output;
-            devices_[i]->Process(src, destination, frameCount, channelCount);
-            src = destination;
+            double* destination = outputContainsResult ? interim : output;
+            device->Process(source, destination, frameCount, channelCount);
+            source = destination;
             outputContainsResult = !outputContainsResult;
         }
     }
@@ -61,12 +67,10 @@ void DspChain::Process(
     if (!hasProcessed)
     {
         std::copy_n(input, sampleCount, output);
-        return;
     }
-
-    if (!outputContainsResult)
+    else if (!outputContainsResult)
     {
-        std::copy_n(src, sampleCount, output);
+        std::copy_n(source, sampleCount, output);
     }
 }
 

@@ -114,6 +114,35 @@ void Equalizer::AddFilter(std::unique_ptr<Filter> filter)
     }
 }
 
+void Equalizer::AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const
+{
+    if (!bankId_)
+    {
+        return;
+    }
+
+    const auto bankNode = static_cast<RouteNodeId>(
+        static_cast<std::uint8_t>(RouteNodeId::Bank0) + detail::ToIndex(*bankId_));
+    AppendParameter(path, snapshot, ParameterRoute{DeviceId::Equalizer, ParameterId::Bypass, bankNode}, state_.bypass);
+
+    for (const auto& filter : filters_)
+    {
+        filter->AppendState(path, snapshot, DeviceId::Equalizer, bankNode);
+    }
+}
+
+void Equalizer::AppendState(
+    const core::StatePath& path,
+    core::StateSnapshot& snapshot,
+    DeviceId deviceId,
+    RouteNodeId parentNode) const
+{
+    for (const auto& filter : filters_)
+    {
+        filter->AppendState(path, snapshot, deviceId, parentNode);
+    }
+}
+
 bool Equalizer::ApplyStateParameter(
     const ParameterRoute& route,
     const ParameterValue& value)
@@ -123,13 +152,13 @@ bool Equalizer::ApplyStateParameter(
 
 void Equalizer::RecalculateRuntime()
 {
-    runtimeState_.isNeutral = state_.bypass.value;
-
-    if (runtimeState_.isNeutral)
+    if (state_.bypass.value)
     {
+        runtimeState_.isNeutral = true;
         return;
     }
 
+    runtimeState_.isNeutral = true;
     for (const auto& filter : filters_)
     {
         if (!filter->IsNeutral())
@@ -139,7 +168,6 @@ void Equalizer::RecalculateRuntime()
         }
     }
 
-    runtimeState_.isNeutral = true;
 }
 
 Filter* Equalizer::GetFilter(std::size_t index) noexcept

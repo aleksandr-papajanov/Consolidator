@@ -56,6 +56,13 @@ public:
         return runtimeState_.isNeutral;
     }
 
+    void AppendState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
+    void AppendState(
+        const core::StatePath& path,
+        core::StateSnapshot& snapshot,
+        DeviceId deviceId,
+        RouteNodeId parentNode) const;
+
     [[nodiscard]] const EqualizerState& GetState() const noexcept
     {
         return state_;

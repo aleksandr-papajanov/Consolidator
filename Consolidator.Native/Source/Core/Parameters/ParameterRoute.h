@@ -75,6 +75,13 @@ public:
         return nodes_[depth];
     }
 
+    [[nodiscard]] constexpr ParameterRoute WithParameter(ParameterId parameterId) const noexcept
+    {
+        auto route = *this;
+        route.parameterId_ = parameterId;
+        return route;
+    }
+
 private:
     DeviceId deviceId_;
     ParameterId parameterId_;

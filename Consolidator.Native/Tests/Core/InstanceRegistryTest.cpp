@@ -8,8 +8,6 @@ int main()
 {
     consolidator::core::ConsolidatorInstance instance;
 
-    assert(instance.GetState().GetSelectedBankId() == consolidator::dsp::BankId::Bank0);
-    assert(!instance.GetState().GetBankState(consolidator::dsp::BankId::Bank0).GetGroupId());
 
     instance.EnqueueCommand(consolidator::core::ChangeDspParameterCommand{
         consolidator::dsp::ParameterRoute{

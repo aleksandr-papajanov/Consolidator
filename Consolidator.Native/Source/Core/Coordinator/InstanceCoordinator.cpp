@@ -86,6 +86,30 @@ void InstanceCoordinator::EnqueueCommand(InstanceId sourceInstanceId, Command co
     wakeCondition_.notify_one();
 }
 
+void InstanceCoordinator::RequestState(InstanceId instanceId, ReadStateCommand command)
+{
+    EnqueueCommand(instanceId, std::move(command));
+}
+
+std::optional<StateResponse> InstanceCoordinator::TryDequeueResponse(InstanceId instanceId)
+{
+    std::lock_guard lock{registryMutex_};
+    auto* instance = registry_.FindInstance(instanceId);
+    return instance == nullptr ? std::nullopt : instance->TryDequeueResponse();
+}
+
+std::optional<BankState> InstanceCoordinator::GetBankState(InstanceId instanceId, dsp::BankId bankId) const
+{
+    std::lock_guard lock{registryMutex_};
+    const auto* instance = registry_.FindInstance(instanceId);
+    if (instance == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return instance->state_.GetBankState(bankId);
+}
+
 void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
 {
     while (!stopToken.stop_requested())
@@ -119,6 +143,7 @@ void InstanceCoordinator::RouteCommand(const InstanceCommand& command)
         },
         command.command);
 }
+
 
 void InstanceCoordinator::RouteChangeDspParameterCommand(
     InstanceId sourceInstanceId,

@@ -105,6 +105,37 @@ implemented. The next optimization is a per-instance parameter mailbox keyed
 by parameter address, while rare event commands continue to use the SPSC
 queue.
 
+## State reads
+
+`InstanceCoordinator` is the command/response boundary; `InstanceRegistry`
+remains only an index of instance references and group membership. It never
+stores a copy of an instance or DSP state.
+
+All reads use one protocol:
+
+```text
+ReadStateCommand { requestId, StatePath }
+  -> coordinator global queue
+  -> instance local queue
+  -> ReadStateCommandHandler on the audio owner
+  -> StateResponse { requestId, StateSnapshot }
+  -> instance response queue
+```
+
+`StatePath` is a prefix path. An empty path requests all state; an instance,
+device, bank-node, or parameter path narrows the result. `IStateSource`
+receives the path and appends only matching entries. `InstanceState` appends
+topology entries, while `DspChain` delegates to each `DspDevice`.
+
+`StateSnapshot` has fixed capacity because it can be produced by the audio
+thread. Responses are queued without allocation. If the response queue is
+full, the instance retains one pending response and retries it at the next
+audio callback; the overflow counter records the event.
+
+DSP values use `DspParameter<T>` and are exported by their owning device.
+Topology values (`InstanceId`, banks, and groups) are exported directly by
+`InstanceState`.
+
 ## Deployment
 
 The external build copies `ConsolidatorCore.dll` beside the generated Max

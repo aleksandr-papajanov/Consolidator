@@ -34,6 +34,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/InstanceId.h
     Source/Core/Instance/Handlers/ChangeDspParameterCommandHandler.h
     Source/Core/Instance/Handlers/ChangeDspParameterCommandHandler.cpp
+    Source/Core/Instance/Handlers/ReadStateCommandHandler.h
+    Source/Core/Instance/Handlers/ReadStateCommandHandler.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
     Source/Core/State/InstanceState.h
@@ -43,6 +45,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/State/CompressorState.h
     Source/Core/State/EqualizerState.h
     Source/Core/State/FilterState.h
+    Source/Core/State/StateProtocol.h
+    Source/Core/State/IStateSource.h
     Source/Core/Groups/GroupId.h
     Source/Core/Groups/InstanceGroup.h
     Source/Core/Commands/Commands.h

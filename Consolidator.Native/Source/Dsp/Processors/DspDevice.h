@@ -4,11 +4,13 @@
 #include <cstdint>
 
 #include "Dsp/Processors/DspNode.h"
+#include "Core/Parameters/DspParameter.h"
+#include "Core/State/IStateSource.h"
 
 namespace consolidator::dsp
 {
 
-class DspDevice : public DspNode
+class DspDevice : public DspNode, public core::IStateSource
 {
 public:
     DspDevice(
@@ -65,13 +67,33 @@ public:
 
     [[nodiscard]] virtual bool IsNeutral() const noexcept = 0;
 
+    virtual void AppendState(
+        const core::StatePath& path,
+        core::StateSnapshot& snapshot) const override = 0;
+
 protected:
+    template <typename T>
+    static void AppendParameter(
+        const core::StatePath& path,
+        core::StateSnapshot& snapshot,
+        ParameterRoute route,
+        const DspParameter<T>& parameter)
+    {
+        auto candidate = core::ToStatePath(route.WithParameter(parameter.id));
+        candidate.instanceId = path.instanceId;
+        if (path.Matches(candidate))
+        {
+            (void)snapshot.TryAppend(core::StateEntry{candidate, core::StateValue{parameter.value}});
+        }
+    }
+
     virtual bool ApplyStateParameter(
         const ParameterRoute& route,
         const ParameterValue& value)
     {
         return false;
     }
+
     virtual void RecalculateRuntime() = 0;
 
 private:

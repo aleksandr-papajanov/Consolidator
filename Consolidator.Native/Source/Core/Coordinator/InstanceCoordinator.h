@@ -8,6 +8,10 @@
 #include "Core/Commands/CommandQueue.h"
 #include "Core/Commands/Commands.h"
 #include "Core/Registry/InstanceRegistry.h"
+#include "Core/State/StateProtocol.h"
+#include "Core/Notifications/Notifications.h"
+#include "Core/State/BankState.h"
+#include <optional>
 
 namespace consolidator::core
 {
@@ -20,6 +24,10 @@ public:
     static InstanceCoordinator& Get();
 
     void EnqueueCommand(InstanceId sourceInstanceId, Command command);
+    void RequestState(InstanceId instanceId, ReadStateCommand command);
+    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse(InstanceId instanceId);
+
+    [[nodiscard]] std::optional<BankState> GetBankState(InstanceId instanceId, dsp::BankId bankId) const;
 
     ~InstanceCoordinator();
 
@@ -38,6 +46,7 @@ private:
     void RouteChangeDspParameterCommand(
         InstanceId sourceInstanceId,
         const ChangeDspParameterCommand& command);
+
     void EnqueueForInstance(InstanceId instanceId, Command command);
     void RetryPendingDeliveries();
 
@@ -51,7 +60,7 @@ private:
     InstanceRegistry registry_;
     CommandQueue<InstanceCommand> commandQueue_;
     std::vector<PendingLocalCommand> pendingDeliveries_;
-    std::mutex registryMutex_;
+    mutable std::mutex registryMutex_;
     std::mutex wakeMutex_;
     std::condition_variable_any wakeCondition_;
     std::jthread worker_;

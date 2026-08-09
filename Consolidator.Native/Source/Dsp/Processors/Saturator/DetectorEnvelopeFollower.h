@@ -34,6 +34,11 @@ public:
     void SetAttackMs(double attackMs);
     void SetReleaseMs(double releaseMs);
 
+    [[nodiscard]] const Equalizer& GetEqualizer() const noexcept
+    {
+        return filters_;
+    }
+
 private:
     void RecalculateTimeCoefficients() noexcept;
 

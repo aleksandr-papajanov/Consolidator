@@ -8,6 +8,7 @@
 #include "Core/Instance/InstanceId.h"
 #include "Core/Parameters/ParameterRoute.h"
 #include "Core/Parameters/ParameterValue.h"
+#include "Core/State/StateProtocol.h"
 
 namespace consolidator::core
 {
@@ -42,6 +43,12 @@ struct ChangeDspParameterCommand
 {
     dsp::ParameterRoute route;
     dsp::ParameterValue value;
+};
+
+struct ReadStateCommand
+{
+    RequestId requestId;
+    StatePath path;
 };
 
 // ---- Group commands ----
@@ -149,6 +156,7 @@ struct FailFitCommand
 
 using Command = std::variant<
     ChangeDspParameterCommand,
+    ReadStateCommand,
     JoinGroupsCommand,
     CommitGroupCommand,
     CommitAllGroupsCommand,
