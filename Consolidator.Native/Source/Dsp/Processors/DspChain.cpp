@@ -18,22 +18,26 @@ void DspChain::ReadState(const core::StatePath& path, core::StateResponseEntries
     }
 }
 
-bool DspChain::WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied)
+core::StateWriteStatus DspChain::WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied)
 {
     if (!entry.path.deviceId)
     {
-        return false;
+        return core::StateWriteStatus::NotHandled;
     }
 
     for (const auto& device : devices_)
     {
-        if (device->GetDeviceId() == *entry.path.deviceId)
+        if (device->GetDeviceId() != *entry.path.deviceId)
         {
-            return device->WriteState(entry, applied);
+            continue;
+        }
+        const auto status = device->WriteState(entry, applied);
+        if (status != core::StateWriteStatus::NotHandled)
+        {
+            return status;
         }
     }
-
-    return false;
+    return core::StateWriteStatus::NotHandled;
 }
 
 void DspChain::Process(

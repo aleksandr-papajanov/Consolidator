@@ -5,7 +5,6 @@
 #include <span>
 #include <vector>
 
-#include "Core/State/IStateNode.h"
 #include "Dsp/Processors/DspDevice.h"
 
 namespace consolidator::core
@@ -15,7 +14,7 @@ namespace consolidator::core
 namespace consolidator::dsp
 {
 
-class DspChain final : public core::IStateNode
+class DspChain final
 {
 public:
     DspChain() = default;
@@ -25,8 +24,8 @@ public:
     DspChain& operator=(const DspChain&) = delete;
 
     void AddDevice(std::unique_ptr<DspDevice> device);
-    void ReadState(const core::StatePath& path, core::StateResponseEntries& snapshot) const override;
-    bool WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied) override;
+    void ReadState(const core::StatePath& path, core::StateResponseEntries& snapshot) const;
+    core::StateWriteStatus WriteState(const core::StateEntry& entry, core::StateResponseEntries& applied);
 
     void Process(const double* input,
                  double* interim,

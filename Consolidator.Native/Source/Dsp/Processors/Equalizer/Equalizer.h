@@ -57,7 +57,7 @@ public:
     }
 
     void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
-    void ReadState(
+    void ReadAtRoute(
         const core::StatePath& path,
         core::StateSnapshot& snapshot,
         DeviceId deviceId,

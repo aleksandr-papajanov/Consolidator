@@ -24,8 +24,7 @@ void ReadState(
 {
     if (command.message.entries.size == 0)
     {
-        StatePath query;
-        query.instanceId = instance.GetState().GetInstanceId();
+        const auto query = StatePath::Instance(instance.GetState().GetInstanceId());
         instance.GetState().ReadState(query, response.entries);
         instance.GetDspChain().ReadState(query, response.entries);
         return;
@@ -49,10 +48,7 @@ void WriteState(
     {
         auto entry = command.message.entries.entries[index];
         entry.path.instanceId = instance.GetState().GetInstanceId();
-        if (!instance.GetState().WriteState(entry, response.entries))
-        {
-            (void)instance.GetDspChain().WriteState(entry, response.entries);
-        }
+        (void)instance.GetDspChain().WriteState(entry, response.entries);
     }
 }
 
@@ -65,8 +61,13 @@ void HandleStateCommand(
     StateResponse response{
         command.message.requestId,
         command.message.responseInstanceId,
+        instance.GetState().GetInstanceId(),
         command.operation,
-        {}};
+        {},
+        command.message.responseIndex,
+        command.message.responseCount,
+        command.message.responseIndex + 1 == command.message.responseCount};
+
     if (command.operation == StateOperation::Read)
     {
         ReadState(instance, command, response);
@@ -75,6 +76,8 @@ void HandleStateCommand(
     {
         WriteState(instance, command, response);
     }
+
+    response.truncated = response.entries.truncated;
 
     QueueResponse(instance, std::move(response));
 }

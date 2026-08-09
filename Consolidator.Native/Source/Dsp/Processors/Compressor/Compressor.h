@@ -82,7 +82,7 @@ public:
         AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Gain}, state_.outputDb);
         AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Mix}, state_.mix);
         AppendParameter(path, snapshot, core::StatePath{DeviceId::Compressor, ParameterId::Bypass}, state_.bypass);
-        detectorEqualizer_.ReadState(path, snapshot, DeviceId::Compressor, RouteNodeId::Detector);
+        detectorEqualizer_.ReadAtRoute(path, snapshot, DeviceId::Compressor, RouteNodeId::Detector);
     }
 
 private:

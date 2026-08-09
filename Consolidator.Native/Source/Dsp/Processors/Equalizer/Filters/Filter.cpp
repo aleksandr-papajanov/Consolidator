@@ -7,7 +7,7 @@
 namespace consolidator::dsp
 {
 
-void Filter::ReadState(
+void Filter::ReadAtRoute(
     const core::StatePath& path,
     core::StateSnapshot& snapshot,
     DeviceId deviceId,
@@ -19,11 +19,6 @@ void Filter::ReadState(
     AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Q, parentNode, filterNode}, state_.q);
     AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Gain, parentNode, filterNode}, state_.gainDb);
     AppendParameter(path, snapshot, core::StatePath{deviceId, ParameterId::Bypass, parentNode, filterNode}, state_.bypass);
-}
-
-void Filter::ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const
-{
-    ReadState(path, snapshot, DeviceId::Equalizer, RouteNodeId::Detector);
 }
 
 Filter::Filter(

@@ -10,6 +10,8 @@
 namespace consolidator::core
 {
 
+class InstanceState;
+
 class BankState
 {
 public:
@@ -23,6 +25,7 @@ public:
 
 private:
     friend class InstanceCoordinator;
+    friend class InstanceState;
 
     void SetGroupId(std::optional<GroupId> groupId) noexcept { groupId_ = groupId; }
 

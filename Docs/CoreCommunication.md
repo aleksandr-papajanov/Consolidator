@@ -81,9 +81,21 @@ bank segment directly in each target `StatePath` before publication.
 Addressable state uses one bidirectional `StateCommand` protocol. A command
 contains a `StateOperation` (`Read` or `Write`) and a bounded `StateMessage` of
 `StateEntry` values. `StatePath` is a prefix query for reads and a complete
-address for writes. `IStateNode` owns both operations: `ReadState()` appends
-matching values, while `WriteState()` appends only values actually applied
-after validation.
+address for writes. State access is intentionally direct: `InstanceState` owns
+topology reads/writes and `DspChain` owns DSP reads/writes. There is no generic
+state-tree interface or visitor layer.
+
+`StatePath` provides named factories for valid address domains:
+
+```cpp
+StatePath::Instance(instanceId);
+StatePath::SelectedBank(instanceId);
+StatePath::BankGroup(instanceId, bankId);
+StatePath::DspParameter(instanceId, route);
+```
+
+Topology factories do not carry device or parameter identifiers. `WithNode()`
+asserts that the fixed routing capacity is not exceeded.
 
 DSP parameter writes are no longer a separate command type.
 `ConsolidatorInstance` does not expose DSP parameter application as public API.
@@ -105,6 +117,11 @@ The audio thread takes no mutex while draining its local queue. If that queue
 is full, the command is retained by the coordinator as a pending delivery and
 is retried by the worker; it is not silently discarded.
 
+Responses use one common coordinator queue. The audio thread writes to the
+instance-local SPSC response queue; the coordinator worker drains local
+responses into the common queue. A bounded retry FIFO on each instance keeps a
+temporarily full response queue from immediately losing a state response.
+
 `latest value wins` for repeated DSP parameter updates is intentionally not yet
 implemented. The next optimization is a per-instance parameter mailbox keyed
 by parameter address, while rare event commands continue to use the SPSC
@@ -123,23 +140,56 @@ StateCommand { Read | Write, StateMessage }
   -> coordinator global queue
   -> instance local queue
   -> StateCommandHandler on the audio owner
-  -> StateResponse { requestId, responseInstanceId, operation, StateResponseEntries }
-  -> instance response queue
+  -> StateResponse { requestId, responseInstanceId, appliedInstanceId, operation,
+                     responseIndex, responseCount, isFinal, truncated }
+  -> coordinator response queue
 ```
 
-For reads, `StatePath` is a prefix path. An empty query requests all state; an instance,
-device, bank-node, or parameter path narrows the result. `IStateNode`
-receives the path and appends only matching entries. `InstanceState` appends
-topology entries, while `DspChain` delegates to each `DspDevice`.
+For reads, `StatePath` is a prefix path. The handler represents a full-instance
+read explicitly with `StatePath::Instance(instanceId)`; an instance, device,
+bank-node, or parameter path narrows the result. `InstanceState` appends
+topology entries, while `DspChain` filters by `deviceId` and delegates to the
+matching `DspDevice`.
 
 Read requests use a small bounded entry list; responses use a larger bounded
-`StateResponseEntries` list. Responses are queued without allocation on the
-audio thread. A fixed pending FIFO retries delivery when the response queue is
-full.
+`StateResponseEntries` list. `FixedStateList::truncated` is set on overflow and
+`StateResponse::truncated` exposes that condition to the caller.
+
+Write results use one explicit status:
+
+```cpp
+enum class StateWriteStatus
+{
+    NotHandled,
+    Applied,
+    Unchanged,
+    Rejected
+};
+```
+
+`NotHandled` allows routing to continue; `Applied` and `Unchanged` return the
+current value; `Rejected` identifies a recognized but invalid write. A
+`std::monostate` state value clears an optional `GroupId`.
+
+One linked write may produce multiple responses. `responseIndex`,
+`responseCount`, and `isFinal` make completion explicit, while
+`appliedInstanceId` identifies the instance whose state changed.
+`StateResponseCollector` owns numbering and publication of coordinator response
+parts. `StateRouter` contains cross-instance equalizer target resolution and
+bank-path rewriting.
 
 DSP values use `DspParameter<T>` and are exported by their owning device.
 Topology values (`InstanceId`, banks, and groups) are exported directly by
 `InstanceState`.
+
+## State protocol tests
+
+`Tests/Core/StateProtocolIntegrationTest.cpp` exercises the protocol across
+two instances. It covers all top-level DSP devices, EQ parameters on different
+banks and filters, grouped-bank fan-out, batch writes, unlinking with
+`std::monostate`, applied-value reads, multipart responses, and empty responses
+for unhandled writes. It is registered as `StateProtocolIntegrationTest` in
+CTest.
 
 ## Deployment
 

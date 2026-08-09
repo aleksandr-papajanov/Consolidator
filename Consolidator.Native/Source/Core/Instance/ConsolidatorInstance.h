@@ -1,8 +1,8 @@
 #pragma once
 
 #include <atomic>
-#include <cstddef>
 #include <array>
+#include <cstddef>
 #include <memory>
 #include "Core/Commands/Commands.h"
 #include "Core/Commands/SpscCommandQueue.h"
@@ -44,6 +44,7 @@ public:
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
     [[nodiscard]] InstanceState& GetState() noexcept { return state_; }
+    [[nodiscard]] const InstanceState& GetState() const noexcept { return state_; }
     [[nodiscard]] dsp::DspChain& GetDspChain() noexcept;
     void QueueStateResponse(StateResponse response) noexcept;
 
@@ -68,8 +69,8 @@ private:
     SpscCommandQueue<Command, 128> commandQueue_;
     std::atomic<std::size_t> localQueueOverflowCount_{0};
     std::atomic<std::size_t> responseQueueOverflowCount_{0};
-    SpscCommandQueue<StateResponse, 4> responseQueue_;
-    std::array<StateResponse, 4> pendingResponses_{};
+    SpscCommandQueue<StateResponse, 8> responseQueue_;
+    std::array<StateResponse, 8> pendingResponses_{};
     std::size_t pendingResponseCount_{0};
 };
 

@@ -77,13 +77,12 @@ public:
         return runtimeState_;
     }
 
-    void ReadState(
+    void ReadAtRoute(
         const core::StatePath& path,
         core::StateSnapshot& snapshot,
         DeviceId deviceId,
         RouteNodeId parentNode) const;
 
-    void ReadState(const core::StatePath& path, core::StateSnapshot& snapshot) const override;
 
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;

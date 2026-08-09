@@ -127,11 +127,11 @@ void Equalizer::ReadState(const core::StatePath& path, core::StateSnapshot& snap
 
     for (const auto& filter : filters_)
     {
-        filter->ReadState(path, snapshot, DeviceId::Equalizer, bankNode);
+        filter->ReadAtRoute(path, snapshot, DeviceId::Equalizer, bankNode);
     }
 }
 
-void Equalizer::ReadState(
+void Equalizer::ReadAtRoute(
     const core::StatePath& path,
     core::StateSnapshot& snapshot,
     DeviceId deviceId,
@@ -139,7 +139,7 @@ void Equalizer::ReadState(
 {
     for (const auto& filter : filters_)
     {
-        filter->ReadState(path, snapshot, deviceId, parentNode);
+        filter->ReadAtRoute(path, snapshot, deviceId, parentNode);
     }
 }
 
@@ -188,7 +188,7 @@ Filter* Equalizer::FindFilter(
     {
         if ((filterElementKind_ != detail::ElementKind::EqFilter ||
              f->GetElementKind() == elementKind) &&
-            f->GetElementIndex() == elementIndex)
+             f->GetElementIndex() == elementIndex)
         {
             return f.get();
         }

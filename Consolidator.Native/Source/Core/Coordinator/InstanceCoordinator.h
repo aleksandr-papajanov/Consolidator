@@ -11,6 +11,7 @@
 #include "Core/State/StateProtocol.h"
 #include "Core/Notifications/Notifications.h"
 #include "Core/State/BankState.h"
+#include "Core/Coordinator/StateRouter.h"
 #include <optional>
 
 namespace consolidator::core
@@ -24,7 +25,7 @@ public:
     static InstanceCoordinator& Get();
 
     void EnqueueCommand(InstanceId sourceInstanceId, Command command);
-    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse(InstanceId instanceId);
+    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
 
     ~InstanceCoordinator();
 
@@ -43,12 +44,15 @@ private:
     void RouteStateCommand(
         InstanceId sourceInstanceId,
         const StateCommand& command);
-    [[nodiscard]] std::vector<BankAddress> ResolveWriteTargets(
+
+    bool ApplyTopologyWrite(
         InstanceId sourceInstanceId,
-        const StatePath& path) const;
+        const StateEntry& entry,
+        StateResponseEntries& applied);
 
     void EnqueueForInstance(InstanceId instanceId, Command command);
     void RetryPendingDeliveries();
+    void DrainInstanceResponses();
 
     struct PendingLocalCommand
     {
@@ -58,9 +62,10 @@ private:
 
     InstanceId nextInstanceId_{0};
     InstanceRegistry registry_;
+    StateRouter stateRouter_;
     CommandQueue<InstanceCommand> commandQueue_;
     std::vector<PendingLocalCommand> pendingDeliveries_;
-    std::vector<StateResponse> pendingResponses_;
+    CommandQueue<StateResponse> coordinatorResponses_;
     mutable std::mutex registryMutex_;
     std::mutex wakeMutex_;
     std::condition_variable_any wakeCondition_;

@@ -34,7 +34,11 @@ void WriteParameter(
         path.nodes[index] = route.GetNode(index);
     }
     consolidator::core::StateResponseEntries applied;
-    assert(chain.WriteState({path, std::visit([](const auto& item) -> consolidator::core::StateValue { return item; }, value)}, applied));
+    const auto status = chain.WriteState(
+        {path, std::visit([](const auto& item) -> consolidator::core::StateValue { return item; }, value)},
+        applied);
+    assert(status == consolidator::core::StateWriteStatus::Applied ||
+           status == consolidator::core::StateWriteStatus::Unchanged);
     assert(applied.size == 1);
 }
 

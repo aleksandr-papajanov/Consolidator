@@ -12,8 +12,13 @@ struct StateResponse
 {
     RequestId requestId;
     InstanceId responseInstanceId{0};
+    InstanceId appliedInstanceId{0};
     StateOperation operation;
     StateResponseEntries entries;
+    std::uint16_t responseIndex{0};
+    std::uint16_t responseCount{1};
+    bool isFinal{true};
+    bool truncated{false};
 };
 
 // ---- Notifications: reactions to commands, produced by the system ----

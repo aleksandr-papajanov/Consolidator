@@ -52,8 +52,7 @@ int main()
         instance.Process(mainInput.data(), referenceInput.data(),
                          mainOutput.data(), referenceOutput.data(),
                          frameCount);
-        response = consolidator::core::InstanceCoordinator::Get().TryDequeueResponse(
-            instance.GetInstanceId());
+        response = consolidator::core::InstanceCoordinator::Get().TryDequeueResponse();
         std::this_thread::sleep_for(std::chrono::milliseconds{1});
     }
 

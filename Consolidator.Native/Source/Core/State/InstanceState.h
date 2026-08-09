@@ -3,14 +3,15 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 #include "Core/State/BankState.h"
 #include "Core/Instance/InstanceId.h"
-#include "Core/State/IStateNode.h"
+#include "Core/State/StateProtocol.h"
 
 namespace consolidator::core
 {
 
-class InstanceState final : public IStateNode
+class InstanceState final
 {
 public:
     static constexpr std::size_t kBankCount = 7;
@@ -23,12 +24,9 @@ public:
 
     void ReadState(
         const StatePath& path,
-        StateResponseEntries& snapshot) const override;
+        StateResponseEntries& snapshot) const;
 
-    bool WriteState(const StateEntry&, StateResponseEntries&) override
-    {
-        return false;
-    }
+    StateWriteStatus WriteState(const StateEntry& entry, StateResponseEntries& applied);
 
 private:
     friend class InstanceCoordinator;
@@ -82,9 +80,10 @@ inline void InstanceState::ReadState(
     {
         StatePath bankPath = instancePath;
         bankPath.field = StateField::BankId;
-        bankPath.bankNode = static_cast<dsp::RouteNodeId>(
+        bankPath.nodes[0] = static_cast<dsp::RouteNodeId>(
             static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0) +
             dsp::detail::ToIndex(bank.GetBankId()));
+        bankPath.depth = 1;
         if (path.Matches(bankPath))
         {
             (void)snapshot.TryAppend(StateEntry{bankPath, StateValue{bank.GetBankId()}});
@@ -100,6 +99,67 @@ inline void InstanceState::ReadState(
             }
         }
     }
+}
+
+inline StateWriteStatus InstanceState::WriteState(const StateEntry& entry, StateResponseEntries& applied)
+{
+    if (!entry.path.field)
+    {
+        return StateWriteStatus::NotHandled;
+    }
+    if (*entry.path.field == StateField::SelectedBank)
+    {
+        if (const auto value = std::get_if<dsp::BankId>(&entry.value))
+        {
+            const auto status = selectedBankId_ == *value
+                ? StateWriteStatus::Unchanged
+                : StateWriteStatus::Applied;
+            selectedBankId_ = *value;
+            (void)applied.TryAppend(StateEntry{entry.path, StateValue{*value}});
+            return status;
+        }
+        return StateWriteStatus::Rejected;
+    }
+    if (*entry.path.field == StateField::GroupId && entry.path.depth > 0)
+    {
+        const auto bankNode = static_cast<std::uint8_t>(entry.path.nodes[0]);
+        const auto first = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
+        if (bankNode >= first && bankNode < first + kBankCount)
+        {
+            const auto bankId = static_cast<dsp::BankId>(bankNode - first);
+            if (std::holds_alternative<GroupId>(entry.value) ||
+                std::holds_alternative<std::monostate>(entry.value))
+            {
+                if (std::holds_alternative<GroupId>(entry.value))
+                {
+                    const auto previous = banks_[dsp::detail::ToIndex(bankId)].GetGroupId();
+                    const auto& value = std::get<GroupId>(entry.value);
+                    const auto status = previous && *previous == value
+                        ? StateWriteStatus::Unchanged
+                        : StateWriteStatus::Applied;
+                    banks_[dsp::detail::ToIndex(bankId)].SetGroupId(value);
+                    StateEntry appliedEntry;
+                    appliedEntry.path = entry.path;
+                    appliedEntry.value = entry.value;
+                    (void)applied.TryAppend(appliedEntry);
+                    return status;
+                }
+                else
+                {
+                    const auto status = banks_[dsp::detail::ToIndex(bankId)].GetGroupId()
+                        ? StateWriteStatus::Applied
+                        : StateWriteStatus::Unchanged;
+                    banks_[dsp::detail::ToIndex(bankId)].SetGroupId(std::nullopt);
+                    StateEntry appliedEntry;
+                    appliedEntry.path = entry.path;
+                    appliedEntry.value = entry.value;
+                    (void)applied.TryAppend(appliedEntry);
+                    return status;
+                }
+            }
+        }
+    }
+    return StateWriteStatus::NotHandled;
 }
 
 inline BankState& InstanceState::GetBankState(dsp::BankId bankId) noexcept

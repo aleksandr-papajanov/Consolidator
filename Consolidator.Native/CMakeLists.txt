@@ -36,6 +36,10 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/Handlers/StateCommandHandler.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
+    Source/Core/Coordinator/StateRouter.h
+    Source/Core/Coordinator/StateRouter.cpp
+    Source/Core/Coordinator/StateResponseCollector.h
+    Source/Core/Coordinator/StateResponseCollector.cpp
     Source/Core/State/InstanceState.h
     Source/Core/State/BankState.h
     Source/Core/State/GainState.h
@@ -44,7 +48,6 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/State/EqualizerState.h
     Source/Core/State/FilterState.h
     Source/Core/State/StateProtocol.h
-    Source/Core/State/IStateNode.h
     Source/Core/Groups/GroupId.h
     Source/Core/Groups/InstanceGroup.h
     Source/Core/Commands/Commands.h
@@ -131,7 +134,16 @@ target_include_directories(DspChainTest PRIVATE Source)
 target_link_libraries(DspChainTest PRIVATE ConsolidatorCore)
 target_compile_features(DspChainTest PRIVATE cxx_std_20)
 
+add_executable(StateProtocolIntegrationTest
+    Tests/Core/StateProtocolIntegrationTest.cpp
+)
+
+target_include_directories(StateProtocolIntegrationTest PRIVATE Source)
+target_link_libraries(StateProtocolIntegrationTest PRIVATE ConsolidatorCore)
+target_compile_features(StateProtocolIntegrationTest PRIVATE cxx_std_20)
+
 include(CTest)
 add_test(NAME ConsolidatorInstanceTest COMMAND ConsolidatorInstanceTest)
 add_test(NAME InstanceRegistryTest COMMAND InstanceRegistryTest)
 add_test(NAME DspChainTest COMMAND DspChainTest)
+add_test(NAME StateProtocolIntegrationTest COMMAND StateProtocolIntegrationTest)

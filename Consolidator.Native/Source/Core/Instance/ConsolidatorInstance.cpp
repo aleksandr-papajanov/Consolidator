@@ -34,7 +34,6 @@ void ConsolidatorInstance::Process(const double* mainInput,
         {
             break;
         }
-
         for (std::size_t index = 1; index < pendingResponseCount_; ++index)
         {
             pendingResponses_[index - 1] = std::move(pendingResponses_[index]);
@@ -118,7 +117,6 @@ void ConsolidatorInstance::StorePendingResponse(StateResponse response) noexcept
     {
         pendingResponses_[pendingResponseCount_++] = std::move(response);
     }
-
     RecordResponseQueueOverflow();
 }
 

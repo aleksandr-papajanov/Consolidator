@@ -7,50 +7,10 @@
 #include <utility>
 
 #include "Core/Instance/ConsolidatorInstance.h"
+#include "Core/Coordinator/StateResponseCollector.h"
 
 namespace consolidator::core
 {
-
-namespace
-{
-
-dsp::RouteNodeId ToRouteNodeId(dsp::BankId bankId) noexcept
-{
-    return static_cast<dsp::RouteNodeId>(
-        static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0) +
-        dsp::detail::ToIndex(bankId));
-}
-
-StateEntry CreateEntryForBank(
-    const StateEntry& entry,
-    dsp::BankId bankId)
-{
-    auto result = entry;
-    if (!result.path.deviceId || !result.path.parameterId)
-    {
-        return result;
-    }
-
-    const core::StatePath route{
-        *result.path.deviceId,
-        *result.path.parameterId,
-        result.path.depth > 0 ? result.path.nodes[0] : dsp::RouteNodeId::Bank0};
-    result.path.deviceId = route.GetDeviceId();
-    result.path.parameterId = route.GetParameterId();
-    result.path.depth = route.GetDepth();
-    result.path.nodes[0] = ToRouteNodeId(bankId);
-    if (result.path.depth > 1)
-    {
-        result.path.nodes[1] = route.GetNode(1);
-    }
-    if (result.path.depth > 2)
-    {
-        result.path.nodes[2] = route.GetNode(2);
-    }
-    return result;
-}
-
-} // namespace
 
 InstanceCoordinator& InstanceCoordinator::Get()
 {
@@ -59,7 +19,8 @@ InstanceCoordinator& InstanceCoordinator::Get()
 }
 
 InstanceCoordinator::InstanceCoordinator()
-    : worker_([this](std::stop_token stopToken)
+    : stateRouter_(registry_)
+    , worker_([this](std::stop_token stopToken)
       {
           WorkerLoop(stopToken);
       })
@@ -96,37 +57,9 @@ void InstanceCoordinator::EnqueueCommand(InstanceId sourceInstanceId, Command co
     wakeCondition_.notify_one();
 }
 
-std::optional<StateResponse> InstanceCoordinator::TryDequeueResponse(InstanceId instanceId)
+std::optional<StateResponse> InstanceCoordinator::TryDequeueResponse()
 {
-    std::lock_guard lock{registryMutex_};
-    auto pendingIt = std::find_if(
-        pendingResponses_.begin(),
-        pendingResponses_.end(),
-        [instanceId](const StateResponse& response)
-        {
-            return response.responseInstanceId == instanceId;
-        });
-    if (pendingIt != pendingResponses_.end())
-    {
-        auto response = std::move(*pendingIt);
-        pendingResponses_.erase(pendingIt);
-        return response;
-    }
-
-    for (auto* instance : registry_.GetInstances())
-    {
-        while (const auto response = instance->TryDequeueResponse())
-        {
-            if (response->responseInstanceId == instanceId)
-            {
-                return response;
-            }
-
-            pendingResponses_.push_back(*response);
-        }
-    }
-
-    return std::nullopt;
+    return coordinatorResponses_.TryDequeue();
 }
 
 void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
@@ -146,6 +79,7 @@ void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
         {
             RouteCommand(*command);
         }
+        DrainInstanceResponses();
     }
 }
 
@@ -174,52 +108,135 @@ void InstanceCoordinator::RouteStateCommand(
         return;
     }
 
-    if (command.operation == StateOperation::Read || command.message.entries.size != 1)
+    if (command.operation == StateOperation::Read)
     {
         EnqueueForInstance(sourceInstanceId, command);
         return;
     }
 
-    const auto& entry = command.message.entries.entries[0];
-    const auto targets = ResolveWriteTargets(sourceInstanceId, entry.path);
-    if (targets.empty())
+    StateResponse topologyResponse{
+        command.message.requestId,
+        command.message.responseInstanceId,
+        sourceInstanceId,
+        command.operation,
+        {}};
+    struct RoutedBatch
     {
-        EnqueueForInstance(sourceInstanceId, command);
-        return;
+        InstanceId instanceId;
+        StateCommand command;
+    };
+    std::vector<RoutedBatch> routedBatches;
+    const auto getBatch = [&routedBatches](InstanceId instanceId) -> RoutedBatch&
+    {
+        auto batchIt = std::find_if(routedBatches.begin(), routedBatches.end(),
+            [instanceId](const RoutedBatch& batch) { return batch.instanceId == instanceId; });
+        if (batchIt == routedBatches.end())
+        {
+            batchIt = routedBatches.emplace(
+                routedBatches.end(), instanceId, StateCommand{StateOperation::Write, {}});
+        }
+        return *batchIt;
+    };
+
+    for (std::size_t index = 0; index < command.message.entries.size; ++index)
+    {
+        const auto& entry = command.message.entries.entries[index];
+        if (ApplyTopologyWrite(sourceInstanceId, entry, topologyResponse.entries))
+        {
+            continue;
+        }
+
+        const auto targets = stateRouter_.ResolveTargets(sourceInstanceId, entry.path);
+        if (targets.empty())
+        {
+            (void)getBatch(sourceInstanceId).command.message.entries.TryAppend(entry);
+            continue;
+        }
+
+        for (const auto target : targets)
+        {
+            (void)getBatch(target.instanceId).command.message.entries.TryAppend(
+                StateRouter::ForBank(entry, target.bankId));
+        }
     }
 
-    for (const auto target : targets)
+    const bool hasTopologyResponse = topologyResponse.entries.size != 0;
+    const auto responseCount = static_cast<std::uint16_t>(routedBatches.size() +
+        (hasTopologyResponse ? 1 : 0));
+    StateResponseCollector responses{
+        coordinatorResponses_,
+        static_cast<std::uint16_t>(responseCount == 0 ? 1 : responseCount)};
+    if (hasTopologyResponse)
     {
-        auto routed = command;
-        routed.message.entries.entries[0] = CreateEntryForBank(entry, target.bankId);
-        EnqueueForInstance(target.instanceId, std::move(routed));
+        responses.Publish(std::move(topologyResponse), 0);
+    }
+    if (!hasTopologyResponse && routedBatches.empty())
+    {
+        responses.Publish(std::move(topologyResponse), 0);
+    }
+    for (std::size_t index = 0; index < routedBatches.size(); ++index)
+    {
+        auto& batch = routedBatches[index];
+        batch.command.message.requestId = command.message.requestId;
+        batch.command.message.responseInstanceId = command.message.responseInstanceId;
+        batch.command.message.responseIndex = static_cast<std::uint16_t>(index +
+            (hasTopologyResponse ? 1 : 0));
+        batch.command.message.responseCount = responseCount;
+        EnqueueForInstance(batch.instanceId, std::move(batch.command));
     }
 }
 
-std::vector<BankAddress> InstanceCoordinator::ResolveWriteTargets(
-    InstanceId sourceInstanceId,
-    const StatePath& path) const
+void InstanceCoordinator::DrainInstanceResponses()
 {
-    if (!path.deviceId || *path.deviceId != dsp::DeviceId::Equalizer)
+    for (auto* instance : registry_.GetInstances())
     {
-        return {};
+        while (const auto response = instance->TryDequeueResponse())
+        {
+            coordinatorResponses_.Enqueue(std::move(*response));
+        }
+    }
+}
+
+bool InstanceCoordinator::ApplyTopologyWrite(
+    InstanceId sourceInstanceId,
+    const StateEntry& entry,
+    StateResponseEntries& applied)
+{
+    auto* const source = registry_.FindInstance(sourceInstanceId);
+    if (source == nullptr || !entry.path.field)
+    {
+        return false;
     }
 
-    const auto* source = registry_.FindInstance(sourceInstanceId);
-    if (source == nullptr)
+    std::optional<BankAddress> changedBank;
+    std::optional<GroupId> previousGroup;
+    if (*entry.path.field == StateField::GroupId && entry.path.depth > 0)
     {
-        return {};
+        const auto bankNode = static_cast<std::uint8_t>(entry.path.nodes[0]);
+        const auto firstBankNode = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
+        const auto lastBankNode = firstBankNode + InstanceState::kBankCount - 1;
+        if (bankNode < firstBankNode || bankNode > lastBankNode)
+        {
+            return false;
+        }
+        const auto bankId = static_cast<dsp::BankId>(bankNode - firstBankNode);
+        changedBank = BankAddress{sourceInstanceId, bankId};
+        previousGroup = source->state_.GetBankState(bankId).GetGroupId();
     }
 
-    const auto sourceBankId = source->state_.GetSelectedBankId();
-    const auto groupId = source->state_.GetBankState(sourceBankId).GetGroupId();
-    if (!groupId)
+    const auto status = source->state_.WriteState(entry, applied);
+    if (status == StateWriteStatus::NotHandled)
     {
-        return {BankAddress{sourceInstanceId, sourceBankId}};
+        return false;
     }
-
-    const auto members = registry_.FindGroupMembers(*groupId);
-    return {members.begin(), members.end()};
+    if (changedBank)
+    {
+        registry_.CacheBankGroup(
+            *changedBank,
+            previousGroup,
+            source->state_.GetBankState(changedBank->bankId).GetGroupId());
+    }
+    return true;
 }
 
 void InstanceCoordinator::EnqueueForInstance(InstanceId instanceId, Command command)

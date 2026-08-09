@@ -69,7 +69,7 @@ public:
         AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Mix}, state_.mix);
         AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Type}, state_.detectorAmount);
         AppendParameter(path, snapshot, core::StatePath{DeviceId::Saturator, ParameterId::Bypass}, state_.bypass);
-        detectors_[0].GetEqualizer().ReadState(path, snapshot, DeviceId::Saturator, RouteNodeId::Detector);
+        detectors_[0].GetEqualizer().ReadAtRoute(path, snapshot, DeviceId::Saturator, RouteNodeId::Detector);
     }
 
 private:

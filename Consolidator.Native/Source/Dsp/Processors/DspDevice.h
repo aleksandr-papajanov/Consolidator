@@ -6,12 +6,11 @@
 #include <type_traits>
 
 #include "Core/Parameters/DspParameter.h"
-#include "Core/State/IStateNode.h"
 
 namespace consolidator::dsp
 {
 
-class DspDevice : public core::IStateNode
+class DspDevice
 {
 public:
     DspDevice(
@@ -70,16 +69,20 @@ public:
 
     virtual void ReadState(
         const core::StatePath& query,
-        core::StateResponseEntries& output) const override = 0;
+        core::StateResponseEntries& output) const
+    {
+        (void)query;
+        (void)output;
+    }
 
-    bool WriteState(
+    core::StateWriteStatus WriteState(
         const core::StateEntry& entry,
-        core::StateResponseEntries& applied) override
+        core::StateResponseEntries& applied)
     {
         if (entry.path.field != core::StateField::DspParameter ||
             !entry.path.deviceId || !entry.path.parameterId)
         {
-            return false;
+            return core::StateWriteStatus::NotHandled;
         }
 
         core::StatePath route{*entry.path.deviceId, *entry.path.parameterId};
@@ -103,14 +106,22 @@ public:
             },
             entry.value);
 
-        if (!parameterValue || !WriteParameter(route, *parameterValue, 0))
+        if (!parameterValue)
         {
-            return false;
+            return core::StateWriteStatus::Rejected;
+        }
+        if (!WriteParameter(route, *parameterValue, 0))
+        {
+            ReadState(entry.path, applied);
+            return applied.size != 0
+                ? core::StateWriteStatus::Unchanged
+                : core::StateWriteStatus::Rejected;
         }
 
         ReadState(entry.path, applied);
-        return true;
+        return core::StateWriteStatus::Applied;
     }
+
 
 protected:
     template <typename T>
