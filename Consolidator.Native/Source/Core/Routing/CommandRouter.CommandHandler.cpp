@@ -8,12 +8,12 @@ namespace consolidator::core
 
 CommandRouter::CommandRouter(
     InstanceRegistry& registry,
-    const StateRouter& stateRouter,
     const ParameterConstraintResolver& constraintResolver,
+    StateWriter& stateWriter,
     ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept
     : registry_(registry)
-    , stateRouter_(stateRouter)
     , constraintResolver_(constraintResolver)
+    , stateWriter_(stateWriter)
     , coordinatorResponses_(coordinatorResponses)
 {
 }

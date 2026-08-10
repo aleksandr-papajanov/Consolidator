@@ -36,6 +36,25 @@ Reference input  [2 ch] ─┤
 Future: UI controllers, analyzer outputs, monitoring, and debug streams will be
 added as additional Max inlets/outlets, but Core will remain unaware of Max.
 
+## State Routing
+
+The Core routing scope is split by responsibility:
+
+- `CommandRouter` dispatches state commands and chooses read versus write.
+- `StateRouter` resolves connected write targets and constraint dependencies.
+- `ParameterConstraintResolver` validates, translates, and enriches parameter limits.
+- `StateWriter` applies writes as one flow: state, DSP updates, constraint refresh,
+  and the final response.
+
+For a write, `StateWriter` handles each entry explicitly: `NotHandled` allows
+the caller to reject the entry, `Rejected` is reported without side effects,
+`Unchanged` is returned without a DSP update, and `Applied` also publishes the
+runtime update and refreshes dependent constraints.
+
+Entries in one `StateCommand` are processed independently. A later rejected
+entry does not roll back earlier applied entries; write batches are intentionally
+not all-or-nothing.
+
 ## CMake Targets
 
 - `ConsolidatorCore` — static library (always built)

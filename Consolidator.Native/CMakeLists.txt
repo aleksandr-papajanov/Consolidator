@@ -45,13 +45,12 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Routing/CommandRouter.CommandHandler.cpp
     Source/Core/Routing/CommandRouter.StateCommandHandler.cpp
     Source/Core/Routing/CommandRouter.ReadCommandHandler.cpp
-    Source/Core/Routing/CommandRouter.WriteCommandHandler.cpp
     Source/Core/Routing/StateRouter.h
     Source/Core/Routing/StateRouter.cpp
     Source/Core/Routing/ParameterConstraintResolver.h
     Source/Core/Routing/ParameterConstraintResolver.cpp
-    Source/Core/Routing/StateResponsePublisher.h
-    Source/Core/Routing/StateResponsePublisher.cpp
+    Source/Core/Routing/StateWriter.h
+    Source/Core/Routing/StateWriter.cpp
     Source/Core/Domain/State/InstanceState.h
     Source/Core/Domain/State/StateStore.h
     Source/Core/Domain/State/StateStore.Internal.h

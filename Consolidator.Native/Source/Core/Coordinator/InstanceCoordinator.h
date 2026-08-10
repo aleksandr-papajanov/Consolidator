@@ -10,6 +10,7 @@
 #include "Core/Routing/CommandRouter.h"
 #include "Core/Routing/StateRouter.h"
 #include "Core/Routing/ParameterConstraintResolver.h"
+#include "Core/Routing/StateWriter.h"
 #include "Core/Registry/InstanceRegistry.h"
 
 namespace consolidator::core
@@ -46,6 +47,7 @@ private:
     StateRouter stateRouter_;
     ParameterConstraintResolver constraintResolver_;
     ConcurrentQueue<StateResponse> coordinatorResponses_;
+    StateWriter stateWriter_;
     CommandRouter commandRouter_;
     ConcurrentQueue<InstanceCommand> commandQueue_;
     mutable std::mutex registryMutex_;

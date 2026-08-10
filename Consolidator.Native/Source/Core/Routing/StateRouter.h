@@ -29,12 +29,22 @@ public:
 
     [[nodiscard]] static bool IsBankOwned(const StatePath& path) noexcept;
 
+    [[nodiscard]] static StatePath ForBank(
+        StatePath path,
+        dsp::BankId bankId);
+
     [[nodiscard]] static StateEntry ForBank(StateEntry entry, dsp::BankId bankId);
 
 private:
-    [[nodiscard]] std::vector<BankAddress> ResolveConnectedComponent(
+    [[nodiscard]] std::vector<BankAddress> ResolveDirectGroup(
+        std::vector<BankAddress> seeds) const;
+
+    [[nodiscard]] std::vector<BankAddress> ResolveConstraintComponent(
+        std::vector<BankAddress> seeds) const;
+
+    [[nodiscard]] std::vector<BankAddress> TraverseConnectedComponent(
         std::vector<BankAddress> seeds,
-        bool expandInstanceGroups = false) const;
+        bool includeInstanceBanks) const;
 
     const InstanceRegistry& registry_;
 };

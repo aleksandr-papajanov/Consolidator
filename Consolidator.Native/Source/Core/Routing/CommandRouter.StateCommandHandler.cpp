@@ -1,5 +1,9 @@
 #include "Core/Routing/CommandRouter.h"
 
+#include <utility>
+
+#include "Core/Routing/StateWriter.h"
+
 namespace consolidator::core
 {
 
@@ -18,7 +22,8 @@ void CommandRouter::HandleStateCommand(
         return;
     }
 
-    HandleWriteCommand(sourceInstanceId, command);
+    auto response = stateWriter_.Write(sourceInstanceId, command);
+    coordinatorResponses_.Enqueue(std::move(response));
 }
 
 } // namespace consolidator::core

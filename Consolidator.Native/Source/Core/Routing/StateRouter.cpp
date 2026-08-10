@@ -22,13 +22,19 @@ dsp::RouteNodeId ToRouteNodeId(dsp::BankId bankId) noexcept
 
 } // namespace
 
+StatePath StateRouter::ForBank(StatePath path, dsp::BankId bankId)
+{
+    if (path.depth == 0)
+    {
+        path.depth = 1;
+    }
+    path.nodes[0] = ToRouteNodeId(bankId);
+    return path;
+}
+
 StateEntry StateRouter::ForBank(StateEntry entry, dsp::BankId bankId)
 {
-    if (entry.path.depth == 0)
-    {
-        entry.path.depth = 1;
-    }
-    entry.path.nodes[0] = ToRouteNodeId(bankId);
+    entry.path = ForBank(std::move(entry.path), bankId);
     return entry;
 }
 
@@ -77,7 +83,7 @@ std::vector<BankAddress> StateRouter::ResolveWriteTargets(
         }
     }
 
-    auto targets = ResolveConnectedComponent(std::move(seeds));
+    auto targets = ResolveDirectGroup(std::move(seeds));
     if (IsBankOwned(path))
     {
         return targets;
@@ -139,12 +145,24 @@ std::vector<BankAddress> StateRouter::ResolveConstraintDependencies(
         }
     }
 
-    return ResolveConnectedComponent(std::move(seeds), true);
+    return ResolveConstraintComponent(std::move(seeds));
 }
 
-std::vector<BankAddress> StateRouter::ResolveConnectedComponent(
+std::vector<BankAddress> StateRouter::ResolveDirectGroup(
+    std::vector<BankAddress> seeds) const
+{
+    return TraverseConnectedComponent(std::move(seeds), false);
+}
+
+std::vector<BankAddress> StateRouter::ResolveConstraintComponent(
+    std::vector<BankAddress> seeds) const
+{
+    return TraverseConnectedComponent(std::move(seeds), true);
+}
+
+std::vector<BankAddress> StateRouter::TraverseConnectedComponent(
     std::vector<BankAddress> pending,
-    bool expandInstanceGroups) const
+    bool includeInstanceBanks) const
 {
     std::vector<BankAddress> targets;
     for (std::size_t pendingIndex = 0;
@@ -164,7 +182,7 @@ std::vector<BankAddress> StateRouter::ResolveConnectedComponent(
             continue;
         }
 
-        if (expandInstanceGroups)
+        if (includeInstanceBanks)
         {
             const auto& topology = instance->GetStateStore().GetTopology();
             for (std::size_t bankIndex = 0;

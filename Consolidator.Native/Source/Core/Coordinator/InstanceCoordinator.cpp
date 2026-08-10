@@ -14,7 +14,15 @@ InstanceCoordinator& InstanceCoordinator::Get()
 InstanceCoordinator::InstanceCoordinator()
     : stateRouter_(registry_)
     , constraintResolver_(registry_, stateRouter_)
-    , commandRouter_(registry_, stateRouter_, constraintResolver_, coordinatorResponses_)
+    , stateWriter_(
+          registry_,
+          stateRouter_,
+          constraintResolver_)
+    , commandRouter_(
+          registry_,
+          constraintResolver_,
+          stateWriter_,
+          coordinatorResponses_)
     , worker_([this](std::stop_token stopToken)
       {
           WorkerLoop(stopToken);
