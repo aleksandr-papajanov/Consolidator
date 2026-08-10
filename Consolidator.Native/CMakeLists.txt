@@ -31,7 +31,7 @@ set_target_properties(ConsolidatorCore PROPERTIES
 target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
-    Source/Core/Instance/ConsolidatorInstance.StateCommandHandler.cpp
+    Source/Core/Instance/ConsolidatorInstance.CommandSubmission.cpp
     Source/Core/Domain/Ids/InstanceId.h
     Source/Core/Domain/Ids/GroupId.h
     Source/Core/Domain/Ids/DspIds.h
@@ -39,12 +39,14 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/Queues/DspUpdateMailbox.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
-    Source/Core/Coordinator/InstanceCoordinator.CommandHandler.cpp
-    Source/Core/Coordinator/InstanceCoordinator.DispatchHandler.cpp
+    Source/Core/Coordinator/InstanceCoordinator.CommandSubmission.cpp
+    Source/Core/Coordinator/InstanceCoordinator.WorkerLoop.cpp
     Source/Core/Routing/CommandRouter.h
     Source/Core/Routing/CommandRouter.CommandHandler.cpp
-    Source/Core/Routing/CommandRouter.StateCommandHandler.cpp
     Source/Core/Routing/CommandRouter.ReadCommandHandler.cpp
+    Source/Core/Routing/CommandRouter.WriteCommandHandler.cpp
+    Source/Core/Routing/GroupGraph.h
+    Source/Core/Routing/GroupGraph.cpp
     Source/Core/Routing/StateRouter.h
     Source/Core/Routing/StateRouter.cpp
     Source/Core/Routing/ParameterConstraintResolver.h

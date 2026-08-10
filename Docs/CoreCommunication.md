@@ -8,7 +8,7 @@ coordinator worker. Instances register their topology and coordinator-owned
 
 ```text
 Max / control code
-  -> ConsolidatorInstance::EnqueueStateCommand()
+  -> ConsolidatorInstance::EnqueueCommand()
   -> InstanceCoordinator global queue
   -> CommandRouter resolves topology and group targets
   -> StateStore::WriteState() on coordinator thread
@@ -46,9 +46,13 @@ Non-coalescable actions such as reset must use a separate event queue.
 
 ## State protocol
 
-Addressable state uses one bidirectional `StateCommand` protocol containing a
-`StateOperation` and bounded `StateEntry` list. `StatePath` is a prefix query
-for reads and a complete address for writes. `StateStore` owns both topology
+Addressable state uses two self-contained command types: `ReadStateCommand`
+with bounded `queries` and `WriteStateCommand` with bounded `entries`.
+`Command` is their variant. The `ConsolidatorInstance` fills `instanceId`
+before enqueueing. `StatePath` is a prefix query for reads and a complete address
+for writes. Each request produces one consolidated `StateResponse` addressed by
+the same `instanceId`; it contains `requestId`, `entries`, and `truncated`.
+`StateStore` owns both topology
 entries and all DSP parameter entries.
 
 Valid path factories include:
@@ -63,19 +67,26 @@ StatePath::DspParameter(instanceId, route);
 `ParameterConstraintResolver` reads only `StateStore`. Write routing and
 constraint dependencies are intentionally separate:
 
-- `ResolveWriteTargets()` routes an instance-owned parameter through the group
-  of the source instance's selected bank.
-- `ResolveConstraintDependencies()` inspects all grouped banks of the source
-  instance when calculating effective limits.
+- `GroupGraph` owns topology traversal through:
+  `GetGroupMembers()`, `GetGroupedBanks()`, and `GetConnectedGroupBanks()`.
+- `StateRouter::ResolveSourceBank()` selects the path's bank or the source
+  instance's selected bank.
+- `StateRouter::ResolveWriteTargets()` returns one direct group, falling back to
+  the source bank when it is ungrouped, and collapses instance-owned targets.
+- `StateRouter::ResolveConstraintTargets()` returns the direct group for
+  bank-scoped paths and the connected topology component for instance-owned
+  parameters.
+- `StateRouter::Retarget()` adapts a path to a target instance and bank;
+  `IsBankScoped()` identifies the current bank-owned EQ paths.
 
-Both traversals walk connected group components transitively, so a chain such
-as A → B → C is handled correctly for its respective purpose. Group-linked
-writes are validated for every write target before any target is mutated, then
-committed to each target store and returned in one coordinator response.
+Constraint traversal walks connected group components transitively, so a chain
+such as A → B → C is handled correctly. Group-linked writes use only the direct
+group and are validated for every write target before any target is mutated,
+then committed to each target store and returned in one coordinator response.
 Constraint enrichment runs after the complete plan is committed.
 
 After a parameter commit, the response also includes authoritative values for
-every dependency returned by `ResolveConstraintDependencies()`. This keeps
+every target returned by `ResolveConstraintTargets()`. This keeps
 effective limits synchronized for other grouped instances, including writes
 that remain local because the selected bank is not grouped.
 

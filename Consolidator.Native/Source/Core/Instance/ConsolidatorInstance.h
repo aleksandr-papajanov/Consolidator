@@ -37,7 +37,8 @@ public:
                  double* referenceOutput,
                  std::size_t frameCount);
 
-    void HandleStateCommand(StateCommand command);
+    void EnqueueCommand(ReadStateCommand command);
+    void EnqueueCommand(WriteStateCommand command);
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
     [[nodiscard]] StateStore& GetStateStore() noexcept { return stateStore_; }

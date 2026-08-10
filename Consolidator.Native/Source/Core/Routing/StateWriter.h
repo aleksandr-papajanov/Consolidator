@@ -20,8 +20,7 @@ public:
         const ParameterConstraintResolver& constraintResolver) noexcept;
 
     [[nodiscard]] StateResponse Write(
-        InstanceId sourceInstanceId,
-        const StateCommand& command);
+        const WriteStateCommand& command);
 
 private:
     struct DspUpdateTarget
@@ -39,7 +38,7 @@ private:
 
     void ApplyEntries(
         InstanceId sourceInstanceId,
-        const StateCommand& command,
+        const WriteStateCommand& command,
         WriteContext& context);
 
     void ApplyEntry(

@@ -91,10 +91,7 @@ bool ParameterConstraintResolver::Validate(
     for (const auto& target : targets)
     {
         StateEntry targetEntry;
-        auto targetPath = StateRouter::IsBankOwned(requested.path)
-            ? StateRouter::ForBank(requested, target.bankId).path
-            : requested.path;
-        targetPath.instanceId = target.instanceId;
+        const auto targetPath = StateRouter::Retarget(requested.path, target);
         if (!ReadParameter(target.instanceId, targetPath, targetEntry) ||
             !IsInRange(targetEntry, delta))
         {
@@ -123,10 +120,7 @@ std::optional<StateEntry> ParameterConstraintResolver::TranslateForTarget(
         return std::nullopt;
     }
 
-    auto targetPath = StateRouter::IsBankOwned(requested.path)
-        ? StateRouter::ForBank(requested, target.bankId).path
-        : requested.path;
-    targetPath.instanceId = target.instanceId;
+    const auto targetPath = StateRouter::Retarget(requested.path, target);
     if (!ReadParameter(target.instanceId, targetPath, targetEntry) ||
         !std::holds_alternative<float>(source.value) ||
         !std::holds_alternative<float>(targetEntry.value))
@@ -150,7 +144,7 @@ void ParameterConstraintResolver::Enrich(
         return;
     }
 
-    auto targets = stateRouter_.ResolveConstraintDependencies(sourceInstanceId, entry.path);
+    auto targets = stateRouter_.ResolveConstraintTargets(sourceInstanceId, entry.path);
     if (targets.empty())
     {
         if (entry.physicalMinimum && entry.physicalMaximum &&
@@ -168,10 +162,7 @@ void ParameterConstraintResolver::Enrich(
     for (const auto& target : targets)
     {
         StateEntry targetEntry;
-        auto targetPath = StateRouter::IsBankOwned(entry.path)
-            ? StateRouter::ForBank(entry, target.bankId).path
-            : entry.path;
-        targetPath.instanceId = target.instanceId;
+        const auto targetPath = StateRouter::Retarget(entry.path, target);
         if (!ReadParameter(target.instanceId, targetPath, targetEntry) ||
             !std::holds_alternative<float>(targetEntry.value) ||
             !targetEntry.physicalMinimum || !targetEntry.physicalMaximum ||

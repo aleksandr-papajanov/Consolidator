@@ -1,9 +1,11 @@
 #pragma once
 
+#include <optional>
 #include <vector>
 
 #include "Core/Registry/InstanceRegistry.h"
 #include "Core/Domain/State/StateEntry.h"
+#include "Core/Routing/GroupGraph.h"
 
 namespace consolidator::core
 {
@@ -11,8 +13,11 @@ namespace consolidator::core
 class StateRouter
 {
 public:
-    explicit StateRouter(const InstanceRegistry& registry) noexcept
+    StateRouter(
+        const InstanceRegistry& registry,
+        const GroupGraph& groups) noexcept
         : registry_(registry)
+        , groups_(groups)
     {
     }
 
@@ -20,14 +25,11 @@ public:
         InstanceId sourceInstanceId,
         const StatePath& path) const;
 
-    [[nodiscard]] std::vector<BankAddress> ResolveConstraintDependencies(
+    [[nodiscard]] std::vector<BankAddress> ResolveConstraintTargets(
         InstanceId sourceInstanceId,
         const StatePath& path) const;
 
-    [[nodiscard]] std::vector<StatePath> ResolveTopologyConstraintDependencies(
-        const std::vector<BankAddress>& affectedBanks) const;
-
-    [[nodiscard]] static bool IsBankOwned(const StatePath& path) noexcept;
+    [[nodiscard]] static bool IsBankScoped(const StatePath& path) noexcept;
 
     [[nodiscard]] static StatePath ForBank(
         StatePath path,
@@ -35,18 +37,23 @@ public:
 
     [[nodiscard]] static StateEntry ForBank(StateEntry entry, dsp::BankId bankId);
 
+    [[nodiscard]] static StatePath Retarget(
+        StatePath path,
+        BankAddress target);
+
 private:
-    [[nodiscard]] std::vector<BankAddress> ResolveDirectGroup(
-        std::vector<BankAddress> seeds) const;
+    [[nodiscard]] std::vector<BankAddress> CollapseTargetsByInstance(
+        const std::vector<BankAddress>& targets) const;
 
-    [[nodiscard]] std::vector<BankAddress> ResolveConstraintComponent(
-        std::vector<BankAddress> seeds) const;
+    [[nodiscard]] std::vector<BankAddress> GetDirectTargets(
+        BankAddress source) const;
 
-    [[nodiscard]] std::vector<BankAddress> TraverseConnectedComponent(
-        std::vector<BankAddress> seeds,
-        bool includeInstanceBanks) const;
+    [[nodiscard]] std::optional<BankAddress> ResolveSourceBank(
+        InstanceId instanceId,
+        const StatePath& path) const;
 
     const InstanceRegistry& registry_;
+    const GroupGraph& groups_;
 };
 
 } // namespace consolidator::core

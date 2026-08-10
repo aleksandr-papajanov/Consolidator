@@ -19,16 +19,12 @@ public:
         StateWriter& stateWriter,
         ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept;
 
-    void HandleCommand(const InstanceCommand& command);
+    void HandleCommand(const Command& command);
 
 private:
-    void HandleStateCommand(
-        InstanceId sourceInstanceId,
-        const StateCommand& command);
-
-    void HandleReadCommand(
-        InstanceId sourceInstanceId,
-        const StateCommand& command);
+    void Handle(const ReadStateCommand& command);
+    void Handle(const WriteStateCommand& command);
+    void HandleReadCommand(const ReadStateCommand& command);
 
     InstanceRegistry& registry_;
     const ParameterConstraintResolver& constraintResolver_;

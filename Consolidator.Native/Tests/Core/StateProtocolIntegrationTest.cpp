@@ -22,14 +22,14 @@ using consolidator::core::ConsolidatorInstance;
 using consolidator::core::GroupId;
 using consolidator::core::InstanceCoordinator;
 using consolidator::core::InstanceId;
-using consolidator::core::StateCommand;
 using consolidator::core::StateEntry;
-using consolidator::core::StateOperation;
+using consolidator::core::ReadStateCommand;
 using consolidator::core::StatePath;
 using consolidator::core::StateRequestEntries;
 using consolidator::core::StateResponse;
 using consolidator::core::StateValue;
 using consolidator::core::StateWriteStatus;
+using consolidator::core::WriteStateCommand;
 using consolidator::dsp::BankId;
 using consolidator::dsp::DeviceId;
 using consolidator::dsp::ParameterId;
@@ -49,26 +49,7 @@ struct AudioBuffers
 
 bool IsComplete(const std::vector<StateResponse>& responses)
 {
-    if (responses.empty())
-    {
-        return false;
-    }
-
-    const auto expectedCount = responses.front().responseCount;
-    if (expectedCount == 0 || responses.size() < expectedCount)
-    {
-        return false;
-    }
-
-    std::vector<bool> received(expectedCount, false);
-    for (const auto& response : responses)
-    {
-        assert(response.responseCount == expectedCount);
-        assert(response.responseIndex < expectedCount);
-        received[response.responseIndex] = true;
-    }
-
-    return std::ranges::all_of(received, [](bool value) { return value; });
+    return responses.size() == 1;
 }
 
 std::vector<StateResponse> Pump(
@@ -101,12 +82,6 @@ std::vector<StateResponse> Pump(
 
         if (IsComplete(responses))
         {
-            std::ranges::sort(
-                responses,
-                {},
-                &StateResponse::responseIndex);
-
-            assert(responses.back().isFinal);
             return responses;
         }
 
@@ -123,9 +98,9 @@ std::vector<StateResponse> Write(
     std::uint64_t requestId,
     StateRequestEntries entries)
 {
-    source.HandleStateCommand(StateCommand{
-        StateOperation::Write,
-        {requestId, source.GetInstanceId(), std::move(entries)}});
+    source.EnqueueCommand(WriteStateCommand{
+        .requestId = requestId,
+        .entries = std::move(entries)});
 
     return Pump(instances, requestId);
 }
@@ -141,9 +116,9 @@ std::vector<StateResponse> Read(
         std::move(path),
         StateValue{std::monostate{}}}));
 
-    source.HandleStateCommand(StateCommand{
-        StateOperation::Read,
-        {requestId, source.GetInstanceId(), std::move(queries)}});
+    source.EnqueueCommand(ReadStateCommand{
+        .requestId = requestId,
+        .queries = std::move(queries)});
 
     return Pump(instances, requestId);
 }
@@ -184,9 +159,6 @@ bool IsExactPath(const StatePath& lhs, const StatePath& rhs)
 const StateEntry& OnlyEntry(const std::vector<StateResponse>& responses)
 {
     assert(responses.size() == 1);
-    assert(responses.front().responseCount == 1);
-    assert(responses.front().responseIndex == 0);
-    assert(responses.front().isFinal);
     assert(!responses.front().truncated);
     assert(responses.front().entries.size == 1);
     return responses.front().entries.entries[0];
@@ -462,9 +434,6 @@ int main()
         7.0f,
         {RouteNodeId::Bank0, RouteNodeId::Filter3})));
     assert(responses.size() == 1);
-    assert(responses.front().responseCount == 1);
-    assert(responses.front().responseIndex == 0);
-    assert(responses.front().isFinal);
     assert(!responses.front().truncated);
     assert(responses.front().entries.size == 2);
 
@@ -549,7 +518,6 @@ int main()
         ParameterId::Ratio,
         2.0f)));
     assert(chainResponse.size() == 1);
-    assert(chainResponse.front().responseCount == 1);
     assert(chainResponse.front().entries.size == 4);
     AssertConstraintEntry(chainResponse.front(), chainRatioPath(first));
     AssertConstraintEntry(chainResponse.front(), chainRatioPath(second));
@@ -612,7 +580,6 @@ int main()
         invalid,
         StateValue{true}}));
     assert(responses.size() == 1);
-    assert(responses.front().isFinal);
     assert(responses.front().entries.size == 1);
     assert(!responses.front().truncated);
     assert(responses.front().entries.entries[0].status ==

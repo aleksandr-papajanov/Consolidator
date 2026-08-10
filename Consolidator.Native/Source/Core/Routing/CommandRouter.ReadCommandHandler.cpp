@@ -9,37 +9,44 @@
 namespace consolidator::core
 {
 
-void CommandRouter::HandleReadCommand(
-    InstanceId sourceInstanceId,
-    const StateCommand& command)
+void CommandRouter::Handle(const ReadStateCommand& command)
 {
-    auto* instance = registry_.FindInstance(sourceInstanceId);
+    if (!registry_.Contains(command.instanceId))
+    {
+        return;
+    }
+
+    HandleReadCommand(command);
+}
+
+void CommandRouter::HandleReadCommand(
+    const ReadStateCommand& command)
+{
+    auto* instance = registry_.FindInstance(command.instanceId);
     if (instance == nullptr)
     {
         return;
     }
 
     StateResponse response{
-        command.message.requestId,
-        command.message.responseInstanceId,
-        sourceInstanceId,
-        StateOperation::Read,
+        command.requestId,
+        command.instanceId,
         {}};
 
-    if (command.message.entries.size == 0)
+    if (command.queries.size == 0)
     {
         instance->GetStateStore().ReadState(
-            StatePath::Instance(sourceInstanceId),
+            StatePath::Instance(command.instanceId),
             response.entries);
     }
     else
     {
         for (std::size_t index = 0;
-             index < command.message.entries.size;
+             index < command.queries.size;
              ++index)
         {
-            auto query = command.message.entries.entries[index].path;
-            query.instanceId = sourceInstanceId;
+            auto query = command.queries.entries[index].path;
+            query.instanceId = command.instanceId;
             instance->GetStateStore().ReadState(query, response.entries);
         }
     }
@@ -48,7 +55,7 @@ void CommandRouter::HandleReadCommand(
     for (std::size_t index = 0; index < response.entries.size; ++index)
     {
         constraintResolver_.Enrich(
-            sourceInstanceId,
+            command.instanceId,
             response.entries.entries[index]);
     }
     coordinatorResponses_.Enqueue(std::move(response));

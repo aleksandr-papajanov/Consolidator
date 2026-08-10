@@ -11,45 +11,27 @@ namespace consolidator::core
 
 using RequestId = std::uint64_t;
 
-enum class StateOperation : std::uint8_t
+struct ReadStateCommand
 {
-    Read,
-    Write
+    RequestId requestId{0};
+    InstanceId instanceId{0};
+    StateRequestEntries queries;
 };
 
-struct StateMessage
+struct WriteStateCommand
 {
-    RequestId requestId = 0;
-    InstanceId responseInstanceId{0};
+    RequestId requestId{0};
+    InstanceId instanceId{0};
     StateRequestEntries entries;
-    std::uint16_t responseIndex = 0;
-    std::uint16_t responseCount = 1;
 };
 
-struct StateCommand
-{
-    StateOperation operation;
-    StateMessage message;
-};
-
-using Command = std::variant<StateCommand>;
-
-struct InstanceCommand
-{
-    InstanceId sourceInstanceId;
-    Command command;
-};
+using Command = std::variant<ReadStateCommand, WriteStateCommand>;
 
 struct StateResponse
 {
-    RequestId requestId;
-    InstanceId responseInstanceId{0};
-    InstanceId appliedInstanceId{0};
-    StateOperation operation;
+    RequestId requestId{0};
+    InstanceId instanceId{0};
     StateResponseEntries entries;
-    std::uint16_t responseIndex{0};
-    std::uint16_t responseCount{1};
-    bool isFinal{true};
     bool truncated{false};
 };
 

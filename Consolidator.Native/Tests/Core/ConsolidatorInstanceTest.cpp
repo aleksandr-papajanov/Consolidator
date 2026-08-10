@@ -41,9 +41,9 @@ int main()
     gainPath.deviceId = consolidator::dsp::DeviceId::MainInputGain;
     gainPath.parameterId = consolidator::dsp::ParameterId::Gain;
     assert(writeEntries.TryAppend({gainPath, 6.0f}));
-    instance.HandleStateCommand(consolidator::core::StateCommand{
-        consolidator::core::StateOperation::Write,
-        {1, instance.GetInstanceId(), writeEntries}});
+    instance.EnqueueCommand(consolidator::core::WriteStateCommand{
+        .requestId = 1,
+        .entries = writeEntries});
 
     std::optional<consolidator::core::StateResponse> response;
     for (std::size_t attempt = 0; attempt < 50 && !response; ++attempt)
@@ -60,7 +60,6 @@ int main()
     assert(std::equal(referenceInput.begin(), referenceInput.end(), referenceOutput.begin()));
 
     assert(response.has_value());
-    assert(response->operation == consolidator::core::StateOperation::Write);
     assert(response->entries.size == 1);
 
     return 0;

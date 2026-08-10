@@ -38,196 +38,118 @@ StateEntry StateRouter::ForBank(StateEntry entry, dsp::BankId bankId)
     return entry;
 }
 
-bool StateRouter::IsBankOwned(const StatePath& path) noexcept
+StatePath StateRouter::Retarget(StatePath path, BankAddress target)
 {
-    if (!path.deviceId || *path.deviceId != dsp::DeviceId::Equalizer || path.depth == 0)
+    if (IsBankScoped(path))
     {
-        return false;
+        path = ForBank(std::move(path), target.bankId);
     }
+    path.instanceId = target.instanceId;
+    return path;
+}
 
-    const auto node = static_cast<std::uint8_t>(path.nodes[0]);
-    const auto first = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
-    return node >= first && node < first + InstanceState::kBankCount;
+bool StateRouter::IsBankScoped(const StatePath& path) noexcept
+{
+    return path.deviceId == dsp::DeviceId::Equalizer &&
+        path.TryGetBankId().has_value();
 }
 
 std::vector<BankAddress> StateRouter::ResolveWriteTargets(
     InstanceId sourceInstanceId,
     const StatePath& path) const
 {
-    if (!path.deviceId)
+    const auto sourceBank = ResolveSourceBank(sourceInstanceId, path);
+    if (!sourceBank)
     {
         return {};
     }
 
-    const auto* source = registry_.FindInstance(sourceInstanceId);
-    if (source == nullptr)
-    {
-        return {};
-    }
-
-    std::vector<BankAddress> seeds;
-    if (IsBankOwned(path))
-    {
-        if (const auto sourceBankId = path.TryGetBankId())
-        {
-            seeds.push_back(BankAddress{sourceInstanceId, *sourceBankId});
-        }
-    }
-    else
-    {
-        const auto& topology = source->GetStateStore().GetInstance();
-        const auto selectedBankId = topology.selectedBankId;
-        if (topology.banks[dsp::detail::ToIndex(selectedBankId)].groupId)
-        {
-            seeds.push_back(BankAddress{sourceInstanceId, selectedBankId});
-        }
-    }
-
-    auto targets = ResolveDirectGroup(std::move(seeds));
-    if (IsBankOwned(path))
+    auto targets = GetDirectTargets(*sourceBank);
+    if (IsBankScoped(path))
     {
         return targets;
     }
 
-    std::vector<BankAddress> uniqueInstanceTargets;
+    return CollapseTargetsByInstance(targets);
+}
+
+std::vector<BankAddress> StateRouter::ResolveConstraintTargets(
+    InstanceId sourceInstanceId,
+    const StatePath& path) const
+{
+    if (IsBankScoped(path))
+    {
+        const auto sourceBank = ResolveSourceBank(sourceInstanceId, path);
+        return sourceBank ? GetDirectTargets(*sourceBank)
+                          : std::vector<BankAddress>{};
+    }
+
+    const auto seeds = groups_.GetGroupedBanks(sourceInstanceId);
+    if (seeds.empty())
+    {
+        return {};
+    }
+
+    return groups_.GetConnectedGroupBanks(seeds);
+}
+
+std::vector<BankAddress> StateRouter::CollapseTargetsByInstance(
+    const std::vector<BankAddress>& targets) const
+{
+    std::vector<BankAddress> collapsed;
     for (const auto& target : targets)
     {
-        const auto alreadyIncluded = std::find_if(
-            uniqueInstanceTargets.begin(),
-            uniqueInstanceTargets.end(),
+        const auto existing = std::find_if(
+            collapsed.begin(),
+            collapsed.end(),
             [target](const BankAddress& candidate)
             {
                 return candidate.instanceId == target.instanceId;
             });
-        if (alreadyIncluded == uniqueInstanceTargets.end())
+        if (existing == collapsed.end())
         {
-            uniqueInstanceTargets.push_back(target);
+            collapsed.push_back(target);
         }
     }
-    return uniqueInstanceTargets;
+    return collapsed;
 }
 
-std::vector<BankAddress> StateRouter::ResolveConstraintDependencies(
-    InstanceId sourceInstanceId,
-    const StatePath& path) const
+std::vector<BankAddress> StateRouter::GetDirectTargets(
+    BankAddress source) const
 {
-    if (!path.deviceId)
+    auto targets = groups_.GetGroupMembers(source);
+    if (targets.empty())
     {
-        return {};
-    }
-
-    const auto* source = registry_.FindInstance(sourceInstanceId);
-    if (source == nullptr)
-    {
-        return {};
-    }
-
-    std::vector<BankAddress> seeds;
-    if (IsBankOwned(path))
-    {
-        const auto node = static_cast<std::uint8_t>(path.nodes[0]);
-        const auto first = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
-        seeds.push_back(BankAddress{
-            sourceInstanceId,
-            static_cast<dsp::BankId>(node - first)});
-    }
-    else
-    {
-        for (std::size_t bankIndex = 0;
-             bankIndex < InstanceState::kBankCount;
-             ++bankIndex)
-        {
-            const auto bankId = static_cast<dsp::BankId>(bankIndex);
-            if (source->GetStateStore().GetInstance().banks[
-                    dsp::detail::ToIndex(bankId)].groupId)
-            {
-                seeds.push_back(BankAddress{sourceInstanceId, bankId});
-            }
-        }
-    }
-
-    return ResolveConstraintComponent(std::move(seeds));
-}
-
-std::vector<BankAddress> StateRouter::ResolveDirectGroup(
-    std::vector<BankAddress> seeds) const
-{
-    return TraverseConnectedComponent(std::move(seeds), false);
-}
-
-std::vector<BankAddress> StateRouter::ResolveConstraintComponent(
-    std::vector<BankAddress> seeds) const
-{
-    return TraverseConnectedComponent(std::move(seeds), true);
-}
-
-std::vector<BankAddress> StateRouter::TraverseConnectedComponent(
-    std::vector<BankAddress> pending,
-    bool includeInstanceBanks) const
-{
-    std::vector<BankAddress> targets;
-    for (std::size_t pendingIndex = 0;
-         pendingIndex < pending.size();
-         ++pendingIndex)
-    {
-        const auto address = pending[pendingIndex];
-        if (std::find(targets.begin(), targets.end(), address) != targets.end())
-        {
-            continue;
-        }
-        targets.push_back(address);
-
-        const auto* instance = registry_.FindInstance(address.instanceId);
-        if (instance == nullptr)
-        {
-            continue;
-        }
-
-        if (includeInstanceBanks)
-        {
-            const auto& topology = instance->GetStateStore().GetInstance();
-            for (std::size_t bankIndex = 0;
-                 bankIndex < InstanceState::kBankCount;
-                 ++bankIndex)
-            {
-                const auto bankId = static_cast<dsp::BankId>(bankIndex);
-                if (topology.banks[dsp::detail::ToIndex(bankId)].groupId)
-                {
-                    pending.push_back(BankAddress{address.instanceId, bankId});
-                }
-            }
-        }
-
-        const auto groupId = instance->GetStateStore().GetInstance()
-            .banks[dsp::detail::ToIndex(address.bankId)].groupId;
-        if (!groupId)
-        {
-            continue;
-        }
-        const auto members = registry_.FindGroupMembers(*groupId);
-        pending.insert(pending.end(), members.begin(), members.end());
+        targets.push_back(source);
     }
     return targets;
 }
 
-std::vector<StatePath> StateRouter::ResolveTopologyConstraintDependencies(
-    const std::vector<BankAddress>& affectedBanks) const
+std::optional<BankAddress> StateRouter::ResolveSourceBank(
+    InstanceId instanceId,
+    const StatePath& path) const
 {
-    std::vector<StatePath> dependencies;
-    for (const auto& bank : affectedBanks)
+    if (!path.deviceId)
     {
-        const auto path = [&bank]
-        {
-            auto result = StatePath::Instance(bank.instanceId);
-            result.field = StateField::DspParameter;
-            return result;
-        }();
-        if (std::find(dependencies.begin(), dependencies.end(), path) == dependencies.end())
-        {
-            dependencies.push_back(path);
-        }
+        return std::nullopt;
     }
-    return dependencies;
+
+    const auto* instance = registry_.FindInstance(instanceId);
+    if (instance == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    if (IsBankScoped(path))
+    {
+        const auto bankId = path.TryGetBankId();
+        return bankId ? std::optional<BankAddress>{BankAddress{instanceId, *bankId}}
+                      : std::nullopt;
+    }
+
+    const auto& topology = instance->GetStateStore().GetInstance();
+    const auto selectedBankId = topology.selectedBankId;
+    return BankAddress{instanceId, selectedBankId};
 }
 
 } // namespace consolidator::core

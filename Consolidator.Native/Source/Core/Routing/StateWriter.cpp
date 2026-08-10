@@ -46,6 +46,22 @@ void AppendUnique(
     }
 }
 
+std::vector<StatePath> BuildConstraintRefreshPaths(
+    const std::vector<BankAddress>& affectedBanks)
+{
+    std::vector<StatePath> paths;
+    for (const auto& bank : affectedBanks)
+    {
+        auto path = StatePath::Instance(bank.instanceId);
+        path.field = StateField::DspParameter;
+        if (std::find(paths.begin(), paths.end(), path) == paths.end())
+        {
+            paths.push_back(path);
+        }
+    }
+    return paths;
+}
+
 } // namespace
 
 StateWriter::StateWriter(
@@ -59,18 +75,15 @@ StateWriter::StateWriter(
 }
 
 StateResponse StateWriter::Write(
-    InstanceId sourceInstanceId,
-    const StateCommand& command)
+    const WriteStateCommand& command)
 {
     WriteContext context{
         .response = StateResponse{
-            command.message.requestId,
-            command.message.responseInstanceId,
-            sourceInstanceId,
-            command.operation,
+            command.requestId,
+            command.instanceId,
             {}}};
 
-    ApplyEntries(sourceInstanceId, command, context);
+    ApplyEntries(command.instanceId, command, context);
     PublishDspUpdates(context);
     RefreshConstraints(context);
     return FinalizeResponse(context);
@@ -78,16 +91,16 @@ StateResponse StateWriter::Write(
 
 void StateWriter::ApplyEntries(
     InstanceId sourceInstanceId,
-    const StateCommand& command,
+    const WriteStateCommand& command,
     WriteContext& context)
 {
     for (std::size_t index = 0;
-         index < command.message.entries.size;
+         index < command.entries.size;
          ++index)
     {
         ApplyEntry(
             sourceInstanceId,
-            command.message.entries.entries[index],
+            command.entries.entries[index],
             context);
     }
 }
@@ -196,7 +209,7 @@ bool StateWriter::TryApplyTopology(
 
     AppendUnique(affectedBanks, *changedBank);
     registry_.CacheBankGroup(*changedBank, previousGroup, nextGroup);
-    for (const auto& path : stateRouter_.ResolveTopologyConstraintDependencies(affectedBanks))
+    for (const auto& path : BuildConstraintRefreshPaths(affectedBanks))
     {
         if (std::find(context.constraintPaths.begin(), context.constraintPaths.end(), path) ==
             context.constraintPaths.end())
@@ -282,11 +295,9 @@ void StateWriter::ApplyToTargets(
             return;
         }
 
-        targetEntry->path.instanceId = target.instanceId;
-        if (StateRouter::IsBankOwned(entry.path))
-        {
-            targetEntry = StateRouter::ForBank(std::move(*targetEntry), target.bankId);
-        }
+        targetEntry->path = StateRouter::Retarget(
+            std::move(targetEntry->path),
+            target);
 
         auto* targetInstance = registry_.FindInstance(target.instanceId);
         if (targetInstance == nullptr ||
@@ -315,16 +326,11 @@ void StateWriter::CollectConstraintPaths(
     const StateEntry& entry,
     WriteContext& context)
 {
-    for (const auto& dependency : stateRouter_.ResolveConstraintDependencies(
+    for (const auto& dependency : stateRouter_.ResolveConstraintTargets(
              targetInstanceId,
              entry.path))
     {
-        auto path = entry.path;
-        path.instanceId = dependency.instanceId;
-        if (StateRouter::IsBankOwned(entry.path))
-        {
-            path = StateRouter::ForBank(std::move(path), dependency.bankId);
-        }
+        auto path = StateRouter::Retarget(entry.path, dependency);
 
         if (std::find(context.constraintPaths.begin(), context.constraintPaths.end(), path) ==
             context.constraintPaths.end())
@@ -427,13 +433,10 @@ StateResponse StateWriter::FinalizeResponse(WriteContext& context)
     {
         auto& entry = context.response.entries.entries[index];
         const auto instanceId = entry.path.instanceId.value_or(
-            context.response.appliedInstanceId);
+            context.response.instanceId);
         constraintResolver_.Enrich(instanceId, entry);
     }
 
-    context.response.responseIndex = 0;
-    context.response.responseCount = 1;
-    context.response.isFinal = true;
     context.response.truncated = context.response.entries.truncated;
     return std::move(context.response);
 }

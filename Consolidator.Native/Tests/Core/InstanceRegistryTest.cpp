@@ -15,9 +15,9 @@ int main()
     path.deviceId = consolidator::dsp::DeviceId::MainInputGain;
     path.parameterId = consolidator::dsp::ParameterId::Gain;
     assert(entries.TryAppend({path, 6.0f}));
-    instance.HandleStateCommand(consolidator::core::StateCommand{
-        consolidator::core::StateOperation::Write,
-        {1, instance.GetInstanceId(), entries}});
+    instance.EnqueueCommand(consolidator::core::WriteStateCommand{
+        .requestId = 1,
+        .entries = entries});
 
     return 0;
 }

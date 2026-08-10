@@ -8,6 +8,7 @@
 #include "Core/Queues/ConcurrentQueue.h"
 #include "Core/Domain/Commands/StateProtocolCommands.h"
 #include "Core/Routing/CommandRouter.h"
+#include "Core/Routing/GroupGraph.h"
 #include "Core/Routing/StateRouter.h"
 #include "Core/Routing/ParameterConstraintResolver.h"
 #include "Core/Routing/StateWriter.h"
@@ -23,9 +24,7 @@ class InstanceCoordinator
 public:
     static InstanceCoordinator& Get();
 
-    void EnqueueStateCommand(
-        InstanceId sourceInstanceId,
-        StateCommand command);
+    void EnqueueCommand(Command command);
     [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
 
     ~InstanceCoordinator();
@@ -44,12 +43,13 @@ private:
 
     InstanceId nextInstanceId_{0};
     InstanceRegistry registry_;
+    GroupGraph groupGraph_;
     StateRouter stateRouter_;
     ParameterConstraintResolver constraintResolver_;
     ConcurrentQueue<StateResponse> coordinatorResponses_;
     StateWriter stateWriter_;
     CommandRouter commandRouter_;
-    ConcurrentQueue<InstanceCommand> commandQueue_;
+    ConcurrentQueue<Command> commandQueue_;
     mutable std::mutex registryMutex_;
     std::mutex wakeMutex_;
     std::condition_variable_any wakeCondition_;

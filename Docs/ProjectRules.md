@@ -81,13 +81,12 @@ Tests/               — unit and integration tests (Core, Dsp)
 Каждый конкретный command handler должен находиться в отдельном исходном файле.
 Имя файла включает владельца и scope handler-а:
 
-- `ConsolidatorInstance.StateCommandHandler.cpp` — входящая state-команда instance;
-- `InstanceCoordinator.CommandHandler.cpp` — постановка команды координатора;
-- `InstanceCoordinator.DispatchHandler.cpp` — dispatch очереди координатора;
+- `ConsolidatorInstance.CommandSubmission.cpp` — приём и постановка команды instance;
+- `InstanceCoordinator.CommandSubmission.cpp` — приём и постановка команды координатора;
+- `InstanceCoordinator.WorkerLoop.cpp` — рабочий цикл coordinator и обработка очереди;
 - `CommandRouter.CommandHandler.cpp` — dispatch command variant;
-- `CommandRouter.StateCommandHandler.cpp` — обработка state-команды;
-- `CommandRouter.ReadCommandHandler.cpp` — обработка read-команды;
-- `CommandRouter.WriteCommandHandler.cpp` — обработка write-команды.
+- `CommandRouter.WriteCommandHandler.cpp` — обработка write-команды;
+- `CommandRouter.ReadCommandHandler.cpp` — обработка read-команды.
 
 Один `.cpp` не должен содержать несколько независимых handlers. Основные `.cpp`
 владельцев содержат lifecycle, state access и orchestration, но не реализацию

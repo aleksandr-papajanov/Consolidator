@@ -12,7 +12,8 @@ InstanceCoordinator& InstanceCoordinator::Get()
 }
 
 InstanceCoordinator::InstanceCoordinator()
-    : stateRouter_(registry_)
+    : groupGraph_(registry_)
+    , stateRouter_(registry_, groupGraph_)
     , constraintResolver_(registry_, stateRouter_)
     , stateWriter_(
           registry_,
