@@ -6,7 +6,7 @@
 
 #include "Core/Queues/LatestValueMailbox.h"
 #include "Core/Domain/ParameterVariant.h"
-#include "Core/Domain/State/StateProtocol.h"
+#include "Core/Domain/State/StatePath.h"
 
 namespace consolidator::core
 {

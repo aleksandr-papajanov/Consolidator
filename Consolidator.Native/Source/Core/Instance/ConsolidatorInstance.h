@@ -5,7 +5,6 @@
 #include <span>
 
 #include "Core/Domain/Commands/StateProtocolCommands.h"
-#include "Core/Domain/State/InstanceState.h"
 #include "Core/Domain/State/StateStore.h"
 #include "Core/Instance/Queues/DspUpdateMailbox.h"
 
@@ -18,6 +17,7 @@ namespace consolidator::core
 {
 
 class ConsolidatorInstance;
+class StateWriter;
 class ConsolidatorInstance
 {
 public:
@@ -47,13 +47,13 @@ public:
 private:
     friend class InstanceCoordinator;
     friend class CommandRouter;
+    friend class StateWriter;
 
     void PublishDspUpdates(std::span<const DspUpdate> updates);
     void PublishInitialRuntimeState();
     static constexpr std::size_t kChannelCount = 2;
 
     std::unique_ptr<dsp::DspChain> dspChain_;
-    InstanceState state_;
     StateStore stateStore_;
     DspUpdateMailbox dspUpdateMailbox_;
     std::uint64_t nextDspRevision_ = 0;

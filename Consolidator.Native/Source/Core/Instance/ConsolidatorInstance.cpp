@@ -37,7 +37,7 @@ std::optional<dsp::ParameterVariant> ToParameterVariant(const StateValue& value)
 
 ConsolidatorInstance::ConsolidatorInstance()
     : dspChain_(dsp::DspChainBuilder{}.BuildStandardChain())
-    , stateStore_(state_)
+    , stateStore_()
 {
 }
 
@@ -45,7 +45,7 @@ ConsolidatorInstance::~ConsolidatorInstance()
 {
     if (initialized_)
     {
-        InstanceCoordinator::Get().UnregisterInstance(state_.GetInstanceId());
+        InstanceCoordinator::Get().UnregisterInstance(stateStore_.GetInstanceId());
     }
 }
 
@@ -78,7 +78,7 @@ void ConsolidatorInstance::Process(const double* mainInput,
 
 InstanceId ConsolidatorInstance::GetInstanceId() const noexcept
 {
-    return state_.GetInstanceId();
+    return stateStore_.GetInstanceId();
 }
 
 dsp::DspChain& ConsolidatorInstance::GetDspChain() noexcept
@@ -100,7 +100,7 @@ void ConsolidatorInstance::PublishInitialRuntimeState()
 {
     StateResponseEntries snapshot;
     stateStore_.ReadState(
-        StatePath::Instance(state_.GetInstanceId()),
+        StatePath::Instance(stateStore_.GetInstanceId()),
         snapshot);
 
     DspStateBatch initialBatch;

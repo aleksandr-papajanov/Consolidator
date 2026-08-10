@@ -1,7 +1,6 @@
 #include "Core/Domain/Commands/StateProtocolCommands.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
 #include "Core/Instance/ConsolidatorInstance.h"
-#include "Core/Domain/State/StateProtocol.h"
 
 #include <algorithm>
 #include <array>

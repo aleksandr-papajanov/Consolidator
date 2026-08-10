@@ -10,7 +10,7 @@ namespace consolidator::core
 void ConsolidatorInstance::HandleStateCommand(StateCommand command)
 {
     InstanceCoordinator::Get().EnqueueStateCommand(
-        state_.GetInstanceId(),
+        stateStore_.GetInstanceId(),
         std::move(command));
 }
 

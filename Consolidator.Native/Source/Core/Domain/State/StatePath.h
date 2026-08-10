@@ -5,18 +5,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <utility>
-#include <variant>
 
-#include "Core/Domain/Ids/GroupId.h"
-#include "Core/Domain/Ids/InstanceId.h"
 #include "Core/Domain/Ids/DspIds.h"
-#include "Core/Domain/ParameterVariant.h"
+#include "Core/Domain/Ids/InstanceId.h"
 
 namespace consolidator::core
 {
-
-using RequestId = std::uint64_t;
 
 enum class StateField : std::uint8_t
 {
@@ -45,6 +39,13 @@ struct StatePath
         return path;
     }
 
+    [[nodiscard]] static constexpr StatePath Device(dsp::DeviceId device) noexcept
+    {
+        StatePath path;
+        path.deviceId = device;
+        return path;
+    }
+
     [[nodiscard]] static constexpr StatePath BankGroup(
         InstanceId instance,
         dsp::BankId bank) noexcept
@@ -56,6 +57,24 @@ struct StatePath
             dsp::detail::ToIndex(bank));
         path.depth = 1;
         return path;
+    }
+
+    [[nodiscard]] std::optional<dsp::BankId> TryGetBankId() const noexcept
+    {
+        if (depth == 0)
+        {
+            return std::nullopt;
+        }
+
+        const auto node = static_cast<std::uint8_t>(nodes[0]);
+        const auto first = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
+        const auto last = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank6);
+        if (node < first || node > last)
+        {
+            return std::nullopt;
+        }
+
+        return static_cast<dsp::BankId>(node - first);
     }
 
     template <typename Route>
@@ -102,15 +121,25 @@ struct StatePath
         assert(deviceId.has_value());
         return *deviceId;
     }
+
     [[nodiscard]] constexpr dsp::ParameterId GetParameterId() const noexcept
     {
         assert(parameterId.has_value());
         return *parameterId;
     }
-    [[nodiscard]] constexpr std::size_t GetDepth() const noexcept { return depth; }
-    [[nodiscard]] constexpr dsp::RouteNodeId GetNode(std::size_t index) const noexcept { return nodes[index]; }
 
-    [[nodiscard]] constexpr StatePath WithParameter(dsp::ParameterId parameter) const noexcept
+    [[nodiscard]] constexpr std::size_t GetDepth() const noexcept
+    {
+        return depth;
+    }
+
+    [[nodiscard]] constexpr dsp::RouteNodeId GetNode(std::size_t index) const noexcept
+    {
+        return nodes[index];
+    }
+
+    [[nodiscard]] constexpr StatePath WithParameter(
+        dsp::ParameterId parameter) const noexcept
     {
         auto result = *this;
         result.parameterId = parameter;
@@ -147,90 +176,6 @@ struct StatePath
         }
         return true;
     }
-};
-
-using StateValue = std::variant<std::monostate, bool, std::int32_t, float, InstanceId, dsp::BankId, GroupId>;
-
-enum class StateWriteStatus : std::uint8_t
-{
-    NotHandled,
-    // The authoritative StateStore changed and the runtime update was
-    // published to the instance mailbox. It does not mean the audio thread
-    // applied it.
-    Applied,
-    Unchanged,
-    Rejected
-};
-
-struct StateEntry
-{
-    StatePath path;
-    StateValue value;
-    // Physical limits belong to the parameter state. The public minimum and
-    // maximum are effective absolute limits for the current topology.
-    std::optional<dsp::ParameterVariant> physicalMinimum;
-    std::optional<dsp::ParameterVariant> physicalMaximum;
-    std::optional<dsp::ParameterVariant> minimum;
-    std::optional<dsp::ParameterVariant> maximum;
-    std::optional<StateWriteStatus> status;
-};
-
-template <typename Route>
-inline StatePath ToStatePath(const Route& route)
-{
-    StatePath path;
-    path.deviceId = route.GetDeviceId();
-    path.parameterId = route.GetParameterId();
-    path.depth = route.GetDepth();
-    for (std::size_t index = 0; index < path.depth; ++index)
-    {
-        path.nodes[index] = route.GetNode(index);
-    }
-    path.field = StateField::DspParameter;
-    return path;
-}
-
-template <std::size_t Capacity>
-struct FixedStateList
-{
-    std::array<StateEntry, Capacity> entries{};
-    std::size_t size = 0;
-    bool truncated = false;
-
-    void Clear() noexcept
-    {
-        size = 0;
-        truncated = false;
-    }
-    [[nodiscard]] bool TryAppend(StateEntry entry) noexcept
-    {
-        if (size == entries.size())
-        {
-            truncated = true;
-            return false;
-        }
-        entries[size++] = std::move(entry);
-        return true;
-    }
-};
-
-using StateRequestEntries = FixedStateList<16>;
-using StateResponseEntries = FixedStateList<256>;
-using StateSnapshot = StateResponseEntries;
-
-enum class StateOperation : std::uint8_t
-{
-    Read,
-    Write
-};
-
-struct StateMessage
-{
-    RequestId requestId = 0;
-    InstanceId responseInstanceId{0};
-    StateRequestEntries entries;
-    std::uint16_t responseIndex = 0;
-    std::uint16_t responseCount = 1;
 };
 
 } // namespace consolidator::core

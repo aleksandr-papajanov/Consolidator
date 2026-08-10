@@ -68,16 +68,16 @@ std::vector<BankAddress> StateRouter::ResolveWriteTargets(
     std::vector<BankAddress> seeds;
     if (IsBankOwned(path))
     {
-        const auto node = static_cast<std::uint8_t>(path.nodes[0]);
-        const auto first = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
-        const auto sourceBankId = static_cast<dsp::BankId>(node - first);
-        seeds.push_back(BankAddress{sourceInstanceId, sourceBankId});
+        if (const auto sourceBankId = path.TryGetBankId())
+        {
+            seeds.push_back(BankAddress{sourceInstanceId, *sourceBankId});
+        }
     }
     else
     {
-        const auto& topology = source->GetStateStore().GetTopology();
-        const auto selectedBankId = topology.GetSelectedBankId();
-        if (topology.GetBankState(selectedBankId).GetGroupId())
+        const auto& topology = source->GetStateStore().GetInstance();
+        const auto selectedBankId = topology.selectedBankId;
+        if (topology.banks[dsp::detail::ToIndex(selectedBankId)].groupId)
         {
             seeds.push_back(BankAddress{sourceInstanceId, selectedBankId});
         }
@@ -138,7 +138,8 @@ std::vector<BankAddress> StateRouter::ResolveConstraintDependencies(
              ++bankIndex)
         {
             const auto bankId = static_cast<dsp::BankId>(bankIndex);
-            if (source->GetStateStore().GetTopology().GetBankState(bankId).GetGroupId())
+            if (source->GetStateStore().GetInstance().banks[
+                    dsp::detail::ToIndex(bankId)].groupId)
             {
                 seeds.push_back(BankAddress{sourceInstanceId, bankId});
             }
@@ -184,21 +185,21 @@ std::vector<BankAddress> StateRouter::TraverseConnectedComponent(
 
         if (includeInstanceBanks)
         {
-            const auto& topology = instance->GetStateStore().GetTopology();
+            const auto& topology = instance->GetStateStore().GetInstance();
             for (std::size_t bankIndex = 0;
                  bankIndex < InstanceState::kBankCount;
                  ++bankIndex)
             {
                 const auto bankId = static_cast<dsp::BankId>(bankIndex);
-                if (topology.GetBankState(bankId).GetGroupId())
+                if (topology.banks[dsp::detail::ToIndex(bankId)].groupId)
                 {
                     pending.push_back(BankAddress{address.instanceId, bankId});
                 }
             }
         }
 
-        const auto groupId = instance->GetStateStore().GetTopology()
-            .GetBankState(address.bankId).GetGroupId();
+        const auto groupId = instance->GetStateStore().GetInstance()
+            .banks[dsp::detail::ToIndex(address.bankId)].groupId;
         if (!groupId)
         {
             continue;

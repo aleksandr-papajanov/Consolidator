@@ -1,56 +1,36 @@
 #pragma once
 
-#include <array>
-#include <cstddef>
-
-#include "Core/Domain/State/CompressorState.h"
-#include "Core/Domain/State/EqualizerState.h"
-#include "Core/Domain/State/FilterState.h"
-#include "Core/Domain/State/GainState.h"
-#include "Core/Domain/State/InstanceState.h"
-#include "Core/Domain/State/SaturatorState.h"
+#include "Core/Domain/State/ChainState.h"
+#include "Core/Domain/State/StateEntry.h"
 
 namespace consolidator::core
 {
 
-struct ChainState
-{
-    dsp::GainState inputGain;
-    dsp::GainState outputGain;
-    dsp::SaturatorState saturator;
-    dsp::CompressorState compressor;
-    std::array<dsp::EqualizerState, InstanceState::kBankCount> equalizers;
-    std::array<std::array<dsp::FilterState, 7>, InstanceState::kBankCount> equalizerFilters;
-    std::array<dsp::FilterState, 2> saturatorDetectorFilters;
-    std::array<dsp::FilterState, 2> compressorDetectorFilters;
-};
-
-enum class ApplyResult
-{
-    NotHandled,
-    Rejected,
-    Unchanged,
-    Applied
-};
+enum class ApplyResult;
 
 class StateStore final
 {
 public:
-    explicit StateStore(InstanceState& topology) noexcept;
+    StateStore() noexcept;
+
+    [[nodiscard]] InstanceState& GetInstance() noexcept
+    {
+        return instance_;
+    }
+
+    [[nodiscard]] const InstanceState& GetInstance() const noexcept
+    {
+        return instance_;
+    }
+
+    void SetInstanceId(InstanceId instanceId) noexcept
+    {
+        instance_.instanceId = instanceId;
+    }
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept
     {
-        return topology_.GetInstanceId();
-    }
-
-    [[nodiscard]] InstanceState& GetTopology() noexcept
-    {
-        return topology_;
-    }
-
-    [[nodiscard]] const InstanceState& GetTopology() const noexcept
-    {
-        return topology_;
+        return instance_.instanceId;
     }
 
     void ReadState(
@@ -64,15 +44,34 @@ public:
     [[nodiscard]] bool CanWrite(const StateEntry& entry) const;
 
 private:
+    [[nodiscard]] StateWriteStatus WriteInstanceState(
+        const StateEntry& entry,
+        StateResponseEntries& applied);
+
+    [[nodiscard]] StateWriteStatus WriteSelectedBank(
+        const StateEntry& entry,
+        StateResponseEntries& applied);
+
+    [[nodiscard]] StateWriteStatus WriteBankGroup(
+        const StateEntry& entry,
+        StateResponseEntries& applied);
+
+    [[nodiscard]] ApplyResult WriteDspState(const StateEntry& entry);
+
+    [[nodiscard]] StateWriteStatus AppendWriteResult(
+        const StateEntry& entry,
+        ApplyResult result,
+        StateResponseEntries& applied);
+
     [[nodiscard]] ApplyResult WriteGainState(
         const StatePath& path,
         const StateValue& value,
-        dsp::GainState& state) const;
+        dsp::GainState& state);
 
     [[nodiscard]] ApplyResult WriteFilterState(
         const StatePath& path,
         const StateValue& value,
-        dsp::FilterState& state) const;
+        dsp::FilterState& state);
 
     [[nodiscard]] ApplyResult WriteSaturatorState(
         const StatePath& path,
@@ -86,7 +85,7 @@ private:
         const StatePath& path,
         const StateValue& value);
 
-    InstanceState& topology_;
+    InstanceState instance_;
     ChainState chain_;
 };
 

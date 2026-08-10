@@ -1,5 +1,5 @@
 #include "Dsp/DspChainBuilder.h"
-#include "Core/Domain/State/StateProtocol.h"
+#include "Core/Domain/State/StatePath.h"
 #include "Dsp/Processors/Compressor/Compressor.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"

@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "Core/Registry/InstanceRegistry.h"
-#include "Core/Domain/State/StateProtocol.h"
+#include "Core/Domain/State/StateEntry.h"
 
 namespace consolidator::core
 {

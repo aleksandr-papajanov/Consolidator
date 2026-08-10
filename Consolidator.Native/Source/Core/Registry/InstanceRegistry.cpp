@@ -17,7 +17,10 @@ void InstanceRegistry::UnregisterInstance(InstanceId instanceId, const InstanceS
     for (std::size_t bankIndex = 0; bankIndex < InstanceState::kBankCount; ++bankIndex)
     {
         const auto bankId = static_cast<dsp::BankId>(bankIndex);
-        CacheBankGroup(BankAddress{instanceId, bankId}, state.GetBankState(bankId).GetGroupId(), std::nullopt);
+        CacheBankGroup(
+            BankAddress{instanceId, bankId},
+            state.banks[dsp::detail::ToIndex(bankId)].groupId,
+            std::nullopt);
     }
 
     instances_.erase(instanceId);

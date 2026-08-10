@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "Core/Instance/ConsolidatorInstance.h"
+#include "Core/Routing/ParameterConstraintResolver.h"
 
 namespace consolidator::core
 {

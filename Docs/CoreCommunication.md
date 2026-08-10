@@ -98,6 +98,30 @@ and response delivery. `InstanceCoordinator` remains the composition root and
 owns the coordinator worker, command queue and routing components, but routing
 does not belong to the coordinator lifecycle itself.
 
+The state implementation is split by operation without introducing additional
+state-owner objects:
+
+```text
+Core/Domain/State/
+├─ StateStore.h
+├─ StateStore.cpp
+├─ StateStore.Factory.cpp
+├─ StateStore.Read.cpp
+├─ StateStore.Write.cpp
+├─ StatePath.h
+├─ StateEntry.h
+├─ ParameterState.h
+├─ InstanceState.h
+├─ ChainState.h
+└─ DspStates.h
+```
+
+`StateStore.cpp` owns construction, `StateStore.Factory.cpp` builds a complete
+`ChainState` from `DspSettings`, and the read/write translation remains in the
+two operation-specific implementation files. Command transport types live in
+`Core/Domain/Commands/StateProtocolCommands.h`; they are separate from the
+state address and entry representation.
+
 ## DSP boundary
 
 DSP devices do not own authoritative user state. They receive runtime updates

@@ -53,20 +53,15 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Routing/StateWriter.cpp
     Source/Core/Domain/State/InstanceState.h
     Source/Core/Domain/State/StateStore.h
-    Source/Core/Domain/State/StateStore.Internal.h
     Source/Core/Domain/State/StateStore.cpp
-    Source/Core/Domain/State/StateStore.Gain.cpp
-    Source/Core/Domain/State/StateStore.Saturator.cpp
-    Source/Core/Domain/State/StateStore.Compressor.cpp
-    Source/Core/Domain/State/StateStore.Equalizer.cpp
+    Source/Core/Domain/State/StateStore.Factory.cpp
+    Source/Core/Domain/State/StateStore.Write.cpp
     Source/Core/Domain/State/StateStore.Read.cpp
     Source/Core/Domain/State/BankState.h
-    Source/Core/Domain/State/GainState.h
-    Source/Core/Domain/State/SaturatorState.h
-    Source/Core/Domain/State/CompressorState.h
-    Source/Core/Domain/State/EqualizerState.h
-    Source/Core/Domain/State/FilterState.h
-    Source/Core/Domain/State/StateProtocol.h
+    Source/Core/Domain/State/ChainState.h
+    Source/Core/Domain/State/DspStates.h
+    Source/Core/Domain/State/StateEntry.h
+    Source/Core/Domain/State/StatePath.h
     Source/Core/Domain/Commands/Commands.h
     Source/Core/Domain/Commands/StateProtocolCommands.h
     Source/Core/Queues/ConcurrentQueue.h

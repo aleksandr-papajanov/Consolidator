@@ -30,10 +30,30 @@ devices, EQ banks, EQ filters и detector filters. DSP получает `DspStat
 reset) должны идти отдельной event queue.
 
 Параметры хранятся в `ParameterState<T>` из `Core/Domain/State`, но только внутри
-`StateStore`. Он содержит локальный `ParameterId`, текущее значение и диапазон.
+`StateStore`. Числовой параметр содержит локальный `ParameterId`, текущее значение
+и диапазон; boolean-параметр содержит только `ParameterId` и значение.
 Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; DSP
 processor-классы не должны дублировать пользовательские параметры или их
 диапазоны.
+
+State-модель организована так:
+
+```text
+StateStore
+├─ InstanceState
+└─ ChainState
+   ├─ GainState
+   ├─ SaturatorState
+   │  └─ DetectorState
+   ├─ CompressorState
+   │  └─ DetectorState
+   ├─ EqualizerBankState[]
+   └─ GainState
+```
+
+Все DSP state создаются фабрикой `StateStore.Factory.cpp` из
+`DspSettings`. Структуры из `DspStates.h` являются пассивными контейнерами
+данных и не содержат routing или write-логики.
 
 ## Маршрутизация параметров
 

@@ -36,24 +36,6 @@ std::optional<dsp::ParameterVariant> ToParameterVariant(
         value);
 }
 
-std::optional<dsp::BankId> TryGetBankId(const StatePath& path) noexcept
-{
-    if (path.depth == 0)
-    {
-        return std::nullopt;
-    }
-
-    const auto node = static_cast<std::uint8_t>(path.nodes[0]);
-    const auto first = static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0);
-    const auto last = first + InstanceState::kBankCount - 1;
-    if (node < first || node > last)
-    {
-        return std::nullopt;
-    }
-
-    return static_cast<dsp::BankId>(node - first);
-}
-
 void AppendUnique(
     std::vector<BankAddress>& banks,
     BankAddress bank)
@@ -154,20 +136,19 @@ bool StateWriter::TryApplyTopology(
     std::optional<GroupId> previousGroup;
     if (*entry.path.field == StateField::GroupId)
     {
-        const auto bankId = TryGetBankId(entry.path);
+        const auto bankId = entry.path.TryGetBankId();
         if (!bankId)
         {
             return false;
         }
 
         changedBank = BankAddress{sourceInstanceId, *bankId};
-        const auto& sourceState = static_cast<const InstanceState&>(
-            source->GetStateStore().GetTopology());
-        previousGroup = sourceState.GetBankState(*bankId).GetGroupId();
+        const auto& sourceState = source->GetStateStore().GetInstance();
+        previousGroup = sourceState.banks[dsp::detail::ToIndex(*bankId)].groupId;
     }
 
     StateResponseEntries applied;
-    const auto status = source->GetStateStore().GetTopology().WriteState(
+    const auto status = source->GetStateStore().WriteState(
         entry,
         applied);
     switch (status)
@@ -202,9 +183,9 @@ bool StateWriter::TryApplyTopology(
         }
     }
 
-    const auto& sourceState = static_cast<const InstanceState&>(
-        source->GetStateStore().GetTopology());
-    const auto nextGroup = sourceState.GetBankState(changedBank->bankId).GetGroupId();
+    const auto& sourceState = source->GetStateStore().GetInstance();
+    const auto nextGroup = sourceState.banks[
+        dsp::detail::ToIndex(changedBank->bankId)].groupId;
     if (nextGroup)
     {
         for (const auto& member : registry_.FindGroupMembers(*nextGroup))

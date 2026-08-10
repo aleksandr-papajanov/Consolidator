@@ -42,7 +42,7 @@ void InstanceCoordinator::RegisterInstance(ConsolidatorInstance& instance)
         std::lock_guard lock{registryMutex_};
         const auto instanceId = nextInstanceId_;
         nextInstanceId_ = InstanceId{nextInstanceId_.GetValue() + 1};
-        instance.state_.SetInstanceId(instanceId);
+        instance.stateStore_.SetInstanceId(instanceId);
         registry_.RegisterInstance(instanceId, &instance);
     }
 }
@@ -52,7 +52,7 @@ void InstanceCoordinator::UnregisterInstance(InstanceId instanceId)
     std::lock_guard lock{registryMutex_};
     if (const auto* instance = registry_.FindInstance(instanceId))
     {
-        registry_.UnregisterInstance(instanceId, instance->state_);
+        registry_.UnregisterInstance(instanceId, instance->GetStateStore().GetInstance());
     }
 }
 
