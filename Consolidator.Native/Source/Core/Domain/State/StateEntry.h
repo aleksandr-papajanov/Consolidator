@@ -16,6 +16,7 @@
 namespace consolidator::core
 {
 
+// Values supported by topology and DSP state protocol entries.
 using StateValue = std::variant<
     std::monostate,
     bool,
@@ -33,6 +34,7 @@ enum class StateWriteStatus : std::uint8_t
     Rejected
 };
 
+// Addressed state value plus optional ranges and write result metadata.
 struct StateEntry
 {
     StatePath path;
@@ -59,6 +61,7 @@ inline StatePath ToStatePath(const Route& route)
     return path;
 }
 
+// Bounded allocation-free list used by state requests and responses.
 template <std::size_t Capacity>
 struct FixedStateList
 {

@@ -19,11 +19,13 @@ namespace consolidator::core
 
 class ConsolidatorInstance;
 
+// Owns the process-wide command worker and coordinates registered instances.
 class InstanceCoordinator
 {
 public:
     static InstanceCoordinator& Get();
 
+    // Queues a command for serialized processing on the coordinator thread.
     void EnqueueCommand(Command command);
     [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
 
@@ -39,6 +41,8 @@ private:
 
     void RegisterInstance(ConsolidatorInstance& instance);
     void UnregisterInstance(InstanceId instanceId);
+
+    // Processes commands and routes responses until the coordinator is stopped.
     void WorkerLoop(std::stop_token stopToken);
 
     InstanceId nextInstanceId_{0};

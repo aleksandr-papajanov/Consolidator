@@ -16,6 +16,7 @@ struct GainRuntimeState
     bool isNeutral = true;
 };
 
+// Applies a configurable linear gain to every sample in the block.
 class Gain final : public DspDevice
 {
 public:
@@ -24,6 +25,7 @@ public:
     {
     }
 
+    // Processes the block without allocating or changing authoritative state.
     void Process(
         const double* input,
         double* output,

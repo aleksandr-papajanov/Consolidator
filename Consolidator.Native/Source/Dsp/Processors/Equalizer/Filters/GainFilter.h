@@ -6,6 +6,7 @@
 namespace consolidator::dsp
 {
 
+// Implements a frequency-independent gain filter.
 class GainFilter final : public Filter
 {
 public:

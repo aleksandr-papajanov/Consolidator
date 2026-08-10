@@ -17,6 +17,7 @@ class InstanceState;
 
 using InstanceHandle = ConsolidatorInstance*;
 
+// Identifies a bank together with the instance that owns it.
 struct BankAddress
 {
     InstanceId instanceId;
@@ -25,6 +26,7 @@ struct BankAddress
     friend bool operator==(const BankAddress&, const BankAddress&) = default;
 };
 
+// Tracks live instances and the reverse index from groups to their banks.
 class InstanceRegistry
 {
 public:
@@ -36,6 +38,7 @@ public:
     [[nodiscard]] bool Contains(InstanceId instanceId) const noexcept;
     [[nodiscard]] std::vector<InstanceHandle> GetInstances() const;
 
+    // Keeps group membership lookup synchronized when a bank changes group.
     void CacheBankGroup(BankAddress bankAddress, std::optional<GroupId> previousGroupId, std::optional<GroupId> nextGroupId);
 
 private:

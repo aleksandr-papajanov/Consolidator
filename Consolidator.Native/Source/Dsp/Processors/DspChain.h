@@ -16,6 +16,7 @@ namespace consolidator::core
 namespace consolidator::dsp
 {
 
+// Owns the ordered DSP devices and processes audio through the complete chain.
 class DspChain final
 {
 public:
@@ -26,8 +27,10 @@ public:
     DspChain& operator=(const DspChain&) = delete;
 
     void AddDevice(std::unique_ptr<DspDevice> device);
+    // Applies one coalesced mailbox batch before processing the next audio block.
     void ApplyRuntimeUpdates(const core::DspStateBatch& batch);
 
+    // Runs all active devices using preallocated intermediate buffers.
     void Process(const double* input,
                  double* interim,
                  double* output,

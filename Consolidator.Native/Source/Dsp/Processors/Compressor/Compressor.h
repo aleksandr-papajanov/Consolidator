@@ -35,6 +35,7 @@ struct CompressorMeterState
     std::atomic<float> gainReductionDb{0.0f};
 };
 
+// Measures linked detector level and applies time-smoothed dynamic gain reduction.
 class Compressor final : public DspDevice
 {
 public:
@@ -43,6 +44,7 @@ public:
     void Prepare(double sampleRate, std::size_t channelCount);
     void Reset() noexcept;
 
+    // Processes a block with feed-forward detection, smoothing and dry/wet mixing.
     void Process(
         const double* input,
         double* output,
@@ -54,6 +56,7 @@ public:
         return runtimeState_;
     }
 
+    // Routes updates to the compressor or its detector equalizer.
     bool ApplyParameter(
         const core::StatePath& route,
         const ParameterVariant& value,
@@ -63,6 +66,7 @@ public:
         const core::StatePath& route,
         const ParameterVariant& value) override;
 
+    // Recalculates all derived timing, gain and mix values after staged updates.
     void CommitRuntimeUpdates() override;
 
     [[nodiscard]] float GetGainReductionDb() const noexcept

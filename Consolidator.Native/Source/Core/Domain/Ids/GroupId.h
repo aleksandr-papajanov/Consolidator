@@ -6,6 +6,7 @@
 namespace consolidator::core
 {
 
+// Strongly typed identifier for a bank group.
 class GroupId
 {
 public:

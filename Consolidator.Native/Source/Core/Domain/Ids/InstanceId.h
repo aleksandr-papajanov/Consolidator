@@ -6,6 +6,7 @@
 namespace consolidator::core
 {
 
+// Strongly typed identifier for a live processor instance.
 class InstanceId
 {
 public:

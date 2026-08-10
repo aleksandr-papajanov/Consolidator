@@ -10,6 +10,7 @@
 namespace consolidator::core
 {
 
+// Converts a state path into concrete bank/instance write and constraint targets.
 class StateRouter
 {
 public:
@@ -21,10 +22,12 @@ public:
     {
     }
 
+    // Resolves the direct targets affected by a user write.
     [[nodiscard]] std::vector<BankAddress> ResolveWriteTargets(
         InstanceId sourceInstanceId,
         const StatePath& path) const;
 
+    // Resolves all banks whose effective parameter limits must be refreshed.
     [[nodiscard]] std::vector<BankAddress> ResolveConstraintTargets(
         InstanceId sourceInstanceId,
         const StatePath& path) const;
@@ -37,6 +40,7 @@ public:
 
     [[nodiscard]] static StateEntry ForBank(StateEntry entry, dsp::BankId bankId);
 
+    // Rewrites a path for a concrete target instance and bank.
     [[nodiscard]] static StatePath Retarget(
         StatePath path,
         BankAddress target);

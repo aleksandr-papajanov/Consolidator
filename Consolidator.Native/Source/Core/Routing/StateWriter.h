@@ -11,6 +11,7 @@
 namespace consolidator::core
 {
 
+// Applies a write batch atomically per entry and publishes its DSP consequences.
 class StateWriter final
 {
 public:
@@ -19,6 +20,7 @@ public:
         const StateRouter& stateRouter,
         const ParameterConstraintResolver& constraintResolver) noexcept;
 
+    // Validates, commits, publishes and enriches one protocol write batch.
     [[nodiscard]] StateResponse Write(
         const WriteStateCommand& command);
 
@@ -71,7 +73,9 @@ private:
         const StateEntry& entry,
         WriteContext& context) const;
 
+    // Delivers all accepted runtime changes after state commits are complete.
     void PublishDspUpdates(WriteContext& context);
+    // Adds authoritative effective limits affected by the committed writes.
     void RefreshConstraints(WriteContext& context);
 
     void AppendApplied(

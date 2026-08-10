@@ -12,11 +12,13 @@ struct RmsDetectorMeterState
     std::atomic<float> levelLinear{0.0f};
 };
 
+// Computes a short-window RMS level and exposes it as an atomic meter snapshot.
 class RmsDetector
 {
 public:
     static constexpr std::size_t kWindowSize = 64;
 
+    // Adds one sample to the rolling window and returns its linear RMS level.
     [[nodiscard]] double ProcessSample(double sample) noexcept;
 
     void Reset() noexcept;

@@ -5,6 +5,7 @@
 namespace consolidator::dsp
 {
 
+// Passive parameter value with its identity and numeric limits.
 template <typename T>
 struct ParameterState
 {

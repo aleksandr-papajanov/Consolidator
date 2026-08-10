@@ -8,6 +8,7 @@
 namespace consolidator::core
 {
 
+// Topology metadata for one equalizer bank.
 struct BankState
 {
     dsp::BankId id;

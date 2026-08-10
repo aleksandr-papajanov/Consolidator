@@ -15,6 +15,7 @@
 namespace consolidator::core::logging
 {
 
+// Serializes development-only diagnostic output to the native log file.
 class Logger
 {
 public:

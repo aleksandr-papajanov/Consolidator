@@ -13,6 +13,7 @@ struct DetectorEnvelopeFollowerSettings
     double releaseMs = core::settings::DetectorDefaults::kDefaultReleaseMs;
 };
 
+// Filters a detector signal and tracks its envelope with attack/release smoothing.
 class DetectorEnvelopeFollower
 {
 public:
@@ -23,6 +24,7 @@ public:
     void Prepare(double sampleRate);
     void Reset() noexcept;
 
+    // Applies detector EQ, rectifies the signal and updates the smoothed envelope.
     [[nodiscard]] double ProcessSample(double input) noexcept;
 
 

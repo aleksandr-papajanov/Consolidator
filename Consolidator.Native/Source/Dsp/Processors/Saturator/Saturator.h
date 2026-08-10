@@ -24,6 +24,7 @@ struct SaturatorRuntimeState
     bool isNeutral = true;
 };
 
+// Applies envelope-driven nonlinear waveshaping with dry/wet mixing.
 class Saturator final : public DspDevice
 {
 public:
@@ -35,6 +36,7 @@ public:
 
     void Reset() noexcept;
 
+    // Processes the block and applies detector modulation without audio-thread allocation.
     void Process(
         const double* input,
         double* output,
@@ -51,6 +53,7 @@ public:
         return detectors_[channel];
     }
 
+    // Routes updates to the saturator or its detector filters.
     bool ApplyParameter(
         const core::StatePath& route,
         const ParameterVariant& value,
@@ -60,6 +63,7 @@ public:
         const core::StatePath& route,
         const ParameterVariant& value) override;
 
+    // Recalculates derived drive, mix and detector runtime values once per batch.
     void CommitRuntimeUpdates() override;
 
     [[nodiscard]] bool IsNeutral() const noexcept override

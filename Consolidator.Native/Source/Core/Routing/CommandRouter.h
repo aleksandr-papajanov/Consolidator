@@ -10,6 +10,7 @@ namespace consolidator::core
 class ParameterConstraintResolver;
 class StateWriter;
 
+// Dispatches protocol commands to state reads or the coordinated write flow.
 class CommandRouter
 {
 public:
@@ -19,6 +20,7 @@ public:
         StateWriter& stateWriter,
         ConcurrentQueue<StateResponse>& coordinatorResponses) noexcept;
 
+    // Handles a command variant and enqueues its response when applicable.
     void HandleCommand(const Command& command);
 
 private:

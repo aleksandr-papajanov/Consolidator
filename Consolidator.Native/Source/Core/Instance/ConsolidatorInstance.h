@@ -16,14 +16,15 @@ class DspChain;
 namespace consolidator::core
 {
 
-class ConsolidatorInstance;
 class StateWriter;
+// Represents one processor instance and bridges coordinator state with its DSP chain.
 class ConsolidatorInstance
 {
 public:
     ConsolidatorInstance();
     ~ConsolidatorInstance();
 
+    // Registers the instance, paths and initial runtime values before audio starts.
     void Initialize();
 
     ConsolidatorInstance(const ConsolidatorInstance&) = delete;
@@ -31,6 +32,7 @@ public:
     ConsolidatorInstance(ConsolidatorInstance&&) = delete;
     ConsolidatorInstance& operator=(ConsolidatorInstance&&) = delete;
 
+    // Consumes one audio block and applies pending runtime updates before DSP.
     void Process(const double* mainInput,
                  const double* referenceInput,
                  double* mainOutput,
@@ -50,7 +52,9 @@ private:
     friend class CommandRouter;
     friend class StateWriter;
 
+    // Publishes coordinator-owned updates into the audio-thread mailbox.
     void PublishDspUpdates(std::span<const DspUpdate> updates);
+    // Registers all paths and sends the complete initial DSP runtime snapshot.
     void PublishInitialRuntimeState();
     static constexpr std::size_t kChannelCount = 2;
 

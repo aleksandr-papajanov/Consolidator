@@ -9,6 +9,7 @@
 namespace consolidator::core
 {
 
+// Lock-free bounded queue for exactly one producer and one consumer.
 template <typename T, std::size_t Capacity>
 class SpscQueue
 {

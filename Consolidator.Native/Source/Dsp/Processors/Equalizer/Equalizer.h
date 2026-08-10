@@ -18,6 +18,7 @@ struct EqualizerRuntimeState
     bool isNeutral = true;
 };
 
+// Composite processor that owns and runs an ordered set of filter bands.
 class Equalizer final : public DspDevice
 {
 public:
@@ -33,12 +34,14 @@ public:
     {
     }
 
+    // Processes all filters in order, bypassing the composite when neutral.
     void Process(
         const double* input,
         double* output,
         std::size_t frameCount,
         std::size_t channelCount) override;
 
+    // Adds a preconfigured filter before the chain is prepared for audio.
     void AddFilter(std::unique_ptr<Filter> filter);
 
     void Prepare(double sampleRate, std::size_t channelCount);

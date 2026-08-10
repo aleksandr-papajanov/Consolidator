@@ -38,6 +38,7 @@ struct FilterRuntimeState
     bool isNeutral = true;
 };
 
+// Base biquad filter with shared parameter routing, memory and coefficient state.
 class Filter : public DspDevice
 {
 public:
@@ -46,12 +47,14 @@ public:
         detail::ElementKind elementKind,
         std::uint8_t elementIndex);
 
+    // Configures sample rate and active channels before real-time processing.
     virtual void Prepare(
         double sampleRate,
         std::size_t channelCount);
 
     virtual void Reset() noexcept;
 
+    // Applies the biquad to a block while preserving per-channel filter memory.
     void Process(
         const double* input,
         double* output,
@@ -88,6 +91,7 @@ public:
 
 protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
+    // Rebuilds normalized coefficients from the current runtime parameters.
     virtual void RecalculateCoefficients() = 0;
 
     [[nodiscard]] virtual bool CalculateIsNeutral() const noexcept;

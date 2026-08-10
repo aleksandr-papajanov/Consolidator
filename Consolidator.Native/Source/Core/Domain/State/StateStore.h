@@ -8,6 +8,7 @@ namespace consolidator::core
 
 enum class ApplyResult;
 
+// Coordinator-owned source of truth for instance topology and DSP parameters.
 class StateStore final
 {
 public:
@@ -33,10 +34,12 @@ public:
         return instance_.instanceId;
     }
 
+    // Reads all entries matching the path prefix into a bounded snapshot.
     void ReadState(
         const StatePath& path,
         StateResponseEntries& snapshot) const;
 
+    // Validates and applies one state entry, reporting the resulting status.
     StateWriteStatus WriteState(
         const StateEntry& entry,
         StateResponseEntries& applied);

@@ -6,6 +6,7 @@
 namespace consolidator::dsp
 {
 
+// Implements a peaking/bell biquad filter.
 class BellFilter final : public Filter
 {
 public:

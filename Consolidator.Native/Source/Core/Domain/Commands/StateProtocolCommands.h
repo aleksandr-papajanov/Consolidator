@@ -11,6 +11,7 @@ namespace consolidator::core
 
 using RequestId = std::uint64_t;
 
+// Bounded state read/write protocol messages and their response envelope.
 struct ReadStateCommand
 {
     RequestId requestId{0};

@@ -8,6 +8,7 @@
 namespace consolidator::core
 {
 
+// Mutex-protected queue for commands and responses crossing coordinator boundaries.
 template <typename T>
 class ConcurrentQueue
 {

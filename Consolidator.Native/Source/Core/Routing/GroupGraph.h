@@ -8,6 +8,7 @@
 namespace consolidator::core
 {
 
+// Resolves direct and transitively connected bank groups from the registry.
 class GroupGraph final
 {
 public:
@@ -22,6 +23,7 @@ public:
     [[nodiscard]] std::vector<BankAddress> GetGroupedBanks(
         InstanceId instanceId) const;
 
+    // Traverses the group graph from the supplied banks until the component is complete.
     [[nodiscard]] std::vector<BankAddress> GetConnectedGroupBanks(
         std::span<const BankAddress> seeds) const;
 

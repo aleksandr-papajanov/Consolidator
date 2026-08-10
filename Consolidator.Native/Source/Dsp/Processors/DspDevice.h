@@ -10,6 +10,7 @@
 namespace consolidator::dsp
 {
 
+// Base contract for a runtime-updatable, real-time DSP processor.
 class DspDevice
 {
 public:
@@ -26,10 +27,12 @@ public:
         std::size_t frameCount,
         std::size_t channelCount) = 0;
 
+    // Stages a value without recalculating dependent runtime data immediately.
     virtual bool StageRuntimeUpdate(
         const core::StatePath& path,
         const ParameterVariant& value);
 
+    // Commits staged values and rebuilds derived runtime state once per batch.
     virtual void CommitRuntimeUpdates();
 
     [[nodiscard]] DeviceId GetDeviceId() const noexcept

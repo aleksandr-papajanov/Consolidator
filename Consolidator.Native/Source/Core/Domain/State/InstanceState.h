@@ -10,6 +10,7 @@
 namespace consolidator::core
 {
 
+// Topology state owned by one instance, including its selected bank and groups.
 struct InstanceState
 {
     static constexpr std::size_t kBankCount = 7;

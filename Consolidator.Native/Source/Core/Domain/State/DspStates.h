@@ -4,6 +4,7 @@
 
 #include "Core/Domain/State/ParameterState.h"
 
+// Passive user-facing state containers for the DSP device hierarchy.
 namespace consolidator::dsp
 {
 

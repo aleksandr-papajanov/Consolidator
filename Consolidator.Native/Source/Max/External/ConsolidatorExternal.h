@@ -11,6 +11,7 @@ class ConsolidatorInstance;
 namespace consolidator::max
 {
 
+// Max-facing audio wrapper that forwards processing to one core instance.
 class ConsolidatorExternal
 {
 public:
@@ -22,6 +23,7 @@ public:
     ConsolidatorExternal(ConsolidatorExternal&&) = delete;
     ConsolidatorExternal& operator=(ConsolidatorExternal&&) = delete;
 
+    // Processes the two-channel main/reference block exposed by the Max external.
     void Process(const double* mainInput,
                  const double* referenceInput,
                  double* mainOutput,

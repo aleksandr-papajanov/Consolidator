@@ -17,6 +17,7 @@ namespace consolidator::core
 template <typename Value>
 struct LatestValueMailboxCodec;
 
+// Single-producer/single-consumer mailbox that coalesces each key to its latest value.
 template <typename Key, typename Value, std::size_t Capacity>
 class LatestValueMailbox final
 {
@@ -36,6 +37,7 @@ public:
 
     // Register and Publish have exactly one producer. ConsumeLatest has one
     // consumer. Registration must finish before the consumer starts.
+    // Adds a fixed slot; all keys must be registered before consumption begins.
     void Register(const Key& key)
     {
         if (FindSlot(key) != nullptr)
@@ -57,6 +59,7 @@ public:
         std::terminate();
     }
 
+    // Publishes a packed value using a seqlock so readers get a consistent snapshot.
     void Publish(
         const Key& key,
         const Value& value,
@@ -84,6 +87,7 @@ public:
         slot->sequence.store(sequence + 2, std::memory_order_release);
     }
 
+    // Collects values newer than the last consumed revision without blocking.
     [[nodiscard]] bool ConsumeLatest(
         std::span<Update> output,
         std::size_t& outputCount,

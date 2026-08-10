@@ -11,6 +11,7 @@
 namespace consolidator::core
 {
 
+// A single coordinator-to-audio-thread runtime parameter update.
 struct DspUpdate
 {
     StatePath path;
@@ -18,6 +19,7 @@ struct DspUpdate
     std::uint64_t revision = 0;
 };
 
+// Fixed-capacity batch consumed by a DSP chain at the start of an audio block.
 struct DspStateBatch
 {
     static constexpr std::size_t kMaximumUpdates = 512;
@@ -39,6 +41,7 @@ struct LatestValueMailboxCodec<dsp::ParameterVariant>
         Storage packedValue) noexcept;
 };
 
+// Coalesces registered DSP paths so the audio thread sees only their latest values.
 class DspUpdateMailbox final
 {
 public:
@@ -50,9 +53,12 @@ public:
 
     static_assert(DspStateBatch::kMaximumUpdates >= kMaximumPathCount);
 
+    // Registration defines the fixed set of paths and must precede processing.
     void RegisterPath(const StatePath& path);
+    // Publishes a value for a registered path from the coordinator thread.
     void Publish(const DspUpdate& update);
 
+    // Copies a consistent, revision-ordered snapshot for the audio thread.
     [[nodiscard]] bool ConsumeLatest(DspStateBatch& batch) noexcept;
 
 private:

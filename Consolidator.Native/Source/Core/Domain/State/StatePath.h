@@ -21,6 +21,7 @@ enum class StateField : std::uint8_t
     DspParameter
 };
 
+// Fixed-size address for instance topology and DSP parameter state.
 struct StatePath
 {
     constexpr StatePath() noexcept = default;
@@ -163,6 +164,7 @@ struct StatePath
 
     friend constexpr bool operator==(const StatePath&, const StatePath&) noexcept = default;
 
+    // Checks whether this path is a prefix match for a candidate address.
     [[nodiscard]] bool Matches(const StatePath& candidate) const noexcept
     {
         if (instanceId && instanceId != candidate.instanceId) return false;

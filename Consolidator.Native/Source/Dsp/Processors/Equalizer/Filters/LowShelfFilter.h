@@ -6,6 +6,7 @@
 namespace consolidator::dsp
 {
 
+// Implements a low-frequency shelving biquad filter.
 class LowShelfFilter final : public Filter
 {
 public:

@@ -8,6 +8,7 @@ namespace consolidator::core
 // Calculates the effective movement range from the coordinator-owned
 // parameter state. The target set is resolved by the existing StateRouter;
 // DSP runtime objects are never consulted.
+// Validates and enriches parameter writes using only authoritative state.
 class ParameterConstraintResolver
 {
 public:
@@ -19,6 +20,7 @@ public:
     {
     }
 
+    // Rejects values outside the effective range for the requested targets.
     [[nodiscard]] bool Validate(
         InstanceId sourceInstanceId,
         const StateEntry& requested) const;
@@ -28,6 +30,7 @@ public:
         const StateEntry& requested,
         const BankAddress& target) const;
 
+    // Fills a response entry with the current physical and effective limits.
     void Enrich(
         InstanceId sourceInstanceId,
         StateEntry& entry) const;

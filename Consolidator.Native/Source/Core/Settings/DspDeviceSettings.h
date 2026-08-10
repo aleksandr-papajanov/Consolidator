@@ -7,6 +7,7 @@
 namespace consolidator::core::settings
 {
 
+// Centralized defaults and limits used to construct the complete DSP state tree.
 // ---- Ranged value ----
 
 template <typename T>

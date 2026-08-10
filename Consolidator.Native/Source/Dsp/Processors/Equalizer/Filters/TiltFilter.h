@@ -8,6 +8,7 @@
 namespace consolidator::dsp
 {
 
+// Combines low- and high-shelf filters around a pivot to create a tilt response.
 class TiltFilter final : public Filter
 {
 public:
