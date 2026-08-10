@@ -53,12 +53,12 @@ public:
 
     bool ApplyParameter(
         const core::StatePath& route,
-        const ParameterValue& value,
+        const ParameterVariant& value,
         std::size_t depth) override;
 
     bool StageRuntimeUpdate(
         const core::StatePath& route,
-        const ParameterValue& value) override;
+        const ParameterVariant& value) override;
 
     void CommitRuntimeUpdates() override;
 
@@ -72,7 +72,7 @@ private:
 
     bool ApplyOwnParameter(
         const core::StatePath& route,
-        const ParameterValue& value) override;
+        const ParameterVariant& value) override;
     void RecalculateRuntime() override;
 
 

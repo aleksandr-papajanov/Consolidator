@@ -1,13 +1,12 @@
 #pragma once
 
 #include <array>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 
-#include "Core/Parameters/ParameterValue.h"
-#include "Core/State/StateProtocol.h"
+#include "Core/Queues/LatestValueMailbox.h"
+#include "Core/Domain/ParameterVariant.h"
+#include "Core/Domain/State/StateProtocol.h"
 
 namespace consolidator::core
 {
@@ -15,7 +14,7 @@ namespace consolidator::core
 struct DspUpdate
 {
     StatePath path;
-    dsp::ParameterValue value;
+    dsp::ParameterVariant value;
     std::uint64_t revision = 0;
 };
 
@@ -28,17 +27,28 @@ struct DspStateBatch
     std::uint64_t revision = 0;
 };
 
+template <>
+struct LatestValueMailboxCodec<dsp::ParameterVariant>
+{
+    using Storage = std::uint64_t;
+
+    [[nodiscard]] static Storage Pack(
+        const dsp::ParameterVariant& value) noexcept;
+
+    [[nodiscard]] static std::optional<dsp::ParameterVariant> Unpack(
+        Storage packedValue) noexcept;
+};
+
 class DspUpdateMailbox final
 {
 public:
     static constexpr std::size_t kMaximumPathCount = 512;
-    static constexpr std::size_t kSlotCount = kMaximumPathCount;
-    static_assert(
-        DspStateBatch::kMaximumUpdates >= kMaximumPathCount,
-        "DspStateBatch must hold every published mailbox slot");
+    using ValueMailbox = LatestValueMailbox<
+        StatePath,
+        dsp::ParameterVariant,
+        kMaximumPathCount>;
 
-    // Publish/RegisterPath are coordinator-thread operations. The mailbox has
-    // exactly one producer and one audio-thread consumer.
+    static_assert(DspStateBatch::kMaximumUpdates >= kMaximumPathCount);
 
     void RegisterPath(const StatePath& path);
     void Publish(const DspUpdate& update);
@@ -46,23 +56,8 @@ public:
     [[nodiscard]] bool ConsumeLatest(DspStateBatch& batch) noexcept;
 
 private:
-    struct Slot
-    {
-        bool used = false;
-        StatePath path;
-        std::atomic<std::uint64_t> packedValue{0};
-        std::atomic<std::uint64_t> revision{0};
-        std::atomic<std::uint64_t> sequence{0};
-    };
-
-    [[nodiscard]] static std::uint64_t PackValue(
-        const dsp::ParameterValue& value) noexcept;
-    [[nodiscard]] static std::optional<dsp::ParameterValue> UnpackValue(
-        std::uint64_t packedValue) noexcept;
-    [[nodiscard]] Slot* FindSlot(const StatePath& path) noexcept;
-
-    std::array<Slot, kSlotCount> slots_;
-    std::array<std::uint64_t, kSlotCount> consumedRevisions_{};
+    ValueMailbox mailbox_;
+    std::array<typename ValueMailbox::Update, kMaximumPathCount> updates_;
 };
 
 static_assert(

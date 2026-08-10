@@ -2,7 +2,7 @@
 
 #include <array>
 
-#include "Core/Ids/DspIds.h"
+#include "Core/Domain/Ids/DspIds.h"
 
 namespace consolidator::core::settings
 {

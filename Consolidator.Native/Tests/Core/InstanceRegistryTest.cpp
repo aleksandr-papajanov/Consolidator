@@ -1,4 +1,4 @@
-#include "Core/Commands/Commands.h"
+#include "Core/Domain/Commands/StateProtocolCommands.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
 #include "Core/Instance/ConsolidatorInstance.h"
 
@@ -15,7 +15,7 @@ int main()
     path.deviceId = consolidator::dsp::DeviceId::MainInputGain;
     path.parameterId = consolidator::dsp::ParameterId::Gain;
     assert(entries.TryAppend({path, 6.0f}));
-    instance.EnqueueCommand(consolidator::core::StateCommand{
+    instance.HandleStateCommand(consolidator::core::StateCommand{
         consolidator::core::StateOperation::Write,
         {1, instance.GetInstanceId(), entries}});
 

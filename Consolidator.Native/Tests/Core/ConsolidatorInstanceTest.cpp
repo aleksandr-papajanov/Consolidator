@@ -1,6 +1,7 @@
 #include "Core/Instance/ConsolidatorInstance.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
-#include "Core/State/StateProtocol.h"
+#include "Core/Domain/Commands/StateProtocolCommands.h"
+#include "Core/Domain/State/StateProtocol.h"
 
 #include <cassert>
 #include <array>
@@ -41,7 +42,7 @@ int main()
     gainPath.deviceId = consolidator::dsp::DeviceId::MainInputGain;
     gainPath.parameterId = consolidator::dsp::ParameterId::Gain;
     assert(writeEntries.TryAppend({gainPath, 6.0f}));
-    instance.EnqueueCommand(consolidator::core::StateCommand{
+    instance.HandleStateCommand(consolidator::core::StateCommand{
         consolidator::core::StateOperation::Write,
         {1, instance.GetInstanceId(), writeEntries}});
 

@@ -5,7 +5,6 @@
 #include <exception>
 #include <optional>
 #include <type_traits>
-#include <utility>
 
 #include "Core/Coordinator/InstanceCoordinator.h"
 #include "Dsp/DspChainBuilder.h"
@@ -17,17 +16,17 @@ namespace consolidator::core
 namespace
 {
 
-std::optional<dsp::ParameterValue> ToParameterValue(const StateValue& value)
+std::optional<dsp::ParameterVariant> ToParameterVariant(const StateValue& value)
 {
     return std::visit(
-        [](const auto& typedValue) -> std::optional<dsp::ParameterValue>
+        [](const auto& typedValue) -> std::optional<dsp::ParameterVariant>
         {
             using ValueType = std::decay_t<decltype(typedValue)>;
             if constexpr (std::is_same_v<ValueType, bool> ||
                           std::is_same_v<ValueType, std::int32_t> ||
                           std::is_same_v<ValueType, float>)
             {
-                return dsp::ParameterValue{typedValue};
+                return dsp::ParameterVariant{typedValue};
             }
             return std::nullopt;
         },
@@ -77,11 +76,6 @@ void ConsolidatorInstance::Process(const double* mainInput,
     std::copy_n(referenceInput, frameCount * kChannelCount, referenceOutput);
 }
 
-void ConsolidatorInstance::EnqueueCommand(Command command)
-{
-    InstanceCoordinator::Get().EnqueueCommand(state_.GetInstanceId(), std::move(command));
-}
-
 InstanceId ConsolidatorInstance::GetInstanceId() const noexcept
 {
     return state_.GetInstanceId();
@@ -117,7 +111,7 @@ void ConsolidatorInstance::PublishInitialRuntimeState()
         {
             continue;
         }
-        const auto value = ToParameterValue(entry.value);
+        const auto value = ToParameterVariant(entry.value);
         if (!value)
         {
             continue;

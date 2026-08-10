@@ -4,9 +4,9 @@
 #include <memory>
 #include <span>
 
-#include "Core/Commands/Commands.h"
-#include "Core/State/InstanceState.h"
-#include "Core/State/StateStore.h"
+#include "Core/Domain/Commands/StateProtocolCommands.h"
+#include "Core/Domain/State/InstanceState.h"
+#include "Core/Domain/State/StateStore.h"
 #include "Core/Instance/Queues/DspUpdateMailbox.h"
 
 namespace consolidator::dsp
@@ -37,7 +37,7 @@ public:
                  double* referenceOutput,
                  std::size_t frameCount);
 
-    void EnqueueCommand(Command command);
+    void HandleStateCommand(StateCommand command);
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
     [[nodiscard]] StateStore& GetStateStore() noexcept { return stateStore_; }

@@ -60,7 +60,7 @@ public:
 
     bool ApplyParameter(
         const core::StatePath& route,
-        const ParameterValue& value,
+        const ParameterVariant& value,
         std::size_t depth)
     {
         return DspDevice::ApplyParameter(route, value, depth);
@@ -120,7 +120,7 @@ protected:
 private:
     bool ApplyOwnParameter(
         const core::StatePath& route,
-        const ParameterValue& value) override;
+        const ParameterVariant& value) override;
 
 
     [[nodiscard]] double ProcessActiveSample(

@@ -67,7 +67,7 @@ double Equalizer::ProcessSample(double input) noexcept
 
 bool Equalizer::ApplyParameter(
     const core::StatePath& route,
-    const ParameterValue& value,
+    const ParameterVariant& value,
     std::size_t depth)
 {
     if (route.GetDeviceId() != GetDeviceId())
@@ -101,7 +101,7 @@ bool Equalizer::ApplyParameter(
 
 bool Equalizer::StageRuntimeUpdate(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     return ApplyParameter(route, value, 0);
 }
@@ -126,7 +126,7 @@ void Equalizer::AddFilter(std::unique_ptr<Filter> filter)
 
 bool Equalizer::ApplyOwnParameter(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     if (route.GetParameterId() != ParameterId::Bypass)
     {

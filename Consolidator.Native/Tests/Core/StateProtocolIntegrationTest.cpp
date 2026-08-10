@@ -1,7 +1,7 @@
-#include "Core/Commands/Commands.h"
+#include "Core/Domain/Commands/StateProtocolCommands.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
 #include "Core/Instance/ConsolidatorInstance.h"
-#include "Core/State/StateProtocol.h"
+#include "Core/Domain/State/StateProtocol.h"
 
 #include <algorithm>
 #include <array>
@@ -30,6 +30,7 @@ using consolidator::core::StatePath;
 using consolidator::core::StateRequestEntries;
 using consolidator::core::StateResponse;
 using consolidator::core::StateValue;
+using consolidator::core::StateWriteStatus;
 using consolidator::dsp::BankId;
 using consolidator::dsp::DeviceId;
 using consolidator::dsp::ParameterId;
@@ -123,7 +124,7 @@ std::vector<StateResponse> Write(
     std::uint64_t requestId,
     StateRequestEntries entries)
 {
-    source.EnqueueCommand(StateCommand{
+    source.HandleStateCommand(StateCommand{
         StateOperation::Write,
         {requestId, source.GetInstanceId(), std::move(entries)}});
 
@@ -141,7 +142,7 @@ std::vector<StateResponse> Read(
         std::move(path),
         StateValue{std::monostate{}}}));
 
-    source.EnqueueCommand(StateCommand{
+    source.HandleStateCommand(StateCommand{
         StateOperation::Read,
         {requestId, source.GetInstanceId(), std::move(queries)}});
 
@@ -216,16 +217,87 @@ void AssertGroupValue(
     const StatePath& expectedPath,
     std::optional<GroupId> expectedValue)
 {
-    const auto& entry = OnlyEntry(responses, expectedPath);
+    const StateEntry* entry = nullptr;
+    for (std::size_t index = 0; index < responses.size(); ++index)
+    {
+        for (std::size_t entryIndex = 0;
+             entryIndex < responses[index].entries.size;
+             ++entryIndex)
+        {
+            if (IsExactPath(
+                    responses[index].entries.entries[entryIndex].path,
+                    expectedPath))
+            {
+                entry = &responses[index].entries.entries[entryIndex];
+                break;
+            }
+        }
+        if (entry != nullptr)
+        {
+            break;
+        }
+    }
+    assert(entry != nullptr);
     if (expectedValue)
     {
-        assert(std::holds_alternative<GroupId>(entry.value));
-        assert(std::get<GroupId>(entry.value) == *expectedValue);
+        assert(std::holds_alternative<GroupId>(entry->value));
+        assert(std::get<GroupId>(entry->value) == *expectedValue);
     }
     else
     {
-        assert(std::holds_alternative<std::monostate>(entry.value));
+        assert(std::holds_alternative<std::monostate>(entry->value));
     }
+}
+
+void AssertConstraintEntry(
+    const StateResponse& response,
+    const StatePath& path)
+{
+    for (std::size_t index = 0; index < response.entries.size; ++index)
+    {
+        const auto& entry = response.entries.entries[index];
+        if (IsExactPath(entry.path, path))
+        {
+            assert(entry.minimum.has_value());
+            assert(entry.maximum.has_value());
+            return;
+        }
+    }
+    assert(false && "missing constraint entry");
+}
+
+std::size_t CountEntries(
+    const StateResponse& response,
+    const StatePath& path)
+{
+    std::size_t count = 0;
+    for (std::size_t index = 0; index < response.entries.size; ++index)
+    {
+        if (IsExactPath(response.entries.entries[index].path, path))
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void AssertFloatEntry(
+    const StateResponse& response,
+    const StatePath& path,
+    float expectedValue)
+{
+    const StateEntry* matchingEntry = nullptr;
+    for (std::size_t index = 0; index < response.entries.size; ++index)
+    {
+        if (IsExactPath(response.entries.entries[index].path, path))
+        {
+            matchingEntry = &response.entries.entries[index];
+            break;
+        }
+    }
+    assert(matchingEntry != nullptr);
+    assert(std::holds_alternative<float>(matchingEntry->value));
+    assert(std::get<float>(matchingEntry->value) == expectedValue);
 }
 
 StateRequestEntries One(StateEntry entry)
@@ -241,9 +313,17 @@ int main()
 {
     ConsolidatorInstance first;
     ConsolidatorInstance second;
+    ConsolidatorInstance third;
+    ConsolidatorInstance fourth;
     first.Initialize();
     second.Initialize();
-    const std::vector<ConsolidatorInstance*> instances{&first, &second};
+    third.Initialize();
+    fourth.Initialize();
+    const std::vector<ConsolidatorInstance*> instances{
+        &first,
+        &second,
+        &third,
+        &fourth};
     std::uint64_t requestId = 1;
 
     const auto mainInputGainPath = StatePath::DspParameter(
@@ -329,6 +409,27 @@ int main()
         secondBank0Filter3GainPath,
         0.0f);
 
+    // A local batch preserves every applied entry in one response before any
+    // group topology connects the instances.
+    StateRequestEntries batch;
+    assert(batch.TryAppend(DspWrite(
+        first.GetInstanceId(), DeviceId::Saturator, ParameterId::Drive, 1.5f)));
+    assert(batch.TryAppend(DspWrite(
+        first.GetInstanceId(), DeviceId::Compressor, ParameterId::Threshold, -24.0f)));
+    auto responses = Write(instances, first, requestId++, std::move(batch));
+    assert(responses.size() == 1);
+    assert(responses.front().entries.size == 2);
+    assert(!responses.front().truncated);
+
+    AssertFloatValue(
+        Read(instances, first, requestId++, saturatorDrivePath),
+        saturatorDrivePath,
+        1.5f);
+    AssertFloatValue(
+        Read(instances, first, requestId++, compressorThresholdPath),
+        compressorThresholdPath,
+        -24.0f);
+
     const auto firstBank0GroupPath = StatePath::BankGroup(
         first.GetInstanceId(), BankId::Bank0);
     const auto secondBank2GroupPath = StatePath::BankGroup(
@@ -355,24 +456,21 @@ int main()
         GroupId{42});
 
     // Linking fans one EQ write out to both grouped banks.
-    auto responses = Write(instances, first, requestId++, One(DspWrite(
+    responses = Write(instances, first, requestId++, One(DspWrite(
         first.GetInstanceId(),
         DeviceId::Equalizer,
         ParameterId::Gain,
         7.0f,
         {RouteNodeId::Bank0, RouteNodeId::Filter3})));
-    assert(responses.size() == 2);
-    assert(responses[0].responseCount == 2);
-    assert(responses[0].responseIndex == 0);
-    assert(responses[1].responseIndex == 1);
-    assert(!responses[0].isFinal);
-    assert(responses[1].isFinal);
-    assert(!responses[0].truncated && !responses[1].truncated);
-    assert(responses[0].entries.size == 1);
-    assert(responses[1].entries.size == 1);
+    assert(responses.size() == 1);
+    assert(responses.front().responseCount == 1);
+    assert(responses.front().responseIndex == 0);
+    assert(responses.front().isFinal);
+    assert(!responses.front().truncated);
+    assert(responses.front().entries.size == 2);
 
-    const auto& firstApplied = responses[0].entries.entries[0];
-    const auto& secondApplied = responses[1].entries.entries[0];
+    const auto& firstApplied = responses.front().entries.entries[0];
+    const auto& secondApplied = responses.front().entries.entries[1];
     assert(std::get<float>(firstApplied.value) == 7.0f);
     assert(std::get<float>(secondApplied.value) == 7.0f);
     assert(
@@ -415,25 +513,98 @@ int main()
         secondBank2Filter3GainPath,
         7.0f);
 
-    // A local batch preserves every applied entry in one response.
-    StateRequestEntries batch;
-    assert(batch.TryAppend(DspWrite(
-        first.GetInstanceId(), DeviceId::Saturator, ParameterId::Drive, 1.5f)));
-    assert(batch.TryAppend(DspWrite(
-        first.GetInstanceId(), DeviceId::Compressor, ParameterId::Threshold, -24.0f)));
-    responses = Write(instances, first, requestId++, std::move(batch));
-    assert(responses.size() == 1);
-    assert(responses.front().entries.size == 2);
-    assert(!responses.front().truncated);
+    // Constraint dependencies traverse an overlapping chain of groups:
+    // first/Bank1 -- second/Bank0 -- second/Bank1 -- third/Bank0
+    // -- third/Bank1 -- fourth/Bank0. One write must refresh all four
+    // instance-owned parameter entries in one response.
+    const auto chainGroups = {
+        std::pair{&first, BankId::Bank1},
+        std::pair{&second, BankId::Bank0},
+        std::pair{&second, BankId::Bank1},
+        std::pair{&third, BankId::Bank0},
+        std::pair{&third, BankId::Bank1},
+        std::pair{&fourth, BankId::Bank0}};
+    const auto chainGroupIds = {
+        GroupId{100}, GroupId{100}, GroupId{101},
+        GroupId{101}, GroupId{102}, GroupId{102}};
+    auto groupId = chainGroupIds.begin();
+    for (const auto& [instance, bank] : chainGroups)
+    {
+        const auto currentGroupId = *groupId++;
+        AssertGroupValue(
+            Write(instances, *instance, requestId++, One(GroupWrite(
+                instance->GetInstanceId(), bank, currentGroupId))),
+            StatePath::BankGroup(instance->GetInstanceId(), bank),
+            currentGroupId);
+    }
 
+    const auto chainRatioPath = [](const ConsolidatorInstance& instance)
+    {
+        return StatePath::DspParameter(
+            instance.GetInstanceId(),
+            StatePath{DeviceId::Compressor, ParameterId::Ratio});
+    };
+    auto chainResponse = Write(instances, second, requestId++, One(DspWrite(
+        second.GetInstanceId(),
+        DeviceId::Compressor,
+        ParameterId::Ratio,
+        2.0f)));
+    assert(chainResponse.size() == 1);
+    assert(chainResponse.front().responseCount == 1);
+    assert(chainResponse.front().entries.size == 4);
+    AssertConstraintEntry(chainResponse.front(), chainRatioPath(first));
+    AssertConstraintEntry(chainResponse.front(), chainRatioPath(second));
+    AssertConstraintEntry(chainResponse.front(), chainRatioPath(third));
+    AssertConstraintEntry(chainResponse.front(), chainRatioPath(fourth));
+    AssertFloatEntry(
+        chainResponse.front(),
+        chainRatioPath(first),
+        2.0f);
+    AssertFloatEntry(
+        chainResponse.front(),
+        chainRatioPath(second),
+        2.0f);
+    AssertFloatEntry(
+        chainResponse.front(),
+        chainRatioPath(third),
+        1.0f);
+    AssertFloatEntry(
+        chainResponse.front(),
+        chainRatioPath(fourth),
+        1.0f);
+    assert(CountEntries(
+               chainResponse.front(),
+               chainRatioPath(first)) == 1);
+    assert(CountEntries(
+               chainResponse.front(),
+               chainRatioPath(second)) == 1);
+    assert(CountEntries(
+               chainResponse.front(),
+               chainRatioPath(third)) == 1);
+    assert(CountEntries(
+               chainResponse.front(),
+               chainRatioPath(fourth)) == 1);
+
+    // The write itself is NOT transitive. second is editing Bank0, therefore
+    // only Group100 (first/Bank1 + second/Bank0) receives the new value.
+    // third and fourth are present in the response only because their
+    // effective constraints depend transitively on the changed value.
     AssertFloatValue(
-        Read(instances, first, requestId++, saturatorDrivePath),
-        saturatorDrivePath,
-        1.5f);
+        Read(instances, first, requestId++, chainRatioPath(first)),
+        chainRatioPath(first),
+        2.0f);
     AssertFloatValue(
-        Read(instances, first, requestId++, compressorThresholdPath),
-        compressorThresholdPath,
-        -24.0f);
+        Read(instances, second, requestId++, chainRatioPath(second)),
+        chainRatioPath(second),
+        2.0f);
+    AssertFloatValue(
+        Read(instances, third, requestId++, chainRatioPath(third)),
+        chainRatioPath(third),
+        1.0f);
+    AssertFloatValue(
+        Read(instances, fourth, requestId++, chainRatioPath(fourth)),
+        chainRatioPath(fourth),
+        1.0f);
 
     // Invalid/unhandled writes still terminate the request but apply nothing.
     StatePath invalid = StatePath::Instance(first.GetInstanceId());
@@ -443,8 +614,10 @@ int main()
         StateValue{true}}));
     assert(responses.size() == 1);
     assert(responses.front().isFinal);
-    assert(responses.front().entries.size == 0);
+    assert(responses.front().entries.size == 1);
     assert(!responses.front().truncated);
+    assert(responses.front().entries.entries[0].status ==
+           StateWriteStatus::Rejected);
 
     return 0;
 }

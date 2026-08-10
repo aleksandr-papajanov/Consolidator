@@ -2,7 +2,7 @@
 
 ## Назначение
 
-`Consolidator.Native/Source/Dsp` — независимый DSP-слой обработки аудио. Он не зависит от Max/Min и содержит цепочку устройств, обработчики аудио и runtime-состояние. Общие parameter-типы находятся в `Source/Core/Parameters`.
+`Consolidator.Native/Source/Dsp` — независимый DSP-слой обработки аудио. Он не зависит от Max/Min и содержит цепочку устройств, обработчики аудио и runtime-состояние. Общие domain-типы находятся в `Source/Core/Domain`.
 
 Главная цепочка собирается `DspChainBuilder`:
 
@@ -29,7 +29,7 @@ devices, EQ banks, EQ filters и detector filters. DSP получает `DspStat
 применяет batch перед `Process()`. Несхлопываемые события (например,
 reset) должны идти отдельной event queue.
 
-Параметры хранятся в `DspParameter<T>` из `Core/Parameters`, но только внутри
+Параметры хранятся в `ParameterState<T>` из `Core/Domain/State`, но только внутри
 `StateStore`. Он содержит локальный `ParameterId`, текущее значение и диапазон.
 Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; DSP
 processor-классы не должны дублировать пользовательские параметры или их

@@ -9,7 +9,7 @@ namespace consolidator::dsp
 
 bool Gain::StageRuntimeUpdate(
     const core::StatePath& path,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     if (path.GetDeviceId() != GetDeviceId() || path.GetDepth() != 0)
     {

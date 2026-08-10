@@ -8,7 +8,7 @@ coordinator worker. Instances register their topology and coordinator-owned
 
 ```text
 Max / control code
-  -> ConsolidatorInstance::EnqueueCommand()
+  -> ConsolidatorInstance::EnqueueStateCommand()
   -> InstanceCoordinator global queue
   -> CommandRouter resolves topology and group targets
   -> StateStore::WriteState() on coordinator thread
@@ -89,6 +89,14 @@ the authoritative `StateStore` changed and the instance mailbox accepted the
 runtime update; it does not mean that the audio thread has already applied it.
 There is no local
 audio command/response queue for state access and no `ParameterStateView`.
+
+## Core component boundaries
+
+`Core/Domain/State` contains the authoritative state model and `StateStore`.
+`Core/Routing` contains command routing, group traversal, constraint resolution
+and response delivery. `InstanceCoordinator` remains the composition root and
+owns the coordinator worker, command queue and routing components, but routing
+does not belong to the coordinator lifecycle itself.
 
 ## DSP boundary
 

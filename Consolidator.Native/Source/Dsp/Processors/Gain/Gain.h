@@ -43,7 +43,7 @@ public:
 
     bool StageRuntimeUpdate(
         const core::StatePath& path,
-        const ParameterValue& value) override;
+        const ParameterVariant& value) override;
 
 private:
     void RecalculateRuntime() override;

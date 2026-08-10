@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "Core/State/InstanceState.h"
+#include "Core/Domain/State/InstanceState.h"
 
 namespace consolidator::core
 {

@@ -56,7 +56,7 @@ fallback-пути, миграционные адаптеры, compatibility alia
 Папки должны отражать архитектуру и назначение кода, а не случайную историю его появления.
 
 ```text
-Source/Core/         — domain model, instance, state, registry, groups, commands
+Source/Core/         — domain model, instance, state, registry, routing, commands
 Source/Dsp/          — audio processors, parameter smoothing, buffers
 Source/Analysis/     — FFT, curve accumulation, metrics
 Source/Optimization/ — fitting solvers, search strategies
@@ -75,6 +75,29 @@ Tests/               — unit and integration tests (Core, Dsp)
 Не создавать чрезмерно большие файлы, содержащие множество несвязанных задач одновременно.
 Если файл становится большим — определить отдельные ответственности и вынести их.
 Разделение должно соответствовать смыслу, а не формальным ограничениям.
+
+### Command handlers
+
+Каждый конкретный command handler должен находиться в отдельном исходном файле.
+Имя файла включает владельца и scope handler-а:
+
+- `ConsolidatorInstance.StateCommandHandler.cpp` — входящая state-команда instance;
+- `InstanceCoordinator.CommandHandler.cpp` — постановка команды координатора;
+- `InstanceCoordinator.DispatchHandler.cpp` — dispatch очереди координатора;
+- `CommandRouter.CommandHandler.cpp` — dispatch command variant;
+- `CommandRouter.StateCommandHandler.cpp` — обработка state-команды;
+- `CommandRouter.ReadCommandHandler.cpp` — обработка read-команды;
+- `CommandRouter.WriteCommandHandler.cpp` — обработка write-команды.
+
+Один `.cpp` не должен содержать несколько независимых handlers. Основные `.cpp`
+владельцев содержат lifecycle, state access и orchestration, но не реализацию
+command handlers. Для каждого нового command scope сначала создаётся явный
+handler-файл, затем он подключается к dispatch-цепочке. Вспомогательные шаги,
+которые принадлежат только одному handler scope — например write plan,
+topology write, delivery и refresh ответа — должны находиться рядом с этим
+handler-ом, а не разноситься по отдельным техническим `.cpp`. Отдельный файл
+для таких шагов нужен только при наличии самостоятельной ответственности или
+реального переиспользования.
 
 ---
 

@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.20)
 
 project(Consolidator.Native
     VERSION 0.1.0
@@ -31,48 +31,58 @@ set_target_properties(ConsolidatorCore PROPERTIES
 target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
-    Source/Core/Ids/InstanceId.h
-    Source/Core/Ids/GroupId.h
-    Source/Core/Ids/DspIds.h
+    Source/Core/Instance/ConsolidatorInstance.StateCommandHandler.cpp
+    Source/Core/Domain/Ids/InstanceId.h
+    Source/Core/Domain/Ids/GroupId.h
+    Source/Core/Domain/Ids/DspIds.h
     Source/Core/Instance/Queues/DspUpdateMailbox.h
     Source/Core/Instance/Queues/DspUpdateMailbox.cpp
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
-    Source/Core/Coordinator/Routing/CommandRouter.h
-    Source/Core/Coordinator/Routing/CommandRouterTopology.cpp
-    Source/Core/Coordinator/Routing/CommandRouterDelivery.cpp
-    Source/Core/Coordinator/Routing/CommandRouterDispatch.cpp
-    Source/Core/Coordinator/Routing/CommandRouterPlan.cpp
-    Source/Core/Coordinator/Routing/CommandRouterRoute.cpp
-    Source/Core/Coordinator/Routing/StateRouter.h
-    Source/Core/Coordinator/Routing/StateRouter.cpp
-    Source/Core/Coordinator/Routing/ParameterConstraintResolver.h
-    Source/Core/Coordinator/Routing/ParameterConstraintResolver.cpp
-    Source/Core/Coordinator/Routing/StateResponsePublisher.h
-    Source/Core/Coordinator/Routing/StateResponsePublisher.cpp
-    Source/Core/State/InstanceState.h
-    Source/Core/State/StateStore.h
-    Source/Core/State/StateStore.cpp
-    Source/Core/State/BankState.h
-    Source/Core/State/GainState.h
-    Source/Core/State/SaturatorState.h
-    Source/Core/State/CompressorState.h
-    Source/Core/State/EqualizerState.h
-    Source/Core/State/FilterState.h
-    Source/Core/State/StateProtocol.h
-    Source/Core/Commands/Commands.h
-    Source/Core/Commands/ConcurrentQueue.h
-    Source/Core/Commands/SpscQueue.h
-    Source/Core/Commands/DspActions.h
-    Source/Core/Notifications/Notifications.h
+    Source/Core/Coordinator/InstanceCoordinator.CommandHandler.cpp
+    Source/Core/Coordinator/InstanceCoordinator.DispatchHandler.cpp
+    Source/Core/Routing/CommandRouter.h
+    Source/Core/Routing/CommandRouter.CommandHandler.cpp
+    Source/Core/Routing/CommandRouter.StateCommandHandler.cpp
+    Source/Core/Routing/CommandRouter.ReadCommandHandler.cpp
+    Source/Core/Routing/CommandRouter.WriteCommandHandler.cpp
+    Source/Core/Routing/StateRouter.h
+    Source/Core/Routing/StateRouter.cpp
+    Source/Core/Routing/ParameterConstraintResolver.h
+    Source/Core/Routing/ParameterConstraintResolver.cpp
+    Source/Core/Routing/StateResponsePublisher.h
+    Source/Core/Routing/StateResponsePublisher.cpp
+    Source/Core/Domain/State/InstanceState.h
+    Source/Core/Domain/State/StateStore.h
+    Source/Core/Domain/State/StateStore.Internal.h
+    Source/Core/Domain/State/StateStore.cpp
+    Source/Core/Domain/State/StateStore.Gain.cpp
+    Source/Core/Domain/State/StateStore.Saturator.cpp
+    Source/Core/Domain/State/StateStore.Compressor.cpp
+    Source/Core/Domain/State/StateStore.Equalizer.cpp
+    Source/Core/Domain/State/StateStore.Read.cpp
+    Source/Core/Domain/State/BankState.h
+    Source/Core/Domain/State/GainState.h
+    Source/Core/Domain/State/SaturatorState.h
+    Source/Core/Domain/State/CompressorState.h
+    Source/Core/Domain/State/EqualizerState.h
+    Source/Core/Domain/State/FilterState.h
+    Source/Core/Domain/State/StateProtocol.h
+    Source/Core/Domain/Commands/Commands.h
+    Source/Core/Domain/Commands/StateProtocolCommands.h
+    Source/Core/Queues/ConcurrentQueue.h
+    Source/Core/Queues/SpscQueue.h
+    Source/Core/Queues/LatestValueMailbox.h
     Source/Core/Registry/InstanceRegistry.h
     Source/Core/Registry/InstanceRegistry.cpp
     Source/Core/Logging/Log.h
     Source/Core/Logging/Log.cpp
     Source/Core/Settings/DspDeviceSettings.h
-    Source/Core/Parameters/ParameterValue.h
-    Source/Core/Parameters/DspParameter.h
+    Source/Core/Domain/ParameterVariant.h
+    Source/Core/Domain/State/ParameterState.h
     Source/Dsp/Utilities/TimeCoefficient.h
+    Source/Dsp/Processors/DspDevice.h
+    Source/Dsp/Processors/DspDevice.cpp
     Source/Dsp/Processors/Gain/Gain.h
     Source/Dsp/Processors/Gain/Gain.cpp
     Source/Dsp/Processors/Saturator/Saturator.h

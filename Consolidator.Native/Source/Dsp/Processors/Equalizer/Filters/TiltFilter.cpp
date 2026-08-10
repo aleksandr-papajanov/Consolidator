@@ -80,7 +80,7 @@ void TiltFilter::ApplyInternalParameters()
             parameterId,
             filterNode};
 
-        filter.ApplyParameter(route, ParameterValue{value}, 1);
+        filter.ApplyParameter(route, ParameterVariant{value}, 1);
     };
 
     const float frequencyHz = runtimeState_.frequencyHz;

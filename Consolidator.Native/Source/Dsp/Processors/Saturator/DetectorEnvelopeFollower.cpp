@@ -60,7 +60,7 @@ double DetectorEnvelopeFollower::ProcessSample(double input) noexcept
 
 bool DetectorEnvelopeFollower::ApplyParameter(
     const core::StatePath& route,
-    const ParameterValue& value,
+    const ParameterVariant& value,
     std::size_t depth)
 {
     return filters_.ApplyParameter(route, value, depth);

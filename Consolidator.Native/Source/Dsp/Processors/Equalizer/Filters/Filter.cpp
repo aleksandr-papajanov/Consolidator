@@ -57,7 +57,7 @@ void Filter::Process(
 
 bool Filter::ApplyOwnParameter(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     bool isUpdated = false;
     if (route.GetParameterId() == ParameterId::Frequency)

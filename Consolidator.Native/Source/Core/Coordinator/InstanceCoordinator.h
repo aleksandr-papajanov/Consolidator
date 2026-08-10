@@ -5,12 +5,11 @@
 #include <optional>
 #include <thread>
 
-#include "Core/Commands/ConcurrentQueue.h"
-#include "Core/Commands/Commands.h"
-#include "Core/Coordinator/Routing/CommandRouter.h"
-#include "Core/Coordinator/Routing/StateRouter.h"
-#include "Core/Coordinator/Routing/ParameterConstraintResolver.h"
-#include "Core/Notifications/Notifications.h"
+#include "Core/Queues/ConcurrentQueue.h"
+#include "Core/Domain/Commands/StateProtocolCommands.h"
+#include "Core/Routing/CommandRouter.h"
+#include "Core/Routing/StateRouter.h"
+#include "Core/Routing/ParameterConstraintResolver.h"
 #include "Core/Registry/InstanceRegistry.h"
 
 namespace consolidator::core
@@ -23,7 +22,9 @@ class InstanceCoordinator
 public:
     static InstanceCoordinator& Get();
 
-    void EnqueueCommand(InstanceId sourceInstanceId, Command command);
+    void EnqueueStateCommand(
+        InstanceId sourceInstanceId,
+        StateCommand command);
     [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
 
     ~InstanceCoordinator();

@@ -1,8 +1,5 @@
 #include "Core/Coordinator/InstanceCoordinator.h"
 
-#include <chrono>
-#include <utility>
-
 #include "Core/Instance/ConsolidatorInstance.h"
 
 namespace consolidator::core
@@ -51,34 +48,9 @@ void InstanceCoordinator::UnregisterInstance(InstanceId instanceId)
     }
 }
 
-void InstanceCoordinator::EnqueueCommand(InstanceId sourceInstanceId, Command command)
-{
-    commandQueue_.Enqueue(InstanceCommand{sourceInstanceId, std::move(command)});
-    wakeCondition_.notify_one();
-}
-
 std::optional<StateResponse> InstanceCoordinator::TryDequeueResponse()
 {
     return coordinatorResponses_.TryDequeue();
-}
-
-void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
-{
-    while (!stopToken.stop_requested())
-    {
-        std::unique_lock wakeLock{wakeMutex_};
-        wakeCondition_.wait_for(wakeLock, std::chrono::milliseconds{1}, [this]
-        {
-            return commandQueue_.HasCommands();
-        });
-        wakeLock.unlock();
-
-        std::lock_guard registryLock{registryMutex_};
-        while (const auto command = commandQueue_.TryDequeue())
-        {
-            commandRouter_.Route(*command);
-        }
-    }
 }
 
 } // namespace consolidator::core

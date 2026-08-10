@@ -28,7 +28,7 @@ public:
 
     bool ApplyParameter(
         const core::StatePath& route,
-        const ParameterValue& value,
+        const ParameterVariant& value,
         std::size_t depth);
 
     void CommitRuntimeUpdates();

@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "Core/Ids/DspIds.h"
-#include "Core/Parameters/ParameterValue.h"
-#include "Core/State/StateProtocol.h"
+#include "Core/Domain/Ids/DspIds.h"
+#include "Core/Domain/ParameterVariant.h"
+#include "Core/Domain/State/StateProtocol.h"
 
 namespace consolidator::dsp
 {
@@ -16,14 +16,9 @@ public:
     DspDevice(
         DeviceId deviceId,
         detail::ElementKind elementKind,
-        std::uint8_t elementIndex) noexcept
-        : deviceId_(deviceId)
-        , elementKind_(elementKind)
-        , elementIndex_(elementIndex)
-    {
-    }
+        std::uint8_t elementIndex) noexcept;
 
-    virtual ~DspDevice() = default;
+    virtual ~DspDevice();
 
     virtual void Process(
         const double* input,
@@ -33,17 +28,9 @@ public:
 
     virtual bool StageRuntimeUpdate(
         const core::StatePath& path,
-        const ParameterValue& value)
-    {
-        (void)path;
-        (void)value;
-        return false;
-    }
+        const ParameterVariant& value);
 
-    virtual void CommitRuntimeUpdates()
-    {
-        RecalculateRuntime();
-    }
+    virtual void CommitRuntimeUpdates();
 
     [[nodiscard]] DeviceId GetDeviceId() const noexcept
     {
@@ -65,30 +52,12 @@ public:
 protected:
     virtual bool ApplyParameter(
         const core::StatePath& route,
-        const ParameterValue& value,
-        std::size_t depth)
-    {
-        if (route.GetDeviceId() != deviceId_ || depth != route.GetDepth())
-        {
-            return false;
-        }
-
-        if (!ApplyOwnParameter(route, value))
-        {
-            return false;
-        }
-
-        return true;
-    }
+        const ParameterVariant& value,
+        std::size_t depth);
 
     virtual bool ApplyOwnParameter(
         const core::StatePath& route,
-        const ParameterValue& value)
-    {
-        (void)route;
-        (void)value;
-        return false;
-    }
+        const ParameterVariant& value);
 
     virtual void RecalculateRuntime() = 0;
 

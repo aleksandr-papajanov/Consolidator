@@ -110,7 +110,7 @@ double Saturator::ApplyWaveshaper(double input, double drive) const noexcept
 
 bool Saturator::ApplyOwnParameter(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     if (route.GetParameterId() == ParameterId::Drive)
     {
@@ -152,7 +152,7 @@ bool Saturator::ApplyOwnParameter(
 
 bool Saturator::ApplyParameter(
     const core::StatePath& route,
-    const ParameterValue& value,
+    const ParameterVariant& value,
     std::size_t depth)
 {
     if (route.GetDeviceId() != GetDeviceId())
@@ -181,7 +181,7 @@ bool Saturator::ApplyParameter(
 
 bool Saturator::StageRuntimeUpdate(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     return ApplyParameter(route, value, 0);
 }

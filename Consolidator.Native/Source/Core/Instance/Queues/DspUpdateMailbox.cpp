@@ -1,114 +1,13 @@
 #include "Core/Instance/Queues/DspUpdateMailbox.h"
 
-#include <algorithm>
-#include <cassert>
 #include <bit>
-#include <exception>
 #include <type_traits>
 
 namespace consolidator::core
 {
 
-void DspUpdateMailbox::RegisterPath(const StatePath& path)
-{
-    if (FindSlot(path) != nullptr)
-    {
-        return;
-    }
-
-    for (auto& slot : slots_)
-    {
-        if (!slot.used)
-        {
-            slot.path = path;
-            slot.used = true;
-            return;
-        }
-    }
-
-    assert(false && "DspUpdateMailbox path capacity exhausted");
-    std::terminate();
-}
-
-void DspUpdateMailbox::Publish(const DspUpdate& update)
-{
-    auto* slot = FindSlot(update.path);
-    assert(slot != nullptr);
-    if (slot == nullptr)
-    {
-        std::terminate();
-    }
-
-    const auto sequence = slot->sequence.fetch_add(
-        1,
-        std::memory_order_acq_rel);
-    if ((sequence & 1U) != 0)
-    {
-        std::terminate();
-    }
-    slot->packedValue.store(
-        PackValue(update.value),
-        std::memory_order_relaxed);
-    slot->revision.store(update.revision, std::memory_order_relaxed);
-    slot->sequence.store(sequence + 2, std::memory_order_release);
-}
-
-bool DspUpdateMailbox::ConsumeLatest(DspStateBatch& batch) noexcept
-{
-    batch.count = 0;
-    batch.revision = 0;
-
-    for (std::size_t slotIndex = 0; slotIndex < slots_.size(); ++slotIndex)
-    {
-        auto& slot = slots_[slotIndex];
-        if (!slot.used)
-        {
-            continue;
-        }
-
-        const auto sequenceBefore =
-            slot.sequence.load(std::memory_order_acquire);
-        if ((sequenceBefore & 1U) != 0)
-        {
-            continue;
-        }
-        const auto packedValue = slot.packedValue.load(std::memory_order_relaxed);
-        const auto revision = slot.revision.load(std::memory_order_relaxed);
-        const auto sequenceAfter =
-            slot.sequence.load(std::memory_order_acquire);
-        if (sequenceBefore != sequenceAfter ||
-            (sequenceAfter & 1U) != 0 ||
-            revision <= consumedRevisions_[slotIndex])
-        {
-            continue;
-        }
-        const auto value = UnpackValue(packedValue);
-        assert(value.has_value());
-        if (!value)
-        {
-            std::terminate();
-        }
-        if (batch.count < batch.updates.size())
-        {
-            batch.updates[batch.count++] = DspUpdate{
-                slot.path,
-                *value,
-                revision};
-            batch.revision = std::max(batch.revision, revision);
-            consumedRevisions_[slotIndex] = revision;
-        }
-        else
-        {
-            assert(false && "DspUpdateMailbox batch capacity exhausted");
-            std::terminate();
-        }
-    }
-
-    return batch.count != 0;
-}
-
-std::uint64_t DspUpdateMailbox::PackValue(
-    const dsp::ParameterValue& value) noexcept
+std::uint64_t LatestValueMailboxCodec<dsp::ParameterVariant>::Pack(
+    const dsp::ParameterVariant& value) noexcept
 {
     return std::visit(
         [](const auto& typedValue)
@@ -135,7 +34,8 @@ std::uint64_t DspUpdateMailbox::PackValue(
         value);
 }
 
-std::optional<dsp::ParameterValue> DspUpdateMailbox::UnpackValue(
+std::optional<dsp::ParameterVariant>
+LatestValueMailboxCodec<dsp::ParameterVariant>::Unpack(
     std::uint64_t packedValue) noexcept
 {
     const auto tag = packedValue >> 56;
@@ -143,29 +43,53 @@ std::optional<dsp::ParameterValue> DspUpdateMailbox::UnpackValue(
     switch (tag)
     {
     case 1:
-        return dsp::ParameterValue{payload != 0};
+        return dsp::ParameterVariant{payload != 0};
     case 2:
-        return dsp::ParameterValue{
+        return dsp::ParameterVariant{
             static_cast<std::int32_t>(payload)};
     case 3:
-        return dsp::ParameterValue{
+        return dsp::ParameterVariant{
             std::bit_cast<float>(payload)};
     default:
         return std::nullopt;
     }
 }
 
-DspUpdateMailbox::Slot* DspUpdateMailbox::FindSlot(
-    const StatePath& path) noexcept
+void DspUpdateMailbox::RegisterPath(const StatePath& path)
 {
-    for (auto& slot : slots_)
+    mailbox_.Register(path);
+}
+
+void DspUpdateMailbox::Publish(const DspUpdate& update)
+{
+    mailbox_.Publish(update.path, update.value, update.revision);
+}
+
+bool DspUpdateMailbox::ConsumeLatest(DspStateBatch& batch) noexcept
+{
+    batch.count = 0;
+    if (!mailbox_.ConsumeLatest(
+            std::span<ValueMailbox::Update>{
+                updates_.data(),
+                updates_.size()},
+            batch.count,
+            batch.revision))
     {
-        if (slot.used && slot.path == path)
-        {
-            return &slot;
-        }
+        return false;
     }
-    return nullptr;
+
+    // Convert the reusable mailbox records to the public DSP batch without
+    // exposing the generic mailbox implementation to the DSP chain.
+    const auto updateCount = batch.count;
+    batch.count = 0;
+    for (std::size_t index = 0; index < updateCount; ++index)
+    {
+        batch.updates[batch.count++] = DspUpdate{
+            updates_[index].key,
+            updates_[index].value,
+            updates_[index].revision};
+    }
+    return batch.count != 0;
 }
 
 } // namespace consolidator::core

@@ -1,5 +1,5 @@
 #include "Dsp/DspChainBuilder.h"
-#include "Core/State/StateProtocol.h"
+#include "Core/Domain/State/StateProtocol.h"
 #include "Dsp/Processors/Compressor/Compressor.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"
@@ -22,7 +22,7 @@ namespace
 void WriteParameter(
     DspChain& chain,
     consolidator::core::StatePath route,
-    ParameterValue value)
+    ParameterVariant value)
 {
     static std::uint64_t revision = 0;
     consolidator::core::DspStateBatch batch;
@@ -87,7 +87,7 @@ int main()
             ParameterId::Frequency,
             RouteNodeId::Bank0,
             RouteNodeId::Filter3},
-        ParameterValue{1200.0f});
+        ParameterVariant{1200.0f});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
 
     const auto* lowShelf = dynamic_cast<const LowShelfFilter*>(equalizer->GetFilter(2));
@@ -104,7 +104,7 @@ int main()
             ParameterId::Gain,
             RouteNodeId::Bank0,
             RouteNodeId::Filter3},
-        ParameterValue{6.0f});
+        ParameterVariant{6.0f});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
     assert(!equalizer->IsNeutral());
 
@@ -113,16 +113,16 @@ int main()
             DeviceId::Equalizer,
             ParameterId::Bypass,
             RouteNodeId::Bank0},
-        ParameterValue{true});
+        ParameterVariant{true});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
     assert(equalizer->IsNeutral());
 
     WriteParameter(*chain,
         consolidator::core::StatePath{DeviceId::Saturator, ParameterId::Drive},
-        ParameterValue{2.0f});
+        ParameterVariant{2.0f});
     WriteParameter(*chain,
         consolidator::core::StatePath{DeviceId::Compressor, ParameterId::Threshold},
-        ParameterValue{-18.0f});
+        ParameterVariant{-18.0f});
     chain->Process(input.data(), interim.data(), output.data(), frameCount, channelCount);
 
     assert(static_cast<const Saturator*>(chain->GetDevice(1))->GetState().drive == 2.0f);

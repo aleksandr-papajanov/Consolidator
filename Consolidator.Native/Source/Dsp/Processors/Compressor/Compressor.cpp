@@ -171,7 +171,7 @@ double Compressor::ProcessSample(double input, double gainLinear) const noexcept
 
 bool Compressor::ApplyOwnParameter(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     const auto parameterId = route.GetParameterId();
     if (parameterId == ParameterId::Threshold) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.thresholdDb = *v; return true; }
@@ -186,7 +186,7 @@ bool Compressor::ApplyOwnParameter(
 
 bool Compressor::ApplyParameter(
     const core::StatePath& route,
-    const ParameterValue& value,
+    const ParameterVariant& value,
     std::size_t depth)
 {
     if (route.GetDeviceId() != GetDeviceId())
@@ -210,7 +210,7 @@ bool Compressor::ApplyParameter(
 
 bool Compressor::StageRuntimeUpdate(
     const core::StatePath& route,
-    const ParameterValue& value)
+    const ParameterVariant& value)
 {
     return ApplyParameter(route, value, 0);
 }
