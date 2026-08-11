@@ -128,13 +128,7 @@ void Filter::RecalculateRuntime() noexcept
 
 bool Filter::CalculateIsNeutral() const noexcept
 {
-    const auto& coefficients = runtimeState_.coefficients;
-
-    return coefficients.b0 == 1.0 &&
-            coefficients.b1 == 0.0 &&
-            coefficients.b2 == 0.0 &&
-            coefficients.a1 == 0.0 &&
-            coefficients.a2 == 0.0;
+    return runtimeState_.gainDb == 0.0f;
 }
 
 double Filter::GetMaximumFrequencyHz() const noexcept

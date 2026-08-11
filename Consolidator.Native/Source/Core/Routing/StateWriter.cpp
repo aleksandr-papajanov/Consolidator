@@ -180,6 +180,15 @@ bool StateWriter::TryApplyTopology(
         return false;
     }
 
+    const auto field = *entry.path.field;
+    if (field != StateField::SelectedBank &&
+        field != StateField::GroupId &&
+        field != StateField::Mute &&
+        field != StateField::Solo)
+    {
+        return false;
+    }
+
     std::optional<BankAddress> changedBank;
     std::optional<GroupId> previousGroup;
     if (*entry.path.field == StateField::GroupId)
@@ -272,7 +281,8 @@ bool StateWriter::ApplyToInstance(
     std::optional<StateEntry> appliedParameter;
     for (std::size_t index = 0; index < applied.size; ++index)
     {
-        if (applied.entries[index].path == entry.path)
+        if (applied.entries[index].path.Matches(entry.path) &&
+            entry.path.Matches(applied.entries[index].path))
         {
             appliedParameter = applied.entries[index];
         }

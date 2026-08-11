@@ -133,70 +133,26 @@ add_subdirectory(Source/Max/External)
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-enable_testing()
-
-add_executable(ConsolidatorInstanceTest
-    Tests/Core/ConsolidatorInstanceTest.cpp
-)
-
-target_include_directories(ConsolidatorInstanceTest PRIVATE Source)
-target_link_libraries(ConsolidatorInstanceTest PRIVATE ConsolidatorCore)
-target_compile_features(ConsolidatorInstanceTest PRIVATE cxx_std_20)
-
-add_executable(InstanceRegistryTest
-    Tests/Core/InstanceRegistryTest.cpp
-)
-
-target_include_directories(InstanceRegistryTest PRIVATE Source)
-target_link_libraries(InstanceRegistryTest PRIVATE ConsolidatorCore)
-target_compile_features(InstanceRegistryTest PRIVATE cxx_std_20)
-
-add_executable(DspChainTest
-    Tests/Dsp/DspChainTest.cpp
-)
-
-target_include_directories(DspChainTest PRIVATE Source)
-target_link_libraries(DspChainTest PRIVATE ConsolidatorCore)
-target_compile_features(DspChainTest PRIVATE cxx_std_20)
-
-add_executable(StateProtocolIntegrationTest
-    Tests/Core/StateProtocolIntegrationTest.cpp
-)
-
-target_include_directories(StateProtocolIntegrationTest PRIVATE Source)
-target_link_libraries(StateProtocolIntegrationTest PRIVATE ConsolidatorCore)
-target_compile_features(StateProtocolIntegrationTest PRIVATE cxx_std_20)
-
-add_executable(InstanceAudibilityResolverTest
-    Tests/Core/InstanceAudibilityResolverTests.cpp
-)
-
-target_include_directories(InstanceAudibilityResolverTest PRIVATE Source)
-target_link_libraries(InstanceAudibilityResolverTest PRIVATE ConsolidatorCore)
-target_compile_features(InstanceAudibilityResolverTest PRIVATE cxx_std_20)
-
 include(CTest)
-add_test(NAME ConsolidatorInstanceTest COMMAND ConsolidatorInstanceTest)
-add_test(NAME InstanceRegistryTest COMMAND InstanceRegistryTest)
-add_test(NAME DspChainTest COMMAND DspChainTest)
-add_test(NAME StateProtocolIntegrationTest COMMAND StateProtocolIntegrationTest)
-add_test(NAME InstanceAudibilityResolverTest COMMAND InstanceAudibilityResolverTest)
 
-add_executable(GroupGraphTest
-    Tests/Core/GroupGraphTest.cpp
-)
+function(add_consolidator_test target source category)
+    add_executable(${target} ${source})
+    target_include_directories(${target} PRIVATE Source Tests)
+    target_link_libraries(${target} PRIVATE ConsolidatorCore)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    add_test(NAME ${target} COMMAND ${target})
+    set_tests_properties(${target} PROPERTIES LABELS ${category})
+endfunction()
 
-target_include_directories(GroupGraphTest PRIVATE Source)
-target_link_libraries(GroupGraphTest PRIVATE ConsolidatorCore)
-target_compile_features(GroupGraphTest PRIVATE cxx_std_20)
-
-add_executable(ProcessingStateResolverTest
-    Tests/Core/ProcessingStateResolverTests.cpp
-)
-
-target_include_directories(ProcessingStateResolverTest PRIVATE Source)
-target_link_libraries(ProcessingStateResolverTest PRIVATE ConsolidatorCore)
-target_compile_features(ProcessingStateResolverTest PRIVATE cxx_std_20)
-
-add_test(NAME GroupGraphTest COMMAND GroupGraphTest)
-add_test(NAME ProcessingStateResolverTest COMMAND ProcessingStateResolverTest)
+add_consolidator_test(StateModelTests Tests/Component/Core/StateModelTests.cpp component)
+add_consolidator_test(StateStoreTests Tests/Component/Core/StateStoreTests.cpp component)
+add_consolidator_test(QueueTests Tests/Component/Core/QueueTests.cpp component)
+add_consolidator_test(RoutingTests Tests/Component/Core/RoutingTests.cpp component)
+add_consolidator_test(ProcessingStateTests Tests/Component/Core/ProcessingStateTests.cpp component)
+add_consolidator_test(DspPrimitiveTests Tests/Component/Dsp/DspPrimitiveTests.cpp component)
+add_consolidator_test(DspChainTests Tests/Component/Dsp/DspChainTests.cpp component)
+add_consolidator_test(ReadCommandTests Tests/Commands/ReadCommandTests.cpp command)
+add_consolidator_test(WriteCommandTests Tests/Commands/WriteCommandTests.cpp command)
+add_consolidator_test(ActionCommandTests Tests/Commands/ActionCommandTests.cpp command)
+add_consolidator_test(StateProtocolIntegrationTests Tests/Integration/StateProtocolIntegrationTests.cpp integration)
+add_consolidator_test(InstanceProcessingIntegrationTests Tests/Integration/InstanceProcessingIntegrationTests.cpp integration)

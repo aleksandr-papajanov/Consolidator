@@ -13,7 +13,7 @@ namespace consolidator::core
 {
 
 class ConsolidatorInstance;
-class InstanceState;
+struct InstanceState;
 
 using InstanceHandle = ConsolidatorInstance*;
 

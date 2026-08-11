@@ -62,7 +62,8 @@ not all-or-nothing.
 
 - `ConsolidatorCore` — static library (always built)
 - `ConsolidatorMax` — Min external module (built when `C74_MIN_API_DIR` is set)
-- `ConsolidatorCoreTests` — unit test executable
+- Focused test executables grouped by CTest labels: `component`, `command`, and
+  `integration`. See `Tests/README.md` for the suite map and conventions.
 
 ## Build Process
 
