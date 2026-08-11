@@ -35,15 +35,18 @@ public:
 
     // Processes active, non-neutral filters in order.
     void Process(
-        const double* input,
-        double* output,
-        std::size_t frameCount,
-        std::size_t channelCount) override;
+        const double* inputLeft,
+        const double* inputRight,
+        double* outputLeft,
+        double* outputRight,
+        std::size_t frameCount) override;
 
     // Adds a preconfigured filter before the chain is prepared for audio.
     void AddFilter(std::unique_ptr<Filter> filter);
 
-    void Prepare(double sampleRate, std::size_t channelCount);
+    void Prepare(
+        double sampleRate,
+        std::size_t channelCount) override;
     void Reset() noexcept;
     // Routes reset requests to this bank or one of its filters.
     bool Reset(

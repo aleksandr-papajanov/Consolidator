@@ -7,7 +7,8 @@ checks in large scenario executables.
 Tests/
 ├─ Component/
 │  ├─ Core/          state, queues, routing and runtime resolution
-│  └─ Dsp/           processors, filters, chain construction and routing
+│  ├─ Dsp/           processors, filters, chain construction and routing
+│  └─ Max/           atom protocol codecs, framing and wire correlation
 ├─ Commands/         one suite per state-protocol command family
 ├─ Integration/      coordinator, protocol and audio-block boundaries
 └─ Support/          test runner, path builders and focused fixtures

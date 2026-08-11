@@ -21,11 +21,17 @@ public:
 
     virtual ~DspDevice();
 
+    // Prepares sample-rate-dependent state before the audio callback starts.
+    virtual void Prepare(
+        double sampleRate,
+        std::size_t channelCount);
+
     virtual void Process(
-        const double* input,
-        double* output,
-        std::size_t frameCount,
-        std::size_t channelCount) = 0;
+        const double* inputLeft,
+        const double* inputRight,
+        double* outputLeft,
+        double* outputRight,
+        std::size_t frameCount) = 0;
 
     // Stages a value without recalculating dependent runtime data immediately.
     virtual bool StageRuntimeUpdate(

@@ -27,6 +27,10 @@ public:
     DspChain& operator=(const DspChain&) = delete;
 
     void AddDevice(std::unique_ptr<DspDevice> device);
+    // Prepares every device before the audio callback starts.
+    void Prepare(
+        double sampleRate,
+        std::size_t channelCount);
     // Applies one coalesced mailbox batch before processing the next audio block.
     void ApplyRuntimeUpdates(const core::ParameterUpdateBatch& batch);
     // Applies active/listen runtime controls after parameters and before Process.
@@ -35,11 +39,13 @@ public:
     void Reset(const core::StatePath& target) noexcept;
 
     // Runs all active devices using preallocated intermediate buffers.
-    void Process(const double* input,
-                 double* interim,
-                 double* output,
-                 std::size_t frameCount,
-                 std::size_t channelCount);
+    void Process(const double* inputLeft,
+                 const double* inputRight,
+                 double* interimLeft,
+                 double* interimRight,
+                 double* outputLeft,
+                 double* outputRight,
+                 std::size_t frameCount);
 
     [[nodiscard]] std::size_t GetDeviceCount() const noexcept;
 

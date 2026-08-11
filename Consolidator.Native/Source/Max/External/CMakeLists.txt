@@ -20,11 +20,25 @@ include("${C74_MIN_API_DIR}/script/min-pretarget.cmake")
 add_library(${PROJECT_NAME} MODULE
     ConsolidatorExternal.h
     ConsolidatorExternal.cpp
+    MinApiImplementation.cpp
+    ../Protocol/MaxProtocolAdapter.h
+    ../Protocol/MaxProtocolAdapter.cpp
+    ../Protocol/AtomPathCodec.h
+    ../Protocol/AtomPathCodec.cpp
+    ../Protocol/AtomValueCodec.h
+    ../Protocol/AtomValueCodec.cpp
+    ../Protocol/AtomCommandDecoder.h
+    ../Protocol/AtomCommandDecoder.cpp
+    ../Protocol/AtomResponseEncoder.h
+    ../Protocol/AtomResponseEncoder.cpp
+    ../Protocol/WireIdCodec.h
+    ../Protocol/WireIdCodec.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${C74_INCLUDES}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../.."   # root Source/ for Core headers
+    "${CMAKE_CURRENT_SOURCE_DIR}/../Protocol"
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ConsolidatorCore)
@@ -38,3 +52,26 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
 include("${C74_MIN_API_DIR}/script/min-posttarget.cmake")
+
+add_executable(MaxProtocolTests
+    ../../../Tests/Component/Max/MaxProtocolTests.cpp
+    ../Protocol/MaxProtocolAdapter.cpp
+    ../Protocol/AtomCommandDecoder.cpp
+    ../Protocol/AtomPathCodec.cpp
+    ../Protocol/AtomValueCodec.cpp
+    ../Protocol/AtomResponseEncoder.cpp
+    ../Protocol/WireIdCodec.cpp
+    ../../../Tests/Support/MaxApiTestStubs.cpp
+)
+
+target_include_directories(MaxProtocolTests PRIVATE
+    "${C74_INCLUDES}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../.."
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../Tests"
+)
+
+target_link_libraries(MaxProtocolTests PRIVATE ConsolidatorCore)
+target_compile_features(MaxProtocolTests PRIVATE cxx_std_20)
+
+add_test(NAME MaxProtocolTests COMMAND MaxProtocolTests)
+set_tests_properties(MaxProtocolTests PROPERTIES LABELS component)

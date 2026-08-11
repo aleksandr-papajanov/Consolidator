@@ -72,30 +72,23 @@ bool Saturator::Reset(
 }
 
 void Saturator::Process(
-    const double* input,
-    double* output,
-    std::size_t frameCount,
-    std::size_t channelCount)
+    const double* inputLeft,
+    const double* inputRight,
+    double* outputLeft,
+    double* outputRight,
+    std::size_t frameCount)
 {
-    assert(input != nullptr);
-    assert(output != nullptr);
-
-    const auto sampleCount = frameCount * channelCount;
+    assert(inputLeft != nullptr);
+    assert(inputRight != nullptr);
+    assert(outputLeft != nullptr);
+    assert(outputRight != nullptr);
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
-        for (std::size_t channel = 0;  channel < channelCount; ++channel)
-        {
-            const auto sampleIndex = frame * channelCount + channel;
-
-            if (channel >= activeChannelCount_)
-            {
-                output[sampleIndex] = input[sampleIndex];
-                continue;
-            }
-
-            output[sampleIndex] = ProcessSample(input[sampleIndex], detectors_[channel]);
-        }
+        outputLeft[frame] = activeChannelCount_ > 0
+            ? ProcessSample(inputLeft[frame], detectors_[0]) : inputLeft[frame];
+        outputRight[frame] = activeChannelCount_ > 1
+            ? ProcessSample(inputRight[frame], detectors_[1]) : inputRight[frame];
     }
 }
 

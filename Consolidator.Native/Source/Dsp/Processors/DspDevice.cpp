@@ -15,6 +15,14 @@ DspDevice::DspDevice(
 
 DspDevice::~DspDevice() = default;
 
+void DspDevice::Prepare(
+    double sampleRate,
+    std::size_t channelCount)
+{
+    (void)sampleRate;
+    (void)channelCount;
+}
+
 bool DspDevice::StageRuntimeUpdate(
     const core::StatePath& path,
     const ParameterVariant& value)

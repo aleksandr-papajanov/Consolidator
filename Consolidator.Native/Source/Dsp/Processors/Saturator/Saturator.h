@@ -31,7 +31,7 @@ public:
 
     void Prepare(
         double sampleRate,
-        std::size_t channelCount);
+        std::size_t channelCount) override;
 
     void Reset() noexcept;
     // Routes reset requests to the saturator or its detector filters.
@@ -41,10 +41,11 @@ public:
 
     // Processes the block and applies detector modulation without audio-thread allocation.
     void Process(
-        const double* input,
-        double* output,
-        std::size_t frameCount,
-        std::size_t channelCount) override;
+        const double* inputLeft,
+        const double* inputRight,
+        double* outputLeft,
+        double* outputRight,
+        std::size_t frameCount) override;
 
     [[nodiscard]] const SaturatorRuntimeState& GetRuntimeState() const noexcept
     {

@@ -66,10 +66,19 @@ void ConsolidatorInstance::Initialize()
     InstanceCoordinator::Get().RefreshAudibility();
 }
 
-void ConsolidatorInstance::Process(const double* mainInput,
-                                   const double* referenceInput,
-                                   double* mainOutput,
-                                   double* referenceOutput,
+void ConsolidatorInstance::Prepare(double sampleRate)
+{
+    dspChain_->Prepare(sampleRate, kChannelCount);
+}
+
+void ConsolidatorInstance::Process(const double* mainInputLeft,
+                                   const double* mainInputRight,
+                                   const double* referenceInputLeft,
+                                   const double* referenceInputRight,
+                                   double* mainOutputLeft,
+                                   double* mainOutputRight,
+                                   double* referenceOutputLeft,
+                                   double* referenceOutputRight,
                                    std::size_t frameCount)
 {
     // Block-start invariant: state snapshots, controls, and ordered commands
@@ -78,10 +87,15 @@ void ConsolidatorInstance::Process(const double* mainInput,
     ConsumeRuntimeUpdates();
     ProcessRealtimeCommands();
 
-    dspChain_->Process(mainInput, referenceOutput, mainOutput, frameCount, kChannelCount);
-    std::copy_n(referenceInput, frameCount * kChannelCount, referenceOutput);
+    dspChain_->Process(mainInputLeft, mainInputRight,
+                       referenceOutputLeft, referenceOutputRight,
+                       mainOutputLeft, mainOutputRight,
+                       frameCount);
+    std::copy_n(referenceInputLeft, frameCount, referenceOutputLeft);
+    std::copy_n(referenceInputRight, frameCount, referenceOutputRight);
 
-    ApplyOutputGate(mainOutput, frameCount * kChannelCount);
+    ApplyOutputGate(mainOutputLeft, frameCount);
+    ApplyOutputGate(mainOutputRight, frameCount);
 }
 
 void ConsolidatorInstance::ConsumeParameterUpdates()

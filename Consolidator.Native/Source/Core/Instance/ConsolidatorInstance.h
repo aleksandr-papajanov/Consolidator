@@ -48,16 +48,23 @@ public:
     // Registers the instance, paths and initial runtime values before audio starts.
     void Initialize();
 
+    // Prepares the DSP chain for the host sample rate before audio starts.
+    void Prepare(double sampleRate);
+
     ConsolidatorInstance(const ConsolidatorInstance&) = delete;
     ConsolidatorInstance& operator=(const ConsolidatorInstance&) = delete;
     ConsolidatorInstance(ConsolidatorInstance&&) = delete;
     ConsolidatorInstance& operator=(ConsolidatorInstance&&) = delete;
 
     // Consumes one audio block and applies pending runtime updates before DSP.
-    void Process(const double* mainInput,
-                 const double* referenceInput,
-                 double* mainOutput,
-                 double* referenceOutput,
+    void Process(const double* mainInputLeft,
+                 const double* mainInputRight,
+                 const double* referenceInputLeft,
+                 const double* referenceInputRight,
+                 double* mainOutputLeft,
+                 double* mainOutputRight,
+                 double* referenceOutputLeft,
+                 double* referenceOutputRight,
                  std::size_t frameCount);
 
     void EnqueueCommand(ReadStateCommand command);
@@ -66,7 +73,9 @@ public:
     void EnqueueCommand(ResetDspCommand command);
 
     [[nodiscard]] std::optional<CommandResponse> TryDequeueResponse();
+    [[nodiscard]] bool HasResponse() const;
     [[nodiscard]] bool SetResponseNotifier(ResponseNotifier notifier);
+    void ShutdownResponseNotifier() noexcept;
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
     [[nodiscard]] bool IsOutputEnabled() const noexcept
@@ -85,7 +94,6 @@ private:
     void EnqueueResponse(CommandResponse response);
     [[nodiscard]] ResponseNotifierHandle GetResponseNotifierHandle() const noexcept;
     static void NotifyResponseAvailable(ResponseNotifierHandle notifier);
-    void ShutdownResponseNotifier() noexcept;
 
     // Enqueues coordinator-owned latest-value updates for the audio thread.
     void EnqueueParameterUpdates(std::span<const ParameterUpdate> updates);

@@ -26,10 +26,11 @@ public:
 
     // Processes the block without allocating or changing authoritative state.
     void Process(
-        const double* input,
-        double* output,
-        std::size_t frameCount,
-        std::size_t channelCount) override;
+        const double* inputLeft,
+        const double* inputRight,
+        double* outputLeft,
+        double* outputRight,
+        std::size_t frameCount) override;
 
 
     [[nodiscard]] const GainRuntimeState& GetRuntimeState() const noexcept

@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CTest)
+
 # Min API externals require static CRT - keep the whole project consistent.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -133,8 +135,6 @@ add_subdirectory(Source/Max/External)
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-include(CTest)
-
 function(add_consolidator_test target source category)
     add_executable(${target} ${source})
     target_include_directories(${target} PRIVATE Source Tests)
@@ -156,3 +156,4 @@ add_consolidator_test(WriteCommandTests Tests/Commands/WriteCommandTests.cpp com
 add_consolidator_test(ActionCommandTests Tests/Commands/ActionCommandTests.cpp command)
 add_consolidator_test(StateProtocolIntegrationTests Tests/Integration/StateProtocolIntegrationTests.cpp integration)
 add_consolidator_test(InstanceProcessingIntegrationTests Tests/Integration/InstanceProcessingIntegrationTests.cpp integration)
+add_consolidator_test(ResponseNotifierLifecycleTests Tests/Integration/ResponseNotifierLifecycleTests.cpp integration)

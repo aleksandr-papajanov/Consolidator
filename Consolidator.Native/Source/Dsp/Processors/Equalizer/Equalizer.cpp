@@ -5,26 +5,29 @@ namespace consolidator::dsp
 {
 
 void Equalizer::Process(
-    const double* input,
-    double* output,
-    std::size_t frameCount,
-    std::size_t channelCount)
+    const double* inputLeft,
+    const double* inputRight,
+    double* outputLeft,
+    double* outputRight,
+    std::size_t frameCount)
 {
     if (!IsActive() || IsNeutral())
     {
-        const auto n = frameCount * channelCount;
-        for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t i = 0; i < frameCount; ++i)
         {
-            output[i] = input[i];
+            outputLeft[i] = inputLeft[i];
+            outputRight[i] = inputRight[i];
         }
         return;
     }
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
-        for (std::size_t ch = 0; ch < channelCount; ++ch)
+        const double inputs[2] = {inputLeft[frame], inputRight[frame]};
+        double outputs[2] = {};
+        for (std::size_t ch = 0; ch < 2; ++ch)
         {
-            double sample = input[frame * channelCount + ch];
+            double sample = inputs[ch];
             for (auto& f : filters_)
             {
                 if (f->IsActive() && !f->IsNeutral())
@@ -32,8 +35,10 @@ void Equalizer::Process(
                     sample = f->ProcessSample(sample, ch);
                 }
             }
-            output[frame * channelCount + ch] = sample;
+            outputs[ch] = sample;
         }
+        outputLeft[frame] = outputs[0];
+        outputRight[frame] = outputs[1];
     }
 }
 

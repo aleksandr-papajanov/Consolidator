@@ -93,8 +93,11 @@ public:
         for (auto& instance : instances_)
         {
             instance->Process(
-                mainInput_.data(), referenceInput_.data(),
-                mainOutput_.data(), referenceOutput_.data(), kFrameCount);
+                mainInput_.data(), mainInput_.data() + kFrameCount,
+                referenceInput_.data(), referenceInput_.data() + kFrameCount,
+                mainOutput_.data(), mainOutput_.data() + kFrameCount,
+                referenceOutput_.data(), referenceOutput_.data() + kFrameCount,
+                kFrameCount);
         }
     }
 

@@ -30,6 +30,11 @@ std::optional<CommandResponse> ConsolidatorInstance::TryDequeueResponse()
     return responseQueue_.TryDequeue();
 }
 
+bool ConsolidatorInstance::HasResponse() const
+{
+    return responseQueue_.HasCommands();
+}
+
 bool ConsolidatorInstance::SetResponseNotifier(ResponseNotifier notifier)
 {
     if (initialized_)

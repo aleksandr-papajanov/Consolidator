@@ -40,7 +40,9 @@ class Compressor final : public DspDevice
 public:
     Compressor();
 
-    void Prepare(double sampleRate, std::size_t channelCount);
+    void Prepare(
+        double sampleRate,
+        std::size_t channelCount) override;
     void Reset() noexcept;
     // Routes reset requests to the compressor or its detector filters.
     bool Reset(
@@ -49,10 +51,11 @@ public:
 
     // Processes a block with feed-forward detection, smoothing and dry/wet mixing.
     void Process(
-        const double* input,
-        double* output,
-        std::size_t frameCount,
-        std::size_t channelCount) override;
+        const double* inputLeft,
+        const double* inputRight,
+        double* outputLeft,
+        double* outputRight,
+        std::size_t frameCount) override;
 
     [[nodiscard]] const CompressorRuntimeState& GetRuntimeState() const noexcept
     {
@@ -110,8 +113,7 @@ private:
 
 
     [[nodiscard]] double CalculateLinkedDetectorInput(
-        const double* frame,
-        std::size_t channelCount) noexcept;
+        double linkedInput) noexcept;
 
     [[nodiscard]] double MeasureLevelDb(double detectorInput) noexcept;
 

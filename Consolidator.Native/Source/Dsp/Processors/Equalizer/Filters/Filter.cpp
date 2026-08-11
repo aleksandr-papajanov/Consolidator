@@ -37,21 +37,18 @@ void Filter::Reset() noexcept
 }
 
 void Filter::Process(
-    const double* input,
-    double* output,
-    std::size_t frameCount,
-    std::size_t channelCount)
+    const double* inputLeft,
+    const double* inputRight,
+    double* outputLeft,
+    double* outputRight,
+    std::size_t frameCount)
 {
-    const std::size_t activeChannels = std::min(channelCount, runtimeState_.activeChannelCount);
-
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
-        const auto frameOffset = frame * channelCount;
-        for (std::size_t channel = 0; channel < activeChannels; ++channel)
-        {
-            const auto sampleIndex = frameOffset + channel;
-            output[sampleIndex] = ProcessSample(input[sampleIndex], channel);
-        }
+        outputLeft[frame] = runtimeState_.activeChannelCount > 0
+            ? ProcessSample(inputLeft[frame], 0) : inputLeft[frame];
+        outputRight[frame] = runtimeState_.activeChannelCount > 1
+            ? ProcessSample(inputRight[frame], 1) : inputRight[frame];
     }
 }
 

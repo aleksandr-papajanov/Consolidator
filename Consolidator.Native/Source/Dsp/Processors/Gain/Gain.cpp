@@ -39,16 +39,16 @@ void Gain::RecalculateRuntime()
 }
 
 void Gain::Process(
-    const double* input,
-    double* output,
-    std::size_t frameCount,
-    std::size_t channelCount)
+    const double* inputLeft,
+    const double* inputRight,
+    double* outputLeft,
+    double* outputRight,
+    std::size_t frameCount)
 {
-    const auto sampleCount = frameCount * channelCount;
-
-    for (std::size_t sample = 0; sample < sampleCount; ++sample)
+    for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
-        output[sample] = input[sample] * runtimeState_.linearGain;
+        outputLeft[frame] = inputLeft[frame] * runtimeState_.linearGain;
+        outputRight[frame] = inputRight[frame] * runtimeState_.linearGain;
     }
 }
 

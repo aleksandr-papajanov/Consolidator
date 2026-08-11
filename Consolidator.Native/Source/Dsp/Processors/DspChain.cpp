@@ -12,6 +12,16 @@ void DspChain::AddDevice(std::unique_ptr<DspDevice> device)
     devices_.push_back(std::move(device));
 }
 
+void DspChain::Prepare(
+    double sampleRate,
+    std::size_t channelCount)
+{
+    for (const auto& device : devices_)
+    {
+        device->Prepare(sampleRate, channelCount);
+    }
+}
+
 void DspChain::ApplyRuntimeUpdates(const core::ParameterUpdateBatch& batch)
 {
     std::array<bool, kMaximumDevices> dirtyDevices{};
@@ -79,14 +89,16 @@ void DspChain::Reset(const core::StatePath& target) noexcept
 }
 
 void DspChain::Process(
-    const double* input,
-    double* interim,
-    double* output,
-    std::size_t frameCount,
-    std::size_t channelCount)
+    const double* inputLeft,
+    const double* inputRight,
+    double* interimLeft,
+    double* interimRight,
+    double* outputLeft,
+    double* outputRight,
+    std::size_t frameCount)
 {
-    const auto sampleCount = frameCount * channelCount;
-    const double* source = input;
+    const double* sourceLeft = inputLeft;
+    const double* sourceRight = inputRight;
     bool hasProcessed = false;
     bool outputContainsResult = false;
     for (const auto& device : devices_)
@@ -98,27 +110,32 @@ void DspChain::Process(
 
         if (!hasProcessed)
         {
-            device->Process(source, output, frameCount, channelCount);
-            source = output;
+            device->Process(sourceLeft, sourceRight, outputLeft, outputRight, frameCount);
+            sourceLeft = outputLeft;
+            sourceRight = outputRight;
             hasProcessed = true;
             outputContainsResult = true;
         }
         else
         {
-            double* destination = outputContainsResult ? interim : output;
-            device->Process(source, destination, frameCount, channelCount);
-            source = destination;
+            double* destinationLeft = outputContainsResult ? interimLeft : outputLeft;
+            double* destinationRight = outputContainsResult ? interimRight : outputRight;
+            device->Process(sourceLeft, sourceRight, destinationLeft, destinationRight, frameCount);
+            sourceLeft = destinationLeft;
+            sourceRight = destinationRight;
             outputContainsResult = !outputContainsResult;
         }
     }
 
     if (!hasProcessed)
     {
-        std::copy_n(input, sampleCount, output);
+        std::copy_n(inputLeft, frameCount, outputLeft);
+        std::copy_n(inputRight, frameCount, outputRight);
     }
     else if (!outputContainsResult)
     {
-        std::copy_n(source, sampleCount, output);
+        std::copy_n(sourceLeft, frameCount, outputLeft);
+        std::copy_n(sourceRight, frameCount, outputRight);
     }
 }
 

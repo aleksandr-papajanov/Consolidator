@@ -56,6 +56,20 @@ TEST_CASE("Custom settings define bank identity and filter construction")
     EXPECT_EQ(bank2->GetFilter(4)->GetRuntimeState().frequencyHz, 1500.0f);
 }
 
+TEST_CASE("Prepare propagates the host sample rate to sample-rate DSP state")
+{
+    auto chain = dsp::DspChainBuilder{}.BuildStandardChain();
+    chain->Prepare(96000.0, 2);
+
+    const auto* compressor =
+        dynamic_cast<const dsp::Compressor*>(chain->GetDevice(2));
+    const auto* bank0 =
+        dynamic_cast<const dsp::Equalizer*>(chain->GetDevice(3));
+
+    EXPECT_EQ(compressor->GetRuntimeState().sampleRate, 96000.0);
+    EXPECT_EQ(bank0->GetFilter(0)->GetRuntimeState().sampleRate, 96000.0);
+}
+
 TEST_CASE("Runtime update routes to one bank and one filter")
 {
     auto chain = dsp::DspChainBuilder{}.BuildStandardChain();
@@ -86,7 +100,9 @@ TEST_CASE("Runtime controls skip inactive stage and keep output deterministic")
     const std::array input{0.25, -0.5};
     std::array<double, 2> interim{};
     std::array<double, 2> output{};
-    chain.Process(input.data(), interim.data(), output.data(), 1, 2);
+    chain.Process(input.data(), input.data() + 1,
+                  interim.data(), interim.data() + 1,
+                  output.data(), output.data() + 1, 1);
     EXPECT_NEAR(output[0], input[0], 1e-9);
     EXPECT_NEAR(output[1], input[1], 1e-9);
 }

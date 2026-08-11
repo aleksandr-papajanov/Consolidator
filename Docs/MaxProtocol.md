@@ -38,35 +38,84 @@ explicit absent value:
 
 ```text
 command     := read | write | reset
-read        := state read  source request count path*
-write       := state write source request count (path value)*
-reset       := action reset source request path
+read        := read version source wireId count (query path)*
+write       := write version source wireId count (entry path valueMarker valueAtom)*
+reset       := reset version source wireId path
 
-state       := the symbol "state"
-action      := the symbol "action"
+version     := the integer `1`
 source      := a non-empty Max symbol identifying the client endpoint
+wireId      := an unsigned decimal symbol in `0..9007199254740991`
 count       := an integer in 0..16
 
-path        := field instance device parameter marker nodeCount node*
-nodeCount   := an integer in 0..3
-node        := detector | bank1..bank7 | filter1..filter7
-value       := a path-typed Max atom
+query       := the symbol "query"
+entry       := the symbol "entry"
+valueMarker := the symbol "value"
+
+path        := semantic-path
+semantic-path := selected_bank | mute | solo | bank bankNumber |
+                bank bankNumber group |
+                device [detector [filter filterNumber]] (parameter | marker)
+bankNumber  := an integer in 1..7
+filterNumber := an integer in 1..7 (1..2 for detector filters)
+device      := main_input_gain | main_output_gain | saturator | compressor | equalizer
+parameter   := gain | frequency | q | drive | mix | detector_amount |
+               threshold | ratio | attack | release
+marker      := bypass | solo | listen
+valueAtom   := a path-typed Max atom
 ```
+
+The current protocol version is `1`. It is mandatory after every input
+selector and before `source`; any other version produces
+`unsupported_version`. Older input formats are not accepted and there is no
+compatibility fallback.
 
 The parser must consume exactly the list. Extra or missing atoms, an invalid
 count, or duplicate path components are protocol errors. The command is
 implicitly addressed to the adapter-bound `ConsolidatorInstance`; clients do
 not need its process-local Core instance ID before their first request. `read`
-uses `count` paths; `write` uses `count` path/value pairs. `reset` uses one
-complete target path and never carries a value.
+uses `count` `query` sections; `write` uses `count` `entry` sections. The
+`query`, `entry`, and `value` markers delimit variable-length semantic paths;
+`AtomPathCodec` never guesses a path boundary from the remaining atoms. `reset`
+uses one complete target path and never carries a value.
 
-Inbound `path.instance` must always be `none`; the adapter canonicalizes it to
-the bound local instance. `field` is one of `instance_id`, `selected_bank`, `bank_id`, `group_id`,
-`dsp_parameter`, `dsp_marker`, `mute`, or `solo`. The unused path components are
-encoded as `none`. `parameter` uses the names listed below, and `marker` uses
-`bypass`, `solo`, or `listen`. The `instance` component is `none` on inbound
-commands. `device` is one of `main_input_gain`,
-`main_output_gain`, `saturator`, `compressor`, or `equalizer`.
+For `read`, `count 0` is a valid full-instance snapshot request and therefore
+has no `query` section: `read 1 source request 0`. A zero-count `write` is also
+valid and has no `entry` section.
+
+Examples:
+
+```text
+read 1 ui <symbol 10> 2 query compressor query equalizer
+write 1 ui <symbol 11> 2 entry compressor threshold value -18. entry compressor ratio value 4.
+```
+
+The angle-bracket notation above means a Max symbol, not a literal message-box
+token. In a Max patch, create these wire IDs with `[sprintf %s 10]` or
+`[sprintf %s 11]` and connect the result to the command builder. A plain
+`10` or `11` typed directly into a message box is an integer atom and is not a
+valid wire ID.
+
+Paths are semantic and variable-length. Examples are `compressor`,
+`compressor threshold`, `compressor detector`,
+`equalizer bank 2`, `equalizer bank 2 filter 4`,
+`equalizer bank 2 filter 4 gain`, `bank 2 group`, `selected_bank`, and
+`compressor detector listen`. Every completed prefix is valid for `read`; a
+`write` additionally requires a concrete path accepted by `AtomValueCodec` and
+Core. `AtomPathCodec` is the only component that knows how these forms map to
+the current Core `StatePath`; the internal field, optional IDs, node depth, and
+node array are not part of the wire protocol.
+
+`bank N ...` is reserved for topology and currently only supports
+`bank N group`. DSP paths always use the canonical `equalizer bank N ...`
+form, including bank-level markers such as `equalizer bank 2 bypass`.
+
+Values are decoded by `AtomValueCodec` from the semantic path. `selected_bank`
+accepts `bank1..bank7` (or the corresponding public number `1..7`) and produces
+a Core `BankId`. `bank N group` accepts a non-negative group number or `none`,
+where `none` produces an empty group. DSP parameters accept integer or
+floating-point Max atoms and produce Core `float` values. Markers, mute, and
+solo use strict integer values `0` or `1`; symbolic `true` and `false` are
+invalid.
 
 The value codec is path-directed. In particular, `true/false`, `bank1..bank7`,
 `none` for `group_id`, signed `int32`, and floating-point DSP values are not
@@ -74,14 +123,17 @@ distinguished by a generic integer decoder.
 
 ## Response frames
 
-The adapter emits a terminal response sequence for every accepted command:
+The adapter emits a terminal response sequence for every accepted command. The
+input selectors are `read`, `write`, and `reset`; `state_begin`, `state_entry`,
+`state_done`, `action_done`, and `error` are output framing selectors. Every
+output frame carries version `1` immediately after its selector:
 
 ```text
-done  source request instance status
-error source request instance code message
+action_done 1 source request instance status
+error 1 source request instance code message
 ```
 
-`done` is the terminal frame for an action command. Its `status` is `accepted`
+`action_done` is the terminal frame for an action command. Its `status` is `accepted`
 or `rejected`; reset uses `accepted` only after realtime queue admission.
 `error` is reserved for adapter/protocol failures before a Core command is
 accepted. Its `code` is one of `malformed`, `unknown_source`,
@@ -92,16 +144,28 @@ State responses are multipart at the transport boundary. Core still produces
 one logical `StateResponse`; the adapter emits:
 
 ```text
-state_begin source request instance truncated entryCount
-state_entry source request instance index path value writeStatus physicalMinimum physicalMaximum minimum maximum
-state_done  source request instance
+state_begin 1 source request instance truncated entryCount
+state_entry 1 source request instance index path value writeStatus physicalMinimum physicalMaximum minimum maximum
+state_done  1 source request instance
 ```
 
-`state_begin` is emitted once, followed by `entryCount` `state_entry` frames,
-then `state_done`. `index` is zero-based and contiguous. The three frames
-repeat `(source, request, instance)` so clients can demultiplex interleaved
-responses. `state_done` is terminal for read/write; `done` is terminal for an
-action; `error` is terminal for adapter/protocol failures.
+`request` and `instance` are correlation/instance IDs encoded as decimal
+symbols, matching the input `wireId` contract. Structural numeric fields such
+as `count`, `index`, bank/filter numbers, ranges, and `GroupId` values remain
+integer or floating-point atoms as specified by their field. `state_begin`
+is emitted once, followed by `entryCount` `state_entry` frames,
+then `state_done`. `index` is zero-based and contiguous. `state_begin` and
+`state_done` use the response envelope instance. Each `state_entry` uses the
+entry path's target instance, falling back to the response instance when the
+path has no instance. This preserves grouped responses that target multiple
+instances. The three frames repeat `(source, request, instance)` so clients can
+demultiplex interleaved responses. `state_done` is terminal for read/write;
+`action_done` is terminal for an action; `error` is terminal for adapter/protocol
+failures.
+
+`state_begin` is retained because it carries the snapshot metadata
+`truncated` and `entryCount`; consumers can use it to allocate or validate the
+following entry sequence before receiving `state_done`.
 
 `truncated` is `0|1` and `entryCount` is in `0..512`. Every entry is:
 
@@ -156,8 +220,8 @@ Group absence is represented explicitly by the public name `none`; it decodes
 to an empty group (`std::nullopt`), not to a magic numeric group ID.
 
 The codec must validate path kind before decoding a value. A path identifies
-whether a value is a boolean marker, `BankId`, `GroupId`, `int32_t`, or a DSP
-parameter value; atom type alone is insufficient.
+whether a value is a boolean marker, `BankId`, `GroupId`, or a DSP parameter
+value; atom type alone is insufficient.
 
 ## Batches
 

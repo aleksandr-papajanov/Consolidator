@@ -75,23 +75,23 @@ bool Compressor::Reset(
 }
 
 void Compressor::Process(
-    const double* input,
-    double* output,
-    std::size_t frameCount,
-    std::size_t channelCount)
+    const double* inputLeft,
+    const double* inputRight,
+    double* outputLeft,
+    double* outputRight,
+    std::size_t frameCount)
 {
-    assert(input != nullptr);
-    assert(output != nullptr);
-
-    const auto sampleCount = frameCount * channelCount;
+    assert(inputLeft != nullptr);
+    assert(inputRight != nullptr);
+    assert(outputLeft != nullptr);
+    assert(outputRight != nullptr);
 
     double lastGainReductionDb = runtimeState_.gainReductionDb;
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
-        const auto frameOffset = frame * channelCount;
-
-        const double detectorInput = CalculateLinkedDetectorInput(input + frameOffset, channelCount);
+        const double detectorInput = CalculateLinkedDetectorInput(
+            std::max(std::abs(inputLeft[frame]), std::abs(inputRight[frame])));
 
         const double inputLevelDb = MeasureLevelDb(detectorInput);
         const double targetGainReductionDb = CalculateTargetGainReductionDb(inputLevelDb);
@@ -99,16 +99,15 @@ void Compressor::Process(
 
         const double gainLinear = std::pow(10.0, smoothedGainReductionDb / 20.0);
 
-        for (std::size_t channel = 0; channel < channelCount; ++channel)
+        if (detectorListen_)
         {
-            const auto sampleIndex = frameOffset + channel;
-            if (detectorListen_)
-            {
-                output[sampleIndex] = detectorMonitoringSample_;
-                continue;
-            }
-
-            output[sampleIndex] = ProcessSample(input[sampleIndex], gainLinear);
+            outputLeft[frame] = detectorMonitoringSample_;
+            outputRight[frame] = detectorMonitoringSample_;
+        }
+        else
+        {
+            outputLeft[frame] = ProcessSample(inputLeft[frame], gainLinear);
+            outputRight[frame] = ProcessSample(inputRight[frame], gainLinear);
         }
 
         lastGainReductionDb = smoothedGainReductionDb;
@@ -119,16 +118,9 @@ void Compressor::Process(
         std::memory_order_relaxed);
 }
 
-double Compressor::CalculateLinkedDetectorInput(const double* frame, std::size_t channelCount) noexcept
+double Compressor::CalculateLinkedDetectorInput(double linkedInput) noexcept
 {
-    double linkedPeak = 0.0;
-
-    for (std::size_t channel = 0; channel < channelCount; ++channel)
-    {
-        linkedPeak = std::max(linkedPeak, std::abs(frame[channel]));
-    }
-
-    detectorMonitoringSample_ = detectorEqualizer_.ProcessSample(linkedPeak);
+    detectorMonitoringSample_ = detectorEqualizer_.ProcessSample(linkedInput);
     return detectorMonitoringSample_;
 }
 

@@ -53,8 +53,10 @@ TEST_CASE("Reset command is consumed at the next block boundary")
     std::array<double, 2> referenceInput{};
     std::array<double, 2> mainOutput{};
     std::array<double, 2> referenceOutput{};
-    fixture.instance.Process(mainInput.data(), referenceInput.data(),
-                             mainOutput.data(), referenceOutput.data(), 1);
+    fixture.instance.Process(mainInput.data(), mainInput.data() + 1,
+                             referenceInput.data(), referenceInput.data() + 1,
+                             mainOutput.data(), mainOutput.data() + 1,
+                             referenceOutput.data(), referenceOutput.data() + 1, 1);
     EXPECT_EQ(filter->GetRuntimeState().channelStates[0].z1, 0.0);
     EXPECT_EQ(filter->GetRuntimeState().channelStates[0].z2, 0.0);
 }

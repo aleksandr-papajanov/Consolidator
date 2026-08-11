@@ -47,7 +47,8 @@ TEST_CASE("Gain stages runtime value and applies linear amplification")
 
     const std::array input{1.0, -0.5};
     std::array<double, 2> output{};
-    gain.Process(input.data(), output.data(), 1, 2);
+    gain.Process(input.data(), input.data() + 1,
+                 output.data(), output.data() + 1, 1);
     EXPECT_NEAR(output[0], gain.GetRuntimeState().linearGain, 1e-9);
     EXPECT_NEAR(output[1], -0.5 * gain.GetRuntimeState().linearGain, 1e-9);
 }
@@ -124,7 +125,8 @@ TEST_CASE("Compressor processes signal and publishes gain reduction")
     std::array<double, 256> input;
     input.fill(1.0);
     std::array<double, 256> output{};
-    compressor.Process(input.data(), output.data(), 128, 2);
+    compressor.Process(input.data(), input.data() + 128,
+                       output.data(), output.data() + 128, 128);
 
     EXPECT_TRUE(compressor.GetGainReductionDb() < 0.0f);
     EXPECT_TRUE(std::abs(output.back()) < 1.0);
