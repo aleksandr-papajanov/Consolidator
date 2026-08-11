@@ -77,12 +77,8 @@ enum class ParameterId : std::uint8_t
     Drive,
     Frequency,
     Q,
-    OutputGain,
-    Bypass,
     Mix,
-    Type,
-    Solo,
-    Listen
+    DetectorAmount
 };
 
 namespace detail

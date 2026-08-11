@@ -1,5 +1,9 @@
 #include "Support/ProtocolDriver.h"
+#include "Dsp/Processors/Compressor/Compressor.h"
+#include "Dsp/Processors/DspChain.h"
+#include "Dsp/Processors/Saturator/Saturator.h"
 
+#include <atomic>
 #include <variant>
 
 using namespace consolidator;
@@ -12,9 +16,9 @@ TEST_CASE("State protocol writes and reads top-level parameters and markers")
         test::Write(test::DevicePath(id, dsp::DeviceId::MainInputGain,
                                      dsp::ParameterId::Gain), 6.0f),
         test::Write(test::DevicePath(id, dsp::DeviceId::Saturator,
-                                     dsp::ParameterId::Bypass), true),
+                                     core::StateMarkerId::Bypass), true),
         test::Write(test::DevicePath(id, dsp::DeviceId::Compressor,
-                                     dsp::ParameterId::Bypass), true),
+                                     core::StateMarkerId::Bypass), true),
         test::Write(test::DevicePath(id, dsp::DeviceId::MainOutputGain,
                                      dsp::ParameterId::Gain), -3.0f)};
     core::RequestId request = 1000;
@@ -29,6 +33,115 @@ TEST_CASE("State protocol writes and reads top-level parameters and markers")
         const auto readResponse = driver.Read(0, request++, entry.path);
         EXPECT_EQ(test::FindEntry(readResponse, entry.path).value, entry.value);
     }
+}
+
+TEST_CASE("Identical request ids stay isolated between instance response queues")
+{
+    test::ProtocolDriver driver{2};
+    constexpr core::RequestId requestId = 1050;
+    const auto firstPath = core::StatePath::InstanceMute(
+        driver.At(0).GetInstanceId());
+    const auto secondPath = core::StatePath::InstanceMute(
+        driver.At(1).GetInstanceId());
+
+    driver.EnqueueRead(0, requestId, firstPath);
+    driver.EnqueueRead(1, requestId, secondPath);
+
+    const auto firstResponse = driver.AwaitRead(0, requestId);
+    const auto secondResponse = driver.AwaitRead(1, requestId);
+
+    EXPECT_EQ(firstResponse.instanceId, driver.At(0).GetInstanceId());
+    EXPECT_EQ(secondResponse.instanceId, driver.At(1).GetInstanceId());
+    EXPECT_EQ(test::FindEntry(firstResponse, firstPath).path, firstPath);
+    EXPECT_EQ(test::FindEntry(secondResponse, secondPath).path, secondPath);
+}
+
+TEST_CASE("Response notifier signals after an instance response is queued")
+{
+    std::atomic<std::size_t> notifications{0};
+    test::ProtocolDriver driver{1, [&notifications]
+    {
+        notifications.fetch_add(1, std::memory_order_relaxed);
+    }};
+
+    (void)driver.Read(
+        0,
+        1051,
+        core::StatePath::InstanceMute(driver.At(0).GetInstanceId()));
+
+    EXPECT_TRUE(notifications.load(std::memory_order_relaxed) > 0);
+}
+
+TEST_CASE("Response notifier is immutable after instance initialization")
+{
+    test::ProtocolDriver driver{1};
+    EXPECT_FALSE(driver.At(0).SetResponseNotifier([] {}));
+}
+
+TEST_CASE("Destroying an instance with a pending response notifier is safe")
+{
+    std::atomic<std::size_t> notifications{0};
+    {
+        test::ProtocolDriver driver{1, [&notifications]
+        {
+            notifications.fetch_add(1, std::memory_order_relaxed);
+        }};
+        driver.EnqueueRead(
+            0,
+            1054,
+            core::StatePath::InstanceMute(driver.At(0).GetInstanceId()));
+    }
+    EXPECT_TRUE(notifications.load(std::memory_order_relaxed) <= 1);
+}
+
+TEST_CASE("Protocol driver preserves unrelated in-flight responses")
+{
+    test::ProtocolDriver driver{1};
+    const auto path = core::StatePath::InstanceMute(
+        driver.At(0).GetInstanceId());
+
+    driver.EnqueueRead(0, 1052, path);
+    driver.EnqueueRead(0, 1053, path);
+
+    (void)driver.AwaitRead(0, 1053);
+    const auto firstResponse = driver.AwaitRead(0, 1052);
+    EXPECT_EQ(firstResponse.requestId, 1052U);
+}
+
+TEST_CASE("Late DSP parameters are registered and applied at block boundary")
+{
+    test::ProtocolDriver driver{1};
+    const auto id = driver.At(0).GetInstanceId();
+    const auto compressorRatio = test::DevicePath(
+        id, dsp::DeviceId::Compressor, dsp::ParameterId::Ratio);
+    const auto saturatorDrive = test::DevicePath(
+        id, dsp::DeviceId::Saturator, dsp::ParameterId::Drive);
+    const auto detectorFrequency = test::DetectorFilterPath(
+        id, dsp::DeviceId::Saturator, 0, dsp::ParameterId::Frequency);
+    const auto compressorDetectorFrequency = test::DetectorFilterPath(
+        id, dsp::DeviceId::Compressor, 0, dsp::ParameterId::Frequency);
+
+    (void)driver.Write(0, 1055, test::Entries({test::Write(compressorRatio, 8.0f)}));
+    (void)driver.Write(0, 1056, test::Entries({test::Write(saturatorDrive, 2.0f)}));
+    (void)driver.Write(0, 1057, test::Entries({test::Write(detectorFrequency, 250.0f)}));
+    (void)driver.Write(0, 1058, test::Entries({test::Write(
+        compressorDetectorFrequency, 300.0f)}));
+    driver.ProcessAll();
+
+    auto& chain = driver.At(0).GetDspChain();
+    const auto* compressor = dynamic_cast<const dsp::Compressor*>(chain.GetDevice(2));
+    const auto* saturator = dynamic_cast<const dsp::Saturator*>(chain.GetDevice(1));
+    const auto* compressorDetector = compressor == nullptr
+        ? nullptr
+        : &compressor->GetDetectorEqualizer();
+    EXPECT_TRUE(compressor != nullptr);
+    EXPECT_TRUE(saturator != nullptr);
+    EXPECT_EQ(compressor->GetRuntimeState().ratio, 8.0f);
+    EXPECT_EQ(saturator->GetRuntimeState().drive, 2.0f);
+    EXPECT_EQ(saturator->GetDetector(0).GetEqualizer().GetFilter(0)
+                  ->GetRuntimeState().frequencyHz, 250.0f);
+    EXPECT_TRUE(compressorDetector != nullptr);
+    EXPECT_EQ(compressorDetector->GetFilter(0)->GetRuntimeState().frequencyHz, 300.0f);
 }
 
 TEST_CASE("Grouped EQ write fans out to direct member banks")

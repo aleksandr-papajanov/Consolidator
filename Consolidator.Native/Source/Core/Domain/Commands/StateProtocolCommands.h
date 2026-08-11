@@ -47,4 +47,19 @@ struct StateResponse
     bool truncated{false};
 };
 
+enum class ActionStatus : std::uint8_t
+{
+    Accepted,
+    Rejected
+};
+
+struct ActionResponse
+{
+    RequestId requestId{0};
+    InstanceId instanceId{0};
+    ActionStatus status{ActionStatus::Rejected};
+};
+
+using CommandResponse = std::variant<StateResponse, ActionResponse>;
+
 } // namespace consolidator::core

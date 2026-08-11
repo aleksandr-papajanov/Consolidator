@@ -49,6 +49,26 @@ TEST_CASE("StatePath immutable modifiers preserve the original")
     EXPECT_EQ(modified.depth, 1U);
 }
 
+TEST_CASE("StatePath validates realtime reset route shapes")
+{
+    EXPECT_TRUE(core::StatePath::Device(dsp::DeviceId::Compressor)
+                    .IsValidResetTarget());
+    EXPECT_TRUE(core::StatePath::Device(dsp::DeviceId::Saturator)
+                    .WithNode(dsp::RouteNodeId::Detector)
+                    .WithNode(dsp::RouteNodeId::Filter2)
+                    .IsValidResetTarget());
+    EXPECT_TRUE(core::StatePath::Device(dsp::DeviceId::Equalizer)
+                    .WithNode(dsp::RouteNodeId::Bank6)
+                    .WithNode(dsp::RouteNodeId::Filter7)
+                    .IsValidResetTarget());
+    EXPECT_FALSE(core::StatePath::Device(dsp::DeviceId::Compressor)
+                     .WithNode(dsp::RouteNodeId::Filter1)
+                     .IsValidResetTarget());
+    EXPECT_FALSE(core::StatePath::Device(dsp::DeviceId::Equalizer)
+                     .WithNode(dsp::RouteNodeId::Detector)
+                     .IsValidResetTarget());
+}
+
 TEST_CASE("FixedStateList reports overflow and can be reused")
 {
     core::FixedStateList<2> entries;

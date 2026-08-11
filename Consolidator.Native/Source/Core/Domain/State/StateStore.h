@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "Core/Domain/State/ChainState.h"
 #include "Core/Domain/State/StateEntry.h"
 #include "Core/Domain/State/StateMarker.h"
@@ -44,6 +46,9 @@ public:
     void ReadState(
         const StatePath& path,
         StateResponseEntries& snapshot) const;
+
+    // Enumerates only numeric DSP parameters for initial runtime mailbox setup.
+    void ReadRuntimeParameters(std::vector<StateEntry>& parameters) const;
 
     // Validates and applies one state entry, reporting the resulting status.
     StateWriteStatus WriteState(

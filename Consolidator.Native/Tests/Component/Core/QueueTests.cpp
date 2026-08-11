@@ -55,7 +55,7 @@ TEST_CASE("Runtime control mailbox keeps properties in separate slots")
 {
     core::RuntimeUpdateMailbox mailbox;
     const auto detector = test::RuntimeTarget(test::DetectorPath(
-        core::InstanceId{2}, dsp::DeviceId::Compressor, dsp::ParameterId::Listen));
+        core::InstanceId{2}, dsp::DeviceId::Compressor, core::StateMarkerId::Listen));
     mailbox.RegisterControlPath(detector, core::RuntimeProperty::Active);
     mailbox.RegisterControlPath(detector, core::RuntimeProperty::Listen);
     const std::array updates{

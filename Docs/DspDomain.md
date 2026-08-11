@@ -65,9 +65,10 @@ StateStore
 
 ## Маршрутизация параметров
 
-Параметры передаются как `StateEntry` с `StateField::DspParameter`. Markers
-используют свои state fields (`Mute` и `Solo` для instance state). `StatePath`
-является единым адресом topology и DSP-параметров:
+Параметры передаются как `StateEntry` с `StateField::DspParameter`. DSP markers
+передаются с `StateField::DspMarker` и `StateMarkerId`; `Mute` и `Solo` остаются
+отдельными state fields для instance state. `StatePath`
+является единым адресом topology, DSP-параметров и DSP markers:
 
 ```cpp
 StateEntry{
@@ -91,7 +92,7 @@ StateStore → RuntimeUpdateMailbox → DspChain → DspDevice → RuntimeState
 `Solo` и `Bypass` являются authoritative processing markers в `StateStore`. При изменении
 любого из них `ProcessingStateResolver` пересчитывает derived processing state.
 В domain state они представлены `StateMarker<bool>`, а не `ParameterState<bool>`;
-`ParameterId` остаётся только адресом state protocol и не делает marker DSP runtime
+`StateMarkerId` отделяет markers от `ParameterId` и не делает их DSP runtime
 параметром. То же правило действует для detector `Listen`.
 Chain рассматривает весь Equalizer как одну стадию; banks являются peer-scope
 внутри этой стадии. `EqualizerState` содержит markers всего EQ на depth 0,

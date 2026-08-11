@@ -166,7 +166,7 @@ bool Saturator::ApplyOwnParameter(
         runtimeState_.mix = *updated;
         return true;
     }
-    if (route.GetParameterId() == ParameterId::Type)
+    if (route.GetParameterId() == ParameterId::DetectorAmount)
     {
         const auto* updated = std::get_if<float>(&value);
         if (updated == nullptr) return false;

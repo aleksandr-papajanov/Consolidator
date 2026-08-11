@@ -1,13 +1,18 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <span>
+#include <utility>
 
 #include "Core/Domain/Commands/StateProtocolCommands.h"
 #include "Core/Domain/Commands/RealtimeCommands.h"
 #include "Core/Domain/State/StateStore.h"
 #include "Core/Instance/Queues/RuntimeUpdateMailbox.h"
+#include "Core/Queues/ConcurrentQueue.h"
 #include "Core/Queues/SpscQueue.h"
 
 namespace consolidator::dsp
@@ -23,6 +28,20 @@ class StateWriter;
 class ConsolidatorInstance
 {
 public:
+    using ResponseNotifier = std::function<void()>;
+    struct ResponseNotifierState
+    {
+        explicit ResponseNotifierState(ResponseNotifier callback)
+            : callback(std::move(callback))
+        {
+        }
+
+        std::mutex mutex;
+        ResponseNotifier callback;
+        bool active = true;
+    };
+    using ResponseNotifierHandle = std::shared_ptr<ResponseNotifierState>;
+
     ConsolidatorInstance();
     ~ConsolidatorInstance();
 
@@ -46,6 +65,9 @@ public:
     // Enqueues a non-coalescable real-time reset event.
     void EnqueueCommand(ResetDspCommand command);
 
+    [[nodiscard]] std::optional<CommandResponse> TryDequeueResponse();
+    [[nodiscard]] bool SetResponseNotifier(ResponseNotifier notifier);
+
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
     [[nodiscard]] bool IsOutputEnabled() const noexcept
     {
@@ -60,13 +82,18 @@ private:
     friend class CommandRouter;
     friend class StateWriter;
 
+    void EnqueueResponse(CommandResponse response);
+    [[nodiscard]] ResponseNotifierHandle GetResponseNotifierHandle() const noexcept;
+    static void NotifyResponseAvailable(ResponseNotifierHandle notifier);
+    void ShutdownResponseNotifier() noexcept;
+
     // Enqueues coordinator-owned latest-value updates for the audio thread.
     void EnqueueParameterUpdates(std::span<const ParameterUpdate> updates);
     void EnqueueRuntimeUpdates(
         std::span<const RuntimeControlUpdate> updates);
 
     // Enqueues a reset route without coalescing it.
-    void EnqueueRealtimeCommand(const StatePath& target);
+    [[nodiscard]] bool EnqueueRealtimeCommand(const StatePath& target);
     void ConsumeParameterUpdates();
     void ConsumeRuntimeUpdates();
     void ProcessRealtimeCommands();
@@ -82,7 +109,11 @@ private:
     std::unique_ptr<dsp::DspChain> dspChain_;
     StateStore stateStore_;
     RuntimeUpdateMailbox runtimeUpdateMailbox_;
-    SpscQueue<RealtimeCommand, 16> realtimeCommandQueue_;
+    // SpscQueue reserves one ring slot, so 17 storage slots provide the
+    // documented capacity of 16 pending realtime commands.
+    SpscQueue<RealtimeCommand, 17> realtimeCommandQueue_;
+    ConcurrentQueue<CommandResponse> responseQueue_;
+    ResponseNotifierHandle responseNotifier_;
     bool outputEnabled_ = true;
     bool initialized_ = false;
 };

@@ -61,7 +61,7 @@ dsp::SaturatorState MakeSaturatorState(
             static_cast<float>(settings.mix.min),
             static_cast<float>(settings.mix.max)},
         dsp::ParameterState<float>{
-            dsp::ParameterId::Type,
+            dsp::ParameterId::DetectorAmount,
             1.0f,
             0.0f,
             8.0f},

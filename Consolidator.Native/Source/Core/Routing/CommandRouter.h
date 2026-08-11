@@ -17,6 +17,7 @@ struct NoCommandResponse
 using CommandResult = std::variant<
     StateResponse,
     StateWriteResult,
+    ActionResponse,
     NoCommandResponse>;
 
 // Dispatches protocol commands to state reads or the coordinated write flow.

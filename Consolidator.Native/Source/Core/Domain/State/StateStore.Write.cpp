@@ -24,7 +24,8 @@ ApplyResult ApplyParameter(
     const StateValue& value,
     dsp::ParameterState<T>& parameter)
 {
-    if (!path.parameterId || *path.parameterId != parameter.id)
+    if (path.field != StateField::DspParameter ||
+        !path.parameterId || *path.parameterId != parameter.id)
     {
         return ApplyResult::NotHandled;
     }
@@ -62,10 +63,11 @@ ApplyResult ApplyParameter(
 ApplyResult ApplyMarker(
     const StatePath& path,
     const StateValue& value,
-    dsp::ParameterId parameterId,
+    StateMarkerId markerId,
     dsp::StateMarker<bool>& marker)
 {
-    if (!path.parameterId || *path.parameterId != parameterId)
+    if (path.field != StateField::DspMarker ||
+        !path.markerId || *path.markerId != markerId)
     {
         return ApplyResult::NotHandled;
     }
@@ -108,7 +110,8 @@ StateWriteStatus StateStore::WriteState(
         return result;
     }
 
-    if (entry.path.field != StateField::DspParameter)
+    if (entry.path.field != StateField::DspParameter &&
+        entry.path.field != StateField::DspMarker)
     {
         return StateWriteStatus::NotHandled;
     }
@@ -204,7 +207,7 @@ StateWriteStatus StateStore::WriteBankGroup(
 
 ApplyResult StateStore::WriteDspState(const StateEntry& entry)
 {
-    if (!entry.path.deviceId || !entry.path.parameterId)
+    if (!entry.path.deviceId)
     {
         return ApplyResult::NotHandled;
     }
@@ -273,7 +276,7 @@ ApplyResult StateStore::WriteGainState(
     {
         return result;
     }
-    return detail::ApplyMarker(path, value, dsp::ParameterId::Bypass, state.bypass);
+    return detail::ApplyMarker(path, value, StateMarkerId::Bypass, state.bypass);
 }
 
 ApplyResult StateStore::WriteFilterState(
@@ -284,9 +287,9 @@ ApplyResult StateStore::WriteFilterState(
     auto result = detail::ApplyOne(path, value,
         state.frequencyHz, state.q, state.gainDb);
     if (result != ApplyResult::NotHandled) return result;
-    result = detail::ApplyMarker(path, value, dsp::ParameterId::Bypass, state.bypass);
+    result = detail::ApplyMarker(path, value, StateMarkerId::Bypass, state.bypass);
     if (result != ApplyResult::NotHandled) return result;
-    return detail::ApplyMarker(path, value, dsp::ParameterId::Solo, state.solo);
+    return detail::ApplyMarker(path, value, StateMarkerId::Solo, state.solo);
 }
 
 ApplyResult StateStore::WriteSaturatorState(
@@ -304,17 +307,17 @@ ApplyResult StateStore::WriteSaturatorState(
             chain_.saturator.detectorAmount);
         if (result != ApplyResult::NotHandled) return result;
         if (const auto result = detail::ApplyMarker(
-                path, value, dsp::ParameterId::Bypass, chain_.saturator.bypass);
+                path, value, StateMarkerId::Bypass, chain_.saturator.bypass);
             result != ApplyResult::NotHandled)
         {
             return result;
         }
-        return detail::ApplyMarker(path, value, dsp::ParameterId::Solo, chain_.saturator.solo);
+        return detail::ApplyMarker(path, value, StateMarkerId::Solo, chain_.saturator.solo);
     }
 
     if (path.depth == 1 && path.nodes[0] == dsp::RouteNodeId::Detector)
     {
-        return detail::ApplyMarker(path, value, dsp::ParameterId::Listen,
+        return detail::ApplyMarker(path, value, StateMarkerId::Listen,
                                    chain_.saturator.detector.listen);
     }
 
@@ -352,17 +355,17 @@ ApplyResult StateStore::WriteCompressorState(
             chain_.compressor.mix);
         if (result != ApplyResult::NotHandled) return result;
         if (const auto result = detail::ApplyMarker(
-                path, value, dsp::ParameterId::Bypass, chain_.compressor.bypass);
+                path, value, StateMarkerId::Bypass, chain_.compressor.bypass);
             result != ApplyResult::NotHandled)
         {
             return result;
         }
-        return detail::ApplyMarker(path, value, dsp::ParameterId::Solo, chain_.compressor.solo);
+        return detail::ApplyMarker(path, value, StateMarkerId::Solo, chain_.compressor.solo);
     }
 
     if (path.depth == 1 && path.nodes[0] == dsp::RouteNodeId::Detector)
     {
-        return detail::ApplyMarker(path, value, dsp::ParameterId::Listen,
+        return detail::ApplyMarker(path, value, StateMarkerId::Listen,
                                    chain_.compressor.detector.listen);
     }
 
@@ -390,9 +393,9 @@ ApplyResult StateStore::WriteEqualizerState(
     if (path.depth == 0)
     {
         auto result = detail::ApplyMarker(
-            path, value, dsp::ParameterId::Bypass, chain_.equalizer.bypass);
+            path, value, StateMarkerId::Bypass, chain_.equalizer.bypass);
         if (result != ApplyResult::NotHandled) return result;
-        return detail::ApplyMarker(path, value, dsp::ParameterId::Solo,
+        return detail::ApplyMarker(path, value, StateMarkerId::Solo,
                                    chain_.equalizer.solo);
     }
 
@@ -407,10 +410,10 @@ ApplyResult StateStore::WriteEqualizerState(
     if (path.depth == 1)
     {
         auto result = detail::ApplyMarker(
-            path, value, dsp::ParameterId::Bypass,
+            path, value, StateMarkerId::Bypass,
             chain_.equalizers[bankIndex].bypass);
         if (result != ApplyResult::NotHandled) return result;
-        return detail::ApplyMarker(path, value, dsp::ParameterId::Solo,
+        return detail::ApplyMarker(path, value, StateMarkerId::Solo,
             chain_.equalizers[bankIndex].solo);
     }
 

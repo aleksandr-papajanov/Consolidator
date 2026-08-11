@@ -89,9 +89,4 @@ void InstanceCoordinator::RefreshAudibility()
     }
 }
 
-std::optional<StateResponse> InstanceCoordinator::TryDequeueResponse()
-{
-    return coordinatorResponses_.TryDequeue();
-}
-
 } // namespace consolidator::core

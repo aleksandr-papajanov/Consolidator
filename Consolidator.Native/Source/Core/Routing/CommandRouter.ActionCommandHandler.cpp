@@ -7,19 +7,28 @@ namespace consolidator::core
 
 CommandResult CommandRouter::Handle(const ResetDspCommand& command)
 {
-    if (!command.target.deviceId)
+    ActionResponse response{
+        command.requestId,
+        command.instanceId,
+        ActionStatus::Rejected};
+    if (!command.target.IsValidResetTarget())
     {
-        return NoCommandResponse{};
+        return response;
     }
 
-    if (auto* instance = registry_.FindInstance(command.instanceId);
-        instance != nullptr)
+    auto* instance = registry_.FindInstance(command.instanceId);
+    if (instance == nullptr)
     {
-        auto target = command.target;
-        target.instanceId = command.instanceId;
-        instance->EnqueueRealtimeCommand(target);
+        return response;
     }
-    return NoCommandResponse{};
+
+    auto target = command.target;
+    target.instanceId = command.instanceId;
+    if (instance->EnqueueRealtimeCommand(target))
+    {
+        response.status = ActionStatus::Accepted;
+    }
+    return response;
 }
 
 } // namespace consolidator::core

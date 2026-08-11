@@ -19,11 +19,19 @@ enum class StateField : std::uint8_t
     BankId,
     GroupId,
     DspParameter,
+    DspMarker,
     Mute,
     Solo
 };
 
-// Fixed-size address for instance topology and DSP parameter state.
+enum class StateMarkerId : std::uint8_t
+{
+    Bypass,
+    Solo,
+    Listen
+};
+
+// Fixed-size address for instance topology, DSP parameters and DSP markers.
 struct StatePath
 {
     constexpr StatePath() noexcept = default;
@@ -112,6 +120,22 @@ struct StatePath
         return path;
     }
 
+    template <typename... NodeIds>
+    [[nodiscard]] static constexpr StatePath DspMarker(
+        dsp::DeviceId device,
+        StateMarkerId marker,
+        NodeIds... nodeIds) noexcept
+    {
+        static_assert(sizeof...(NodeIds) <= 3);
+        StatePath path;
+        path.deviceId = device;
+        path.markerId = marker;
+        path.nodes = {static_cast<dsp::RouteNodeId>(nodeIds)...};
+        path.depth = sizeof...(NodeIds);
+        path.field = StateField::DspMarker;
+        return path;
+    }
+
     constexpr StatePath(
         dsp::DeviceId device,
         dsp::ParameterId parameter) noexcept
@@ -145,9 +169,62 @@ struct StatePath
         return *parameterId;
     }
 
+    [[nodiscard]] constexpr StateMarkerId GetMarkerId() const noexcept
+    {
+        assert(markerId.has_value());
+        return *markerId;
+    }
+
     [[nodiscard]] constexpr std::size_t GetDepth() const noexcept
     {
         return depth;
+    }
+
+    // Validates the route shape understood by the realtime reset dispatcher.
+    // This is deliberately independent of authoritative state serialization.
+    [[nodiscard]] constexpr bool IsValidResetTarget() const noexcept
+    {
+        if (!deviceId || depth > 2)
+        {
+            return false;
+        }
+
+        const auto isBank = [](dsp::RouteNodeId node) constexpr
+        {
+            const auto value = static_cast<std::uint8_t>(node);
+            return value >= static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0) &&
+                   value <= static_cast<std::uint8_t>(dsp::RouteNodeId::Bank6);
+        };
+        const auto isFilter = [](dsp::RouteNodeId node) constexpr
+        {
+            const auto value = static_cast<std::uint8_t>(node);
+            return value >= static_cast<std::uint8_t>(dsp::RouteNodeId::Filter1) &&
+                   value <= static_cast<std::uint8_t>(dsp::RouteNodeId::Filter7);
+        };
+        const auto isDetectorFilter = [](dsp::RouteNodeId node) constexpr
+        {
+            return node == dsp::RouteNodeId::Filter1 ||
+                   node == dsp::RouteNodeId::Filter2;
+        };
+
+        switch (*deviceId)
+        {
+        case dsp::DeviceId::MainInputGain:
+        case dsp::DeviceId::MainOutputGain:
+            return depth == 0;
+        case dsp::DeviceId::Saturator:
+        case dsp::DeviceId::Compressor:
+            return depth == 0 ||
+                   (depth == 1 && nodes[0] == dsp::RouteNodeId::Detector) ||
+                   (depth == 2 &&
+                    nodes[0] == dsp::RouteNodeId::Detector &&
+                    isDetectorFilter(nodes[1]));
+        case dsp::DeviceId::Equalizer:
+            return depth == 0 ||
+                   (depth == 1 && isBank(nodes[0])) ||
+                   (depth == 2 && isBank(nodes[0]) && isFilter(nodes[1]));
+        }
+        return false;
     }
 
     [[nodiscard]] constexpr dsp::RouteNodeId GetNode(std::size_t index) const noexcept
@@ -159,7 +236,19 @@ struct StatePath
         dsp::ParameterId parameter) const noexcept
     {
         auto result = *this;
+        result.field = StateField::DspParameter;
+        result.markerId.reset();
         result.parameterId = parameter;
+        return result;
+    }
+
+    [[nodiscard]] constexpr StatePath WithMarker(
+        StateMarkerId marker) const noexcept
+    {
+        auto result = *this;
+        result.field = StateField::DspMarker;
+        result.parameterId.reset();
+        result.markerId = marker;
         return result;
     }
 
@@ -183,6 +272,7 @@ struct StatePath
     std::optional<StateField> field;
     std::optional<dsp::DeviceId> deviceId;
     std::optional<dsp::ParameterId> parameterId;
+    std::optional<StateMarkerId> markerId;
     std::array<dsp::RouteNodeId, 3> nodes{};
     std::size_t depth = 0;
 
@@ -195,6 +285,7 @@ struct StatePath
         if (field && field != candidate.field) return false;
         if (deviceId && deviceId != candidate.deviceId) return false;
         if (parameterId && parameterId != candidate.parameterId) return false;
+        if (markerId && markerId != candidate.markerId) return false;
         if (depth > candidate.depth) return false;
         for (std::size_t index = 0; index < depth; ++index)
         {

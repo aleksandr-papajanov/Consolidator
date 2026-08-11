@@ -8,7 +8,11 @@
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <deque>
+#include <functional>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -18,13 +22,20 @@ namespace consolidator::test
 class ProtocolDriver
 {
 public:
-    explicit ProtocolDriver(std::size_t instanceCount)
+    explicit ProtocolDriver(
+        std::size_t instanceCount,
+        core::ConsolidatorInstance::ResponseNotifier notifier = {})
     {
         for (std::size_t index = 0; index < instanceCount; ++index)
         {
             instances_.push_back(std::make_unique<core::ConsolidatorInstance>());
+            if (notifier)
+            {
+                (void)instances_.back()->SetResponseNotifier(notifier);
+            }
             instances_.back()->Initialize();
         }
+        pendingResponses_.resize(instanceCount);
     }
 
     core::ConsolidatorInstance& At(std::size_t index) { return *instances_.at(index); }
@@ -37,7 +48,7 @@ public:
         At(sourceIndex).EnqueueCommand(core::WriteStateCommand{
             .requestId = requestId,
             .entries = std::move(entries)});
-        return Await(requestId);
+        return Await(sourceIndex, requestId);
     }
 
     core::StateResponse Read(
@@ -45,10 +56,36 @@ public:
         core::RequestId requestId,
         core::StatePath path)
     {
+        EnqueueRead(sourceIndex, requestId, std::move(path));
+        return AwaitRead(sourceIndex, requestId);
+    }
+
+    void EnqueueRead(
+        std::size_t sourceIndex,
+        core::RequestId requestId,
+        core::StatePath path)
+    {
         At(sourceIndex).EnqueueCommand(core::ReadStateCommand{
             .requestId = requestId,
             .queries = Entries({test::Write(std::move(path), std::monostate{})})});
-        return Await(requestId);
+    }
+
+    core::StateResponse AwaitRead(
+        std::size_t sourceIndex,
+        core::RequestId requestId)
+    {
+        return Await(sourceIndex, requestId);
+    }
+
+    core::ActionResponse Reset(
+        std::size_t sourceIndex,
+        core::RequestId requestId,
+        core::StatePath target)
+    {
+        At(sourceIndex).EnqueueCommand(core::ResetDspCommand{
+            .requestId = requestId,
+            .target = std::move(target)});
+        return AwaitAction(sourceIndex, requestId);
     }
 
     void ProcessAll()
@@ -67,25 +104,78 @@ public:
     const std::array<double, 32>& ReferenceOutput() const noexcept { return referenceOutput_; }
 
 private:
-    core::StateResponse Await(core::RequestId requestId)
+    core::StateResponse Await(std::size_t sourceIndex, core::RequestId requestId)
     {
+        if (auto response = TakePending<core::StateResponse>(sourceIndex, requestId))
+        {
+            return std::move(*response);
+        }
         for (std::size_t attempt = 0; attempt < 500; ++attempt)
         {
             ProcessAll();
-            while (auto response = core::InstanceCoordinator::Get().TryDequeueResponse())
+            while (auto response = At(sourceIndex).TryDequeueResponse())
             {
-                if (response->requestId == requestId)
+                if (const auto* stateResponse =
+                        std::get_if<core::StateResponse>(&*response);
+                    stateResponse != nullptr && stateResponse->requestId == requestId)
                 {
-                    return std::move(*response);
+                    return std::move(*stateResponse);
                 }
+                pendingResponses_.at(sourceIndex).push_back(std::move(*response));
             }
             std::this_thread::sleep_for(std::chrono::milliseconds{1});
         }
         throw std::runtime_error("state protocol response timeout");
     }
 
+    core::ActionResponse AwaitAction(
+        std::size_t sourceIndex,
+        core::RequestId requestId)
+    {
+        if (auto response = TakePending<core::ActionResponse>(sourceIndex, requestId))
+        {
+            return std::move(*response);
+        }
+        for (std::size_t attempt = 0; attempt < 500; ++attempt)
+        {
+            ProcessAll();
+            while (auto response = At(sourceIndex).TryDequeueResponse())
+            {
+                if (const auto* actionResponse =
+                        std::get_if<core::ActionResponse>(&*response);
+                    actionResponse != nullptr && actionResponse->requestId == requestId)
+                {
+                    return std::move(*actionResponse);
+                }
+                pendingResponses_.at(sourceIndex).push_back(std::move(*response));
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+        throw std::runtime_error("action response timeout");
+    }
+
+    template <typename ResponseType>
+    std::optional<ResponseType> TakePending(
+        std::size_t sourceIndex,
+        core::RequestId requestId)
+    {
+        auto& pending = pendingResponses_.at(sourceIndex);
+        for (auto iterator = pending.begin(); iterator != pending.end(); ++iterator)
+        {
+            if (const auto* response = std::get_if<ResponseType>(&*iterator);
+                response != nullptr && response->requestId == requestId)
+            {
+                auto result = std::optional<ResponseType>{std::move(*response)};
+                pending.erase(iterator);
+                return result;
+            }
+        }
+        return std::nullopt;
+    }
+
     static constexpr std::size_t kFrameCount = 16;
     std::vector<std::unique_ptr<core::ConsolidatorInstance>> instances_;
+    std::vector<std::deque<core::CommandResponse>> pendingResponses_;
     std::array<double, 32> mainInput_{};
     std::array<double, 32> referenceInput_{};
     std::array<double, 32> mainOutput_{};

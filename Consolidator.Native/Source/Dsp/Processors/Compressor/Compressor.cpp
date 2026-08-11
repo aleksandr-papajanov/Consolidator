@@ -272,7 +272,6 @@ bool Compressor::ApplyMonitoringState(
     std::size_t depth)
 {
     if (target.GetDeviceId() != GetDeviceId() ||
-        target.GetParameterId() != ParameterId::Listen ||
         depth + 1 != target.GetDepth() ||
         target.GetNode(depth) != RouteNodeId::Detector)
     {

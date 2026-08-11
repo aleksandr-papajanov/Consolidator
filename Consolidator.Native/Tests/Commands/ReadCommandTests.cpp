@@ -18,8 +18,8 @@ TEST_CASE("Read command with no query returns the complete instance snapshot")
     const auto& response = std::get<core::StateResponse>(result);
     EXPECT_EQ(response.requestId, 100U);
     EXPECT_EQ(response.instanceId, id);
-    EXPECT_EQ(response.entries.size, core::StateResponseEntries{}.entries.size());
-    EXPECT_TRUE(response.truncated);
+    EXPECT_TRUE(response.entries.size > 256U);
+    EXPECT_FALSE(response.truncated);
 }
 
 TEST_CASE("Read command overrides query instance with its envelope instance")

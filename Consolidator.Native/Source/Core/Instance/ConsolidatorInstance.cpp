@@ -47,6 +47,7 @@ ConsolidatorInstance::~ConsolidatorInstance()
 {
     if (initialized_)
     {
+        ShutdownResponseNotifier();
         InstanceCoordinator::Get().UnregisterInstance(stateStore_.GetInstanceId());
         InstanceCoordinator::Get().RefreshAudibility();
     }
@@ -158,25 +159,12 @@ dsp::DspChain& ConsolidatorInstance::GetDspChain() noexcept
 
 void ConsolidatorInstance::PublishInitialRuntimeState()
 {
-    StateResponseEntries snapshot;
-    stateStore_.ReadState(
-        StatePath::Instance(stateStore_.GetInstanceId()),
-        snapshot);
+    std::vector<StateEntry> parameters;
+    stateStore_.ReadRuntimeParameters(parameters);
 
     ParameterUpdateBatch initialBatch;
-    for (std::size_t index = 0; index < snapshot.size; ++index)
+    for (const auto& entry : parameters)
     {
-        const auto& entry = snapshot.entries[index];
-        if (entry.path.field != StateField::DspParameter)
-        {
-            continue;
-        }
-        if (entry.path.GetParameterId() == dsp::ParameterId::Solo ||
-            entry.path.GetParameterId() == dsp::ParameterId::Bypass ||
-            entry.path.GetParameterId() == dsp::ParameterId::Listen)
-        {
-            continue;
-        }
         const auto value = ToParameterVariant(entry.value);
         if (!value)
         {

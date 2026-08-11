@@ -10,10 +10,20 @@ namespace consolidator::core
 namespace detail
 {
 
-template <typename T>
+void AppendEntry(StateResponseEntries& snapshot, StateEntry entry)
+{
+    (void)snapshot.TryAppend(std::move(entry));
+}
+
+void AppendEntry(std::vector<StateEntry>& snapshot, StateEntry entry)
+{
+    snapshot.push_back(std::move(entry));
+}
+
+template <typename Sink, typename T>
 void AppendParameter(
     const StatePath& query,
-    StateResponseEntries& snapshot,
+    Sink& snapshot,
     StatePath path,
     const dsp::ParameterState<T>& parameter)
 {
@@ -33,32 +43,96 @@ void AppendParameter(
         entry.minimum = entry.physicalMinimum;
         entry.maximum = entry.physicalMaximum;
     }
-    (void)snapshot.TryAppend(std::move(entry));
+    AppendEntry(snapshot, std::move(entry));
 }
 
-template <typename... Parameters>
-void AppendParameters(
-    const StatePath& query,
-    StateResponseEntries& snapshot,
-    StatePath path,
-    const Parameters&... parameters)
-{
-    (AppendParameter(query, snapshot, path, parameters), ...);
-}
-
+template <typename Sink>
 void AppendMarker(
     const StatePath& query,
-    StateResponseEntries& snapshot,
+    Sink& snapshot,
     StatePath path,
-    dsp::ParameterId parameterId,
+    StateMarkerId markerId,
     const dsp::StateMarker<bool>& marker)
 {
-    path.field = StateField::DspParameter;
+    path.field = StateField::DspMarker;
     path.instanceId = query.instanceId;
-    path.parameterId = parameterId;
+    path.markerId = markerId;
     if (query.Matches(path))
     {
-        (void)snapshot.TryAppend(StateEntry{path, StateValue{marker.value}});
+        AppendEntry(snapshot, StateEntry{path, StateValue{marker.value}});
+    }
+}
+
+template <typename Visitor>
+void VisitDspParameters(
+    const ChainState& chain,
+    Visitor&& visitor)
+{
+    visitor(StatePath::Device(dsp::DeviceId::MainInputGain), chain.inputGain.gainDb);
+    visitor(StatePath::Device(dsp::DeviceId::MainOutputGain), chain.outputGain.gainDb);
+
+    for (std::size_t bankIndex = 0; bankIndex < chain.equalizers.size(); ++bankIndex)
+    {
+        const auto bankNode = static_cast<dsp::RouteNodeId>(
+            static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0) + bankIndex);
+        for (std::size_t filterIndex = 0;
+             filterIndex < chain.equalizers[bankIndex].filters.size();
+             ++filterIndex)
+        {
+            const auto filterNode = static_cast<dsp::RouteNodeId>(
+                static_cast<std::uint8_t>(dsp::RouteNodeId::Filter1) + filterIndex);
+            const auto path = StatePath::Device(dsp::DeviceId::Equalizer)
+                .WithNode(bankNode)
+                .WithNode(filterNode);
+            const auto& filter = chain.equalizers[bankIndex].filters[filterIndex];
+            visitor(path, filter.frequencyHz);
+            visitor(path, filter.q);
+            visitor(path, filter.gainDb);
+        }
+    }
+
+    const auto saturatorPath = StatePath::Device(dsp::DeviceId::Saturator);
+    visitor(saturatorPath, chain.saturator.drive);
+    visitor(saturatorPath, chain.saturator.outputDb);
+    visitor(saturatorPath, chain.saturator.mix);
+    visitor(saturatorPath, chain.saturator.detectorAmount);
+
+    const auto compressorPath = StatePath::Device(dsp::DeviceId::Compressor);
+    visitor(compressorPath, chain.compressor.thresholdDb);
+    visitor(compressorPath, chain.compressor.ratio);
+    visitor(compressorPath, chain.compressor.attackMs);
+    visitor(compressorPath, chain.compressor.releaseMs);
+    visitor(compressorPath, chain.compressor.outputDb);
+    visitor(compressorPath, chain.compressor.mix);
+
+    for (std::size_t filterIndex = 0;
+         filterIndex < chain.saturator.detector.filters.size();
+         ++filterIndex)
+    {
+        const auto filterNode = static_cast<dsp::RouteNodeId>(
+            static_cast<std::uint8_t>(dsp::RouteNodeId::Filter1) + filterIndex);
+        const auto path = saturatorPath
+            .WithNode(dsp::RouteNodeId::Detector)
+            .WithNode(filterNode);
+        const auto& filter = chain.saturator.detector.filters[filterIndex];
+        visitor(path, filter.frequencyHz);
+        visitor(path, filter.q);
+        visitor(path, filter.gainDb);
+    }
+
+    for (std::size_t filterIndex = 0;
+         filterIndex < chain.compressor.detector.filters.size();
+         ++filterIndex)
+    {
+        const auto filterNode = static_cast<dsp::RouteNodeId>(
+            static_cast<std::uint8_t>(dsp::RouteNodeId::Filter1) + filterIndex);
+        const auto path = compressorPath
+            .WithNode(dsp::RouteNodeId::Detector)
+            .WithNode(filterNode);
+        const auto& filter = chain.compressor.detector.filters[filterIndex];
+        visitor(path, filter.frequencyHz);
+        visitor(path, filter.q);
+        visitor(path, filter.gainDb);
     }
 }
 
@@ -137,12 +211,10 @@ void AppendFilterState(
     StatePath basePath,
     const dsp::FilterState& state)
 {
-    detail::AppendParameters(query, snapshot, basePath,
-                             state.frequencyHz, state.q, state.gainDb);
     detail::AppendMarker(query, snapshot, basePath,
-                         dsp::ParameterId::Bypass, state.bypass);
+                         StateMarkerId::Bypass, state.bypass);
     detail::AppendMarker(query, snapshot, basePath,
-                         dsp::ParameterId::Solo, state.solo);
+                         StateMarkerId::Solo, state.solo);
 }
 
 void AppendGainState(
@@ -151,9 +223,8 @@ void AppendGainState(
     dsp::DeviceId deviceId,
     const dsp::GainState& state)
 {
-    detail::AppendParameters(query, snapshot, StatePath::Device(deviceId), state.gainDb);
     detail::AppendMarker(query, snapshot, StatePath::Device(deviceId),
-                         dsp::ParameterId::Bypass, state.bypass);
+                         StateMarkerId::Bypass, state.bypass);
 }
 
 } // namespace
@@ -165,13 +236,18 @@ void StateStore::ReadState(
     AppendInstanceState(path, snapshot, instance_);
     AppendGainState(path, snapshot, dsp::DeviceId::MainInputGain, chain_.inputGain);
     AppendGainState(path, snapshot, dsp::DeviceId::MainOutputGain, chain_.outputGain);
+    detail::VisitDspParameters(chain_, [&path, &snapshot](const auto parameterPath,
+                                                          const auto& parameter)
+    {
+        detail::AppendParameter(path, snapshot, parameterPath, parameter);
+    });
 
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Equalizer),
-        dsp::ParameterId::Bypass, chain_.equalizer.bypass);
+        StateMarkerId::Bypass, chain_.equalizer.bypass);
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Equalizer),
-        dsp::ParameterId::Solo, chain_.equalizer.solo);
+        StateMarkerId::Solo, chain_.equalizer.solo);
 
     for (std::size_t bankIndex = 0; bankIndex < chain_.equalizers.size(); ++bankIndex)
     {
@@ -180,9 +256,9 @@ void StateStore::ReadState(
         const auto bankPath = StatePath::Device(dsp::DeviceId::Equalizer)
             .WithNode(bankNode);
         detail::AppendMarker(path, snapshot, bankPath,
-            dsp::ParameterId::Bypass, chain_.equalizers[bankIndex].bypass);
+            StateMarkerId::Bypass, chain_.equalizers[bankIndex].bypass);
         detail::AppendMarker(path, snapshot, bankPath,
-            dsp::ParameterId::Solo, chain_.equalizers[bankIndex].solo);
+            StateMarkerId::Solo, chain_.equalizers[bankIndex].solo);
 
         for (std::size_t filterIndex = 0;
              filterIndex < chain_.equalizers[bankIndex].filters.size();
@@ -200,32 +276,18 @@ void StateStore::ReadState(
         }
     }
 
-    detail::AppendParameters(path, snapshot,
-        StatePath::Device(dsp::DeviceId::Saturator),
-        chain_.saturator.drive, chain_.saturator.outputDb,
-        chain_.saturator.mix, chain_.saturator.detectorAmount);
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Saturator),
-        dsp::ParameterId::Bypass, chain_.saturator.bypass);
+        StateMarkerId::Bypass, chain_.saturator.bypass);
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Saturator),
-        dsp::ParameterId::Solo, chain_.saturator.solo);
-    detail::AppendParameters(
-        path,
-        snapshot,
-        StatePath::Device(dsp::DeviceId::Compressor),
-        chain_.compressor.thresholdDb,
-        chain_.compressor.ratio,
-        chain_.compressor.attackMs,
-        chain_.compressor.releaseMs,
-        chain_.compressor.outputDb,
-        chain_.compressor.mix);
+        StateMarkerId::Solo, chain_.saturator.solo);
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Compressor),
-        dsp::ParameterId::Bypass, chain_.compressor.bypass);
+        StateMarkerId::Bypass, chain_.compressor.bypass);
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Compressor),
-        dsp::ParameterId::Solo, chain_.compressor.solo);
+        StateMarkerId::Solo, chain_.compressor.solo);
 
     for (std::size_t filterIndex = 0;
          filterIndex < chain_.saturator.detector.filters.size();
@@ -245,7 +307,7 @@ void StateStore::ReadState(
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Saturator)
             .WithNode(dsp::RouteNodeId::Detector),
-        dsp::ParameterId::Listen, chain_.saturator.detector.listen);
+        StateMarkerId::Listen, chain_.saturator.detector.listen);
 
     for (std::size_t filterIndex = 0;
          filterIndex < chain_.compressor.detector.filters.size();
@@ -265,7 +327,18 @@ void StateStore::ReadState(
     detail::AppendMarker(path, snapshot,
         StatePath::Device(dsp::DeviceId::Compressor)
             .WithNode(dsp::RouteNodeId::Detector),
-        dsp::ParameterId::Listen, chain_.compressor.detector.listen);
+        StateMarkerId::Listen, chain_.compressor.detector.listen);
+}
+
+void StateStore::ReadRuntimeParameters(std::vector<StateEntry>& parameters) const
+{
+    parameters.clear();
+    const auto query = StatePath::Instance(instance_.instanceId);
+    detail::VisitDspParameters(chain_, [&query, &parameters](const auto parameterPath,
+                                                              const auto& parameter)
+    {
+        detail::AppendParameter(query, parameters, parameterPath, parameter);
+    });
 }
 
 bool StateStore::CanWrite(const StateEntry& entry) const

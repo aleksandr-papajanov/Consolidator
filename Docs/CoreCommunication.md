@@ -9,7 +9,7 @@ coordinator worker. Instances register their topology and coordinator-owned
 ```text
 Max / control code
   -> ConsolidatorInstance::EnqueueCommand()
-  -> InstanceCoordinator global queue
+  -> InstanceCoordinator command queue
   -> CommandRouter resolves topology and group targets
   -> StateWriter returns response + effects
   -> InstanceCoordinator publishes response and applies effects
@@ -81,8 +81,12 @@ Addressable state uses two self-contained command types: `ReadStateCommand`
 with bounded `queries` and `WriteStateCommand` with bounded `entries`.
 `Command` is their variant. The `ConsolidatorInstance` fills `instanceId`
 before enqueueing. `StatePath` is a prefix query for reads and a complete address
-for writes. Each request produces one consolidated `StateResponse` addressed by
-the same `instanceId`; it contains `requestId`, `entries`, and `truncated`.
+for writes. State requests produce one consolidated `StateResponse` addressed
+by the same `instanceId`; it contains `requestId`, `entries`, and `truncated`.
+Action requests produce an `ActionResponse` with `requestId`, `instanceId`, and
+`ActionStatus`.
+The Max-side atom contract, wire correlation and batch limits are fixed in
+`Docs/MaxProtocol.md`; Core does not expose the wire `source`.
 `StateStore` owns both topology
 entries and all DSP parameter entries.
 
@@ -96,6 +100,9 @@ StatePath::SelectedBank(instanceId);
 StatePath::BankGroup(instanceId, bankId);
 StatePath::DspParameter(instanceId, route);
 ```
+
+DSP parameters use `StateField::DspParameter` and `ParameterId`. DSP markers
+use `StateField::DspMarker` and `StateMarkerId`; markers are not parameters.
 
 `ParameterConstraintResolver` reads only `StateStore`. Write routing and
 constraint dependencies are intentionally separate:
@@ -128,11 +135,25 @@ the response is emitted. The audio thread scans the fixed slots once at the
 start of its block and stages the resulting local batch; values superseded
 before that scan are collapsed by path.
 
-The coordinator response queue publishes command responses. `Applied` means that
-the authoritative `StateStore` changed and the instance mailbox accepted the
-runtime update; it does not mean that the audio thread has already applied it.
-There is no local
+The coordinator routes each command response to the `ConsolidatorInstance` whose
+`instanceId` is carried by the response. Every instance owns its own response
+queue of `StateResponse` and `ActionResponse` values, and its owner reads
+responses through `TryDequeueResponse()`; there is no process-wide response
+queue. For `ResetDspCommand`, `ActionStatus::Accepted` means that the reset
+event was placed in the instance realtime queue; it does not mean that the DSP
+has already executed it. `Applied` means that the authoritative
+`StateStore` changed and the instance mailbox accepted the runtime update; it
+does not mean that the audio thread has already applied it. There is no local
 audio command/response queue for state access and no `ParameterStateView`.
+`ConsolidatorInstance::SetResponseNotifier()` signals the external transport
+after enqueueing a response; the callback may make only the thread-safe Max
+scheduling call (`queue<>.set()`). It must not call outlets, emit messages, or
+encode atoms from the coordinator thread. It must be installed before
+`Initialize()` and cannot be changed afterward. Instance destruction first
+deactivates the notifier and then unregisters the instance, so a queued worker
+notification cannot call into a destroyed external. The notifier mutex is held
+through callback completion; destruction therefore waits for an in-progress
+wake-up before the external-owned callback target may be destroyed.
 
 ## Core component boundaries
 

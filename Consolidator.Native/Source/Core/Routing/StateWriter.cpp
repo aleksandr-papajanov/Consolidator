@@ -48,13 +48,14 @@ void AppendUnique(
 
 bool AffectsProcessingState(const StateEntry& entry)
 {
-    if (!entry.path.parameterId)
+    if (entry.path.field != StateField::DspMarker ||
+        !entry.path.markerId)
     {
         return false;
     }
 
-    return *entry.path.parameterId == dsp::ParameterId::Solo ||
-           *entry.path.parameterId == dsp::ParameterId::Bypass;
+    return *entry.path.markerId == StateMarkerId::Solo ||
+           *entry.path.markerId == StateMarkerId::Bypass;
 }
 
 bool AffectsAudibility(const StateEntry& entry)
@@ -72,10 +73,11 @@ bool AffectsAudibility(const StateEntry& entry)
     return false;
 }
 
-bool IsMonitoringParameter(const StateEntry& entry)
+bool IsMonitoringMarker(const StateEntry& entry)
 {
-    return entry.path.parameterId &&
-        *entry.path.parameterId == dsp::ParameterId::Listen;
+    return entry.path.field == StateField::DspMarker &&
+        entry.path.markerId &&
+        *entry.path.markerId == StateMarkerId::Listen;
 }
 
 std::vector<StatePath> BuildConstraintRefreshPaths(
@@ -316,7 +318,7 @@ bool StateWriter::ApplyToInstance(
             return true;
         }
         if (AffectsProcessingState(*appliedParameter) ||
-            IsMonitoringParameter(*appliedParameter))
+            IsMonitoringMarker(*appliedParameter))
         {
             if (std::find(
                     context.runtimeInstances.begin(),

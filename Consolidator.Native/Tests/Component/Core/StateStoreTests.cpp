@@ -138,7 +138,7 @@ TEST_CASE("StateStore validates writable path and value shape")
     const auto gain = test::DevicePath(
         id, dsp::DeviceId::MainOutputGain, dsp::ParameterId::Gain);
     const auto bypass = test::DevicePath(
-        id, dsp::DeviceId::MainOutputGain, dsp::ParameterId::Bypass);
+        id, dsp::DeviceId::MainOutputGain, core::StateMarkerId::Bypass);
 
     EXPECT_TRUE(store.CanWrite(test::Write(gain, -3.0f)));
     EXPECT_FALSE(store.CanWrite(test::Write(gain, true)));

@@ -98,8 +98,7 @@ bool DetectorEnvelopeFollower::ApplyMonitoringState(
     bool enabled,
     std::size_t depth)
 {
-    if (target.GetParameterId() == ParameterId::Listen &&
-        depth == target.GetDepth())
+    if (depth == target.GetDepth())
     {
         listen_ = enabled;
         return true;

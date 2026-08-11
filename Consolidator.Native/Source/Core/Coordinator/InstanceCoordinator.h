@@ -2,7 +2,6 @@
 
 #include <condition_variable>
 #include <mutex>
-#include <optional>
 #include <thread>
 
 #include "Core/Queues/ConcurrentQueue.h"
@@ -28,7 +27,6 @@ public:
 
     // Queues a command for serialized processing on the coordinator thread.
     void EnqueueCommand(Command command);
-    [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
     [[nodiscard]] InstanceRegistry& GetRegistry() noexcept
     {
         return registry_;
@@ -57,7 +55,6 @@ private:
     StateRouter stateRouter_;
     ParameterConstraintResolver constraintResolver_;
     InstanceAudibilityResolver instanceAudibilityResolver_;
-    ConcurrentQueue<StateResponse> coordinatorResponses_;
     StateWriter stateWriter_;
     CommandRouter commandRouter_;
     ConcurrentQueue<Command> commandQueue_;

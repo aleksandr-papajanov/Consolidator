@@ -6,6 +6,7 @@
 #include <optional>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "Core/Domain/Ids/DspIds.h"
 #include "Core/Domain/Ids/GroupId.h"
@@ -88,7 +89,7 @@ struct FixedStateList
 };
 
 using StateRequestEntries = FixedStateList<16>;
-using StateResponseEntries = FixedStateList<256>;
+using StateResponseEntries = FixedStateList<512>;
 using StateSnapshot = StateResponseEntries;
 
 } // namespace consolidator::core

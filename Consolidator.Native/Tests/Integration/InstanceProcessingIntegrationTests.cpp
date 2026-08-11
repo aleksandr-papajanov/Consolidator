@@ -20,11 +20,11 @@ TEST_CASE("Instance preserves reference audio and applies state before main proc
         test::Write(test::DevicePath(id, dsp::DeviceId::MainInputGain,
                                      dsp::ParameterId::Gain), 6.0f),
         test::Write(test::DevicePath(id, dsp::DeviceId::Saturator,
-                                     dsp::ParameterId::Bypass), true),
+                                     core::StateMarkerId::Bypass), true),
         test::Write(test::DevicePath(id, dsp::DeviceId::Compressor,
-                                     dsp::ParameterId::Bypass), true),
+                                     core::StateMarkerId::Bypass), true),
         test::Write(test::DevicePath(id, dsp::DeviceId::Equalizer,
-                                     dsp::ParameterId::Bypass), true)}));
+                                     core::StateMarkerId::Bypass), true)}));
     const auto& gainResponse = test::FindEntry(response, test::DevicePath(
         id, dsp::DeviceId::MainInputGain, dsp::ParameterId::Gain));
     EXPECT_TRUE(gainResponse.status.has_value());
@@ -61,6 +61,19 @@ TEST_CASE("Instance mute resolves to an output gate without changing state")
         response, core::StatePath::InstanceMute(id)).value));
 }
 
+TEST_CASE("Reset action response is delivered to its instance")
+{
+    test::ProtocolDriver driver{2};
+    const auto response = driver.Reset(
+        1,
+        2102,
+        core::StatePath::Device(dsp::DeviceId::Compressor));
+
+    EXPECT_EQ(response.requestId, 2102U);
+    EXPECT_EQ(response.instanceId, driver.At(1).GetInstanceId());
+    EXPECT_EQ(response.status, core::ActionStatus::Accepted);
+}
+
 TEST_CASE("Output solo enables direct group members and gates unrelated instances")
 {
     test::ProtocolDriver driver{3};
@@ -89,11 +102,11 @@ TEST_CASE("Latest-value delivery exposes the final parameter at block start")
         id, dsp::DeviceId::MainInputGain, dsp::ParameterId::Gain);
     (void)driver.Write(0, 2299, test::Entries({
         test::Write(test::DevicePath(id, dsp::DeviceId::Saturator,
-                                     dsp::ParameterId::Bypass), true),
+                                     core::StateMarkerId::Bypass), true),
         test::Write(test::DevicePath(id, dsp::DeviceId::Compressor,
-                                     dsp::ParameterId::Bypass), true),
+                                     core::StateMarkerId::Bypass), true),
         test::Write(test::DevicePath(id, dsp::DeviceId::Equalizer,
-                                     dsp::ParameterId::Bypass), true)}));
+                                     core::StateMarkerId::Bypass), true)}));
     driver.At(0).EnqueueCommand(core::WriteStateCommand{
         .requestId = 2300,
         .entries = test::Entries({test::Write(gain, 3.0f)})});
