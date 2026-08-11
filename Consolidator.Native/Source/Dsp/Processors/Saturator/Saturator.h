@@ -15,7 +15,6 @@ struct SaturatorRuntimeState
     float outputDb = 0.0f;
     float mix = 1.0f;
     float detectorAmountTarget = 1.0f;
-    bool bypass = false;
     double driveLinear = 1.0;
     double outputGainLinear = 1.0;
     double wetMix = 1.0;
@@ -35,6 +34,10 @@ public:
         std::size_t channelCount);
 
     void Reset() noexcept;
+    // Routes reset requests to the saturator or its detector filters.
+    bool Reset(
+        const core::StatePath& path,
+        std::size_t depth) noexcept override;
 
     // Processes the block and applies detector modulation without audio-thread allocation.
     void Process(
@@ -57,6 +60,16 @@ public:
     bool ApplyParameter(
         const core::StatePath& route,
         const ParameterVariant& value,
+        std::size_t depth) override;
+
+    bool ApplyProcessingStateAtDepth(
+        const core::StatePath& target,
+        bool active,
+        std::size_t depth) override;
+
+    bool ApplyMonitoringState(
+        const core::StatePath& target,
+        bool enabled,
         std::size_t depth) override;
 
     bool StageRuntimeUpdate(
@@ -95,7 +108,6 @@ private:
     void SetOutputDb(float outputDb);
     void SetMix(float mix);
     void SetDetectorAmount(float amount);
-    void SetBypass(bool bypass) noexcept;
 
     SaturatorRuntimeState runtimeState_;
 

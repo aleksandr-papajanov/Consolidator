@@ -25,8 +25,8 @@ void WriteParameter(
     ParameterVariant value)
 {
     static std::uint64_t revision = 0;
-    consolidator::core::DspStateBatch batch;
-    batch.updates[0] = consolidator::core::DspUpdate{
+    consolidator::core::ParameterUpdateBatch batch;
+    batch.updates[0] = consolidator::core::ParameterUpdate{
         route,
         value,
         ++revision};

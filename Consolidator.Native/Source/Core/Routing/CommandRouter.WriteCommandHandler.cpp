@@ -5,14 +5,14 @@
 namespace consolidator::core
 {
 
-void CommandRouter::Handle(const WriteStateCommand& command)
+CommandResult CommandRouter::Handle(const WriteStateCommand& command)
 {
     if (!registry_.Contains(command.instanceId))
     {
-        return;
+        return NoCommandResponse{};
     }
 
-    coordinatorResponses_.Enqueue(stateWriter_.Write(command));
+    return stateWriter_.Write(command);
 }
 
 } // namespace consolidator::core

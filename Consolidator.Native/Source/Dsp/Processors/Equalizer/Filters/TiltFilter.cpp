@@ -42,11 +42,6 @@ double TiltFilter::ProcessSample(
     double input,
     std::size_t channel) noexcept
 {
-    if (runtimeState_.bypass)
-    {
-        return input;
-    }
-
     const double lowShelfOutput = lowShelf_.ProcessSample(input, channel);
 
     return highShelf_.ProcessSample(
@@ -61,7 +56,7 @@ void TiltFilter::RecalculateCoefficients()
 
 bool TiltFilter::CalculateIsNeutral() const noexcept
 {
-    return runtimeState_.bypass || runtimeState_.gainDb == 0.0;
+    return runtimeState_.gainDb == 0.0;
 }
 
 void TiltFilter::ApplyInternalParameters()

@@ -2,6 +2,9 @@
 
 #include "Core/Instance/ConsolidatorInstance.h"
 
+#include <span>
+#include <unordered_map>
+
 namespace consolidator::core
 {
 
@@ -15,6 +18,7 @@ InstanceCoordinator::InstanceCoordinator()
     : groupGraph_(registry_)
     , stateRouter_(registry_, groupGraph_)
     , constraintResolver_(registry_, stateRouter_)
+    , instanceAudibilityResolver_(registry_, groupGraph_)
     , stateWriter_(
           registry_,
           stateRouter_,
@@ -22,8 +26,7 @@ InstanceCoordinator::InstanceCoordinator()
     , commandRouter_(
           registry_,
           constraintResolver_,
-          stateWriter_,
-          coordinatorResponses_)
+          stateWriter_)
     , worker_([this](std::stop_token stopToken)
       {
           WorkerLoop(stopToken);
@@ -54,6 +57,35 @@ void InstanceCoordinator::UnregisterInstance(InstanceId instanceId)
     if (const auto* instance = registry_.FindInstance(instanceId))
     {
         registry_.UnregisterInstance(instanceId, instance->GetStateStore().GetInstance());
+    }
+}
+
+void InstanceCoordinator::RefreshAudibility()
+{
+    std::vector<RuntimeControlUpdate> updates;
+    instanceAudibilityResolver_.Resolve(updates);
+
+    std::unordered_map<InstanceId, std::vector<RuntimeControlUpdate>> updatesByInstance;
+    for (const auto& update : updates)
+    {
+        if (!update.target.instanceId)
+        {
+            continue;
+        }
+        updatesByInstance[*update.target.instanceId].push_back(update);
+    }
+
+    for (auto& [instanceId, instanceUpdates] : updatesByInstance)
+    {
+        auto* instance = registry_.FindInstance(instanceId);
+        if (instance == nullptr)
+        {
+            continue;
+        }
+        instance->EnqueueRuntimeUpdates(
+            std::span<const RuntimeControlUpdate>{
+                instanceUpdates.data(),
+                instanceUpdates.size()});
     }
 }
 

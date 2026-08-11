@@ -42,6 +42,35 @@ void Saturator::Reset() noexcept
     }
 }
 
+bool Saturator::Reset(
+    const core::StatePath& route,
+    std::size_t depth) noexcept
+{
+    if (route.GetDeviceId() != GetDeviceId())
+    {
+        return false;
+    }
+
+    if (depth == route.GetDepth())
+    {
+        return DspDevice::Reset(route, depth);
+    }
+
+    if (route.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+
+    for (auto& detector : detectors_)
+    {
+        if (detector.Reset(route, depth + 1))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Saturator::Process(
     const double* input,
     double* output,
@@ -73,6 +102,10 @@ void Saturator::Process(
 double Saturator::ProcessSample(double input, DetectorEnvelopeFollower& detector) const noexcept
 {
     const double envelope = detector.ProcessSample(input);
+    if (detector.IsListening())
+    {
+        return detector.GetMonitoringSample();
+    }
     const double modulation = CalculateDriveModulation(envelope);
     const double effectiveDrive = runtimeState_.driveLinear * modulation;
     const double saturated = ApplyWaveshaper(input, effectiveDrive);
@@ -140,13 +173,6 @@ bool Saturator::ApplyOwnParameter(
         runtimeState_.detectorAmountTarget = *updated;
         return true;
     }
-    if (route.GetParameterId() == ParameterId::Bypass)
-    {
-        const auto* updated = std::get_if<bool>(&value);
-        if (updated == nullptr) return false;
-        runtimeState_.bypass = *updated;
-        return true;
-    }
     return false;
 }
 
@@ -177,6 +203,52 @@ bool Saturator::ApplyParameter(
     }
 
     return isUpdated;
+}
+
+bool Saturator::ApplyProcessingStateAtDepth(
+    const core::StatePath& target,
+    bool active,
+    std::size_t depth)
+{
+    if (target.GetDeviceId() != GetDeviceId())
+    {
+        return false;
+    }
+    if (depth == target.GetDepth())
+    {
+        return DspDevice::ApplyProcessingStateAtDepth(target, active, depth);
+    }
+    if (target.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+    bool applied = false;
+    for (auto& detector : detectors_)
+    {
+        applied = detector.ApplyProcessingStateAtDepth(
+            target, active, depth + 1) || applied;
+    }
+    return applied;
+}
+
+bool Saturator::ApplyMonitoringState(
+    const core::StatePath& target,
+    bool enabled,
+    std::size_t depth)
+{
+    if (target.GetDeviceId() != GetDeviceId() ||
+        depth >= target.GetDepth() ||
+        target.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+
+    bool applied = false;
+    for (auto& detector : detectors_)
+    {
+        applied = detector.ApplyMonitoringState(target, enabled, depth + 1) || applied;
+    }
+    return applied;
 }
 
 bool Saturator::StageRuntimeUpdate(
@@ -222,23 +294,15 @@ void Saturator::SetDetectorAmount(float amount)
     runtimeState_.detectorAmount = static_cast<double>(runtimeState_.detectorAmountTarget);
 }
 
-void Saturator::SetBypass(bool bypass) noexcept
-{
-    runtimeState_.bypass = bypass;
-}
-
 void Saturator::RecalculateRuntime()
 {
     SetDrive(runtimeState_.drive);
     SetOutputDb(runtimeState_.outputDb);
     SetMix(runtimeState_.mix);
     SetDetectorAmount(runtimeState_.detectorAmountTarget);
-    SetBypass(runtimeState_.bypass);
-
-    runtimeState_.isNeutral = runtimeState_.bypass
-        || (runtimeState_.driveLinear == 1.0
+    runtimeState_.isNeutral = runtimeState_.driveLinear == 1.0
             && runtimeState_.outputGainLinear == 1.0
-            && runtimeState_.wetMix == 1.0);
+            && runtimeState_.wetMix == 1.0;
 }
 
 } // namespace consolidator::dsp

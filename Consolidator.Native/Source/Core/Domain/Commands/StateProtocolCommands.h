@@ -26,7 +26,18 @@ struct WriteStateCommand
     StateRequestEntries entries;
 };
 
-using Command = std::variant<ReadStateCommand, WriteStateCommand>;
+// Resets the selected DSP route's real-time memory on the next audio block.
+struct ResetDspCommand
+{
+    RequestId requestId{0};
+    InstanceId instanceId{0};
+    StatePath target;
+};
+
+using Command = std::variant<
+    ReadStateCommand,
+    WriteStateCommand,
+    ResetDspCommand>;
 
 struct StateResponse
 {

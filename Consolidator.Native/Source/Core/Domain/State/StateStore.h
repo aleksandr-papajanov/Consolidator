@@ -2,6 +2,7 @@
 
 #include "Core/Domain/State/ChainState.h"
 #include "Core/Domain/State/StateEntry.h"
+#include "Core/Domain/State/StateMarker.h"
 
 namespace consolidator::core
 {
@@ -22,6 +23,11 @@ public:
     [[nodiscard]] const InstanceState& GetInstance() const noexcept
     {
         return instance_;
+    }
+
+    [[nodiscard]] const ChainState& GetChain() const noexcept
+    {
+        return chain_;
     }
 
     void SetInstanceId(InstanceId instanceId) noexcept

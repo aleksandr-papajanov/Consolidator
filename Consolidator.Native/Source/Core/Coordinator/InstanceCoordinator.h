@@ -11,6 +11,7 @@
 #include "Core/Routing/GroupGraph.h"
 #include "Core/Routing/StateRouter.h"
 #include "Core/Routing/ParameterConstraintResolver.h"
+#include "Core/Routing/InstanceAudibilityResolver.h"
 #include "Core/Routing/StateWriter.h"
 #include "Core/Registry/InstanceRegistry.h"
 
@@ -28,6 +29,10 @@ public:
     // Queues a command for serialized processing on the coordinator thread.
     void EnqueueCommand(Command command);
     [[nodiscard]] std::optional<StateResponse> TryDequeueResponse();
+    [[nodiscard]] InstanceRegistry& GetRegistry() noexcept
+    {
+        return registry_;
+    }
 
     ~InstanceCoordinator();
 
@@ -41,6 +46,7 @@ private:
 
     void RegisterInstance(ConsolidatorInstance& instance);
     void UnregisterInstance(InstanceId instanceId);
+    void RefreshAudibility();
 
     // Processes commands and routes responses until the coordinator is stopped.
     void WorkerLoop(std::stop_token stopToken);
@@ -50,6 +56,7 @@ private:
     GroupGraph groupGraph_;
     StateRouter stateRouter_;
     ParameterConstraintResolver constraintResolver_;
+    InstanceAudibilityResolver instanceAudibilityResolver_;
     ConcurrentQueue<StateResponse> coordinatorResponses_;
     StateWriter stateWriter_;
     CommandRouter commandRouter_;

@@ -46,6 +46,22 @@ void AppendParameters(
     (AppendParameter(query, snapshot, path, parameters), ...);
 }
 
+void AppendMarker(
+    const StatePath& query,
+    StateResponseEntries& snapshot,
+    StatePath path,
+    dsp::ParameterId parameterId,
+    const dsp::StateMarker<bool>& marker)
+{
+    path.field = StateField::DspParameter;
+    path.instanceId = query.instanceId;
+    path.parameterId = parameterId;
+    if (query.Matches(path))
+    {
+        (void)snapshot.TryAppend(StateEntry{path, StateValue{marker.value}});
+    }
+}
+
 } // namespace detail
 
 namespace
@@ -98,6 +114,21 @@ void AppendInstanceState(
             (void)snapshot.TryAppend(StateEntry{groupPath, value});
         }
     }
+
+    const auto mutePath = StatePath::InstanceMute(state.instanceId);
+    if (query.Matches(mutePath))
+    {
+        (void)snapshot.TryAppend(StateEntry{
+            mutePath,
+            StateValue{state.audibility.mute.value}});
+    }
+    const auto soloPath = StatePath::InstanceSolo(state.instanceId);
+    if (query.Matches(soloPath))
+    {
+        (void)snapshot.TryAppend(StateEntry{
+            soloPath,
+            StateValue{state.audibility.solo.value}});
+    }
 }
 
 void AppendFilterState(
@@ -107,10 +138,11 @@ void AppendFilterState(
     const dsp::FilterState& state)
 {
     detail::AppendParameters(query, snapshot, basePath,
-                             state.frequencyHz,
-                             state.q,
-                             state.gainDb,
-                             state.bypass);
+                             state.frequencyHz, state.q, state.gainDb);
+    detail::AppendMarker(query, snapshot, basePath,
+                         dsp::ParameterId::Bypass, state.bypass);
+    detail::AppendMarker(query, snapshot, basePath,
+                         dsp::ParameterId::Solo, state.solo);
 }
 
 void AppendGainState(
@@ -119,12 +151,9 @@ void AppendGainState(
     dsp::DeviceId deviceId,
     const dsp::GainState& state)
 {
-    detail::AppendParameters(
-        query,
-        snapshot,
-        StatePath::Device(deviceId),
-        state.gainDb,
-        state.bypass);
+    detail::AppendParameters(query, snapshot, StatePath::Device(deviceId), state.gainDb);
+    detail::AppendMarker(query, snapshot, StatePath::Device(deviceId),
+                         dsp::ParameterId::Bypass, state.bypass);
 }
 
 } // namespace
@@ -137,26 +166,12 @@ void StateStore::ReadState(
     AppendGainState(path, snapshot, dsp::DeviceId::MainInputGain, chain_.inputGain);
     AppendGainState(path, snapshot, dsp::DeviceId::MainOutputGain, chain_.outputGain);
 
-    detail::AppendParameters(
-        path,
-        snapshot,
-        StatePath::Device(dsp::DeviceId::Saturator),
-        chain_.saturator.drive,
-        chain_.saturator.outputDb,
-        chain_.saturator.mix,
-        chain_.saturator.detectorAmount,
-        chain_.saturator.bypass);
-    detail::AppendParameters(
-        path,
-        snapshot,
-        StatePath::Device(dsp::DeviceId::Compressor),
-        chain_.compressor.thresholdDb,
-        chain_.compressor.ratio,
-        chain_.compressor.attackMs,
-        chain_.compressor.releaseMs,
-        chain_.compressor.outputDb,
-        chain_.compressor.mix,
-        chain_.compressor.bypass);
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Equalizer),
+        dsp::ParameterId::Bypass, chain_.equalizer.bypass);
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Equalizer),
+        dsp::ParameterId::Solo, chain_.equalizer.solo);
 
     for (std::size_t bankIndex = 0; bankIndex < chain_.equalizers.size(); ++bankIndex)
     {
@@ -164,11 +179,10 @@ void StateStore::ReadState(
             static_cast<std::uint8_t>(dsp::RouteNodeId::Bank0) + bankIndex);
         const auto bankPath = StatePath::Device(dsp::DeviceId::Equalizer)
             .WithNode(bankNode);
-        detail::AppendParameter(
-            path,
-            snapshot,
-            bankPath,
-            chain_.equalizers[bankIndex].state.bypass);
+        detail::AppendMarker(path, snapshot, bankPath,
+            dsp::ParameterId::Bypass, chain_.equalizers[bankIndex].bypass);
+        detail::AppendMarker(path, snapshot, bankPath,
+            dsp::ParameterId::Solo, chain_.equalizers[bankIndex].solo);
 
         for (std::size_t filterIndex = 0;
              filterIndex < chain_.equalizers[bankIndex].filters.size();
@@ -186,6 +200,33 @@ void StateStore::ReadState(
         }
     }
 
+    detail::AppendParameters(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Saturator),
+        chain_.saturator.drive, chain_.saturator.outputDb,
+        chain_.saturator.mix, chain_.saturator.detectorAmount);
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Saturator),
+        dsp::ParameterId::Bypass, chain_.saturator.bypass);
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Saturator),
+        dsp::ParameterId::Solo, chain_.saturator.solo);
+    detail::AppendParameters(
+        path,
+        snapshot,
+        StatePath::Device(dsp::DeviceId::Compressor),
+        chain_.compressor.thresholdDb,
+        chain_.compressor.ratio,
+        chain_.compressor.attackMs,
+        chain_.compressor.releaseMs,
+        chain_.compressor.outputDb,
+        chain_.compressor.mix);
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Compressor),
+        dsp::ParameterId::Bypass, chain_.compressor.bypass);
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Compressor),
+        dsp::ParameterId::Solo, chain_.compressor.solo);
+
     for (std::size_t filterIndex = 0;
          filterIndex < chain_.saturator.detector.filters.size();
          ++filterIndex)
@@ -201,6 +242,11 @@ void StateStore::ReadState(
             chain_.saturator.detector.filters[filterIndex]);
     }
 
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Saturator)
+            .WithNode(dsp::RouteNodeId::Detector),
+        dsp::ParameterId::Listen, chain_.saturator.detector.listen);
+
     for (std::size_t filterIndex = 0;
          filterIndex < chain_.compressor.detector.filters.size();
          ++filterIndex)
@@ -215,11 +261,16 @@ void StateStore::ReadState(
                 .WithNode(filterNode),
             chain_.compressor.detector.filters[filterIndex]);
     }
+
+    detail::AppendMarker(path, snapshot,
+        StatePath::Device(dsp::DeviceId::Compressor)
+            .WithNode(dsp::RouteNodeId::Detector),
+        dsp::ParameterId::Listen, chain_.compressor.detector.listen);
 }
 
 bool StateStore::CanWrite(const StateEntry& entry) const
 {
-    if (entry.path.field != StateField::DspParameter)
+    if (!entry.path.field)
     {
         return false;
     }

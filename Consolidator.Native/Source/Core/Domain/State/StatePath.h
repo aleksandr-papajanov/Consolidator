@@ -18,7 +18,9 @@ enum class StateField : std::uint8_t
     SelectedBank,
     BankId,
     GroupId,
-    DspParameter
+    DspParameter,
+    Mute,
+    Solo
 };
 
 // Fixed-size address for instance topology and DSP parameter state.
@@ -44,6 +46,20 @@ struct StatePath
     {
         StatePath path;
         path.deviceId = device;
+        return path;
+    }
+
+    [[nodiscard]] static constexpr StatePath InstanceMute(InstanceId instance) noexcept
+    {
+        auto path = Instance(instance);
+        path.field = StateField::Mute;
+        return path;
+    }
+
+    [[nodiscard]] static constexpr StatePath InstanceSolo(InstanceId instance) noexcept
+    {
+        auto path = Instance(instance);
+        path.field = StateField::Solo;
         return path;
     }
 
@@ -144,6 +160,14 @@ struct StatePath
     {
         auto result = *this;
         result.parameterId = parameter;
+        return result;
+    }
+
+    [[nodiscard]] constexpr StatePath WithInstance(
+        InstanceId instance) const noexcept
+    {
+        auto result = *this;
+        result.instanceId = instance;
         return result;
     }
 

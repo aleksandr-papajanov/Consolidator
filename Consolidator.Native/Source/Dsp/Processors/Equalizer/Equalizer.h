@@ -14,7 +14,6 @@ namespace consolidator::dsp
 
 struct EqualizerRuntimeState
 {
-    bool bypass = false;
     bool isNeutral = true;
 };
 
@@ -34,7 +33,7 @@ public:
     {
     }
 
-    // Processes all filters in order, bypassing the composite when neutral.
+    // Processes active, non-neutral filters in order.
     void Process(
         const double* input,
         double* output,
@@ -46,6 +45,10 @@ public:
 
     void Prepare(double sampleRate, std::size_t channelCount);
     void Reset() noexcept;
+    // Routes reset requests to this bank or one of its filters.
+    bool Reset(
+        const core::StatePath& path,
+        std::size_t depth) noexcept override;
 
     [[nodiscard]] double ProcessSample(double input) noexcept;
 
@@ -77,6 +80,11 @@ public:
     bool ApplyParameter(
         const core::StatePath& route,
         const ParameterVariant& value,
+        std::size_t depth) override;
+
+    bool ApplyProcessingStateAtDepth(
+        const core::StatePath& target,
+        bool active,
         std::size_t depth) override;
 
     bool StageRuntimeUpdate(

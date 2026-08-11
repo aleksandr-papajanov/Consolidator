@@ -9,23 +9,23 @@
 namespace consolidator::core
 {
 
-void CommandRouter::Handle(const ReadStateCommand& command)
+CommandResult CommandRouter::Handle(const ReadStateCommand& command)
 {
     if (!registry_.Contains(command.instanceId))
     {
-        return;
+        return NoCommandResponse{};
     }
 
-    HandleReadCommand(command);
+    return HandleReadCommand(command);
 }
 
-void CommandRouter::HandleReadCommand(
+StateResponse CommandRouter::HandleReadCommand(
     const ReadStateCommand& command)
 {
     auto* instance = registry_.FindInstance(command.instanceId);
     if (instance == nullptr)
     {
-        return;
+        return StateResponse{command.requestId, command.instanceId, {}};
     }
 
     StateResponse response{
@@ -58,7 +58,7 @@ void CommandRouter::HandleReadCommand(
             command.instanceId,
             response.entries.entries[index]);
     }
-    coordinatorResponses_.Enqueue(std::move(response));
+    return response;
 }
 
 } // namespace consolidator::core

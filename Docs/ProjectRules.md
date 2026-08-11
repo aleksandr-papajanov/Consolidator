@@ -434,10 +434,10 @@ case ParameterId::Gain:
     }
     break;
 
-case ParameterId::Bypass:
-    if (const auto* value = TryGetValue<bool>(change))
+case ParameterId::Gain:
+    if (const auto* value = TryGetValue<float>(change))
     {
-        runtime_.bypass = *value;
+        runtime_.gainDb = *value;
     }
     break;
 
@@ -578,8 +578,7 @@ private:
 ```cpp
 [[nodiscard]] bool IsNeutral() const noexcept override
 {
-    return runtime_.bypass ||
-           runtime_.linearGain == 1.0;
+    return runtime_.linearGain == 1.0;
 }
 ```
 

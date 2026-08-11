@@ -26,9 +26,8 @@ dsp::FilterState MakeFilterState(const core::settings::FilterSettings& settings)
             static_cast<float>(settings.gainDb.defaultValue),
             static_cast<float>(settings.gainDb.min),
             static_cast<float>(settings.gainDb.max)},
-        dsp::ParameterState<bool>{
-            dsp::ParameterId::Bypass,
-            settings.bypass.defaultValue}};
+        dsp::StateMarker<bool>{settings.bypass.defaultValue},
+        dsp::StateMarker<bool>{false}};
 }
 
 dsp::GainState MakeGainState(const core::settings::GainSettings& settings)
@@ -39,9 +38,7 @@ dsp::GainState MakeGainState(const core::settings::GainSettings& settings)
             static_cast<float>(settings.gainDb.defaultValue),
             static_cast<float>(settings.gainDb.min),
             static_cast<float>(settings.gainDb.max)},
-        dsp::ParameterState<bool>{
-            dsp::ParameterId::Bypass,
-            settings.bypass.defaultValue}};
+        dsp::StateMarker<bool>{settings.bypass.defaultValue}};
 }
 
 dsp::SaturatorState MakeSaturatorState(
@@ -68,9 +65,8 @@ dsp::SaturatorState MakeSaturatorState(
             1.0f,
             0.0f,
             8.0f},
-        dsp::ParameterState<bool>{
-            dsp::ParameterId::Bypass,
-            settings.bypass.defaultValue},
+        dsp::StateMarker<bool>{settings.bypass.defaultValue},
+        dsp::StateMarker<bool>{false},
         {}};
 }
 
@@ -108,9 +104,8 @@ dsp::CompressorState MakeCompressorState(
             static_cast<float>(settings.mix.defaultValue),
             static_cast<float>(settings.mix.min),
             static_cast<float>(settings.mix.max)},
-        dsp::ParameterState<bool>{
-            dsp::ParameterId::Bypass,
-            settings.bypass.defaultValue},
+        dsp::StateMarker<bool>{settings.bypass.defaultValue},
+        dsp::StateMarker<bool>{false},
         {}};
 }
 
@@ -129,6 +124,9 @@ ChainState MakeChainState(const core::settings::DspSettings& settings)
         MakeGainState(settings.inputGain),
         MakeSaturatorState(settings.saturator),
         MakeCompressorState(settings.compressor),
+        dsp::EqualizerState{
+            dsp::StateMarker<bool>{false},
+            dsp::StateMarker<bool>{false}},
         {},
         MakeGainState(settings.outputGain)};
 
@@ -136,6 +134,10 @@ ChainState MakeChainState(const core::settings::DspSettings& settings)
          bankIndex < settings.banks.size();
          ++bankIndex)
     {
+        chain.equalizers[bankIndex].bypass =
+            dsp::StateMarker<bool>{false};
+        chain.equalizers[bankIndex].solo =
+            dsp::StateMarker<bool>{false};
         for (std::size_t filterIndex = 0;
              filterIndex < settings.banks[bankIndex].bands.size();
              ++filterIndex)
@@ -159,14 +161,6 @@ ChainState MakeChainState(const core::settings::DspSettings& settings)
     {
         chain.compressor.detector.filters[filterIndex] =
             MakeFilterState(settings.compressor.detector.bands[filterIndex]);
-    }
-
-    for (auto& equalizer : chain.equalizers)
-    {
-        equalizer.state = dsp::EqualizerState{
-            dsp::ParameterState<bool>{
-                dsp::ParameterId::Bypass,
-                false}};
     }
 
     return chain;

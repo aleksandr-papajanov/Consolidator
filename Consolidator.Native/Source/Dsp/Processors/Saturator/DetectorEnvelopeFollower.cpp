@@ -39,11 +39,26 @@ void DetectorEnvelopeFollower::Reset() noexcept
     filters_.Reset();
 
     envelope_ = 0.0;
+    monitoringSample_ = 0.0;
+}
+
+bool DetectorEnvelopeFollower::Reset(
+    const core::StatePath& route,
+    std::size_t depth) noexcept
+{
+    if (depth == route.GetDepth())
+    {
+        Reset();
+        return true;
+    }
+
+    return filters_.Reset(route, depth);
 }
 
 double DetectorEnvelopeFollower::ProcessSample(double input) noexcept
 {
     const double filtered = filters_.ProcessSample(input);
+    monitoringSample_ = filtered;
     const double rectified = std::abs(filtered);
 
     const double coefficient =
@@ -63,7 +78,33 @@ bool DetectorEnvelopeFollower::ApplyParameter(
     const ParameterVariant& value,
     std::size_t depth)
 {
-    return filters_.ApplyParameter(route, value, depth);
+    auto equalizerRoute = route;
+    equalizerRoute.deviceId = DeviceId::Equalizer;
+    return filters_.ApplyParameter(equalizerRoute, value, depth);
+}
+
+bool DetectorEnvelopeFollower::ApplyProcessingStateAtDepth(
+    const core::StatePath& target,
+    bool active,
+    std::size_t depth)
+{
+    auto equalizerTarget = target;
+    equalizerTarget.deviceId = DeviceId::Equalizer;
+    return filters_.ApplyProcessingStateAtDepth(equalizerTarget, active, depth);
+}
+
+bool DetectorEnvelopeFollower::ApplyMonitoringState(
+    const core::StatePath& target,
+    bool enabled,
+    std::size_t depth)
+{
+    if (target.GetParameterId() == ParameterId::Listen &&
+        depth == target.GetDepth())
+    {
+        listen_ = enabled;
+        return true;
+    }
+    return false;
 }
 
 void DetectorEnvelopeFollower::CommitRuntimeUpdates()

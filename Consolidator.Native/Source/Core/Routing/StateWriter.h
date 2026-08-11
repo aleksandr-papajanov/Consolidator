@@ -3,15 +3,27 @@
 #include <vector>
 
 #include "Core/Domain/Commands/StateProtocolCommands.h"
-#include "Core/Instance/Queues/DspUpdateMailbox.h"
+#include "Core/Instance/Queues/RuntimeUpdateMailbox.h"
 #include "Core/Registry/InstanceRegistry.h"
 #include "Core/Routing/ParameterConstraintResolver.h"
+#include "Core/Routing/ProcessingStateResolver.h"
 #include "Core/Routing/StateRouter.h"
 
 namespace consolidator::core
 {
 
 // Applies a write batch atomically per entry and publishes its DSP consequences.
+struct StateEffects
+{
+    bool audibilityChanged = false;
+};
+
+struct StateWriteResult
+{
+    StateResponse response;
+    StateEffects effects;
+};
+
 class StateWriter final
 {
 public:
@@ -21,21 +33,23 @@ public:
         const ParameterConstraintResolver& constraintResolver) noexcept;
 
     // Validates, commits, publishes and enriches one protocol write batch.
-    [[nodiscard]] StateResponse Write(
+    [[nodiscard]] StateWriteResult Write(
         const WriteStateCommand& command);
 
 private:
-    struct DspUpdateTarget
+    struct ParameterUpdateTarget
     {
         InstanceId instanceId;
-        DspUpdate update;
+        ParameterUpdate update;
     };
 
     struct WriteContext
     {
         StateResponse response;
-        std::vector<DspUpdateTarget> dspUpdates;
+        std::vector<ParameterUpdateTarget> parameterUpdates;
+        std::vector<InstanceId> runtimeInstances;
         std::vector<StatePath> constraintPaths;
+        StateEffects effects;
     };
 
     void ApplyEntries(
@@ -74,7 +88,8 @@ private:
         WriteContext& context) const;
 
     // Delivers all accepted runtime changes after state commits are complete.
-    void PublishDspUpdates(WriteContext& context);
+    void EnqueueParameterUpdates(WriteContext& context);
+    void EnqueueRuntimeUpdates(WriteContext& context);
     // Adds authoritative effective limits affected by the committed writes.
     void RefreshConstraints(WriteContext& context);
 
@@ -87,6 +102,7 @@ private:
     InstanceRegistry& registry_;
     const StateRouter& stateRouter_;
     const ParameterConstraintResolver& constraintResolver_;
+    ProcessingStateResolver processingStateResolver_;
 };
 
 } // namespace consolidator::core

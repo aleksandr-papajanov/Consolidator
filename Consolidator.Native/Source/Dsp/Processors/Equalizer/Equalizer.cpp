@@ -10,7 +10,7 @@ void Equalizer::Process(
     std::size_t frameCount,
     std::size_t channelCount)
 {
-    if (IsNeutral())
+    if (!IsActive() || IsNeutral())
     {
         const auto n = frameCount * channelCount;
         for (std::size_t i = 0; i < n; ++i)
@@ -27,7 +27,10 @@ void Equalizer::Process(
             double sample = input[frame * channelCount + ch];
             for (auto& f : filters_)
             {
-                sample = f->ProcessSample(sample, ch);
+                if (f->IsActive() && !f->IsNeutral())
+                {
+                    sample = f->ProcessSample(sample, ch);
+                }
             }
             output[frame * channelCount + ch] = sample;
         }
@@ -53,13 +56,57 @@ void Equalizer::Reset() noexcept
     }
 }
 
+bool Equalizer::Reset(
+    const core::StatePath& route,
+    std::size_t depth) noexcept
+{
+    if (depth == 0 && route.GetDeviceId() != GetDeviceId())
+    {
+        return false;
+    }
+
+    if (bankId_ && depth < route.GetDepth())
+    {
+        const auto bankId = route.TryGetBankId();
+        if (!bankId || *bankId != *bankId_)
+        {
+            return false;
+        }
+    }
+
+    if (depth == route.GetDepth())
+    {
+        return DspDevice::Reset(route, depth);
+    }
+
+    const auto node = route.GetNode(depth);
+    const auto filterOffset =
+        static_cast<std::size_t>(RouteNodeId::Filter1);
+    if (static_cast<std::size_t>(node) < filterOffset)
+    {
+        return Reset(route, depth + 1);
+    }
+
+    const auto filterIndex = static_cast<std::size_t>(node) - filterOffset;
+    auto* filter = GetFilter(filterIndex);
+    return filter != nullptr && filter->Reset(route, depth + 1);
+}
+
 double Equalizer::ProcessSample(double input) noexcept
 {
+    if (!IsActive() || IsNeutral())
+    {
+        return input;
+    }
+
     double output = input;
 
     for (auto& filter : filters_)
     {
-        output = filter->ProcessSample(output, 0);
+        if (filter->IsActive() && !filter->IsNeutral())
+        {
+            output = filter->ProcessSample(output, 0);
+        }
     }
 
     return output;
@@ -73,6 +120,15 @@ bool Equalizer::ApplyParameter(
     if (route.GetDeviceId() != GetDeviceId())
     {
         return false;
+    }
+
+    if (bankId_ && route.GetDepth() > 0)
+    {
+        const auto bankId = route.TryGetBankId();
+        if (!bankId || *bankId != *bankId_)
+        {
+            return false;
+        }
     }
 
     if (depth == route.GetDepth())
@@ -106,6 +162,38 @@ bool Equalizer::StageRuntimeUpdate(
     return ApplyParameter(route, value, 0);
 }
 
+bool Equalizer::ApplyProcessingStateAtDepth(
+    const core::StatePath& target,
+    bool active,
+    std::size_t depth)
+{
+    if (target.GetDeviceId() != GetDeviceId())
+    {
+        return false;
+    }
+    if (bankId_ && target.GetDepth() > 0)
+    {
+        const auto bankId = target.TryGetBankId();
+        if (!bankId || *bankId != *bankId_)
+        {
+            return false;
+        }
+    }
+    if (depth == target.GetDepth())
+    {
+        return DspDevice::ApplyProcessingStateAtDepth(target, active, depth);
+    }
+    const auto node = target.GetNode(depth);
+    const auto filterOffset = static_cast<std::size_t>(RouteNodeId::Filter1);
+    if (static_cast<std::size_t>(node) < filterOffset)
+    {
+        return ApplyProcessingStateAtDepth(target, active, depth + 1);
+    }
+    auto* filter = GetFilter(static_cast<std::size_t>(node) - filterOffset);
+    return filter != nullptr && filter->ApplyProcessingStateAtDepth(
+        target, active, depth + 1);
+}
+
 void Equalizer::CommitRuntimeUpdates()
 {
     for (const auto& filter : filters_)
@@ -128,27 +216,13 @@ bool Equalizer::ApplyOwnParameter(
     const core::StatePath& route,
     const ParameterVariant& value)
 {
-    if (route.GetParameterId() != ParameterId::Bypass)
-    {
-        return false;
-    }
-    const auto* bypass = std::get_if<bool>(&value);
-    if (bypass == nullptr)
-    {
-        return false;
-    }
-    runtimeState_.bypass = *bypass;
-    return true;
+    (void)route;
+    (void)value;
+    return false;
 }
 
 void Equalizer::RecalculateRuntime()
 {
-    if (runtimeState_.bypass)
-    {
-        runtimeState_.isNeutral = true;
-        return;
-    }
-
     runtimeState_.isNeutral = true;
     for (const auto& filter : filters_)
     {

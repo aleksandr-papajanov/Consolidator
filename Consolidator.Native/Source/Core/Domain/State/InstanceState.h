@@ -6,6 +6,7 @@
 #include "Core/Domain/Ids/DspIds.h"
 #include "Core/Domain/Ids/InstanceId.h"
 #include "Core/Domain/State/BankState.h"
+#include "Core/Domain/State/InstanceAudibilityState.h"
 
 namespace consolidator::core
 {
@@ -25,6 +26,7 @@ struct InstanceState
         BankState{dsp::BankId::Bank4},
         BankState{dsp::BankId::Bank5},
         BankState{dsp::BankId::Bank6}};
+    dsp::InstanceAudibilityState audibility;
 };
 
 } // namespace consolidator::core

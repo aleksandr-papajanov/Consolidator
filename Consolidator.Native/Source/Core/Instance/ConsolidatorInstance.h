@@ -5,8 +5,10 @@
 #include <span>
 
 #include "Core/Domain/Commands/StateProtocolCommands.h"
+#include "Core/Domain/Commands/RealtimeCommands.h"
 #include "Core/Domain/State/StateStore.h"
-#include "Core/Instance/Queues/DspUpdateMailbox.h"
+#include "Core/Instance/Queues/RuntimeUpdateMailbox.h"
+#include "Core/Queues/SpscQueue.h"
 
 namespace consolidator::dsp
 {
@@ -41,8 +43,14 @@ public:
 
     void EnqueueCommand(ReadStateCommand command);
     void EnqueueCommand(WriteStateCommand command);
+    // Enqueues a non-coalescable real-time reset event.
+    void EnqueueCommand(ResetDspCommand command);
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
+    [[nodiscard]] bool IsOutputEnabled() const noexcept
+    {
+        return outputEnabled_;
+    }
     [[nodiscard]] StateStore& GetStateStore() noexcept { return stateStore_; }
     [[nodiscard]] const StateStore& GetStateStore() const noexcept { return stateStore_; }
     [[nodiscard]] dsp::DspChain& GetDspChain() noexcept;
@@ -52,16 +60,30 @@ private:
     friend class CommandRouter;
     friend class StateWriter;
 
-    // Publishes coordinator-owned updates into the audio-thread mailbox.
-    void PublishDspUpdates(std::span<const DspUpdate> updates);
+    // Enqueues coordinator-owned latest-value updates for the audio thread.
+    void EnqueueParameterUpdates(std::span<const ParameterUpdate> updates);
+    void EnqueueRuntimeUpdates(
+        std::span<const RuntimeControlUpdate> updates);
+
+    // Enqueues a reset route without coalescing it.
+    void EnqueueRealtimeCommand(const StatePath& target);
+    void ConsumeParameterUpdates();
+    void ConsumeRuntimeUpdates();
+    void ProcessRealtimeCommands();
+    void ApplyOutputGate(
+        double* mainOutput,
+        std::size_t sampleCount) const;
+
     // Registers all paths and sends the complete initial DSP runtime snapshot.
     void PublishInitialRuntimeState();
+
     static constexpr std::size_t kChannelCount = 2;
 
     std::unique_ptr<dsp::DspChain> dspChain_;
     StateStore stateStore_;
-    DspUpdateMailbox dspUpdateMailbox_;
-    std::uint64_t nextDspRevision_ = 0;
+    RuntimeUpdateMailbox runtimeUpdateMailbox_;
+    SpscQueue<RealtimeCommand, 16> realtimeCommandQueue_;
+    bool outputEnabled_ = true;
     bool initialized_ = false;
 };
 

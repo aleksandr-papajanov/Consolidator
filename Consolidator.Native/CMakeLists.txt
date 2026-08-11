@@ -35,14 +35,17 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Domain/Ids/InstanceId.h
     Source/Core/Domain/Ids/GroupId.h
     Source/Core/Domain/Ids/DspIds.h
-    Source/Core/Instance/Queues/DspUpdateMailbox.h
-    Source/Core/Instance/Queues/DspUpdateMailbox.cpp
+    Source/Core/Instance/Queues/RuntimeUpdateMailbox.h
+    Source/Core/Instance/Queues/RuntimeUpdateMailbox.cpp
+    Source/Core/Instance/Queues/ParameterUpdates.h
+    Source/Core/Instance/Queues/RuntimeControlUpdates.h
     Source/Core/Coordinator/InstanceCoordinator.h
     Source/Core/Coordinator/InstanceCoordinator.cpp
     Source/Core/Coordinator/InstanceCoordinator.CommandSubmission.cpp
     Source/Core/Coordinator/InstanceCoordinator.WorkerLoop.cpp
     Source/Core/Routing/CommandRouter.h
     Source/Core/Routing/CommandRouter.CommandHandler.cpp
+    Source/Core/Routing/CommandRouter.ActionCommandHandler.cpp
     Source/Core/Routing/CommandRouter.ReadCommandHandler.cpp
     Source/Core/Routing/CommandRouter.WriteCommandHandler.cpp
     Source/Core/Routing/GroupGraph.h
@@ -53,7 +56,12 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Routing/ParameterConstraintResolver.cpp
     Source/Core/Routing/StateWriter.h
     Source/Core/Routing/StateWriter.cpp
+    Source/Core/Routing/ProcessingStateResolver.h
+    Source/Core/Routing/ProcessingStateResolver.cpp
+    Source/Core/Routing/InstanceAudibilityResolver.h
+    Source/Core/Routing/InstanceAudibilityResolver.cpp
     Source/Core/Domain/State/InstanceState.h
+    Source/Core/Domain/State/InstanceAudibilityState.h
     Source/Core/Domain/State/StateStore.h
     Source/Core/Domain/State/StateStore.cpp
     Source/Core/Domain/State/StateStore.Factory.cpp
@@ -66,6 +74,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Domain/State/StatePath.h
     Source/Core/Domain/Commands/Commands.h
     Source/Core/Domain/Commands/StateProtocolCommands.h
+    Source/Core/Domain/Commands/RealtimeCommands.h
     Source/Core/Queues/ConcurrentQueue.h
     Source/Core/Queues/SpscQueue.h
     Source/Core/Queues/LatestValueMailbox.h
@@ -76,6 +85,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Settings/DspDeviceSettings.h
     Source/Core/Domain/ParameterVariant.h
     Source/Core/Domain/State/ParameterState.h
+    Source/Core/Domain/State/StateMarker.h
     Source/Dsp/Utilities/TimeCoefficient.h
     Source/Dsp/Processors/DspDevice.h
     Source/Dsp/Processors/DspDevice.cpp
@@ -157,8 +167,36 @@ target_include_directories(StateProtocolIntegrationTest PRIVATE Source)
 target_link_libraries(StateProtocolIntegrationTest PRIVATE ConsolidatorCore)
 target_compile_features(StateProtocolIntegrationTest PRIVATE cxx_std_20)
 
+add_executable(InstanceAudibilityResolverTest
+    Tests/Core/InstanceAudibilityResolverTests.cpp
+)
+
+target_include_directories(InstanceAudibilityResolverTest PRIVATE Source)
+target_link_libraries(InstanceAudibilityResolverTest PRIVATE ConsolidatorCore)
+target_compile_features(InstanceAudibilityResolverTest PRIVATE cxx_std_20)
+
 include(CTest)
 add_test(NAME ConsolidatorInstanceTest COMMAND ConsolidatorInstanceTest)
 add_test(NAME InstanceRegistryTest COMMAND InstanceRegistryTest)
 add_test(NAME DspChainTest COMMAND DspChainTest)
 add_test(NAME StateProtocolIntegrationTest COMMAND StateProtocolIntegrationTest)
+add_test(NAME InstanceAudibilityResolverTest COMMAND InstanceAudibilityResolverTest)
+
+add_executable(GroupGraphTest
+    Tests/Core/GroupGraphTest.cpp
+)
+
+target_include_directories(GroupGraphTest PRIVATE Source)
+target_link_libraries(GroupGraphTest PRIVATE ConsolidatorCore)
+target_compile_features(GroupGraphTest PRIVATE cxx_std_20)
+
+add_executable(ProcessingStateResolverTest
+    Tests/Core/ProcessingStateResolverTests.cpp
+)
+
+target_include_directories(ProcessingStateResolverTest PRIVATE Source)
+target_link_libraries(ProcessingStateResolverTest PRIVATE ConsolidatorCore)
+target_compile_features(ProcessingStateResolverTest PRIVATE cxx_std_20)
+
+add_test(NAME GroupGraphTest COMMAND GroupGraphTest)
+add_test(NAME ProcessingStateResolverTest COMMAND ProcessingStateResolverTest)

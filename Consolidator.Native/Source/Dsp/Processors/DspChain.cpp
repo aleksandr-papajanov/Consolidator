@@ -12,7 +12,7 @@ void DspChain::AddDevice(std::unique_ptr<DspDevice> device)
     devices_.push_back(std::move(device));
 }
 
-void DspChain::ApplyRuntimeUpdates(const core::DspStateBatch& batch)
+void DspChain::ApplyRuntimeUpdates(const core::ParameterUpdateBatch& batch)
 {
     std::array<bool, kMaximumDevices> dirtyDevices{};
     for (std::size_t updateIndex = 0; updateIndex < batch.count; ++updateIndex)
@@ -40,6 +40,44 @@ void DspChain::ApplyRuntimeUpdates(const core::DspStateBatch& batch)
     }
 }
 
+void DspChain::ApplyRuntimeControlUpdates(
+    const core::RuntimeControlBatch& batch)
+{
+    // Runtime controls only change routing/monitoring flags; parameter runtime is committed.
+    for (std::size_t updateIndex = 0; updateIndex < batch.count; ++updateIndex)
+    {
+        const auto& update = batch.updates[updateIndex];
+        const bool appliesToAllEqualizerBanks =
+            update.property == core::RuntimeProperty::Active &&
+            update.target.GetDeviceId() == DeviceId::Equalizer &&
+            update.target.GetDepth() == 0;
+        for (const auto& device : devices_)
+        {
+            const bool applied = update.property == core::RuntimeProperty::Active
+                ? device->ApplyProcessingState(update.target, update.value)
+                : device->ApplyMonitoringState(update.target, update.value);
+            if (applied)
+            {
+                if (!appliesToAllEqualizerBanks)
+                {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void DspChain::Reset(const core::StatePath& target) noexcept
+{
+    for (const auto& device : devices_)
+    {
+        if (device->Reset(target, 0))
+        {
+            return;
+        }
+    }
+}
+
 void DspChain::Process(
     const double* input,
     double* interim,
@@ -51,10 +89,9 @@ void DspChain::Process(
     const double* source = input;
     bool hasProcessed = false;
     bool outputContainsResult = false;
-
     for (const auto& device : devices_)
     {
-        if (device->IsNeutral())
+        if (!device->IsActive() || device->IsNeutral())
         {
             continue;
         }

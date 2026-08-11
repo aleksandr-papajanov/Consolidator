@@ -19,7 +19,6 @@ struct CompressorRuntimeState
     float releaseMs = 100.0f;
     float outputDb = 0.0f;
     float mix = 1.0f;
-    bool bypass = false;
     double sampleRate = core::settings::kDefaultSampleRate;
     double gainReductionDb = 0.0;
     double outputGainLinear = 1.0;
@@ -43,6 +42,10 @@ public:
 
     void Prepare(double sampleRate, std::size_t channelCount);
     void Reset() noexcept;
+    // Routes reset requests to the compressor or its detector filters.
+    bool Reset(
+        const core::StatePath& path,
+        std::size_t depth) noexcept override;
 
     // Processes a block with feed-forward detection, smoothing and dry/wet mixing.
     void Process(
@@ -60,6 +63,16 @@ public:
     bool ApplyParameter(
         const core::StatePath& route,
         const ParameterVariant& value,
+        std::size_t depth) override;
+
+    bool ApplyProcessingStateAtDepth(
+        const core::StatePath& target,
+        bool active,
+        std::size_t depth) override;
+
+    bool ApplyMonitoringState(
+        const core::StatePath& target,
+        bool enabled,
         std::size_t depth) override;
 
     bool StageRuntimeUpdate(
@@ -116,13 +129,14 @@ private:
     void SetRelease(float releaseMs) noexcept;
     void SetOutputDb(float outputDb);
     void SetMix(float mix) noexcept;
-    void SetBypass(bool bypass) noexcept;
 
     CompressorRuntimeState runtimeState_;
     CompressorMeterState meterState_;
 
     Equalizer detectorEqualizer_{detail::ElementKind::CompressorDetectorFilter};
     RmsDetector rmsDetector_;
+    bool detectorListen_ = false;
+    double detectorMonitoringSample_ = 0.0;
 };
 
 } // namespace consolidator::dsp

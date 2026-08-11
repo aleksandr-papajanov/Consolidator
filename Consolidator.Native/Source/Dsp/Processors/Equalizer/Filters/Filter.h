@@ -30,7 +30,6 @@ struct FilterRuntimeState
     float frequencyHz = 1000.0f;
     float q = 0.707f;
     float gainDb = 0.0f;
-    bool bypass = false;
     BiquadCoefficients coefficients;
     std::array<FilterMemory, 2> channelStates{};
     double sampleRate = core::settings::kDefaultSampleRate;
@@ -42,6 +41,9 @@ struct FilterRuntimeState
 class Filter : public DspDevice
 {
 public:
+    using DspDevice::Reset;
+    using DspDevice::ApplyProcessingStateAtDepth;
+
     Filter(
         DeviceId deviceId,
         detail::ElementKind elementKind,
@@ -73,6 +75,7 @@ public:
     [[nodiscard]] virtual double ProcessSample(
         double input,
         std::size_t channel) noexcept;
+
 
     [[nodiscard]] FilterId GetFilterId() const noexcept
     {

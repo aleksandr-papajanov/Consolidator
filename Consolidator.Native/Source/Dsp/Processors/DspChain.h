@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "Dsp/Processors/DspDevice.h"
-#include "Core/Instance/Queues/DspUpdateMailbox.h"
+#include "Core/Instance/Queues/RuntimeUpdateMailbox.h"
 
 namespace consolidator::core
 {
@@ -28,7 +28,11 @@ public:
 
     void AddDevice(std::unique_ptr<DspDevice> device);
     // Applies one coalesced mailbox batch before processing the next audio block.
-    void ApplyRuntimeUpdates(const core::DspStateBatch& batch);
+    void ApplyRuntimeUpdates(const core::ParameterUpdateBatch& batch);
+    // Applies active/listen runtime controls after parameters and before Process.
+    void ApplyRuntimeControlUpdates(const core::RuntimeControlBatch& batch);
+    // Resets runtime memory for devices matching the requested route.
+    void Reset(const core::StatePath& target) noexcept;
 
     // Runs all active devices using preallocated intermediate buffers.
     void Process(const double* input,

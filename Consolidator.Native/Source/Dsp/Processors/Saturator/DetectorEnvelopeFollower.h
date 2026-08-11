@@ -23,6 +23,10 @@ public:
 
     void Prepare(double sampleRate);
     void Reset() noexcept;
+    // Routes reset requests to the detector envelope or its filters.
+    bool Reset(
+        const core::StatePath& path,
+        std::size_t depth) noexcept;
 
     // Applies detector EQ, rectifies the signal and updates the smoothed envelope.
     [[nodiscard]] double ProcessSample(double input) noexcept;
@@ -33,6 +37,16 @@ public:
         const ParameterVariant& value,
         std::size_t depth);
 
+    bool ApplyProcessingStateAtDepth(
+        const core::StatePath& target,
+        bool active,
+        std::size_t depth);
+
+    bool ApplyMonitoringState(
+        const core::StatePath& target,
+        bool enabled,
+        std::size_t depth);
+
     void CommitRuntimeUpdates();
 
     void SetAttackMs(double attackMs);
@@ -41,6 +55,16 @@ public:
     [[nodiscard]] const Equalizer& GetEqualizer() const noexcept
     {
         return filters_;
+    }
+
+    [[nodiscard]] double GetMonitoringSample() const noexcept
+    {
+        return monitoringSample_;
+    }
+
+    [[nodiscard]] bool IsListening() const noexcept
+    {
+        return listen_;
     }
 
 private:
@@ -54,6 +78,8 @@ private:
     double attackCoefficient_ = 0.0;
     double releaseCoefficient_ = 0.0;
     double envelope_ = 0.0;
+    double monitoringSample_ = 0.0;
+    bool listen_ = false;
 };
 
 } // namespace consolidator::dsp

@@ -81,7 +81,8 @@ enum class ParameterId : std::uint8_t
     Bypass,
     Mix,
     Type,
-    Solo
+    Solo,
+    Listen
 };
 
 namespace detail

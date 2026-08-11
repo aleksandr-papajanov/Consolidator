@@ -46,6 +46,38 @@ void AppendUnique(
     }
 }
 
+bool AffectsProcessingState(const StateEntry& entry)
+{
+    if (!entry.path.parameterId)
+    {
+        return false;
+    }
+
+    return *entry.path.parameterId == dsp::ParameterId::Solo ||
+           *entry.path.parameterId == dsp::ParameterId::Bypass;
+}
+
+bool AffectsAudibility(const StateEntry& entry)
+{
+    if (entry.path.field == StateField::Mute ||
+        entry.path.field == StateField::Solo)
+    {
+        return true;
+    }
+    if (entry.path.field == StateField::SelectedBank ||
+        entry.path.field == StateField::GroupId)
+    {
+        return true;
+    }
+    return false;
+}
+
+bool IsMonitoringParameter(const StateEntry& entry)
+{
+    return entry.path.parameterId &&
+        *entry.path.parameterId == dsp::ParameterId::Listen;
+}
+
 std::vector<StatePath> BuildConstraintRefreshPaths(
     const std::vector<BankAddress>& affectedBanks)
 {
@@ -74,7 +106,7 @@ StateWriter::StateWriter(
 {
 }
 
-StateResponse StateWriter::Write(
+StateWriteResult StateWriter::Write(
     const WriteStateCommand& command)
 {
     WriteContext context{
@@ -84,9 +116,12 @@ StateResponse StateWriter::Write(
             {}}};
 
     ApplyEntries(command.instanceId, command, context);
-    PublishDspUpdates(context);
+    EnqueueParameterUpdates(context);
+    EnqueueRuntimeUpdates(context);
     RefreshConstraints(context);
-    return FinalizeResponse(context);
+    return StateWriteResult{
+        FinalizeResponse(context),
+        context.effects};
 }
 
 void StateWriter::ApplyEntries(
@@ -179,6 +214,7 @@ bool StateWriter::TryApplyTopology(
 
     case StateWriteStatus::Applied:
         AppendApplied(applied, context);
+        context.effects.audibilityChanged = true;
         break;
     }
 
@@ -257,16 +293,36 @@ bool StateWriter::ApplyToInstance(
 
     case StateWriteStatus::Applied:
         AppendApplied(applied, context);
+        context.effects.audibilityChanged = context.effects.audibilityChanged ||
+            AffectsAudibility(entry);
         if (!appliedParameter)
         {
             CollectConstraintPaths(targetInstanceId, entry, context);
             return true;
         }
+        if (AffectsAudibility(*appliedParameter))
+        {
+            CollectConstraintPaths(targetInstanceId, entry, context);
+            return true;
+        }
+        if (AffectsProcessingState(*appliedParameter) ||
+            IsMonitoringParameter(*appliedParameter))
+        {
+            if (std::find(
+                    context.runtimeInstances.begin(),
+                    context.runtimeInstances.end(),
+                    targetInstanceId) == context.runtimeInstances.end())
+            {
+                context.runtimeInstances.push_back(targetInstanceId);
+            }
+            CollectConstraintPaths(targetInstanceId, entry, context);
+            return true;
+        }
         if (const auto parameterValue = ToParameterVariant(appliedParameter->value))
         {
-            context.dspUpdates.push_back({
+            context.parameterUpdates.push_back({
                 targetInstanceId,
-                DspUpdate{appliedParameter->path, *parameterValue, 0}});
+                ParameterUpdate{appliedParameter->path, *parameterValue, 0}});
         }
         CollectConstraintPaths(targetInstanceId, entry, context);
         return true;
@@ -359,11 +415,11 @@ void StateWriter::AppendApplied(
     }
 }
 
-void StateWriter::PublishDspUpdates(WriteContext& context)
+void StateWriter::EnqueueParameterUpdates(WriteContext& context)
 {
     std::vector<InstanceId> publishedInstances;
-    std::vector<DspUpdate> updates;
-    for (const auto& pending : context.dspUpdates)
+    std::vector<ParameterUpdate> updates;
+    for (const auto& pending : context.parameterUpdates)
     {
         if (std::find(publishedInstances.begin(), publishedInstances.end(), pending.instanceId) !=
             publishedInstances.end())
@@ -378,15 +434,45 @@ void StateWriter::PublishDspUpdates(WriteContext& context)
         }
 
         updates.clear();
-        for (const auto& candidate : context.dspUpdates)
+        for (const auto& candidate : context.parameterUpdates)
         {
             if (candidate.instanceId == pending.instanceId)
             {
                 updates.push_back(candidate.update);
             }
         }
-        instance->PublishDspUpdates(std::span<const DspUpdate>{updates.data(), updates.size()});
+        instance->EnqueueParameterUpdates(
+            std::span<const ParameterUpdate>{updates.data(), updates.size()});
         publishedInstances.push_back(pending.instanceId);
+    }
+}
+
+void StateWriter::EnqueueRuntimeUpdates(WriteContext& context)
+{
+    std::vector<InstanceId> publishedInstances;
+    RuntimeResolution resolution;
+    for (const auto instanceId : context.runtimeInstances)
+    {
+        if (std::find(publishedInstances.begin(), publishedInstances.end(), instanceId) !=
+            publishedInstances.end())
+        {
+            continue;
+        }
+
+        auto* instance = registry_.FindInstance(instanceId);
+        if (instance == nullptr)
+        {
+            continue;
+        }
+
+        processingStateResolver_.Resolve(
+            instanceId,
+            instance->GetStateStore(),
+            resolution);
+        instance->EnqueueRuntimeUpdates(
+            std::span<const RuntimeControlUpdate>{
+                resolution.controls.data(), resolution.controls.size()});
+        publishedInstances.push_back(instanceId);
     }
 }
 

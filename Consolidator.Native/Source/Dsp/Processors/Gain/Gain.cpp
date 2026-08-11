@@ -11,11 +11,13 @@ bool Gain::StageRuntimeUpdate(
     const core::StatePath& path,
     const ParameterVariant& value)
 {
-    if (path.GetDeviceId() != GetDeviceId() || path.GetDepth() != 0)
-    {
-        return false;
-    }
+    return DspDevice::ApplyParameter(path, value, 0);
+}
 
+bool Gain::ApplyOwnParameter(
+    const core::StatePath& path,
+    const ParameterVariant& value)
+{
     if (path.GetParameterId() == ParameterId::Gain)
     {
         const auto* gainDb = std::get_if<float>(&value);
@@ -24,28 +26,16 @@ bool Gain::StageRuntimeUpdate(
             return false;
         }
         runtimeState_.gainDb = *gainDb;
-    }
-    else if (path.GetParameterId() == ParameterId::Bypass)
-    {
-        const auto* bypass = std::get_if<bool>(&value);
-        if (bypass == nullptr)
-        {
-            return false;
-        }
-        runtimeState_.bypass = *bypass;
-    }
-    else
-    {
-        return false;
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 void Gain::RecalculateRuntime()
 {
     runtimeState_.linearGain = std::pow(10.0, static_cast<double>(runtimeState_.gainDb) / 20.0);
-    runtimeState_.isNeutral = runtimeState_.bypass || runtimeState_.linearGain == 1.0;
+    runtimeState_.isNeutral = runtimeState_.linearGain == 1.0;
 }
 
 void Gain::Process(

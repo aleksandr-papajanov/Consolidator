@@ -47,8 +47,31 @@ void Compressor::Reset() noexcept
     rmsDetector_.Reset();
 
     runtimeState_.gainReductionDb = 0.0;
+    detectorMonitoringSample_ = 0.0;
 
     meterState_.gainReductionDb.store(0.0f, std::memory_order_relaxed);
+}
+
+bool Compressor::Reset(
+    const core::StatePath& route,
+    std::size_t depth) noexcept
+{
+    if (route.GetDeviceId() != GetDeviceId())
+    {
+        return false;
+    }
+
+    if (depth == route.GetDepth())
+    {
+        return DspDevice::Reset(route, depth);
+    }
+
+    if (route.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+
+    return detectorEqualizer_.Reset(route, depth + 1);
 }
 
 void Compressor::Process(
@@ -79,6 +102,11 @@ void Compressor::Process(
         for (std::size_t channel = 0; channel < channelCount; ++channel)
         {
             const auto sampleIndex = frameOffset + channel;
+            if (detectorListen_)
+            {
+                output[sampleIndex] = detectorMonitoringSample_;
+                continue;
+            }
 
             output[sampleIndex] = ProcessSample(input[sampleIndex], gainLinear);
         }
@@ -100,7 +128,8 @@ double Compressor::CalculateLinkedDetectorInput(const double* frame, std::size_t
         linkedPeak = std::max(linkedPeak, std::abs(frame[channel]));
     }
 
-    return detectorEqualizer_.ProcessSample(linkedPeak);
+    detectorMonitoringSample_ = detectorEqualizer_.ProcessSample(linkedPeak);
+    return detectorMonitoringSample_;
 }
 
 double Compressor::MeasureLevelDb(double detectorInput) noexcept
@@ -180,7 +209,6 @@ bool Compressor::ApplyOwnParameter(
     if (parameterId == ParameterId::Release) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.releaseMs = *v; return true; }
     if (parameterId == ParameterId::Gain) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.outputDb = *v; return true; }
     if (parameterId == ParameterId::Mix) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.mix = *v; return true; }
-    if (parameterId == ParameterId::Bypass) { const auto* v = std::get_if<bool>(&value); if (v == nullptr) return false; runtimeState_.bypass = *v; return true; }
     return false;
 }
 
@@ -204,8 +232,55 @@ bool Compressor::ApplyParameter(
         return false;
     }
 
-    const bool isUpdated = detectorEqualizer_.ApplyParameter(route, value, depth + 1);
+    auto equalizerRoute = route;
+    equalizerRoute.deviceId = DeviceId::Equalizer;
+    const bool isUpdated = detectorEqualizer_.ApplyParameter(
+        equalizerRoute,
+        value,
+        depth + 1);
     return isUpdated;
+}
+
+bool Compressor::ApplyProcessingStateAtDepth(
+    const core::StatePath& target,
+    bool active,
+    std::size_t depth)
+{
+    if (target.GetDeviceId() != GetDeviceId())
+    {
+        return false;
+    }
+    if (depth == target.GetDepth())
+    {
+        return DspDevice::ApplyProcessingStateAtDepth(target, active, depth);
+    }
+    if (target.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+    auto equalizerTarget = target;
+    equalizerTarget.deviceId = DeviceId::Equalizer;
+    return detectorEqualizer_.ApplyProcessingStateAtDepth(
+        equalizerTarget,
+        active,
+        depth + 1);
+}
+
+bool Compressor::ApplyMonitoringState(
+    const core::StatePath& target,
+    bool enabled,
+    std::size_t depth)
+{
+    if (target.GetDeviceId() != GetDeviceId() ||
+        target.GetParameterId() != ParameterId::Listen ||
+        depth + 1 != target.GetDepth() ||
+        target.GetNode(depth) != RouteNodeId::Detector)
+    {
+        return false;
+    }
+
+    detectorListen_ = enabled;
+    return true;
 }
 
 bool Compressor::StageRuntimeUpdate(
@@ -258,11 +333,6 @@ void Compressor::SetMix(float mix) noexcept
     RecalculateMix();
 }
 
-void Compressor::SetBypass(bool bypass) noexcept
-{
-    runtimeState_.bypass = bypass;
-}
-
 void Compressor::RecalculateRuntime()
 {
     RecalculateAttackCoefficient();
@@ -270,10 +340,9 @@ void Compressor::RecalculateRuntime()
     RecalculateOutputGain();
     RecalculateMix();
 
-    runtimeState_.isNeutral = runtimeState_.bypass
-        || (runtimeState_.thresholdDb >= 0.0f
+    runtimeState_.isNeutral = runtimeState_.thresholdDb >= 0.0f
             && runtimeState_.ratio <= 1.0f
-            && runtimeState_.outputDb == 0.0f);
+            && runtimeState_.outputDb == 0.0f;
 }
 
 void Compressor::RecalculateAttackCoefficient() noexcept

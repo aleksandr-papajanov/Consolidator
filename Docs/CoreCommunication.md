@@ -11,9 +11,9 @@ Max / control code
   -> ConsolidatorInstance::EnqueueCommand()
   -> InstanceCoordinator global queue
   -> CommandRouter resolves topology and group targets
-  -> StateStore::WriteState() on coordinator thread
-  -> immediate StateResponse
-  -> per-instance DspUpdateMailbox (latest-value slots)
+  -> StateWriter returns response + effects
+  -> InstanceCoordinator publishes response and applies effects
+  -> per-instance RuntimeUpdateMailbox (latest-value slots)
   -> audio thread: ConsumeLatest()
   -> DspChain::ApplyRuntimeUpdates()
   -> DspChain::Process()
@@ -31,18 +31,49 @@ then registers every DSP `StatePath` and publishes the complete initial runtime
 state before returning to the external owner. `Process()` is not exposed by the
 external wrapper before this initialization completes.
 
-`DspUpdateMailbox` has one producer (the coordinator worker) and one consumer
+`RuntimeUpdateMailbox` has one producer (the coordinator worker) and one consumer
 (the instance audio callback). During instance initialization it registers a
 fixed slot for every DSP `StatePath`. Publishing replaces the value in that
 path's slot and never requires a retry queue; an unregistered path is a fatal
-invariant violation. Each update carries a monotonic revision for diagnostics
-and ordering within a batch.
+invariant violation. Parameter and processing updates each carry their own
+monotonic revision sequence for diagnostics and ordering within their mailbox.
 
 `RegisterPath()` completes before the first `Process()` call. The mailbox is
 intentionally single-producer: concurrent publishers are not supported by the
 seqlock protocol.
 
 Non-coalescable actions such as reset must use a separate event queue.
+
+The two audio-thread delivery mechanisms have different semantics:
+
+- `RuntimeUpdateMailbox` carries persistent runtime state where the latest value
+  wins;
+- `SpscQueue<RealtimeCommand>` carries ordered events where every command must
+  be observed.
+
+`Bypass` and `Solo` are authoritative processing markers carried by
+`WriteStateCommand`, so they use the same validation and grouping flow as other
+state parameters. Neither marker is forwarded to the ordinary DSP mailbox.
+After the state commit, `ProcessingStateResolver` enqueues internal
+`RuntimeControlUpdate` values through a shared runtime-control mailbox. Each
+update carries a `RuntimeProperty` (`Active`, `Listen`, or `OutputEnabled`), and the mailbox key
+includes both target path and property. They are
+derived runtime values and are not state-protocol entries. At the start of an
+audio block the parameter and processing snapshots form one runtime boundary:
+parameters are committed first, then routing flags are applied, then audio is
+processed. Processing updates only change active flags and do not require
+`CommitRuntimeUpdates()`.
+At the start of a block the instance applies parameter updates, then processing
+updates, then ordered reset events, and only then calls `Process()`. Reset events
+therefore observe the newly committed runtime configuration.
+
+`ResetDspCommand` is delivered through the instance's fixed-capacity SPSC event
+realtime command queue and resets the selected device route's real-time memory on
+the next audio block;
+it does not change user-facing parameter values.
+Reset routing follows the same route hierarchy as DSP parameters, including EQ
+banks/filters and detector filters; each composite device consumes one route
+segment and delegates the remainder to its child.
 
 ## State protocol
 
@@ -59,6 +90,8 @@ Valid path factories include:
 
 ```cpp
 StatePath::Instance(instanceId);
+StatePath::InstanceMute(instanceId);
+StatePath::InstanceSolo(instanceId);
 StatePath::SelectedBank(instanceId);
 StatePath::BankGroup(instanceId, bankId);
 StatePath::DspParameter(instanceId, route);
@@ -95,7 +128,7 @@ the response is emitted. The audio thread scans the fixed slots once at the
 start of its block and stages the resulting local batch; values superseded
 before that scan are collapsed by path.
 
-`StateResponsePublisher` publishes coordinator responses. `Applied` means that
+The coordinator response queue publishes command responses. `Applied` means that
 the authoritative `StateStore` changed and the instance mailbox accepted the
 runtime update; it does not mean that the audio thread has already applied it.
 There is no local
@@ -122,6 +155,8 @@ Core/Domain/State/
 ├─ StatePath.h
 ├─ StateEntry.h
 ├─ ParameterState.h
+├─ StateMarker.h
+├─ InstanceAudibilityState.h
 ├─ InstanceState.h
 ├─ ChainState.h
 └─ DspStates.h
@@ -136,7 +171,7 @@ state address and entry representation.
 ## DSP boundary
 
 DSP devices do not own authoritative user state. They receive runtime updates
-from `DspUpdateMailbox`, update local `RuntimeState`, and process audio. A
+from `RuntimeUpdateMailbox`, update local `RuntimeState`, and process audio. A
 runtime state may contain a local copy of target values, coefficients,
 smoothing values and audio memory, but it is never read by the coordinator as
 the source of truth.

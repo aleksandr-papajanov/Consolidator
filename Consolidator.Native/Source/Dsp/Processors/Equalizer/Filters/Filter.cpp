@@ -81,13 +81,6 @@ bool Filter::ApplyOwnParameter(
         runtimeState_.gainDb = *v;
         isUpdated = true;
     }
-    else if (route.GetParameterId() == ParameterId::Bypass)
-    {
-        const auto* v = std::get_if<bool>(&value);
-        if (v == nullptr) return false;
-        runtimeState_.bypass = *v;
-        isUpdated = true;
-    }
 
     if (isUpdated)
     {
@@ -109,7 +102,7 @@ void Filter::CommitRuntimeUpdates()
 
 double Filter::ProcessSample(double input, std::size_t channel) noexcept
 {
-    if (channel >= runtimeState_.channelStates.size())
+    if (!IsActive() || IsNeutral() || channel >= runtimeState_.channelStates.size())
     {
         return input;
     }
@@ -137,12 +130,11 @@ bool Filter::CalculateIsNeutral() const noexcept
 {
     const auto& coefficients = runtimeState_.coefficients;
 
-    return runtimeState_.bypass ||
-           (coefficients.b0 == 1.0 &&
+    return coefficients.b0 == 1.0 &&
             coefficients.b1 == 0.0 &&
             coefficients.b2 == 0.0 &&
             coefficients.a1 == 0.0 &&
-            coefficients.a2 == 0.0);
+            coefficients.a2 == 0.0;
 }
 
 double Filter::GetMaximumFrequencyHz() const noexcept

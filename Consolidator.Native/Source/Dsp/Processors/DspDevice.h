@@ -35,6 +35,21 @@ public:
     // Commits staged values and rebuilds derived runtime state once per batch.
     virtual void CommitRuntimeUpdates();
 
+    bool ApplyProcessingState(
+        const core::StatePath& target,
+        bool active);
+
+    bool ApplyMonitoringState(
+        const core::StatePath& target,
+        bool enabled);
+
+    virtual void Reset() noexcept;
+
+    // Resets the component addressed by a route segment during recursive dispatch.
+    virtual bool Reset(
+        const core::StatePath& path,
+        std::size_t depth) noexcept;
+
     [[nodiscard]] DeviceId GetDeviceId() const noexcept
     {
         return deviceId_;
@@ -52,7 +67,18 @@ public:
 
     [[nodiscard]] virtual bool IsNeutral() const noexcept = 0;
 
+    [[nodiscard]] bool IsActive() const noexcept
+    {
+        return active_;
+    }
+
 protected:
+    // Recursive route dispatch used by composite devices.
+    virtual bool ApplyProcessingStateAtDepth(
+        const core::StatePath& target,
+        bool active,
+        std::size_t depth);
+
     virtual bool ApplyParameter(
         const core::StatePath& route,
         const ParameterVariant& value,
@@ -64,10 +90,16 @@ protected:
 
     virtual void RecalculateRuntime() = 0;
 
+    virtual bool ApplyMonitoringState(
+        const core::StatePath& target,
+        bool enabled,
+        std::size_t depth);
+
 private:
     DeviceId deviceId_;
     detail::ElementKind elementKind_;
     std::uint8_t elementIndex_;
+    bool active_ = true;
 };
 
 } // namespace consolidator::dsp

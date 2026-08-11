@@ -10,7 +10,10 @@
 Input Gain → Saturator → Compressor → Equalizer banks → Output Gain
 ```
 
-`DspChain` хранит устройства и вызывает их `Process()` последовательно. Неактивные (`IsNeutral()`) устройства пропускаются.
+`DspChain` хранит устройства и вызывает их `Process()` последовательно. `active` —
+derived runtime state, публикуемый `ProcessingStateResolver`; неактивные устройства
+пропускаются до вызова `Process()`. `IsNeutral()` остаётся отдельной оптимизацией
+для математически нейтральных устройств.
 
 ## Устройства и состояние
 
@@ -22,7 +25,7 @@ Input Gain → Saturator → Compressor → Equalizer banks → Output Gain
 
 Пользовательские `*State` принадлежат coordinator-owned `StateStore` и не
 изменяются DSP. `ChainState` хранит отдельные input/output gain, top-level
-devices, EQ banks, EQ filters и detector filters. DSP получает `DspStateBatch` через latest-value mailbox. Для
+devices, EQ banks, EQ filters и detector filters. DSP получает `ParameterUpdateBatch` через latest-value mailbox. Для
 каждого `StatePath` mailbox хранит только последнее значение в атомарно
 упакованном слоте; update содержит
 монотонный `revision` для диагностики и порядка внутри batch. Audio thread
@@ -31,7 +34,8 @@ reset) должны идти отдельной event queue.
 
 Параметры хранятся в `ParameterState<T>` из `Core/Domain/State`, но только внутри
 `StateStore`. Числовой параметр содержит локальный `ParameterId`, текущее значение
-и диапазон; boolean-параметр содержит только `ParameterId` и значение.
+и диапазон. Пользовательские boolean markers (`Bypass`, `Solo`, `Listen`, `Mute`)
+хранятся в `StateMarker<bool>` и не являются DSP parameters.
 Диапазоны и defaults задаются в `Core/Settings/DspDeviceSettings.h`; DSP
 processor-классы не должны дублировать пользовательские параметры или их
 диапазоны.
@@ -41,12 +45,16 @@ State-модель организована так:
 ```text
 StateStore
 ├─ InstanceState
+│  └─ InstanceAudibilityState
+│     ├─ mute
+│     └─ solo
 └─ ChainState
    ├─ GainState
    ├─ SaturatorState
    │  └─ DetectorState
    ├─ CompressorState
    │  └─ DetectorState
+   ├─ EqualizerState
    ├─ EqualizerBankState[]
    └─ GainState
 ```
@@ -57,7 +65,8 @@ StateStore
 
 ## Маршрутизация параметров
 
-Параметры передаются как `StateEntry` с `StateField::DspParameter`. `StatePath`
+Параметры передаются как `StateEntry` с `StateField::DspParameter`. Markers
+используют свои state fields (`Mute` и `Solo` для instance state). `StatePath`
 является единым адресом topology и DSP-параметров:
 
 ```cpp
@@ -76,15 +85,65 @@ StateEntry{
 composite-узел получает тот же `StateEntry` и передаёт его дальше:
 
 ```text
-StateStore → DspUpdateMailbox → DspChain → DspDevice → RuntimeState
+StateStore → RuntimeUpdateMailbox → DspChain → DspDevice → RuntimeState
 ```
+
+`Solo` и `Bypass` являются authoritative processing markers в `StateStore`. При изменении
+любого из них `ProcessingStateResolver` пересчитывает derived processing state.
+В domain state они представлены `StateMarker<bool>`, а не `ParameterState<bool>`;
+`ParameterId` остаётся только адресом state protocol и не делает marker DSP runtime
+параметром. То же правило действует для detector `Listen`.
+Chain рассматривает весь Equalizer как одну стадию; banks являются peer-scope
+внутри этой стадии. `EqualizerState` содержит markers всего EQ на depth 0,
+а `EqualizerBankState` — markers конкретного банка на depth 1. Resolver публикует
+полный derived `RuntimeResolution` как `RuntimeControlUpdate` в control mailbox.
+`RuntimeProperty` разделяет `Active`, `Listen` и `OutputEnabled`, а composite key
+`(target, property)` не позволяет им перетирать друг друга.
+Processing state не входит в `StateStore` и не
+сохраняется через state protocol. `DspChain::Process()` не вычисляет solo-правила.
+
+`InstanceState::audibility.solo` имеет instance/group scope и не участвует в локальном
+chain resolver. `InstanceState::audibility.mute` безусловно выключает instance.
+`InstanceCoordinator` владеет `InstanceAudibilityResolver` и пересчитывает
+`OutputEnabled` сразу для
+всех live instances: при наличии output solo audible становится union source
+instance и direct members его selected-bank group. Connected/transitive group
+traversal для audibility не используется. `OutputEnabled` применяется на
+instance output gate после `DspChain::Process()`; `OutputGain.bypass` остаётся
+обычным локальным `Active` control.
+
+Для chain границей становится самый downstream solo: upstream до него включительно
+остаётся active, downstream устройства выключаются, а output gain остаётся
+mandatory post stage. Для bank/filter peer scope при наличии solo active остаются
+только solo-элементы; без solo действует `!bypass`.
+
+Detector filters имеют отдельный peer-scope для Saturator и Compressor.
+Их active дополнительно ограничивается состоянием parent device: detector нужен,
+если parent active или включён Listen.
+Их `RuntimeControlUpdate` paths проходят через `Detector` и не зависят от EQ-bank
+solo. `Listen` является отдельным monitoring dimension и не является частью
+`active` routing. `Listen` хранится только в `DetectorState`: это один marker
+для всего detector Saturator и один для всего detector Compressor. Он доставляется
+с `RuntimeProperty::Listen` через control mailbox. При Listen
+полный detector output напрямую становится output устройства и обходит
+основную обработку (gain reduction, saturation, wet/dry и output gain).
+Detector envelope при этом продолжает рассчитываться обычным path.
+
+`ResetDspCommand` clears a
+device route's internal real-time memory through the realtime command SPSC queue;
+composite devices recursively route EQ-bank, filter and detector-filter paths.
+Reset events are not coalesced with parameter updates.
 
 Для Saturator и Compressor detector route проходит через `RouteNodeId::Detector`, затем в их detector equalizer и соответствующий filter.
 
 В batch сначала staging-ятся все target values, затем один раз вызывается
 `CommitRuntimeUpdates()` у каждого устройства. Это гарантирует актуальный
 `isNeutral` и производные коэффициенты без повторного пересчёта после каждого
-параметра. DSP не возвращает пользовательское состояние обратно в coordinator.
+параметра. Затем применяются `RuntimeControlUpdate` только для routing flags;
+они не вызывают commit. После parameter/control snapshots исполняются ordered
+realtime commands, и только затем начинается обработка аудиоблока. Это
+block-start invariant. DSP не возвращает пользовательское состояние обратно в
+coordinator.
 
 ## State boundary
 

@@ -11,7 +11,6 @@ namespace consolidator::dsp
 struct GainRuntimeState
 {
     float gainDb = 0.0f;
-    bool bypass = false;
     double linearGain = 1.0;
     bool isNeutral = true;
 };
@@ -48,6 +47,10 @@ public:
         const ParameterVariant& value) override;
 
 private:
+    bool ApplyOwnParameter(
+        const core::StatePath& path,
+        const ParameterVariant& value) override;
+
     void RecalculateRuntime() override;
     GainRuntimeState runtimeState_;
 };

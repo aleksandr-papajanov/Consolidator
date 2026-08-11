@@ -9,18 +9,13 @@
 namespace consolidator::core
 {
 
-struct EqualizerBankState
-{
-    dsp::EqualizerState state;
-    std::array<dsp::FilterState, 7> filters;
-};
-
 struct ChainState
 {
     dsp::GainState inputGain;
     dsp::SaturatorState saturator;
     dsp::CompressorState compressor;
-    std::array<EqualizerBankState, InstanceState::kBankCount> equalizers;
+    dsp::EqualizerState equalizer;
+    std::array<dsp::EqualizerBankState, InstanceState::kBankCount> equalizers;
     dsp::GainState outputGain;
 };
 

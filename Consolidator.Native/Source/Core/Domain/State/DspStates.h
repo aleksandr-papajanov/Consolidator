@@ -3,6 +3,7 @@
 #include <array>
 
 #include "Core/Domain/State/ParameterState.h"
+#include "Core/Domain/State/StateMarker.h"
 
 // Passive user-facing state containers for the DSP device hierarchy.
 namespace consolidator::dsp
@@ -11,7 +12,7 @@ namespace consolidator::dsp
 struct GainState
 {
     ParameterState<float> gainDb;
-    ParameterState<bool> bypass;
+    StateMarker<bool> bypass;
 };
 
 struct FilterState
@@ -19,17 +20,27 @@ struct FilterState
     ParameterState<float> frequencyHz;
     ParameterState<float> q;
     ParameterState<float> gainDb;
-    ParameterState<bool> bypass;
+    StateMarker<bool> bypass;
+    StateMarker<bool> solo;
 };
 
 struct EqualizerState
 {
-    ParameterState<bool> bypass;
+    StateMarker<bool> bypass;
+    StateMarker<bool> solo;
+};
+
+struct EqualizerBankState
+{
+    StateMarker<bool> bypass;
+    StateMarker<bool> solo;
+    std::array<FilterState, 7> filters;
 };
 
 struct DetectorState
 {
     std::array<FilterState, 2> filters;
+    StateMarker<bool> listen;
 };
 
 struct SaturatorState
@@ -38,7 +49,8 @@ struct SaturatorState
     ParameterState<float> outputDb;
     ParameterState<float> mix;
     ParameterState<float> detectorAmount;
-    ParameterState<bool> bypass;
+    StateMarker<bool> bypass;
+    StateMarker<bool> solo;
     DetectorState detector;
 };
 
@@ -50,7 +62,8 @@ struct CompressorState
     ParameterState<float> releaseMs;
     ParameterState<float> outputDb;
     ParameterState<float> mix;
-    ParameterState<bool> bypass;
+    StateMarker<bool> bypass;
+    StateMarker<bool> solo;
     DetectorState detector;
 };
 
