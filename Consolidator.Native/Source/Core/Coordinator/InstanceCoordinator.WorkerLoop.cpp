@@ -25,6 +25,10 @@ void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
             std::vector<ConsolidatorInstance::ResponseNotifierHandle> notifiers;
             {
                 std::lock_guard registryLock{registryMutex_};
+                for (auto* instance : registry_.GetInstances())
+                {
+                    instance->RefreshEqualizerResponseRequest();
+                }
                 while (const auto command = commandQueue_.TryDequeue())
                 {
                     const auto result = commandRouter_.HandleCommand(*command);

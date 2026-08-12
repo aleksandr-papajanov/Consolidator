@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(Consolidator.Native
     VERSION 0.1.0
     DESCRIPTION "Consolidator native DSP and Core processing library"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 20)
@@ -31,8 +31,35 @@ set_target_properties(ConsolidatorCore PROPERTIES
 )
 
 target_sources(ConsolidatorCore PRIVATE
+    Source/Analysis/Spectrum/SpectrumTypes.h
+    Source/Analysis/LatestSnapshot.h
+    Source/Analysis/AnalysisService.h
+    Source/Analysis/AnalysisSlot.h
+    Source/Analysis/AnalysisSlot.cpp
+    Source/Analysis/Spectrum/SpectrumAnalyzer.h
+    Source/Analysis/Spectrum/SpectrumAnalyzer.cpp
+    Source/Analysis/Spectrum/SpectrumMapper.h
+    Source/Analysis/Spectrum/SpectrumMapper.cpp
+    Source/Analysis/Spectrum/AudioWindowAccumulator.h
+    Source/Analysis/Spectrum/SpectrumStream.h
+    Source/Analysis/Spectrum/SpectrumStream.cpp
+    Source/Analysis/FrequencyResponse/FrequencyResponseTypes.h
+    Source/Analysis/FrequencyResponse/FrequencyResponseCalculator.h
+    Source/Analysis/FrequencyResponse/FrequencyResponseCalculator.cpp
+    Source/Analysis/FrequencyResponse/FrequencyResponseStream.h
+    Source/Analysis/FrequencyResponse/FrequencyResponseStream.cpp
+    Source/Analysis/AnalysisService.cpp
+    Source/Analysis/AnalysisService.WorkerLoop.cpp
+    Source/Analysis/KissFFT/kiss_fft.h
+    Source/Analysis/KissFFT/kiss_fftr.h
+    Source/Analysis/KissFFT/_kiss_fft_guts.h
+    Source/Analysis/KissFFT/kiss_fft_log.h
+    Source/Analysis/KissFFT/kiss_fft.c
+    Source/Analysis/KissFFT/kiss_fftr.c
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
+    Source/Core/Analysis/EqualizerResponseBuilder.h
+    Source/Core/Analysis/EqualizerResponseBuilder.cpp
     Source/Core/Instance/ConsolidatorInstance.CommandSubmission.cpp
     Source/Core/Domain/Ids/InstanceId.h
     Source/Core/Domain/Ids/GroupId.h
@@ -151,9 +178,11 @@ add_consolidator_test(RoutingTests Tests/Component/Core/RoutingTests.cpp compone
 add_consolidator_test(ProcessingStateTests Tests/Component/Core/ProcessingStateTests.cpp component)
 add_consolidator_test(DspPrimitiveTests Tests/Component/Dsp/DspPrimitiveTests.cpp component)
 add_consolidator_test(DspChainTests Tests/Component/Dsp/DspChainTests.cpp component)
+add_consolidator_test(AnalysisTests Tests/Component/Analysis/AnalysisTests.cpp component)
 add_consolidator_test(ReadCommandTests Tests/Commands/ReadCommandTests.cpp command)
 add_consolidator_test(WriteCommandTests Tests/Commands/WriteCommandTests.cpp command)
 add_consolidator_test(ActionCommandTests Tests/Commands/ActionCommandTests.cpp command)
 add_consolidator_test(StateProtocolIntegrationTests Tests/Integration/StateProtocolIntegrationTests.cpp integration)
 add_consolidator_test(InstanceProcessingIntegrationTests Tests/Integration/InstanceProcessingIntegrationTests.cpp integration)
 add_consolidator_test(ResponseNotifierLifecycleTests Tests/Integration/ResponseNotifierLifecycleTests.cpp integration)
+add_consolidator_test(AnalysisLifecycleTests Tests/Integration/AnalysisLifecycleTests.cpp integration)

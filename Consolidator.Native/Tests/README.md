@@ -6,6 +6,7 @@ checks in large scenario executables.
 ```text
 Tests/
 ├─ Component/
+│  ├─ Analysis/      latest-value transport, FFT and response calculations
 │  ├─ Core/          state, queues, routing and runtime resolution
 │  ├─ Dsp/           processors, filters, chain construction and routing
 │  └─ Max/           atom protocol codecs, framing and wire correlation

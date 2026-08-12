@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "Analysis/AnalysisSlot.h"
 #include "Core/Coordinator/InstanceCoordinator.h"
 #include "Core/Routing/ProcessingStateResolver.h"
 #include "Dsp/DspChainBuilder.h"
@@ -49,6 +50,8 @@ ConsolidatorInstance::~ConsolidatorInstance()
     {
         ShutdownResponseNotifier();
         InstanceCoordinator::Get().UnregisterInstance(stateStore_.GetInstanceId());
+        analysis::AnalysisService::Get().UnregisterInstance(analysisHandle_);
+        analysisHandle_.reset();
         InstanceCoordinator::Get().RefreshAudibility();
     }
 }
@@ -61,6 +64,7 @@ void ConsolidatorInstance::Initialize()
     }
 
     InstanceCoordinator::Get().RegisterInstance(*this);
+    analysisHandle_ = analysis::AnalysisService::Get().RegisterInstance(GetInstanceId());
     PublishInitialRuntimeState();
     initialized_ = true;
     InstanceCoordinator::Get().RefreshAudibility();
@@ -68,7 +72,11 @@ void ConsolidatorInstance::Initialize()
 
 void ConsolidatorInstance::Prepare(double sampleRate)
 {
+    sampleRate_.store(sampleRate, std::memory_order_release);
+    sampleRateRevision_.fetch_add(1, std::memory_order_acq_rel);
     dspChain_->Prepare(sampleRate, kChannelCount);
+    analysisHandle_->MainSpectrum().Prepare(sampleRate);
+    analysisHandle_->ReferenceSpectrum().Prepare(sampleRate);
 }
 
 void ConsolidatorInstance::Process(const double* mainInputLeft,
@@ -87,6 +95,15 @@ void ConsolidatorInstance::Process(const double* mainInputLeft,
     ConsumeRuntimeUpdates();
     ProcessRealtimeCommands();
 
+    analysisHandle_->MainSpectrum().PushAudio(
+        mainInputLeft,
+        mainInputRight,
+        frameCount);
+    analysisHandle_->ReferenceSpectrum().PushAudio(
+        referenceInputLeft,
+        referenceInputRight,
+        frameCount);
+
     dspChain_->Process(mainInputLeft, mainInputRight,
                        referenceOutputLeft, referenceOutputRight,
                        mainOutputLeft, mainOutputRight,
@@ -96,6 +113,29 @@ void ConsolidatorInstance::Process(const double* mainInputLeft,
 
     ApplyOutputGate(mainOutputLeft, frameCount);
     ApplyOutputGate(mainOutputRight, frameCount);
+}
+
+bool ConsolidatorInstance::TryReadLatestSpectrum(
+    analysis::SpectrumSnapshot& snapshot) noexcept
+{
+    return analysisHandle_ && analysisHandle_->MainSpectrum().TryReadOutput(
+        snapshot, lastSpectrumRevision_);
+}
+
+bool ConsolidatorInstance::TryReadLatestReferenceSpectrum(
+    analysis::SpectrumSnapshot& snapshot) noexcept
+{
+    return analysisHandle_ &&
+        analysisHandle_->ReferenceSpectrum().TryReadOutput(
+            snapshot, lastReferenceSpectrumRevision_);
+}
+
+bool ConsolidatorInstance::TryReadLatestEqualizerResponse(
+    analysis::FrequencyResponseSnapshot& snapshot) noexcept
+{
+    return analysisHandle_ &&
+        analysisHandle_->EqualizerResponse().TryReadOutput(
+            snapshot, lastEqualizerResponseRevision_);
 }
 
 void ConsolidatorInstance::ConsumeParameterUpdates()
@@ -213,6 +253,28 @@ void ConsolidatorInstance::PublishInitialRuntimeState()
     EnqueueRuntimeUpdates(std::span<const RuntimeControlUpdate>{
         resolution.controls.data(),
         resolution.controls.size()});
+}
+
+void ConsolidatorInstance::PublishEqualizerResponseRequest()
+{
+    const auto sampleRate = sampleRate_.load(std::memory_order_acquire);
+    if (sampleRate <= 0.0 || !analysisHandle_)
+        return;
+
+    auto request = equalizerResponseBuilder_.Build(
+        stateStore_, sampleRate, nextEqualizerResponseRevision_++);
+    analysisHandle_->EqualizerResponse().PublishRequest(request);
+    publishedSampleRateRevision_ = sampleRateRevision_.load(
+        std::memory_order_acquire);
+}
+
+void ConsolidatorInstance::RefreshEqualizerResponseRequest()
+{
+    if (sampleRateRevision_.load(std::memory_order_acquire) !=
+        publishedSampleRateRevision_)
+    {
+        PublishEqualizerResponseRequest();
+    }
 }
 
 } // namespace consolidator::core

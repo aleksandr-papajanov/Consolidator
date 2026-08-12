@@ -176,6 +176,12 @@ RMS detector измеряет уровень detector signal. Gain reduction п�
 - UI/meter данные передаются atomic snapshot-ами.
 - FFT и offline analysis не выполняются в audio thread.
 
+FFT input is accumulated in a preallocated analysis slot by the audio thread.
+The completed window is published as a latest-value mailbox item to the global
+`AnalysisService`; FFT calculation and spectrum publication happen on its one
+background worker. The audio thread never waits for analysis and does not use
+an analysis FIFO.
+
 ## Defaults
 
 Единый источник user-facing defaults и limits — `Core/Settings/DspDeviceSettings.h`.

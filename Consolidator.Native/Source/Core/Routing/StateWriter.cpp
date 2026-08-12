@@ -58,6 +58,24 @@ bool AffectsProcessingState(const StateEntry& entry)
            *entry.path.markerId == StateMarkerId::Bypass;
 }
 
+bool AffectsEqualizerResponse(const StateEntry& entry)
+{
+    if (!entry.path.deviceId)
+    {
+        return false;
+    }
+
+    if (*entry.path.deviceId == dsp::DeviceId::Equalizer)
+    {
+        return true;
+    }
+
+    return entry.path.field == StateField::DspMarker &&
+        entry.path.markerId == StateMarkerId::Solo &&
+        (*entry.path.deviceId == dsp::DeviceId::Saturator ||
+         *entry.path.deviceId == dsp::DeviceId::Compressor);
+}
+
 bool AffectsAudibility(const StateEntry& entry)
 {
     if (entry.path.field == StateField::Mute ||
@@ -305,6 +323,10 @@ bool StateWriter::ApplyToInstance(
 
     case StateWriteStatus::Applied:
         AppendApplied(applied, context);
+        if (AffectsEqualizerResponse(entry))
+        {
+            target->PublishEqualizerResponseRequest();
+        }
         context.effects.audibilityChanged = context.effects.audibilityChanged ||
             AffectsAudibility(entry);
         if (!appliedParameter)

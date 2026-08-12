@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -14,6 +16,8 @@
 #include "Core/Instance/Queues/RuntimeUpdateMailbox.h"
 #include "Core/Queues/ConcurrentQueue.h"
 #include "Core/Queues/SpscQueue.h"
+#include "Analysis/AnalysisService.h"
+#include "Core/Analysis/EqualizerResponseBuilder.h"
 
 namespace consolidator::dsp
 {
@@ -67,6 +71,16 @@ public:
                  double* referenceOutputRight,
                  std::size_t frameCount);
 
+    // Reads the latest completed live FFT result for this instance.
+    [[nodiscard]] bool TryReadLatestSpectrum(
+        analysis::SpectrumSnapshot& snapshot) noexcept;
+
+    [[nodiscard]] bool TryReadLatestReferenceSpectrum(
+        analysis::SpectrumSnapshot& snapshot) noexcept;
+
+    [[nodiscard]] bool TryReadLatestEqualizerResponse(
+        analysis::FrequencyResponseSnapshot& snapshot) noexcept;
+
     void EnqueueCommand(ReadStateCommand command);
     void EnqueueCommand(WriteStateCommand command);
     // Enqueues a non-coalescable real-time reset event.
@@ -111,11 +125,24 @@ private:
 
     // Registers all paths and sends the complete initial DSP runtime snapshot.
     void PublishInitialRuntimeState();
+    // Called by StateWriter after a committed EQ state change.
+    void PublishEqualizerResponseRequest();
+    void RefreshEqualizerResponseRequest();
 
     static constexpr std::size_t kChannelCount = 2;
 
     std::unique_ptr<dsp::DspChain> dspChain_;
     StateStore stateStore_;
+    analysis::AnalysisHandle analysisHandle_;
+    EqualizerResponseBuilder equalizerResponseBuilder_;
+    std::atomic<double> sampleRate_{0.0};
+    std::atomic<std::uint64_t> sampleRateRevision_{0};
+    std::uint64_t nextEqualizerResponseRevision_ = 1;
+    std::uint64_t publishedSampleRateRevision_ = 0;
+    // The instance is the single Max-facing consumer of each spectrum stream.
+    std::uint64_t lastSpectrumRevision_ = 0;
+    std::uint64_t lastReferenceSpectrumRevision_ = 0;
+    std::uint64_t lastEqualizerResponseRevision_ = 0;
     RuntimeUpdateMailbox runtimeUpdateMailbox_;
     // SpscQueue reserves one ring slot, so 17 storage slots provide the
     // documented capacity of 16 pending realtime commands.

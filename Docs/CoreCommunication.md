@@ -200,6 +200,83 @@ the source of truth.
 Topology changes include affected-bank parameter entries in the response so
 the UI receives refreshed effective ranges after group changes.
 
+## Global analysis service
+
+`AnalysisService` is a process-wide service independent of
+`InstanceCoordinator`. It starts one background analysis worker and owns one
+fixed analysis slot per registered `ConsolidatorInstance`.
+
+An instance's audio thread accumulates a mono FFT window from its input block
+and publishes the completed window into the slot's latest-value state. The
+worker reads the newest window, calculates the spectrum, and publishes the
+newest result through another latest-value state. FFT windows and analysis jobs
+are never kept in a FIFO: a newer window replaces an older pending one. Each
+stream receives at most one retry per worker pass when newer input arrives
+during calculation; any remaining work is handled on the next pass so one busy
+slot cannot starve the other registered instances.
+The worker uses adaptive polling: it yields after a productive pass and sleeps
+for 2 ms when no stream has work. The audio thread performs no wake-up,
+mutex, or scheduler operation.
+The worker copies the registered `vector<shared_ptr<...>>` under its mutex on
+each polling cycle, then processes the copied handles without holding the
+registry mutex.
+Service destruction explicitly requests worker stop and joins it before the
+service-owned analysis state is destroyed.
+Spectrum consumption cursors belong to consumers, not slots. The current
+contract is one consumer per stream; `ConsolidatorInstance` owns the cursor
+for its Max-facing spectrum reader. A second consumer requires a separate
+stream/mailbox.
+`SpectrumStream` encapsulates accumulation, input publication, worker
+consumption and output publication; `AnalysisService` does not access its
+internal buffers or revisions.
+Spectrum-specific types and the stream now live under `Analysis/Spectrum`,
+separate from the service and buffer primitives.
+The independent theoretical response calculator lives under
+`Analysis/FrequencyResponse`. It accepts an immutable request containing
+normalized biquad sections and produces 256 logarithmically spaced magnitude
+dB points from 20 Hz to `min(20 kHz, Nyquist)`. The coordinator-side EQ
+builder publishes requests into each instance's response stream, and the
+analysis worker calculates the latest response.
+`ConsolidatorInstance::TryReadLatestEqualizerResponse()` exposes that latest
+curve to the external consumer with the same one-consumer cursor semantics as
+the live spectrum readers.
+`ConsolidatorInstance::Prepare(sampleRate)` forwards the sample rate to its
+analysis slot. Each display `SpectrumSnapshot` carries that rate alongside
+its magnitudes and revision.
+The rate is captured into each immutable `AudioWindow` by the audio-side
+accumulator; `SpectrumStream` has no mutable sample-rate state shared
+with the worker.
+Window revision travels with `AudioWindow`; the stream does not carry a
+separate input revision variable through the processing call.
+`AnalysisService` owns one `SpectrumAnalyzer` and one reusable KissFFT
+configuration. All slots share it because the single analysis worker performs
+FFT calculations serially.
+The analyzer implementation lives under `Source/Analysis/Spectrum`; the
+service only schedules slots and publishes their completed results.
+`SpectrumAnalyzer` precomputes its Hann window once and reuses preallocated FFT
+input/output buffers for every calculation.
+Raw magnitudes use Hann coherent-gain normalization and one-sided amplitude
+normalization: DC and Nyquist are not doubled, while interior bins are doubled.
+The latest window revision is sufficient to identify pending analysis work;
+the worker keeps its own processed revision and skips a window when both
+revisions match. The large preallocated sample buffer is therefore not routed
+through a second mailbox.
+Window and display spectrum storage use `LatestSnapshot<T>` with preallocated
+ownership-state buffers. A producer must acquire a writable slot and a
+consumer must acquire a published slot before accessing its value, so one
+storage value cannot be read and written simultaneously. Completed display
+spectra use `LatestSnapshot<SpectrumSnapshot>`;
+the consumer supplies its consumed revision instead of the slot maintaining
+seqlock state.
+The FFT transform itself uses the vendored BSD-3-Clause KissFFT sources under
+`Source/Analysis/KissFFT`.
+
+The slot handle is registered after the instance receives its `InstanceId`.
+During destruction the instance first leaves the coordinator registry, which
+waits out any coordinator pass that could refresh its analysis request; only
+then is the analysis slot unregistered and released. Analysis does not
+participate in command routing or authoritative state ownership.
+
 ## Lifecycle
 
 Instance unregistering is serialized by the coordinator registry mutex. Pending

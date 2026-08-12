@@ -90,5 +90,6 @@ ConsolidatorCore directly. They are independent of Max and Ableton Live.
 
 ## Current Stage
 
-Architecture skeleton with passthrough DSP. All infrastructure is wired but no
-processing, analysis, or fitting is implemented yet.
+Architecture skeleton with passthrough DSP. The global live FFT analysis path
+is wired through one background `AnalysisService` worker with one latest-value
+slot per instance; fitting is not implemented yet.
