@@ -164,16 +164,42 @@ Compressor напрямую владеет detector `Equalizer`; отдельн�
 
 ## Compressor meters
 
-- `CompressorMeterState` хранит atomic snapshot gain reduction для UI.
+- `CompressorMeterState` собирает linear attenuation за audio block: RMS
+  attenuation и minimum attenuation. `Compressor::GetBlockTelemetry()`
+  переводит их в positive reduction dB для snapshot.
 - `RmsDetectorMeterState` хранит atomic RMS level в linear scale.
 
 RMS detector измеряет уровень detector signal. Gain reduction принадлежит Compressor: она зависит от threshold, ratio, knee и attack/release smoothing.
+
+## DSP telemetry
+
+`Dsp/Telemetry/Telemetry.h` содержит `dsp::TelemetrySnapshot` и типизированные
+точки `dsp::MeterPoint`. `Saturator` считает distortion до output gain и
+wet/dry mix как отношение RMS нелинейного residual к RMS linear reference:
+`distortionPercent = residualRms / max(linearRms, epsilon) * 100`. Это
+normalized nonlinearity metric, а не THD: спектральный анализ гармоник не
+выполняется.
+`DspChain` только собирает chain levels и забирает processor telemetry через
+cached processor pointers. Collection is enabled only for the instance selected
+by the global `AnalysisView`; inactive instances do not perform meter
+accumulation.
+
+`MeterSmoother` сглаживает значения по времени с константой 150 ms и учитывает
+реальную длительность audio block (`frameCount / sampleRate`). Level RMS
+сглаживается в linear domain и конвертируется в dB после smoothing. Compressor
+reduction RMS сначала вычисляется в linear attenuation и публикуется как
+positive dB. UI-facing smoothed reduction затем сглаживается непосредственно
+в positive dB с нейтральным начальным значением `0 dB`.
+`PeakMeter` хранит block peak с мгновенной атакой, hold 75 ms и release 300 ms,
+поэтому transient сохраняется даже если UI пропустил промежуточные latest
+snapshots. Этот же persistent peak state используется для compressor reduction.
 
 ## Real-time правила
 
 - В `Process()` нет аллокаций, mutex, логирования или I/O.
 - Буферы и filter memory preallocated.
-- UI/meter данные передаются atomic snapshot-ами.
+- UI/meter данные передаются lock-free latest snapshot-ами. Telemetry публикуется
+  после каждого audio block без worker; Max читает только последний snapshot.
 - FFT и offline analysis не выполняются в audio thread.
 
 FFT input is accumulated in a preallocated analysis slot by the audio thread.

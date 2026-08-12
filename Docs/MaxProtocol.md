@@ -257,8 +257,15 @@ exposes a response notifier callback; the external binds it to a thread-safe
 `queue<>.set()` signal. The callback only schedules a Max main-thread drain: a
 thread-safe scheduling call is permitted, but it does not call outlets, emit
 messages, or encode atoms. Analysis uses a separate `analysisOutput` outlet.
-The UI sends `analysis_tick <bank>` to the physical external selected for
-display; `bank` uses the public `1..7` numbering. The message selects that
-instance and bank as the global analysis view, reads changed persistent
-snapshots on the Max main thread, and emits selector-framed telemetry;
+The UI sends `analysis_view <instanceId> <bank>` to any physical external to
+select the global analysis view; `bank` uses the public `1..7` numbering. The
+UI then sends argument-free `analysis_tick` to read changed persistent
+snapshots on the Max main thread and emit selector-framed telemetry;
 analysis has no external worker, notification callback, or response queue.
+Telemetry selectors are `meter <point> <rmsDb> <peakDb> <smoothedDb>`,
+`saturator_distortion <percent> <smoothedPercent>` (normalized nonlinear
+residual percent, not spectral THD), and
+`compressor_reduction <rmsDb> <peakDb> <smoothedDb>`. The meter points are
+`input_gain`, `saturator`, `compressor`, and `output_gain`. Compressor reduction
+values are positive reduction dB, where `0` means no attenuation. Level
+`smoothedDb` values are produced by smoothing linear RMS before dB conversion.

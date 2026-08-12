@@ -23,6 +23,13 @@ struct SaturatorRuntimeState
     bool isNeutral = true;
 };
 
+struct SaturatorBlockTelemetry
+{
+    // RMS nonlinear residual divided by RMS linear reference, in percent.
+    // This is not spectral THD.
+    float distortionPercent = 0.0f;
+};
+
 // Applies envelope-driven nonlinear waveshaping with dry/wet mixing.
 class Saturator final : public DspDevice
 {
@@ -55,6 +62,13 @@ public:
     [[nodiscard]] const DetectorEnvelopeFollower& GetDetector(std::size_t channel) const noexcept
     {
         return detectors_[channel];
+    }
+
+    [[nodiscard]] SaturatorBlockTelemetry GetBlockTelemetry() const noexcept;
+    void ResetBlockTelemetry() noexcept;
+    void SetTelemetryEnabled(bool enabled) noexcept
+    {
+        telemetryEnabled_ = enabled;
     }
 
     // Routes updates to the saturator or its detector filters.
@@ -96,7 +110,9 @@ private:
 
     [[nodiscard]] double ProcessSample(
         double input,
-        DetectorEnvelopeFollower& detector) const noexcept;
+        DetectorEnvelopeFollower& detector,
+        double& linearReference,
+        double& shaped) const noexcept;
 
     [[nodiscard]] double CalculateDriveModulation(
         double envelope) const noexcept;
@@ -113,6 +129,10 @@ private:
     SaturatorRuntimeState runtimeState_;
 
     std::size_t activeChannelCount_ = kMaximumChannelCount;
+    double distortionResidualSumSquares_ = 0.0;
+    double distortionLinearSumSquares_ = 0.0;
+    std::size_t distortionSampleCount_ = 0;
+    bool telemetryEnabled_ = true;
 
     std::array<DetectorEnvelopeFollower, kMaximumChannelCount> detectors_{
         DetectorEnvelopeFollower{

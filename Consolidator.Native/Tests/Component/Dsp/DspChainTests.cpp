@@ -5,10 +5,14 @@
 #include "Dsp/Processors/Equalizer/Filters/GainFilter.h"
 #include "Dsp/Processors/Gain/Gain.h"
 #include "Dsp/Processors/Saturator/Saturator.h"
+#include "Dsp/Telemetry/MeterSmoother.h"
+#include "Dsp/Telemetry/PeakMeter.h"
 #include "Support/StateBuilders.h"
 #include "Support/TestFramework.h"
 
 #include <array>
+#include <cmath>
+#include <cstdint>
 
 using namespace consolidator;
 
@@ -120,6 +124,175 @@ TEST_CASE("Chain reset targets nested filter memory without changing its state")
 
     EXPECT_EQ(bank0->GetFilter(2)->GetRuntimeState().gainDb, 6.0f);
     EXPECT_EQ(bank0->GetFilter(2)->GetRuntimeState().channelStates[0].z1, 0.0);
+}
+
+TEST_CASE("Telemetry meter points define the level storage")
+{
+    EXPECT_EQ(
+        dsp::ToIndex(dsp::MeterPoint::Count),
+        std::size_t{4});
+    EXPECT_EQ(
+        dsp::ToIndex(dsp::MeterPoint::CompressorOutput),
+        std::size_t{2});
+
+    dsp::TelemetrySnapshot snapshot;
+    EXPECT_EQ(snapshot.levels.size(), dsp::ToIndex(dsp::MeterPoint::Count));
+}
+
+TEST_CASE("Meter smoother uses elapsed time instead of block count")
+{
+    dsp::MeterSmoother atFortyEightKilohertz{0.0f};
+    atFortyEightKilohertz.SetSampleRate(48000.0);
+    const auto first = atFortyEightKilohertz.Process(1.0f, 4800);
+
+    dsp::MeterSmoother atTwentyFourKilohertz{0.0f};
+    atTwentyFourKilohertz.SetSampleRate(24000.0);
+    const auto second = atTwentyFourKilohertz.Process(1.0f, 2400);
+
+    EXPECT_NEAR(first, second, 1e-6);
+    EXPECT_NEAR(
+        first,
+        1.0 - std::exp(-0.1 / 0.150),
+        1e-6);
+}
+
+TEST_CASE("Peak meter holds a transient while intermediate snapshots are dropped")
+{
+    dsp::PeakMeter meter;
+    meter.SetSampleRate(48000.0);
+
+    EXPECT_EQ(meter.Process(1.0f, 1), 1.0f);
+    EXPECT_EQ(meter.Process(0.0f, 2400), 1.0f);
+    EXPECT_TRUE(meter.Process(0.0f, 4800) < 1.0f);
+    EXPECT_TRUE(meter.Process(0.0f, 4800) > 0.0f);
+}
+
+TEST_CASE("Chain level smoothing operates on linear RMS before dB conversion")
+{
+    auto chain = dsp::DspChainBuilder{}.BuildStandardChain();
+    chain->Prepare(48000.0, 2);
+
+    std::array<double, 4800> input{};
+    input.fill(1.0);
+    std::array<double, 4800> interim{};
+    std::array<double, 4800> output{};
+    chain->Process(
+        input.data(), input.data(),
+        interim.data(), interim.data(),
+        output.data(), output.data(), input.size());
+    const auto telemetry = chain->FinishTelemetryBlock(input.size());
+
+    const auto expectedSmoothedDb = 20.0 * std::log10(
+        1.0 - std::exp(-0.1 / 0.150));
+    const auto& level = telemetry.levels[
+        dsp::ToIndex(dsp::MeterPoint::InputGainOutput)];
+    EXPECT_NEAR(level.rmsDb, 0.0, 1e-6);
+    EXPECT_NEAR(level.peakDb, 0.0, 1e-6);
+    EXPECT_NEAR(level.smoothedDb, expectedSmoothedDb, 1e-5);
+}
+
+TEST_CASE("Disabled chain telemetry skips block accumulation")
+{
+    dsp::DspChain chain;
+    chain.AddDevice(std::make_unique<dsp::Gain>(dsp::DeviceId::MainInputGain));
+    chain.SetTelemetryEnabled(false);
+
+    std::array<double, 64> input{};
+    input.fill(1.0);
+    std::array<double, 64> interim{};
+    std::array<double, 64> output{};
+    chain.Process(
+        input.data(), input.data(),
+        interim.data(), interim.data(),
+        output.data(), output.data(), input.size());
+
+    const auto telemetry = chain.FinishTelemetryBlock(input.size());
+    EXPECT_EQ(telemetry.revision, std::uint64_t{0});
+    EXPECT_EQ(telemetry.levels[
+                  dsp::ToIndex(dsp::MeterPoint::InputGainOutput)].rmsDb,
+              -240.0f);
+}
+
+TEST_CASE("Compressor telemetry reports positive reduction from linear attenuation")
+{
+    dsp::Compressor compressor;
+    compressor.Prepare(48000.0, 2);
+    compressor.StageRuntimeUpdate(
+        {dsp::DeviceId::Compressor, dsp::ParameterId::Threshold}, -30.0f);
+    compressor.CommitRuntimeUpdates();
+
+    std::array<double, 256> input{};
+    input.fill(1.0);
+    std::array<double, 256> output{};
+    compressor.Process(
+        input.data(), input.data() + 128,
+        output.data(), output.data() + 128, 128);
+
+    const auto telemetry = compressor.GetBlockTelemetry();
+    EXPECT_TRUE(telemetry.gainReductionRmsDb > 0.0f);
+    EXPECT_TRUE(telemetry.gainReductionPeakDb >= telemetry.gainReductionRmsDb);
+}
+
+TEST_CASE("Saturator distortion excludes output gain and wet dry mix")
+{
+    const auto process = [](float outputDb, float mix)
+    {
+        dsp::Saturator saturator;
+        saturator.Prepare(48000.0, 2);
+        saturator.StageRuntimeUpdate(
+            {dsp::DeviceId::Saturator, dsp::ParameterId::Drive}, 2.0f);
+        saturator.StageRuntimeUpdate(
+            {dsp::DeviceId::Saturator, dsp::ParameterId::Gain}, outputDb);
+        saturator.StageRuntimeUpdate(
+            {dsp::DeviceId::Saturator, dsp::ParameterId::Mix}, mix);
+        saturator.CommitRuntimeUpdates();
+
+        std::array<double, 128> input{};
+        input.fill(0.25);
+        std::array<double, 128> output{};
+        saturator.Process(
+            input.data(), input.data(),
+            output.data(), output.data(), input.size());
+        return saturator.GetBlockTelemetry().distortionPercent;
+    };
+
+    const auto reference = process(0.0f, 1.0f);
+    const auto changedOutputStage = process(12.0f, 0.25f);
+    EXPECT_NEAR(reference, changedOutputStage, 1e-5);
+}
+
+TEST_CASE("Saturator distortion ignores inactive channels")
+{
+    dsp::Saturator mono;
+    mono.Prepare(48000.0, 1);
+    mono.StageRuntimeUpdate(
+        {dsp::DeviceId::Saturator, dsp::ParameterId::Drive}, 2.0f);
+    mono.CommitRuntimeUpdates();
+
+    std::array<double, 128> left{};
+    left.fill(0.25);
+    std::array<double, 128> silentRight{};
+    std::array<double, 128> outputLeft{};
+    std::array<double, 128> outputRight{};
+    mono.Process(
+        left.data(), silentRight.data(),
+        outputLeft.data(), outputRight.data(), left.size());
+
+    const auto monoDistortion = mono.GetBlockTelemetry().distortionPercent;
+
+    dsp::Saturator stereo;
+    stereo.Prepare(48000.0, 2);
+    stereo.StageRuntimeUpdate(
+        {dsp::DeviceId::Saturator, dsp::ParameterId::Drive}, 2.0f);
+    stereo.CommitRuntimeUpdates();
+    stereo.Process(
+        left.data(), left.data(),
+        outputLeft.data(), outputRight.data(), left.size());
+
+    EXPECT_NEAR(
+        monoDistortion,
+        stereo.GetBlockTelemetry().distortionPercent,
+        1e-5);
 }
 
 TEST_MAIN()

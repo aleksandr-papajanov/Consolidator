@@ -33,10 +33,13 @@ Reference input  [2 ch] ─┤
                           └─────────────────── passthrough (current skeleton)
 ```
 
-Analyzer telemetry is exposed by the Max external through one analysis outlet;
+Analyzer spectra, curves, and DSP telemetry are exposed by the Max external through one analysis outlet;
 the Core and Analysis layers remain unaware of Max. UI code selects the
 refresh rate and requests changed latest snapshots with `analysis_tick`.
-The message carries the public one-based EQ bank: `analysis_tick <bank>`.
+`analysis_view <instanceId> <bank>` selects the global view using the public
+one-based EQ bank; `analysis_tick` takes no arguments and only reads snapshots.
+Telemetry DTOs live in `Dsp/Telemetry/Telemetry.h`; `AnalysisSlot` transports
+the latest `dsp::TelemetrySnapshot` without involving the analysis worker.
 
 ## State Routing
 
@@ -92,6 +95,7 @@ ConsolidatorCore directly. They are independent of Max and Ableton Live.
 
 ## Current Stage
 
-Architecture skeleton with passthrough DSP. The global live FFT analysis path
-is wired through one background `AnalysisService` worker with one latest-value
-slot per instance; fitting is not implemented yet.
+Architecture skeleton with passthrough DSP. The global live FFT and curve paths
+are wired through one background `AnalysisService` worker with one latest-value
+slot per instance. Block telemetry is collected directly by `DspChain` and
+published through a lock-free latest snapshot; fitting is not implemented yet.

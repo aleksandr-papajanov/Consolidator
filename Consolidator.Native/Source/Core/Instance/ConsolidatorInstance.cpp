@@ -92,6 +92,9 @@ void ConsolidatorInstance::Process(const double* mainInputLeft,
     ConsumeRuntimeUpdates();
     ProcessRealtimeCommands();
 
+    const bool telemetryEnabled = analysisHandle_->IsTelemetryEnabled();
+    dspChain_->SetTelemetryEnabled(telemetryEnabled);
+
     if (analysisHandle_->IsSpectrumEnabled())
     {
         analysisHandle_->MainSpectrum().PushAudio(
@@ -113,6 +116,12 @@ void ConsolidatorInstance::Process(const double* mainInputLeft,
 
     ApplyOutputGate(mainOutputLeft, frameCount);
     ApplyOutputGate(mainOutputRight, frameCount);
+
+    if (telemetryEnabled)
+    {
+        analysisHandle_->Telemetry().Publish(
+            dspChain_->FinishTelemetryBlock(frameCount));
+    }
 }
 
 void ConsolidatorInstance::ConsumeParameterUpdates()

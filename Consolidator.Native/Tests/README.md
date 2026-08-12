@@ -41,6 +41,10 @@ ctest -C RelWithDebInfo -L integration --output-on-failure
   in helpers.
 - Component tests use synchronous APIs. Waiting/polling is confined to
   `ProtocolDriver`, which is used only by integration tests.
+- DSP component tests cover telemetry point indexing, block-size-independent
+  smoothing, linear RMS level smoothing, positive compressor reduction dB, and
+  saturator distortion isolation from output gain and wet/dry mix. Peak hold
+  and release behavior plus disabled telemetry accumulation are covered too.
 - Analysis integration tests cover global view switching, view epochs,
   main/reference/difference spectra, individual EQ curves, the current-bank
   aggregate, the all-banks aggregate, and spectrum accumulator resets when a

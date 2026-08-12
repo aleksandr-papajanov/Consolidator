@@ -5,6 +5,7 @@
 #include "Analysis/CurveInput.h"
 #include "Analysis/FrequencyResponse/FrequencyResponseStream.h"
 #include "Analysis/Spectrum/SpectrumStream.h"
+#include "Analysis/TelemetryStream.h"
 #include "Core/Domain/Ids/InstanceId.h"
 
 namespace consolidator::analysis
@@ -34,6 +35,16 @@ class AnalysisSlot final
         return spectrumEnabled_.load(std::memory_order_acquire);
     }
 
+    void SetTelemetryEnabled(bool enabled) noexcept
+    {
+        telemetryEnabled_.store(enabled, std::memory_order_release);
+    }
+
+    [[nodiscard]] bool IsTelemetryEnabled() const noexcept
+    {
+        return telemetryEnabled_.load(std::memory_order_acquire);
+    }
+
     [[nodiscard]] SpectrumStream& MainSpectrum() noexcept
     {
         return mainSpectrum_;
@@ -54,13 +65,20 @@ class AnalysisSlot final
         return curveOutput_;
     }
 
+    [[nodiscard]] TelemetryStream& Telemetry() noexcept
+    {
+        return telemetry_;
+    }
+
   private:
     core::InstanceId instanceId_;
     std::atomic_bool spectrumEnabled_{false};
+    std::atomic_bool telemetryEnabled_{false};
     SpectrumStream mainSpectrum_;
     SpectrumStream referenceSpectrum_;
     CurveState curves_;
     FrequencyResponseStream curveOutput_;
+    TelemetryStream telemetry_;
 };
 
 } // namespace consolidator::analysis

@@ -40,6 +40,7 @@ void Saturator::Reset() noexcept
     {
         detector.Reset();
     }
+    ResetBlockTelemetry();
 }
 
 bool Saturator::Reset(
@@ -85,28 +86,93 @@ void Saturator::Process(
 
     for (std::size_t frame = 0; frame < frameCount; ++frame)
     {
+        double linearReferenceLeft = inputLeft[frame];
+        double shapedLeft = inputLeft[frame];
+        double linearReferenceRight = inputRight[frame];
+        double shapedRight = inputRight[frame];
         outputLeft[frame] = activeChannelCount_ > 0
-            ? ProcessSample(inputLeft[frame], detectors_[0]) : inputLeft[frame];
+            ? ProcessSample(
+                  inputLeft[frame], detectors_[0],
+                  linearReferenceLeft, shapedLeft)
+            : inputLeft[frame];
         outputRight[frame] = activeChannelCount_ > 1
-            ? ProcessSample(inputRight[frame], detectors_[1]) : inputRight[frame];
+            ? ProcessSample(
+                  inputRight[frame], detectors_[1],
+                  linearReferenceRight, shapedRight)
+            : inputRight[frame];
+
+        const auto accumulateDistortion = [this](
+            double linearReference,
+            double shaped)
+        {
+            if (!telemetryEnabled_)
+            {
+                return;
+            }
+            const double residual = shaped - linearReference;
+            distortionResidualSumSquares_ += residual * residual;
+            distortionLinearSumSquares_ += linearReference * linearReference;
+            ++distortionSampleCount_;
+        };
+        if (activeChannelCount_ > 0)
+        {
+            accumulateDistortion(linearReferenceLeft, shapedLeft);
+        }
+        if (activeChannelCount_ > 1)
+        {
+            accumulateDistortion(linearReferenceRight, shapedRight);
+        }
     }
 }
 
-double Saturator::ProcessSample(double input, DetectorEnvelopeFollower& detector) const noexcept
+double Saturator::ProcessSample(
+    double input,
+    DetectorEnvelopeFollower& detector,
+    double& linearReference,
+    double& shaped) const noexcept
 {
     const double envelope = detector.ProcessSample(input);
     if (detector.IsListening())
     {
+        linearReference = input;
+        shaped = input;
         return detector.GetMonitoringSample();
     }
     const double modulation = CalculateDriveModulation(envelope);
     const double effectiveDrive = runtimeState_.driveLinear * modulation;
-    const double saturated = ApplyWaveshaper(input, effectiveDrive);
+    linearReference = input * effectiveDrive;
+    shaped = ApplyWaveshaper(input, effectiveDrive);
+    const double saturated = shaped;
     const double wet = saturated * runtimeState_.outputGainLinear;
 
     return
         wet * runtimeState_.wetMix +
         input * runtimeState_.dryMix;
+}
+
+SaturatorBlockTelemetry Saturator::GetBlockTelemetry() const noexcept
+{
+    if (distortionSampleCount_ == 0)
+    {
+        return {};
+    }
+
+    const double linearRms = std::sqrt(
+        distortionLinearSumSquares_ /
+        static_cast<double>(distortionSampleCount_));
+    const double residualRms = std::sqrt(
+        distortionResidualSumSquares_ /
+        static_cast<double>(distortionSampleCount_));
+    const auto percent = static_cast<float>(
+        residualRms / std::max(linearRms, 1.0e-12) * 100.0);
+    return {percent};
+}
+
+void Saturator::ResetBlockTelemetry() noexcept
+{
+    distortionResidualSumSquares_ = 0.0;
+    distortionLinearSumSquares_ = 0.0;
+    distortionSampleCount_ = 0;
 }
 
 double Saturator::CalculateDriveModulation(double envelope) const noexcept

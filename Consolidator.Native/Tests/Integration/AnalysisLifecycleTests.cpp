@@ -280,4 +280,40 @@ TEST_CASE("Switching spectrum instances discards a partial FFT window")
     EXPECT_TRUE(received);
 }
 
+TEST_CASE("Current analysis view publishes revision-aware DSP telemetry")
+{
+    test::ProtocolDriver driver{2};
+    auto& viewed = driver.At(0);
+    auto& hidden = driver.At(1);
+    viewed.Prepare(48000.0);
+    hidden.Prepare(48000.0);
+    analysis::AnalysisService::Get().SetView(
+        {viewed.GetInstanceId(), dsp::BankId::Bank0});
+    driver.MainInput().fill(0.5);
+
+    driver.ProcessAll();
+
+    dsp::TelemetrySnapshot snapshot;
+    EXPECT_TRUE(analysis::AnalysisService::Get().TryReadLatestTelemetry(
+        snapshot, 0, 0));
+    EXPECT_TRUE(snapshot.revision > 0);
+    EXPECT_TRUE(snapshot.viewRevision > 0);
+    EXPECT_NEAR(
+        snapshot.levels[dsp::ToIndex(dsp::MeterPoint::InputGainOutput)].rmsDb,
+        -6.0206,
+        0.01);
+    EXPECT_FALSE(analysis::AnalysisService::Get().TryReadLatestTelemetry(
+        snapshot, snapshot.revision, snapshot.viewRevision));
+
+    const auto previousRevision = snapshot.revision;
+    const auto previousViewRevision = snapshot.viewRevision;
+    analysis::AnalysisService::Get().SetView(
+        {hidden.GetInstanceId(), dsp::BankId::Bank0});
+    driver.ProcessAll();
+
+    EXPECT_TRUE(analysis::AnalysisService::Get().TryReadLatestTelemetry(
+        snapshot, previousRevision, previousViewRevision));
+    EXPECT_TRUE(snapshot.viewRevision > previousViewRevision);
+}
+
 TEST_MAIN()

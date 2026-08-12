@@ -37,6 +37,7 @@ AnalysisHandle AnalysisService::RegisterInstance(core::InstanceId instanceId)
         handle->MainSpectrum().Reset();
         handle->ReferenceSpectrum().Reset();
         handle->SetSpectrumEnabled(true);
+        handle->SetTelemetryEnabled(true);
     }
     slots_.push_back(handle);
     return handle;
@@ -65,6 +66,7 @@ void AnalysisService::SetView(AnalysisView view)
     for (const auto& slot : slots_)
     {
         slot->SetSpectrumEnabled(false);
+        slot->SetTelemetryEnabled(false);
     }
 
     currentView_ = view;
@@ -74,6 +76,7 @@ void AnalysisService::SetView(AnalysisView view)
         slot->MainSpectrum().Reset();
         slot->ReferenceSpectrum().Reset();
         slot->SetSpectrumEnabled(true);
+        slot->SetTelemetryEnabled(true);
     }
 }
 
@@ -168,6 +171,30 @@ bool AnalysisService::TryReadLatestCurve(
     {
         return false;
     }
+    return true;
+}
+
+bool AnalysisService::TryReadLatestTelemetry(
+    dsp::TelemetrySnapshot& snapshot,
+    std::uint64_t lastRevision,
+    std::uint64_t lastViewRevision)
+{
+    std::lock_guard lock{slotsMutex_};
+    const auto slot = FindViewedSlot();
+    if (!slot)
+    {
+        return false;
+    }
+
+    const auto effectiveRevision = lastViewRevision == viewRevision_
+        ? lastRevision
+        : 0;
+    if (!slot->Telemetry().ReadLatest(snapshot, effectiveRevision))
+    {
+        return false;
+    }
+
+    snapshot.viewRevision = viewRevision_;
     return true;
 }
 

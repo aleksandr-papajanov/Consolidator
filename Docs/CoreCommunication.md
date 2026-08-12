@@ -257,9 +257,9 @@ spectrum, their dB difference, and the EQ curve bundle through persistent
 latest-result readers. Readers pass their own last-seen result revision, so
 reading never consumes or removes a snapshot. `ConsolidatorExternal` does not
 own an analysis worker and does not receive analysis notifications. Its
-`analysis_tick <bank>` message is driven by the Max/UI refresh loop. It selects
-the receiving external's instance and the public one-based EQ bank as the
-global analysis view, then on the Max main thread reads every latest result
+`analysis_view <instanceId> <bank>` selects the global analysis view. The
+argument-free `analysis_tick` message is driven by the Max/UI refresh loop and,
+on the Max main thread, reads every latest result
 whose revision changed and emits the changed frames through one
 `analysisOutput` outlet. The selectors are
 `spectrum_main`, `spectrum_reference`, `spectrum_difference`, `eq_filter` with
@@ -345,3 +345,27 @@ Instance unregistering is serialized by the coordinator registry mutex. Pending
 runtime updates are owned by the instance mailbox and cannot be published after
 the instance is removed from the registry. The DSP chain is destroyed only
 after unregistering the instance.
+
+Telemetry is the third analysis channel. `DspChain` completes fixed-size level
+accumulators at the end of each audio block and publishes a `dsp::TelemetrySnapshot`
+through `AnalysisSlot::Telemetry()`. The snapshot contains four chain meter
+points, compressor gain reduction, and saturator distortion. No worker handles
+this path. Only the slot belonging to the current `AnalysisView` enables
+telemetry collection; other instances skip both chain accumulators and
+processor-specific telemetry accumulation. Audio uses the lock-free
+`LatestSnapshot` transport and the UI reads only the newest block during
+`analysis_tick`. Max emits `meter`,
+`saturator_distortion`, and `compressor_reduction` frames through the existing
+`analysisOutput` outlet. Native smoothing uses a 150 ms time constant and the
+actual block duration (`frameCount / sampleRate`), so its response is
+independent of the host buffer size. Level RMS is smoothed in linear amplitude
+and converted to dB only for the published snapshot; block peak remains an
+independent instantaneous dB value. Compressor reduction is accumulated as
+linear attenuation: RMS attenuation and minimum attenuation are converted to
+positive reduction dB only for the published UI snapshot.
+The compressor smoothed reduction field is then time-smoothed directly in
+positive dB and starts from neutral `0 dB`.
+Telemetry keeps a local source `revision` per DSP instance and receives the
+global analysis `viewRevision` when read by `AnalysisService`. Consumers compare
+their local cursor only within the same view revision, so switching instances
+cannot hide a newer view whose local revision is smaller.

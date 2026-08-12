@@ -34,6 +34,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Analysis/Spectrum/SpectrumTypes.h
     Source/Analysis/LatestSnapshot.h
     Source/Analysis/LatestValue.h
+    Source/Analysis/TelemetryStream.h
     Source/Analysis/AnalysisService.h
     Source/Analysis/AnalysisView.h
     Source/Analysis/CurveInput.h
@@ -65,6 +66,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Instance/ConsolidatorInstance.cpp
     Source/Core/Analysis/EqualizerCurveInputBuilder.h
     Source/Core/Analysis/EqualizerCurveInputBuilder.cpp
+    Source/Dsp/Telemetry/Telemetry.h
     Source/Core/Instance/ConsolidatorInstance.CommandSubmission.cpp
     Source/Core/Domain/Ids/InstanceId.h
     Source/Core/Domain/Ids/GroupId.h
@@ -121,6 +123,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Domain/State/ParameterState.h
     Source/Core/Domain/State/StateMarker.h
     Source/Dsp/Utilities/TimeCoefficient.h
+    Source/Dsp/Telemetry/MeterSmoother.h
+    Source/Dsp/Telemetry/PeakMeter.h
     Source/Dsp/Processors/DspDevice.h
     Source/Dsp/Processors/DspDevice.cpp
     Source/Dsp/Processors/Gain/Gain.h

@@ -13,6 +13,7 @@
 #include "Analysis/LatestValue.h"
 #include "Analysis/Spectrum/SpectrumMapper.h"
 #include "Analysis/Spectrum/SpectrumAnalyzer.h"
+#include "Dsp/Telemetry/Telemetry.h"
 #include "Core/Domain/Ids/InstanceId.h"
 
 namespace consolidator::analysis
@@ -45,6 +46,10 @@ class AnalysisService final
     [[nodiscard]] bool TryReadLatestCurve(
         EqualizerCurveSnapshot& snapshot,
         std::uint64_t lastRevision);
+    [[nodiscard]] bool TryReadLatestTelemetry(
+        dsp::TelemetrySnapshot& snapshot,
+        std::uint64_t lastRevision,
+        std::uint64_t lastViewRevision);
 
     ~AnalysisService();
 

@@ -32,6 +32,16 @@ struct CompressorRuntimeState
 struct CompressorMeterState
 {
     std::atomic<float> gainReductionDb{0.0f};
+    double attenuationSumSquares = 0.0;
+    float minimumAttenuation = 1.0f;
+    std::size_t attenuationSampleCount = 0;
+    bool telemetryEnabled = true;
+};
+
+struct CompressorBlockTelemetry
+{
+    float gainReductionRmsDb = 0.0f;
+    float gainReductionPeakDb = 0.0f;
 };
 
 // Measures linked detector level and applies time-smoothed dynamic gain reduction.
@@ -88,6 +98,13 @@ public:
     [[nodiscard]] float GetGainReductionDb() const noexcept
     {
         return meterState_.gainReductionDb.load(std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] CompressorBlockTelemetry GetBlockTelemetry() const noexcept;
+    void ResetBlockTelemetry() noexcept;
+    void SetTelemetryEnabled(bool enabled) noexcept
+    {
+        meterState_.telemetryEnabled = enabled;
     }
 
     [[nodiscard]] const Equalizer& GetDetectorEqualizer() const noexcept

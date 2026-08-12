@@ -50,6 +50,9 @@ void Compressor::Reset() noexcept
     detectorMonitoringSample_ = 0.0;
 
     meterState_.gainReductionDb.store(0.0f, std::memory_order_relaxed);
+    meterState_.attenuationSumSquares = 0.0;
+    meterState_.minimumAttenuation = 1.0f;
+    meterState_.attenuationSampleCount = 0;
 }
 
 bool Compressor::Reset(
@@ -111,6 +114,16 @@ void Compressor::Process(
         }
 
         lastGainReductionDb = smoothedGainReductionDb;
+        if (meterState_.telemetryEnabled)
+        {
+            const auto attenuation = static_cast<float>(std::pow(
+                10.0, smoothedGainReductionDb / 20.0));
+            meterState_.attenuationSumSquares += attenuation * attenuation;
+            meterState_.minimumAttenuation = std::min(
+                meterState_.minimumAttenuation,
+                attenuation);
+            ++meterState_.attenuationSampleCount;
+        }
     }
 
     meterState_.gainReductionDb.store(
@@ -202,6 +215,31 @@ bool Compressor::ApplyOwnParameter(
     if (parameterId == ParameterId::Gain) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.outputDb = *v; return true; }
     if (parameterId == ParameterId::Mix) { const auto* v = std::get_if<float>(&value); if (v == nullptr) return false; runtimeState_.mix = *v; return true; }
     return false;
+}
+
+CompressorBlockTelemetry Compressor::GetBlockTelemetry() const noexcept
+{
+    if (meterState_.attenuationSampleCount == 0)
+    {
+        return {};
+    }
+
+    return {
+        static_cast<float>(-20.0 * std::log10(std::max(
+            std::sqrt(
+                meterState_.attenuationSumSquares /
+                static_cast<double>(meterState_.attenuationSampleCount)),
+            1.0e-12))),
+        static_cast<float>(-20.0 * std::log10(std::max(
+            static_cast<double>(meterState_.minimumAttenuation),
+            1.0e-12)))};
+}
+
+void Compressor::ResetBlockTelemetry() noexcept
+{
+    meterState_.attenuationSumSquares = 0.0;
+    meterState_.minimumAttenuation = 1.0f;
+    meterState_.attenuationSampleCount = 0;
 }
 
 bool Compressor::ApplyParameter(

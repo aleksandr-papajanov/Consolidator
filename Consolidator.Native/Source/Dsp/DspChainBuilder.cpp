@@ -60,10 +60,14 @@ std::unique_ptr<DspChain> DspChainBuilder::BuildFromSettings(const DspSettings& 
     chain->AddDevice(std::make_unique<Gain>(settings.inputGain.elementId));
 
     // Saturator
-    chain->AddDevice(std::make_unique<Saturator>());
+    auto saturator = std::make_unique<Saturator>();
+    auto* saturatorPointer = saturator.get();
+    chain->AddDevice(std::move(saturator));
 
     // Compressor
-    chain->AddDevice(std::make_unique<Compressor>());
+    auto compressor = std::make_unique<Compressor>();
+    auto* compressorPointer = compressor.get();
+    chain->AddDevice(std::move(compressor));
 
     // 7 Equalizer banks (Bank0 ... Bank6)
     for (const auto& bankSettings : settings.banks)
@@ -75,6 +79,7 @@ std::unique_ptr<DspChain> DspChainBuilder::BuildFromSettings(const DspSettings& 
 
     // Output Gain
     chain->AddDevice(std::make_unique<Gain>(settings.outputGain.elementId));
+    chain->SetTelemetryProcessors(compressorPointer, saturatorPointer);
 
     return chain;
 }

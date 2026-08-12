@@ -46,8 +46,11 @@ public:
         MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("write"), args); return {}; } };
     c74::min::message<> reset { this, "reset", "Reset DSP through the protocol.",
         MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("reset"), args); return {}; } };
+    c74::min::message<> analysisView { this, "analysis_view",
+        "Select the global analysis instance and bank.",
+        MIN_FUNCTION { HandleAnalysisView(args); return {}; } };
     c74::min::message<> analysisTick { this, "analysis_tick",
-        "Select this instance and bank, then emit changed analysis snapshots.",
+        "Emit changed analysis snapshots for the current global view.",
         MIN_FUNCTION { HandleAnalysisTick(args); return {}; } };
     c74::min::message<> dspsetup { this, "dspsetup",
         "Prepare DSP for the host sample rate.",
@@ -68,13 +71,17 @@ private:
                                const c74::min::atoms& args);
     void NotifyResponseAvailable();
     void DrainResponses();
+    void HandleAnalysisView(const c74::min::atoms& args);
     void HandleAnalysisTick(const c74::min::atoms& args);
+    void ResetAnalysisRevisions() noexcept;
     void EmitLatestAnalysis();
     void EmitSpectrum(
         c74::min::symbol selector,
         const consolidator::analysis::SpectrumSnapshot& snapshot);
     void EmitCurves(
         const consolidator::analysis::EqualizerCurveSnapshot& snapshot);
+    void EmitTelemetry(
+        const consolidator::dsp::TelemetrySnapshot& snapshot);
     void EmitProtocolError(const ProtocolError& error);
 
     core::ConsolidatorInstance instance_;
@@ -86,6 +93,8 @@ private:
     std::uint64_t lastReferenceSpectrumRevision_ = 0;
     std::uint64_t lastDifferenceSpectrumRevision_ = 0;
     std::uint64_t lastCurveRevision_ = 0;
+    std::uint64_t lastTelemetryRevision_ = 0;
+    std::uint64_t lastTelemetryViewRevision_ = 0;
 };
 
 } // namespace consolidator::max

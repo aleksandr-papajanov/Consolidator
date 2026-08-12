@@ -90,23 +90,50 @@ void ConsolidatorExternal::DrainResponses()
     }
 }
 
-void ConsolidatorExternal::HandleAnalysisTick(const atoms& args)
+void ConsolidatorExternal::HandleAnalysisView(const atoms& args)
 {
-    if (args.size() != 1 || args[0].a_type != c74::max::A_LONG)
+    if (args.size() != 2 ||
+        args[0].a_type != c74::max::A_LONG ||
+        args[1].a_type != c74::max::A_LONG)
     {
         return;
     }
 
-    const auto publicBankId = static_cast<int>(args[0]);
+    const auto instanceValue = static_cast<long>(args[0]);
+    const auto publicBankId = static_cast<int>(args[1]);
+    if (instanceValue < 0)
+    {
+        return;
+    }
     if (publicBankId < 1 || publicBankId > 7)
     {
         return;
     }
 
     analysis::AnalysisService::Get().SetView({
-        instance_.GetInstanceId(),
+        core::InstanceId{static_cast<std::size_t>(instanceValue)},
         static_cast<dsp::BankId>(publicBankId - 1)});
+    ResetAnalysisRevisions();
+}
+
+void ConsolidatorExternal::HandleAnalysisTick(const atoms& args)
+{
+    if (!args.empty())
+    {
+        return;
+    }
+
     EmitLatestAnalysis();
+}
+
+void ConsolidatorExternal::ResetAnalysisRevisions() noexcept
+{
+    lastSpectrumRevision_ = 0;
+    lastReferenceSpectrumRevision_ = 0;
+    lastDifferenceSpectrumRevision_ = 0;
+    lastCurveRevision_ = 0;
+    lastTelemetryRevision_ = 0;
+    lastTelemetryViewRevision_ = 0;
 }
 
 void ConsolidatorExternal::EmitLatestAnalysis()
@@ -142,6 +169,17 @@ void ConsolidatorExternal::EmitLatestAnalysis()
     {
         lastCurveRevision_ = curves.revision;
         EmitCurves(curves);
+    }
+
+    dsp::TelemetrySnapshot telemetry;
+    if (analysisService.TryReadLatestTelemetry(
+            telemetry,
+            lastTelemetryRevision_,
+            lastTelemetryViewRevision_))
+    {
+        lastTelemetryRevision_ = telemetry.revision;
+        lastTelemetryViewRevision_ = telemetry.viewRevision;
+        EmitTelemetry(telemetry);
     }
 }
 
@@ -185,6 +223,43 @@ void ConsolidatorExternal::EmitCurves(
     };
     emitAggregate(symbol("eq_combined"), snapshot.combined);
     emitAggregate(symbol("eq_all_banks"), snapshot.allBanksCombined);
+}
+
+void ConsolidatorExternal::EmitTelemetry(
+    const dsp::TelemetrySnapshot& snapshot)
+{
+    using dsp::MeterPoint;
+    using dsp::ToIndex;
+
+    const auto emitMeter = [this](symbol point,
+                                  const dsp::LevelTelemetry& meter)
+    {
+        analysisOutput.send(atoms{
+            atom{symbol("meter")}, atom{point}, atom{meter.rmsDb},
+            atom{meter.peakDb}, atom{meter.smoothedDb}});
+    };
+    emitMeter(
+        symbol("input_gain"),
+        snapshot.levels[ToIndex(MeterPoint::InputGainOutput)]);
+    emitMeter(
+        symbol("saturator"),
+        snapshot.levels[ToIndex(MeterPoint::SaturatorOutput)]);
+    emitMeter(
+        symbol("compressor"),
+        snapshot.levels[ToIndex(MeterPoint::CompressorOutput)]);
+    emitMeter(
+        symbol("output_gain"),
+        snapshot.levels[ToIndex(MeterPoint::OutputGainOutput)]);
+
+    analysisOutput.send(atoms{
+        atom{symbol("saturator_distortion")},
+        atom{snapshot.saturator.distortionPercent},
+        atom{snapshot.saturator.distortionSmoothedPercent}});
+    analysisOutput.send(atoms{
+        atom{symbol("compressor_reduction")},
+        atom{snapshot.compressor.gainReductionRmsDb},
+        atom{snapshot.compressor.gainReductionPeakDb},
+        atom{snapshot.compressor.gainReductionSmoothedDb}});
 }
 
 void ConsolidatorExternal::EmitProtocolError(const ProtocolError& error)
