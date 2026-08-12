@@ -42,7 +42,7 @@ AnalysisHandle AnalysisService::RegisterInstance(core::InstanceId instanceId)
     return handle;
 }
 
-void AnalysisService::UnregisterInstance(const AnalysisHandle& handle) noexcept
+void AnalysisService::UnregisterInstance(const AnalysisHandle& handle)
 {
     std::lock_guard lock{slotsMutex_};
     if (currentView_ && handle &&
@@ -54,7 +54,7 @@ void AnalysisService::UnregisterInstance(const AnalysisHandle& handle) noexcept
     std::erase(slots_, handle);
 }
 
-void AnalysisService::SetView(AnalysisView view) noexcept
+void AnalysisService::SetView(AnalysisView view)
 {
     std::lock_guard lock{slotsMutex_};
     if (currentView_ && *currentView_ == view)
@@ -77,7 +77,7 @@ void AnalysisService::SetView(AnalysisView view) noexcept
     }
 }
 
-std::optional<AnalysisView> AnalysisService::GetView() const noexcept
+std::optional<AnalysisView> AnalysisService::GetView() const
 {
     std::lock_guard lock{slotsMutex_};
     return currentView_;
@@ -100,11 +100,13 @@ AnalysisHandle AnalysisService::FindViewedSlot() const
     return {};
 }
 
-bool AnalysisService::TryReadLatestSpectrum(SpectrumSnapshot& snapshot) noexcept
+bool AnalysisService::TryReadLatestSpectrum(
+    SpectrumSnapshot& snapshot,
+    std::uint64_t lastRevision)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
-    if (!slot || !slot->MainSpectrum().ReadLatestOutput(snapshot))
+    if (!slot || !slot->MainSpectrum().ReadLatestOutput(snapshot, lastRevision))
     {
         return false;
     }
@@ -115,11 +117,14 @@ bool AnalysisService::TryReadLatestSpectrum(SpectrumSnapshot& snapshot) noexcept
     return true;
 }
 
-bool AnalysisService::TryReadLatestReferenceSpectrum(SpectrumSnapshot& snapshot) noexcept
+bool AnalysisService::TryReadLatestReferenceSpectrum(
+    SpectrumSnapshot& snapshot,
+    std::uint64_t lastRevision)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
-    if (!slot || !slot->ReferenceSpectrum().ReadLatestOutput(snapshot))
+    if (!slot || !slot->ReferenceSpectrum().ReadLatestOutput(
+            snapshot, lastRevision))
     {
         return false;
     }
@@ -131,7 +136,8 @@ bool AnalysisService::TryReadLatestReferenceSpectrum(SpectrumSnapshot& snapshot)
 }
 
 bool AnalysisService::TryReadLatestDifferenceSpectrum(
-    SpectrumSnapshot& snapshot) noexcept
+    SpectrumSnapshot& snapshot,
+    std::uint64_t lastRevision)
 {
     std::lock_guard lock{slotsMutex_};
     if (!FindViewedSlot())
@@ -139,7 +145,7 @@ bool AnalysisService::TryReadLatestDifferenceSpectrum(
         return false;
     }
 
-    if (!differenceSpectrum_.ReadLatest(snapshot))
+    if (!differenceSpectrum_.TryReadNewerThan(snapshot, lastRevision))
         return false;
     if (snapshot.viewRevision != viewRevision_)
     {
@@ -148,11 +154,13 @@ bool AnalysisService::TryReadLatestDifferenceSpectrum(
     return true;
 }
 
-bool AnalysisService::TryReadLatestCurve(EqualizerCurveSnapshot& snapshot) noexcept
+bool AnalysisService::TryReadLatestCurve(
+    EqualizerCurveSnapshot& snapshot,
+    std::uint64_t lastRevision)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
-    if (!slot || !slot->CurveOutput().ReadLatestOutput(snapshot))
+    if (!slot || !slot->CurveOutput().ReadLatestOutput(snapshot, lastRevision))
     {
         return false;
     }

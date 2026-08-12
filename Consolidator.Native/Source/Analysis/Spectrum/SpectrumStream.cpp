@@ -55,14 +55,16 @@ void SpectrumStream::Reset() noexcept
 }
 
 void SpectrumStream::PublishOutput(
-    const SpectrumSnapshot& snapshot) noexcept
+    const SpectrumSnapshot& snapshot)
 {
     output_.Publish(snapshot);
 }
 
-bool SpectrumStream::ReadLatestOutput(SpectrumSnapshot& snapshot) const noexcept
+bool SpectrumStream::ReadLatestOutput(
+    SpectrumSnapshot& snapshot,
+    std::uint64_t lastRevision) const
 {
-    return output_.ReadLatest(snapshot);
+    return output_.TryReadNewerThan(snapshot, lastRevision);
 }
 
 } // namespace consolidator::analysis

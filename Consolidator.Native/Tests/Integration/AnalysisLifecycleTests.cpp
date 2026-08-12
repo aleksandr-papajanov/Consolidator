@@ -21,7 +21,7 @@ analysis::EqualizerCurveSnapshot AwaitEqualizerResponse(
     for (std::size_t attempt = 0; attempt < 500; ++attempt)
     {
         analysis::EqualizerCurveSnapshot snapshot;
-        if (analysis::AnalysisService::Get().TryReadLatestCurve(snapshot) &&
+        if (analysis::AnalysisService::Get().TryReadLatestCurve(snapshot, 0) &&
             accept(snapshot))
         {
             return snapshot;
@@ -69,7 +69,7 @@ TEST_CASE("Instance publishes live spectrum after a complete audio window")
     bool received = false;
     for (std::size_t attempt = 0; attempt < 500 && !received; ++attempt)
     {
-        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot);
+        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot, 0);
         if (!received)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{2});
@@ -103,7 +103,7 @@ TEST_CASE("Instance publishes main-reference difference spectrum")
     for (std::size_t attempt = 0; attempt < 500 && !received; ++attempt)
     {
         received = analysis::AnalysisService::Get()
-            .TryReadLatestDifferenceSpectrum(snapshot);
+            .TryReadLatestDifferenceSpectrum(snapshot, 0);
         if (!received)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{2});
@@ -116,16 +116,19 @@ TEST_CASE("Instance publishes main-reference difference spectrum")
     analysis::SpectrumSnapshot mainSnapshot;
     analysis::SpectrumSnapshot referenceSnapshot;
     EXPECT_TRUE(
-        analysis::AnalysisService::Get().TryReadLatestSpectrum(mainSnapshot));
+        analysis::AnalysisService::Get().TryReadLatestSpectrum(mainSnapshot, 0));
     EXPECT_TRUE(analysis::AnalysisService::Get().TryReadLatestReferenceSpectrum(
-        referenceSnapshot));
+        referenceSnapshot, 0));
     EXPECT_TRUE(mainSnapshot.sourceRevision > 0);
     EXPECT_TRUE(referenceSnapshot.sourceRevision > 0);
     analysis::SpectrumSnapshot repeatedMainSnapshot;
     EXPECT_TRUE(
         analysis::AnalysisService::Get().TryReadLatestSpectrum(
-            repeatedMainSnapshot));
+            repeatedMainSnapshot, 0));
     EXPECT_EQ(repeatedMainSnapshot.revision, mainSnapshot.revision);
+    EXPECT_FALSE(
+        analysis::AnalysisService::Get().TryReadLatestSpectrum(
+            repeatedMainSnapshot, mainSnapshot.revision));
 }
 
 TEST_CASE("Chain solo republishes a flat equalizer response")
@@ -209,8 +212,11 @@ TEST_CASE("Changing the analysis bank publishes all curve variants")
         });
     analysis::EqualizerCurveSnapshot repeatedCurve;
     EXPECT_TRUE(
-        analysis::AnalysisService::Get().TryReadLatestCurve(repeatedCurve));
+        analysis::AnalysisService::Get().TryReadLatestCurve(repeatedCurve, 0));
     EXPECT_EQ(repeatedCurve.revision, bank0.revision);
+    EXPECT_FALSE(
+        analysis::AnalysisService::Get().TryReadLatestCurve(
+            repeatedCurve, bank0.revision));
 
     analysis::AnalysisService::Get().SetView(
         {instanceId, dsp::BankId::Bank1});
@@ -255,7 +261,7 @@ TEST_CASE("Switching spectrum instances discards a partial FFT window")
     }
 
     analysis::SpectrumSnapshot snapshot;
-    EXPECT_FALSE(analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot));
+    EXPECT_FALSE(analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot, 0));
 
     for (std::size_t block = 0; block < analysis::kFftSize / 32; ++block)
     {
@@ -265,7 +271,7 @@ TEST_CASE("Switching spectrum instances discards a partial FFT window")
     bool received = false;
     for (std::size_t attempt = 0; attempt < 500 && !received; ++attempt)
     {
-        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot);
+        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot, 0);
         if (!received)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{2});

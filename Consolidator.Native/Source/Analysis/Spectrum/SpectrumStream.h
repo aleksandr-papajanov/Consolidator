@@ -23,10 +23,11 @@ class SpectrumStream final
 
     [[nodiscard]] bool TryConsumeInput(AudioWindow& window) noexcept;
 
-    void PublishOutput(const SpectrumSnapshot& snapshot) noexcept;
+    void PublishOutput(const SpectrumSnapshot& snapshot);
 
     [[nodiscard]] bool ReadLatestOutput(
-        SpectrumSnapshot& snapshot) const noexcept;
+        SpectrumSnapshot& snapshot,
+        std::uint64_t lastRevision) const;
 
     void Prepare(double sampleRate) noexcept;
 

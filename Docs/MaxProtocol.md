@@ -252,9 +252,13 @@ MaxProtocolAdapter (framing + correlation)
 
 `ConsolidatorExternal` remains a thin Min lifecycle and port wrapper. It owns
 one `ConsolidatorInstance`, forwards audio, enqueues decoded commands, and
-delivers only responses dequeued from that instance. Core exposes a response
-notifier callback; the external binds it to a thread-safe `queue<>.set()`
-signal. The callback only schedules a Max main-thread drain: a thread-safe
-scheduling call is permitted, but it does not call outlets, emit messages, or
-encode atoms. It contains no state,
-group, solo, constraint, or compressor logic.
+delivers responses dequeued from that instance through `controlOutput`. Core
+exposes a response notifier callback; the external binds it to a thread-safe
+`queue<>.set()` signal. The callback only schedules a Max main-thread drain: a
+thread-safe scheduling call is permitted, but it does not call outlets, emit
+messages, or encode atoms. Analysis uses a separate `analysisOutput` outlet.
+The UI sends `analysis_tick <bank>` to the physical external selected for
+display; `bank` uses the public `1..7` numbering. The message selects that
+instance and bank as the global analysis view, reads changed persistent
+snapshots on the Max main thread, and emits selector-framed telemetry;
+analysis has no external worker, notification callback, or response queue.

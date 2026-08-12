@@ -1,5 +1,6 @@
 #include "ConsolidatorExternal.h"
 
+#include <cstddef>
 #include <utility>
 
 namespace consolidator::max
@@ -24,10 +25,10 @@ void ConsolidatorExternal::operator()(audio_bundle input, audio_bundle output)
 {
     // The audio boundary contains no protocol or coordinator work.
     instance_.Process(
+        input.samples(0),
         input.samples(1),
         input.samples(2),
         input.samples(3),
-        input.samples(4),
         output.samples(0),
         output.samples(1),
         output.samples(2),
@@ -87,6 +88,103 @@ void ConsolidatorExternal::DrainResponses()
         responseDispatchPending_.store(true, std::memory_order_release);
         responseQueue_.set();
     }
+}
+
+void ConsolidatorExternal::HandleAnalysisTick(const atoms& args)
+{
+    if (args.size() != 1 || args[0].a_type != c74::max::A_LONG)
+    {
+        return;
+    }
+
+    const auto publicBankId = static_cast<int>(args[0]);
+    if (publicBankId < 1 || publicBankId > 7)
+    {
+        return;
+    }
+
+    analysis::AnalysisService::Get().SetView({
+        instance_.GetInstanceId(),
+        static_cast<dsp::BankId>(publicBankId - 1)});
+    EmitLatestAnalysis();
+}
+
+void ConsolidatorExternal::EmitLatestAnalysis()
+{
+    auto& analysisService = analysis::AnalysisService::Get();
+
+    analysis::SpectrumSnapshot spectrum;
+    if (analysisService.TryReadLatestSpectrum(
+            spectrum, lastSpectrumRevision_))
+    {
+        lastSpectrumRevision_ = spectrum.revision;
+        EmitSpectrum(symbol("spectrum_main"), spectrum);
+    }
+
+    analysis::SpectrumSnapshot reference;
+    if (analysisService.TryReadLatestReferenceSpectrum(
+            reference, lastReferenceSpectrumRevision_))
+    {
+        lastReferenceSpectrumRevision_ = reference.revision;
+        EmitSpectrum(symbol("spectrum_reference"), reference);
+    }
+
+    analysis::SpectrumSnapshot difference;
+    if (analysisService.TryReadLatestDifferenceSpectrum(
+            difference, lastDifferenceSpectrumRevision_))
+    {
+        lastDifferenceSpectrumRevision_ = difference.revision;
+        EmitSpectrum(symbol("spectrum_difference"), difference);
+    }
+
+    analysis::EqualizerCurveSnapshot curves;
+    if (analysisService.TryReadLatestCurve(curves, lastCurveRevision_))
+    {
+        lastCurveRevision_ = curves.revision;
+        EmitCurves(curves);
+    }
+}
+
+void ConsolidatorExternal::EmitSpectrum(
+    symbol selector,
+    const analysis::SpectrumSnapshot& snapshot)
+{
+    atoms frame{atom{selector}};
+    frame.reserve(frame.size() + snapshot.magnitudeDb.size());
+    for (const auto value : snapshot.magnitudeDb)
+    {
+        frame.emplace_back(atom{static_cast<double>(value)});
+    }
+    analysisOutput.send(frame);
+}
+
+void ConsolidatorExternal::EmitCurves(
+    const analysis::EqualizerCurveSnapshot& snapshot)
+{
+    for (std::size_t index = 0; index < snapshot.filters.size(); ++index)
+    {
+        atoms frame{atom{symbol("eq_filter")}, atom{static_cast<int>(index + 1)}};
+        frame.reserve(frame.size() + snapshot.filters[index].magnitudeDb.size());
+        for (const auto value : snapshot.filters[index].magnitudeDb)
+        {
+            frame.emplace_back(atom{static_cast<double>(value)});
+        }
+        analysisOutput.send(frame);
+    }
+
+    const auto emitAggregate = [this](symbol selector,
+                                       const analysis::FrequencyResponseSnapshot& curve)
+    {
+        atoms frame{atom{selector}};
+        frame.reserve(frame.size() + curve.magnitudeDb.size());
+        for (const auto value : curve.magnitudeDb)
+        {
+            frame.emplace_back(atom{static_cast<double>(value)});
+        }
+        analysisOutput.send(frame);
+    };
+    emitAggregate(symbol("eq_combined"), snapshot.combined);
+    emitAggregate(symbol("eq_all_banks"), snapshot.allBanksCombined);
 }
 
 void ConsolidatorExternal::EmitProtocolError(const ProtocolError& error)

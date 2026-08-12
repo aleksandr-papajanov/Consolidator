@@ -33,8 +33,10 @@ Reference input  [2 ch] ─┤
                           └─────────────────── passthrough (current skeleton)
 ```
 
-Future: UI controllers, analyzer outputs, monitoring, and debug streams will be
-added as additional Max inlets/outlets, but Core will remain unaware of Max.
+Analyzer telemetry is exposed by the Max external through one analysis outlet;
+the Core and Analysis layers remain unaware of Max. UI code selects the
+refresh rate and requests changed latest snapshots with `analysis_tick`.
+The message carries the public one-based EQ bank: `analysis_tick <bank>`.
 
 ## State Routing
 

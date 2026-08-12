@@ -30,13 +30,21 @@ class AnalysisService final
     static AnalysisService& Get();
 
     AnalysisHandle RegisterInstance(core::InstanceId instanceId);
-    void UnregisterInstance(const AnalysisHandle& handle) noexcept;
-    void SetView(AnalysisView view) noexcept;
-    [[nodiscard]] std::optional<AnalysisView> GetView() const noexcept;
-    [[nodiscard]] bool TryReadLatestSpectrum(SpectrumSnapshot& snapshot) noexcept;
-    [[nodiscard]] bool TryReadLatestReferenceSpectrum(SpectrumSnapshot& snapshot) noexcept;
-    [[nodiscard]] bool TryReadLatestDifferenceSpectrum(SpectrumSnapshot& snapshot) noexcept;
-    [[nodiscard]] bool TryReadLatestCurve(EqualizerCurveSnapshot& snapshot) noexcept;
+    void UnregisterInstance(const AnalysisHandle& handle);
+    void SetView(AnalysisView view);
+    [[nodiscard]] std::optional<AnalysisView> GetView() const;
+    [[nodiscard]] bool TryReadLatestSpectrum(
+        SpectrumSnapshot& snapshot,
+        std::uint64_t lastRevision);
+    [[nodiscard]] bool TryReadLatestReferenceSpectrum(
+        SpectrumSnapshot& snapshot,
+        std::uint64_t lastRevision);
+    [[nodiscard]] bool TryReadLatestDifferenceSpectrum(
+        SpectrumSnapshot& snapshot,
+        std::uint64_t lastRevision);
+    [[nodiscard]] bool TryReadLatestCurve(
+        EqualizerCurveSnapshot& snapshot,
+        std::uint64_t lastRevision);
 
     ~AnalysisService();
 
@@ -63,11 +71,8 @@ class AnalysisService final
     std::uint64_t viewRevision_ = 0;
     std::uint64_t nextResultRevision_ = 1;
     LatestValue<SpectrumSnapshot> differenceSpectrum_;
-    SpectrumSnapshot latestMainSpectrum_;
-    SpectrumSnapshot latestReferenceSpectrum_;
-    bool hasMainSpectrum_ = false;
-    bool hasReferenceSpectrum_ = false;
-    std::uint64_t processedSpectrumViewRevision_ = 0;
+    std::optional<SpectrumSnapshot> latestMainSpectrum_;
+    std::optional<SpectrumSnapshot> latestReferenceSpectrum_;
     SpectrumAnalyzer spectrumAnalyzer_;
     SpectrumMapper spectrumMapper_;
     FrequencyResponseCalculator frequencyResponseCalculator_;

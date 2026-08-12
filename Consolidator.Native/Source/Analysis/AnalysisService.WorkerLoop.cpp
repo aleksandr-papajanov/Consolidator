@@ -26,13 +26,6 @@ void AnalysisService::WorkerLoop(std::stop_token stopToken)
 
         if (slot && view)
         {
-            if (processedSpectrumViewRevision_ != viewRevision)
-            {
-                hasMainSpectrum_ = false;
-                hasReferenceSpectrum_ = false;
-                processedSpectrumViewRevision_ = viewRevision;
-            }
-
             SpectrumSnapshot mainSpectrum;
             SpectrumSnapshot referenceSpectrum;
             const auto mainProcessed = ProcessSpectrum(
@@ -42,22 +35,22 @@ void AnalysisService::WorkerLoop(std::stop_token stopToken)
             if (mainProcessed)
             {
                 latestMainSpectrum_ = mainSpectrum;
-                hasMainSpectrum_ = true;
             }
             if (referenceProcessed)
             {
                 latestReferenceSpectrum_ = referenceSpectrum;
-                hasReferenceSpectrum_ = true;
             }
             didWork = mainProcessed || referenceProcessed || didWork;
-            if (hasMainSpectrum_ && hasReferenceSpectrum_ &&
+            if (latestMainSpectrum_ && latestReferenceSpectrum_ &&
+                latestMainSpectrum_->viewRevision == viewRevision &&
+                latestReferenceSpectrum_->viewRevision == viewRevision &&
                 (mainProcessed || referenceProcessed))
             {
                 SpectrumSnapshot difference;
-                difference.sampleRate = latestMainSpectrum_.sampleRate;
+                difference.sampleRate = latestMainSpectrum_->sampleRate;
                 difference.sourceRevision = std::max(
-                    latestMainSpectrum_.sourceRevision,
-                    latestReferenceSpectrum_.sourceRevision);
+                    latestMainSpectrum_->sourceRevision,
+                    latestReferenceSpectrum_->sourceRevision);
                 difference.revision = nextResultRevision_++;
                 difference.viewRevision = viewRevision;
                 for (std::size_t index = 0;
@@ -65,8 +58,8 @@ void AnalysisService::WorkerLoop(std::stop_token stopToken)
                      ++index)
                 {
                     difference.magnitudeDb[index] =
-                        latestMainSpectrum_.magnitudeDb[index] -
-                        latestReferenceSpectrum_.magnitudeDb[index];
+                        latestMainSpectrum_->magnitudeDb[index] -
+                        latestReferenceSpectrum_->magnitudeDb[index];
                 }
                 differenceSpectrum_.Publish(difference);
                 didWork = true;

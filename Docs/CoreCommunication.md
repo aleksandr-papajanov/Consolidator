@@ -242,9 +242,9 @@ construction and analysis request building.
 The curve result contains one snapshot per EQ filter, a combined snapshot for
 the current bank, and an `allBanksCombined` snapshot containing the aggregate
 curve for every active bank. A Tilt filter's individual snapshot contains its
-low- and high-shelf stages. `AnalysisService::TryReadLatestCurve()` exposes
-this aggregate result to the UI. Every result has a service-wide result
-revision and a view epoch;
+low- and high-shelf stages. `AnalysisService::TryReadLatestCurve(snapshot,
+lastRevision)` exposes this aggregate result to the UI. Every result has a
+service-wide result revision and a view epoch;
 the source revision remains available inside each curve snapshot.
 `ConsolidatorInstance::Prepare(sampleRate)` forwards the sample rate to its
 analysis slot and atomically marks the curve input stale. The coordinator
@@ -253,11 +253,23 @@ worker then republishes immutable curve input from its authoritative
 `SpectrumSnapshot` carries the rate captured with its source window alongside
 its magnitudes and revision.
 The analysis service exposes the current-instance main spectrum, reference
-spectrum, and their dB difference through separate latest-result readers.
+spectrum, their dB difference, and the EQ curve bundle through persistent
+latest-result readers. Readers pass their own last-seen result revision, so
+reading never consumes or removes a snapshot. `ConsolidatorExternal` does not
+own an analysis worker and does not receive analysis notifications. Its
+`analysis_tick <bank>` message is driven by the Max/UI refresh loop. It selects
+the receiving external's instance and the public one-based EQ bank as the
+global analysis view, then on the Max main thread reads every latest result
+whose revision changed and emits the changed frames through one
+`analysisOutput` outlet. The selectors are
+`spectrum_main`, `spectrum_reference`, `spectrum_difference`, `eq_filter` with
+a 1-based filter id, `eq_combined`, and `eq_all_banks`. This coalesces worker
+updates to the UI refresh rate while keeping analysis independent of Max.
 The difference is calculated as `main - reference` after both spectra have
-been produced for the current view epoch. `TryReadLatestSpectrum()` and
-`TryReadLatestReferenceSpectrum()` expose the source snapshots independently;
-`TryReadLatestDifferenceSpectrum()` exposes the derived snapshot without
+been produced for the current view epoch. `TryReadLatestSpectrum(snapshot,
+lastRevision)` and `TryReadLatestReferenceSpectrum(snapshot, lastRevision)`
+expose the source snapshots independently;
+`TryReadLatestDifferenceSpectrum(snapshot, lastRevision)` exposes the derived snapshot without
 requiring the consumer to synchronize the two source cursors.
 The rate is captured into each immutable `AudioWindow` by the audio-side
 accumulator; `SpectrumStream` has no mutable sample-rate state shared

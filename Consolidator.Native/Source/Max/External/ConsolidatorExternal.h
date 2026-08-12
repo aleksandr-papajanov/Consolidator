@@ -1,7 +1,9 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 
+#include "Analysis/AnalysisService.h"
 #include "Core/Instance/ConsolidatorInstance.h"
 #include "../Protocol/MaxProtocolAdapter.h"
 #include "c74_min_api.h"
@@ -28,6 +30,7 @@ public:
         this, "Reference input right.", "signal" };
 
     c74::min::outlet<> controlOutput { this, "Protocol responses." };
+    c74::min::outlet<> analysisOutput { this, "Latest analysis snapshots." };
     c74::min::outlet<> mainOutputLeft {
         this, "Main output left.", "signal" };
     c74::min::outlet<> mainOutputRight {
@@ -43,6 +46,9 @@ public:
         MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("write"), args); return {}; } };
     c74::min::message<> reset { this, "reset", "Reset DSP through the protocol.",
         MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("reset"), args); return {}; } };
+    c74::min::message<> analysisTick { this, "analysis_tick",
+        "Select this instance and bank, then emit changed analysis snapshots.",
+        MIN_FUNCTION { HandleAnalysisTick(args); return {}; } };
     c74::min::message<> dspsetup { this, "dspsetup",
         "Prepare DSP for the host sample rate.",
         MIN_FUNCTION
@@ -62,6 +68,13 @@ private:
                                const c74::min::atoms& args);
     void NotifyResponseAvailable();
     void DrainResponses();
+    void HandleAnalysisTick(const c74::min::atoms& args);
+    void EmitLatestAnalysis();
+    void EmitSpectrum(
+        c74::min::symbol selector,
+        const consolidator::analysis::SpectrumSnapshot& snapshot);
+    void EmitCurves(
+        const consolidator::analysis::EqualizerCurveSnapshot& snapshot);
     void EmitProtocolError(const ProtocolError& error);
 
     core::ConsolidatorInstance instance_;
@@ -69,6 +82,10 @@ private:
     c74::min::queue<> responseQueue_;
     std::atomic_bool responseDispatchPending_{false};
     std::atomic_bool acceptingResponses_{true};
+    std::uint64_t lastSpectrumRevision_ = 0;
+    std::uint64_t lastReferenceSpectrumRevision_ = 0;
+    std::uint64_t lastDifferenceSpectrumRevision_ = 0;
+    std::uint64_t lastCurveRevision_ = 0;
 };
 
 } // namespace consolidator::max

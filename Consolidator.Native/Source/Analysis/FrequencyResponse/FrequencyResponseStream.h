@@ -12,9 +12,10 @@ namespace consolidator::analysis
 class FrequencyResponseStream final
 {
   public:
-    void PublishOutput(const EqualizerCurveSnapshot& snapshot) noexcept;
+    void PublishOutput(const EqualizerCurveSnapshot& snapshot);
     [[nodiscard]] bool ReadLatestOutput(
-        EqualizerCurveSnapshot& snapshot) const noexcept;
+        EqualizerCurveSnapshot& snapshot,
+        std::uint64_t lastRevision) const;
 
     [[nodiscard]] bool NeedsProcessing(
         std::uint64_t inputRevision,
