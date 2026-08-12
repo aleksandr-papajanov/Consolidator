@@ -1,5 +1,6 @@
 #include "Analysis/AnalysisService.h"
 #include "Analysis/AnalysisSlot.h"
+#include "Analysis/FrequencyResponse/FrequencyResponseRequestBuilder.h"
 
 namespace consolidator::analysis
 {
@@ -12,9 +13,9 @@ AnalysisService& AnalysisService::Get()
 
 AnalysisService::AnalysisService()
     : worker_([this](std::stop_token stopToken)
-      {
-          WorkerLoop(stopToken);
-      })
+              {
+                  WorkerLoop(stopToken);
+              })
 {
 }
 
@@ -27,23 +28,145 @@ AnalysisService::~AnalysisService()
     }
 }
 
-AnalysisHandle AnalysisService::RegisterInstance(core::InstanceId)
+AnalysisHandle AnalysisService::RegisterInstance(core::InstanceId instanceId)
 {
-    auto handle = std::make_shared<AnalysisSlot>();
+    auto handle = std::make_shared<AnalysisSlot>(instanceId);
+    std::lock_guard lock{slotsMutex_};
+    if (currentView_ && instanceId == currentView_->instanceId)
     {
-        std::lock_guard lock{slotsMutex_};
-        slots_.push_back(handle);
+        handle->MainSpectrum().Reset();
+        handle->ReferenceSpectrum().Reset();
+        handle->SetSpectrumEnabled(true);
     }
+    slots_.push_back(handle);
     return handle;
 }
 
 void AnalysisService::UnregisterInstance(const AnalysisHandle& handle) noexcept
 {
     std::lock_guard lock{slotsMutex_};
+    if (currentView_ && handle &&
+        handle->GetInstanceId() == currentView_->instanceId)
+    {
+        currentView_.reset();
+        ++viewRevision_;
+    }
     std::erase(slots_, handle);
 }
 
-bool AnalysisService::ProcessSpectrum(SpectrumStream& stream)
+void AnalysisService::SetView(AnalysisView view) noexcept
+{
+    std::lock_guard lock{slotsMutex_};
+    if (currentView_ && *currentView_ == view)
+    {
+        return;
+    }
+
+    for (const auto& slot : slots_)
+    {
+        slot->SetSpectrumEnabled(false);
+    }
+
+    currentView_ = view;
+    ++viewRevision_;
+    if (const auto slot = FindViewedSlot())
+    {
+        slot->MainSpectrum().Reset();
+        slot->ReferenceSpectrum().Reset();
+        slot->SetSpectrumEnabled(true);
+    }
+}
+
+std::optional<AnalysisView> AnalysisService::GetView() const noexcept
+{
+    std::lock_guard lock{slotsMutex_};
+    return currentView_;
+}
+
+AnalysisHandle AnalysisService::FindViewedSlot() const
+{
+    if (!currentView_)
+    {
+        return {};
+    }
+
+    for (const auto& slot : slots_)
+    {
+        if (slot->GetInstanceId() == currentView_->instanceId)
+        {
+            return slot;
+        }
+    }
+    return {};
+}
+
+bool AnalysisService::TryReadLatestSpectrum(SpectrumSnapshot& snapshot) noexcept
+{
+    std::lock_guard lock{slotsMutex_};
+    const auto slot = FindViewedSlot();
+    if (!slot || !slot->MainSpectrum().ReadLatestOutput(snapshot))
+    {
+        return false;
+    }
+    if (snapshot.viewRevision != viewRevision_)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool AnalysisService::TryReadLatestReferenceSpectrum(SpectrumSnapshot& snapshot) noexcept
+{
+    std::lock_guard lock{slotsMutex_};
+    const auto slot = FindViewedSlot();
+    if (!slot || !slot->ReferenceSpectrum().ReadLatestOutput(snapshot))
+    {
+        return false;
+    }
+    if (snapshot.viewRevision != viewRevision_)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool AnalysisService::TryReadLatestDifferenceSpectrum(
+    SpectrumSnapshot& snapshot) noexcept
+{
+    std::lock_guard lock{slotsMutex_};
+    if (!FindViewedSlot())
+    {
+        return false;
+    }
+
+    if (!differenceSpectrum_.ReadLatest(snapshot))
+        return false;
+    if (snapshot.viewRevision != viewRevision_)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool AnalysisService::TryReadLatestCurve(EqualizerCurveSnapshot& snapshot) noexcept
+{
+    std::lock_guard lock{slotsMutex_};
+    const auto slot = FindViewedSlot();
+    if (!slot || !slot->CurveOutput().ReadLatestOutput(snapshot))
+    {
+        return false;
+    }
+    if (snapshot.viewRevision != viewRevision_)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool AnalysisService::ProcessSpectrum(
+    SpectrumStream& stream,
+    std::uint64_t viewRevision,
+    SpectrumSnapshot& output)
 {
     AudioWindow input;
     if (!stream.TryConsumeInput(input))
@@ -54,46 +177,50 @@ bool AnalysisService::ProcessSpectrum(SpectrumStream& stream)
     RawSpectrum rawSpectrum;
     spectrumAnalyzer_.Calculate(input, rawSpectrum);
 
-    AudioWindow newerInput;
-    if (stream.TryConsumeInput(newerInput))
-    {
-        spectrumAnalyzer_.Calculate(newerInput, rawSpectrum);
-    }
-
-    SpectrumSnapshot output;
     spectrumMapper_.Calculate(rawSpectrum, output);
+    output.revision = nextResultRevision_++;
+    output.viewRevision = viewRevision;
     stream.PublishOutput(output);
     return true;
 }
 
 bool AnalysisService::ProcessFrequencyResponse(
-    FrequencyResponseStream& stream)
+    AnalysisSlot& slot,
+    AnalysisView view,
+    std::uint64_t viewRevision)
 {
-    FrequencyResponseRequest input;
-    if (!stream.TryConsumeRequest(input))
+    const auto input = slot.Curves().Read();
+    if (!slot.CurveOutput().NeedsProcessing(input.revision, viewRevision))
     {
         return false;
     }
 
-    FrequencyResponseSnapshot output;
-    frequencyResponseCalculator_.Calculate(input, output);
-
-    FrequencyResponseRequest newerInput;
-    if (stream.TryConsumeRequest(newerInput))
+    const auto request = FrequencyResponseRequestBuilder{}.Build(
+        input, view);
+    EqualizerCurveSnapshot output;
+    for (std::size_t index = 0; index < request.filters.size(); ++index)
     {
-        frequencyResponseCalculator_.Calculate(newerInput, output);
+        frequencyResponseCalculator_.Calculate(
+            request.filters[index], output.filters[index]);
     }
-    stream.PublishOutput(output);
+    frequencyResponseCalculator_.Calculate(
+        request.combined, output.combined);
+    frequencyResponseCalculator_.Calculate(
+        request.allBanksCombined, output.allBanksCombined);
+    output.revision = nextResultRevision_++;
+    output.viewRevision = viewRevision;
+    for (auto& filter : output.filters)
+    {
+        filter.revision = output.revision;
+        filter.viewRevision = viewRevision;
+    }
+    output.combined.revision = output.revision;
+    output.combined.viewRevision = viewRevision;
+    output.allBanksCombined.revision = output.revision;
+    output.allBanksCombined.viewRevision = viewRevision;
+    slot.CurveOutput().PublishOutput(output);
+    slot.CurveOutput().MarkProcessed(input.revision, viewRevision);
     return true;
-}
-
-bool AnalysisService::ProcessSlot(AnalysisSlot& slot)
-{
-    const auto mainProcessed = ProcessSpectrum(slot.MainSpectrum());
-    const auto referenceProcessed = ProcessSpectrum(slot.ReferenceSpectrum());
-    const auto equalizerProcessed = ProcessFrequencyResponse(
-        slot.EqualizerResponse());
-    return mainProcessed || referenceProcessed || equalizerProcessed;
 }
 
 } // namespace consolidator::analysis

@@ -47,7 +47,7 @@ void SpectrumAnalyzer::Calculate(
     output.sampleRate = input.sampleRate;
     for (std::size_t index = 0; index < kFftSize; ++index)
     {
-        fftInput_[index] = input.samples[index] * windowFunction_[index];
+        fftInput_[index] = input.leftSamples[index] * windowFunction_[index];
     }
 
     kiss_fftr(fftConfig_.get(), fftInput_.data(), fftOutput_.data());
@@ -58,9 +58,30 @@ void SpectrumAnalyzer::Calculate(
             fftOutput_[index].i) / windowSum_;
         const auto isOneSidedInteriorBin =
             index != 0 && index != kFftSize / 2;
-        output.magnitudes[index] = isOneSidedInteriorBin
+        leftMagnitudes_[index] = isOneSidedInteriorBin
             ? 2.0F * amplitude
             : amplitude;
+    }
+
+    for (std::size_t index = 0; index < kFftSize; ++index)
+    {
+        fftInput_[index] = input.rightSamples[index] * windowFunction_[index];
+    }
+
+    kiss_fftr(fftConfig_.get(), fftInput_.data(), fftOutput_.data());
+    for (std::size_t index = 0; index < kSpectrumBinCount; ++index)
+    {
+        const auto amplitude = std::hypot(
+            fftOutput_[index].r,
+            fftOutput_[index].i) / windowSum_;
+        const auto isOneSidedInteriorBin =
+            index != 0 && index != kFftSize / 2;
+        const auto rightMagnitude = isOneSidedInteriorBin
+            ? 2.0F * amplitude
+            : amplitude;
+        output.magnitudes[index] = std::sqrt(
+            (leftMagnitudes_[index] * leftMagnitudes_[index] +
+             rightMagnitude * rightMagnitude) * 0.5F);
     }
 }
 

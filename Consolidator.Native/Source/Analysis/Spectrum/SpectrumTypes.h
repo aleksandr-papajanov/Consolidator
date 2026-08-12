@@ -13,9 +13,11 @@ inline constexpr std::size_t kDisplaySpectrumBinCount = 256;
 
 struct AudioWindow
 {
-    std::array<float, kFftSize> samples{};
+    std::array<float, kFftSize> leftSamples{};
+    std::array<float, kFftSize> rightSamples{};
     double sampleRate = 0.0;
     std::uint64_t revision = 0;
+    std::uint64_t generation = 0;
 };
 
 struct RawSpectrum
@@ -29,7 +31,9 @@ struct SpectrumSnapshot
 {
     std::array<float, kDisplaySpectrumBinCount> magnitudeDb{};
     double sampleRate = 0.0;
+    std::uint64_t sourceRevision = 0;
     std::uint64_t revision = 0;
+    std::uint64_t viewRevision = 0;
 };
 
 } // namespace consolidator::analysis

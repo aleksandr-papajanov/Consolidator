@@ -6,18 +6,10 @@
 
 #include "Core/Settings/DspDeviceSettings.h"
 #include "Dsp/Processors/DspDevice.h"
+#include "Dsp/Processors/Equalizer/Filters/BiquadDesigner.h"
 
 namespace consolidator::dsp
 {
-
-struct BiquadCoefficients
-{
-    double b0 = 1.0;
-    double b1 = 0.0;
-    double b2 = 0.0;
-    double a1 = 0.0;
-    double a2 = 0.0;
-};
 
 struct FilterMemory
 {
@@ -40,9 +32,9 @@ struct FilterRuntimeState
 // Base biquad filter with shared parameter routing, memory and coefficient state.
 class Filter : public DspDevice
 {
-public:
-    using DspDevice::Reset;
+  public:
     using DspDevice::ApplyProcessingStateAtDepth;
+    using DspDevice::Reset;
 
     Filter(
         DeviceId deviceId,
@@ -72,11 +64,9 @@ public:
         return DspDevice::ApplyParameter(route, value, depth);
     }
 
-
     [[nodiscard]] virtual double ProcessSample(
         double input,
         std::size_t channel) noexcept;
-
 
     [[nodiscard]] FilterId GetFilterId() const noexcept
     {
@@ -92,8 +82,7 @@ public:
         return runtimeState_;
     }
 
-
-protected:
+  protected:
     static constexpr std::size_t kMaximumChannelCount = 2;
     // Rebuilds normalized coefficients from the current runtime parameters.
     virtual void RecalculateCoefficients() = 0;
@@ -125,18 +114,16 @@ protected:
 
     FilterRuntimeState runtimeState_;
 
-private:
+  private:
     bool ApplyOwnParameter(
         const core::StatePath& route,
         const ParameterVariant& value) override;
-
 
     [[nodiscard]] double ProcessActiveSample(
         double input,
         std::size_t channel) noexcept;
 
     [[nodiscard]] double GetMaximumFrequencyHz() const noexcept;
-
 };
 
 } // namespace consolidator::dsp

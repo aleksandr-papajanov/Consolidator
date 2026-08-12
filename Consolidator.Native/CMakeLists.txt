@@ -33,7 +33,10 @@ set_target_properties(ConsolidatorCore PROPERTIES
 target_sources(ConsolidatorCore PRIVATE
     Source/Analysis/Spectrum/SpectrumTypes.h
     Source/Analysis/LatestSnapshot.h
+    Source/Analysis/LatestValue.h
     Source/Analysis/AnalysisService.h
+    Source/Analysis/AnalysisView.h
+    Source/Analysis/CurveInput.h
     Source/Analysis/AnalysisSlot.h
     Source/Analysis/AnalysisSlot.cpp
     Source/Analysis/Spectrum/SpectrumAnalyzer.h
@@ -44,6 +47,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Analysis/Spectrum/SpectrumStream.h
     Source/Analysis/Spectrum/SpectrumStream.cpp
     Source/Analysis/FrequencyResponse/FrequencyResponseTypes.h
+    Source/Analysis/FrequencyResponse/FrequencyResponseRequestBuilder.h
+    Source/Analysis/FrequencyResponse/FrequencyResponseRequestBuilder.cpp
     Source/Analysis/FrequencyResponse/FrequencyResponseCalculator.h
     Source/Analysis/FrequencyResponse/FrequencyResponseCalculator.cpp
     Source/Analysis/FrequencyResponse/FrequencyResponseStream.h
@@ -58,8 +63,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Analysis/KissFFT/kiss_fftr.c
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
-    Source/Core/Analysis/EqualizerResponseBuilder.h
-    Source/Core/Analysis/EqualizerResponseBuilder.cpp
+    Source/Core/Analysis/EqualizerCurveInputBuilder.h
+    Source/Core/Analysis/EqualizerCurveInputBuilder.cpp
     Source/Core/Instance/ConsolidatorInstance.CommandSubmission.cpp
     Source/Core/Domain/Ids/InstanceId.h
     Source/Core/Domain/Ids/GroupId.h
@@ -131,17 +136,16 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Dsp/Processors/Equalizer/Equalizer.h
     Source/Dsp/Processors/Equalizer/Equalizer.cpp
     Source/Dsp/Processors/Equalizer/Filters/Filter.h
+    Source/Dsp/Processors/Equalizer/Filters/BiquadDesigner.h
+    Source/Dsp/Processors/Equalizer/Filters/BiquadDesigner.cpp
+    Source/Dsp/Processors/Equalizer/EqualizerLayout.h
     Source/Dsp/Processors/Equalizer/Filters/Filter.cpp
     Source/Dsp/Processors/Equalizer/Filters/BellFilter.h
-    Source/Dsp/Processors/Equalizer/Filters/BellFilter.cpp
     Source/Dsp/Processors/Equalizer/Filters/LowShelfFilter.h
-    Source/Dsp/Processors/Equalizer/Filters/LowShelfFilter.cpp
     Source/Dsp/Processors/Equalizer/Filters/HighShelfFilter.h
-    Source/Dsp/Processors/Equalizer/Filters/HighShelfFilter.cpp
     Source/Dsp/Processors/Equalizer/Filters/TiltFilter.h
     Source/Dsp/Processors/Equalizer/Filters/TiltFilter.cpp
     Source/Dsp/Processors/Equalizer/Filters/GainFilter.h
-    Source/Dsp/Processors/Equalizer/Filters/GainFilter.cpp
     Source/Dsp/Processors/DspChain.h
     Source/Dsp/Processors/DspChain.cpp
     Source/Dsp/DspChainBuilder.h

@@ -41,6 +41,10 @@ ctest -C RelWithDebInfo -L integration --output-on-failure
   in helpers.
 - Component tests use synchronous APIs. Waiting/polling is confined to
   `ProtocolDriver`, which is used only by integration tests.
+- Analysis integration tests cover global view switching, view epochs,
+  main/reference/difference spectra, individual EQ curves, the current-bank
+  aggregate, the all-banks aggregate, and spectrum accumulator resets when a
+  slot is reactivated.
 - Exact paths, response statuses and persistent state are asserted separately
   from derived runtime effects.
 - New production components and command variants require a matching focused

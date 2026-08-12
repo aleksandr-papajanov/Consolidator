@@ -30,7 +30,18 @@ struct FrequencyResponseRequest
 struct FrequencyResponseSnapshot
 {
     std::array<float, kResponsePointCount> magnitudeDb{};
+    std::uint64_t sourceRevision = 0;
     std::uint64_t revision = 0;
+    std::uint64_t viewRevision = 0;
+};
+
+struct EqualizerCurveSnapshot
+{
+    std::array<FrequencyResponseSnapshot, 7> filters{};
+    FrequencyResponseSnapshot combined;
+    FrequencyResponseSnapshot allBanksCombined;
+    std::uint64_t revision = 0;
+    std::uint64_t viewRevision = 0;
 };
 
 } // namespace consolidator::analysis

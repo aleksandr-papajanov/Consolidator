@@ -32,7 +32,7 @@ std::unique_ptr<Filter> CreateFilter(const FilterSettings& settings)
         return std::make_unique<HighShelfFilter>(settings.elementId, settings.frequencyHz.defaultValue);
     case FilterKind::Tilt:
         return std::make_unique<TiltFilter>(settings.elementId, settings.frequencyHz.defaultValue);
-    case FilterKind::GainFilter:
+    case FilterKind::Gain:
         return std::make_unique<GainFilter>(settings.elementId);
     }
     return nullptr;

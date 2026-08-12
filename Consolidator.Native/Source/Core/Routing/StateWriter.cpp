@@ -25,9 +25,7 @@ std::optional<dsp::ParameterVariant> ToParameterVariant(
         [](const auto& typedValue) -> std::optional<dsp::ParameterVariant>
         {
             using ValueType = std::decay_t<decltype(typedValue)>;
-            if constexpr (std::is_same_v<ValueType, bool> ||
-                          std::is_same_v<ValueType, std::int32_t> ||
-                          std::is_same_v<ValueType, float>)
+            if constexpr (std::is_same_v<ValueType, bool> || std::is_same_v<ValueType, std::int32_t> || std::is_same_v<ValueType, float>)
             {
                 return dsp::ParameterVariant{typedValue};
             }
@@ -48,14 +46,12 @@ void AppendUnique(
 
 bool AffectsProcessingState(const StateEntry& entry)
 {
-    if (entry.path.field != StateField::DspMarker ||
-        !entry.path.markerId)
+    if (entry.path.field != StateField::DspMarker || !entry.path.markerId)
     {
         return false;
     }
 
-    return *entry.path.markerId == StateMarkerId::Solo ||
-           *entry.path.markerId == StateMarkerId::Bypass;
+    return *entry.path.markerId == StateMarkerId::Solo || *entry.path.markerId == StateMarkerId::Bypass;
 }
 
 bool AffectsEqualizerResponse(const StateEntry& entry)
@@ -70,21 +66,25 @@ bool AffectsEqualizerResponse(const StateEntry& entry)
         return true;
     }
 
-    return entry.path.field == StateField::DspMarker &&
-        entry.path.markerId == StateMarkerId::Solo &&
-        (*entry.path.deviceId == dsp::DeviceId::Saturator ||
-         *entry.path.deviceId == dsp::DeviceId::Compressor);
+    return entry.path.field == StateField::DspMarker && entry.path.markerId == StateMarkerId::Solo && (*entry.path.deviceId == dsp::DeviceId::Saturator || *entry.path.deviceId == dsp::DeviceId::Compressor);
+}
+
+void AddAnalysisInstance(StateEffects& effects, InstanceId instanceId)
+{
+    if (std::find(effects.analysisInstances.begin(),
+                  effects.analysisInstances.end(), instanceId) == effects.analysisInstances.end())
+    {
+        effects.analysisInstances.push_back(instanceId);
+    }
 }
 
 bool AffectsAudibility(const StateEntry& entry)
 {
-    if (entry.path.field == StateField::Mute ||
-        entry.path.field == StateField::Solo)
+    if (entry.path.field == StateField::Mute || entry.path.field == StateField::Solo)
     {
         return true;
     }
-    if (entry.path.field == StateField::SelectedBank ||
-        entry.path.field == StateField::GroupId)
+    if (entry.path.field == StateField::SelectedBank || entry.path.field == StateField::GroupId)
     {
         return true;
     }
@@ -93,9 +93,7 @@ bool AffectsAudibility(const StateEntry& entry)
 
 bool IsMonitoringMarker(const StateEntry& entry)
 {
-    return entry.path.field == StateField::DspMarker &&
-        entry.path.markerId &&
-        *entry.path.markerId == StateMarkerId::Listen;
+    return entry.path.field == StateField::DspMarker && entry.path.markerId && *entry.path.markerId == StateMarkerId::Listen;
 }
 
 std::vector<StatePath> BuildConstraintRefreshPaths(
@@ -120,9 +118,7 @@ StateWriter::StateWriter(
     InstanceRegistry& registry,
     const StateRouter& stateRouter,
     const ParameterConstraintResolver& constraintResolver) noexcept
-    : registry_(registry)
-    , stateRouter_(stateRouter)
-    , constraintResolver_(constraintResolver)
+    : registry_(registry), stateRouter_(stateRouter), constraintResolver_(constraintResolver)
 {
 }
 
@@ -201,10 +197,7 @@ bool StateWriter::TryApplyTopology(
     }
 
     const auto field = *entry.path.field;
-    if (field != StateField::SelectedBank &&
-        field != StateField::GroupId &&
-        field != StateField::Mute &&
-        field != StateField::Solo)
+    if (field != StateField::SelectedBank && field != StateField::GroupId && field != StateField::Mute && field != StateField::Solo)
     {
         return false;
     }
@@ -262,8 +255,7 @@ bool StateWriter::TryApplyTopology(
     }
 
     const auto& sourceState = source->GetStateStore().GetInstance();
-    const auto nextGroup = sourceState.banks[
-        dsp::detail::ToIndex(changedBank->bankId)].groupId;
+    const auto nextGroup = sourceState.banks[dsp::detail::ToIndex(changedBank->bankId)].groupId;
     if (nextGroup)
     {
         for (const auto& member : registry_.FindGroupMembers(*nextGroup))
@@ -276,8 +268,7 @@ bool StateWriter::TryApplyTopology(
     registry_.CacheBankGroup(*changedBank, previousGroup, nextGroup);
     for (const auto& path : BuildConstraintRefreshPaths(affectedBanks))
     {
-        if (std::find(context.constraintPaths.begin(), context.constraintPaths.end(), path) ==
-            context.constraintPaths.end())
+        if (std::find(context.constraintPaths.begin(), context.constraintPaths.end(), path) == context.constraintPaths.end())
         {
             context.constraintPaths.push_back(path);
         }
@@ -301,8 +292,7 @@ bool StateWriter::ApplyToInstance(
     std::optional<StateEntry> appliedParameter;
     for (std::size_t index = 0; index < applied.size; ++index)
     {
-        if (applied.entries[index].path.Matches(entry.path) &&
-            entry.path.Matches(applied.entries[index].path))
+        if (applied.entries[index].path.Matches(entry.path) && entry.path.Matches(applied.entries[index].path))
         {
             appliedParameter = applied.entries[index];
         }
@@ -325,10 +315,9 @@ bool StateWriter::ApplyToInstance(
         AppendApplied(applied, context);
         if (AffectsEqualizerResponse(entry))
         {
-            target->PublishEqualizerResponseRequest();
+            AddAnalysisInstance(context.effects, targetInstanceId);
         }
-        context.effects.audibilityChanged = context.effects.audibilityChanged ||
-            AffectsAudibility(entry);
+        context.effects.audibilityChanged = context.effects.audibilityChanged || AffectsAudibility(entry);
         if (!appliedParameter)
         {
             CollectConstraintPaths(targetInstanceId, entry, context);
@@ -339,8 +328,7 @@ bool StateWriter::ApplyToInstance(
             CollectConstraintPaths(targetInstanceId, entry, context);
             return true;
         }
-        if (AffectsProcessingState(*appliedParameter) ||
-            IsMonitoringMarker(*appliedParameter))
+        if (AffectsProcessingState(*appliedParameter) || IsMonitoringMarker(*appliedParameter))
         {
             if (std::find(
                     context.runtimeInstances.begin(),
@@ -354,9 +342,8 @@ bool StateWriter::ApplyToInstance(
         }
         if (const auto parameterValue = ToParameterVariant(appliedParameter->value))
         {
-            context.parameterUpdates.push_back({
-                targetInstanceId,
-                ParameterUpdate{appliedParameter->path, *parameterValue, 0}});
+            context.parameterUpdates.push_back({targetInstanceId,
+                                                ParameterUpdate{appliedParameter->path, *parameterValue, 0}});
         }
         CollectConstraintPaths(targetInstanceId, entry, context);
         return true;
@@ -390,8 +377,7 @@ void StateWriter::ApplyToTargets(
             target);
 
         auto* targetInstance = registry_.FindInstance(target.instanceId);
-        if (targetInstance == nullptr ||
-            !targetInstance->GetStateStore().CanWrite(*targetEntry))
+        if (targetInstance == nullptr || !targetInstance->GetStateStore().CanWrite(*targetEntry))
         {
             targetEntry->status = StateWriteStatus::Rejected;
             (void)context.response.entries.TryAppend(std::move(*targetEntry));
@@ -422,8 +408,7 @@ void StateWriter::CollectConstraintPaths(
     {
         auto path = StateRouter::Retarget(entry.path, dependency);
 
-        if (std::find(context.constraintPaths.begin(), context.constraintPaths.end(), path) ==
-            context.constraintPaths.end())
+        if (std::find(context.constraintPaths.begin(), context.constraintPaths.end(), path) == context.constraintPaths.end())
         {
             context.constraintPaths.push_back(path);
         }
@@ -455,8 +440,7 @@ void StateWriter::EnqueueParameterUpdates(WriteContext& context)
     std::vector<ParameterUpdate> updates;
     for (const auto& pending : context.parameterUpdates)
     {
-        if (std::find(publishedInstances.begin(), publishedInstances.end(), pending.instanceId) !=
-            publishedInstances.end())
+        if (std::find(publishedInstances.begin(), publishedInstances.end(), pending.instanceId) != publishedInstances.end())
         {
             continue;
         }
@@ -487,8 +471,7 @@ void StateWriter::EnqueueRuntimeUpdates(WriteContext& context)
     RuntimeResolution resolution;
     for (const auto instanceId : context.runtimeInstances)
     {
-        if (std::find(publishedInstances.begin(), publishedInstances.end(), instanceId) !=
-            publishedInstances.end())
+        if (std::find(publishedInstances.begin(), publishedInstances.end(), instanceId) != publishedInstances.end())
         {
             continue;
         }

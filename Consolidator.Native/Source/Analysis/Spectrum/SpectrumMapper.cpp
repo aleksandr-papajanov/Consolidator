@@ -20,7 +20,7 @@ void SpectrumMapper::Calculate(
     const RawSpectrum& input,
     SpectrumSnapshot& output) const noexcept
 {
-    output.revision = input.revision;
+    output.sourceRevision = input.revision;
     output.sampleRate = input.sampleRate;
 
     if (input.sampleRate <= 0.0)
@@ -42,12 +42,10 @@ void SpectrumMapper::Calculate(
     const auto logMaximum = std::log(maximumFrequency);
     for (std::size_t index = 0; index < kDisplaySpectrumBinCount; ++index)
     {
-        const auto position = static_cast<double>(index) /
-            static_cast<double>(kDisplaySpectrumBinCount - 1);
+        const auto position = static_cast<double>(index) / static_cast<double>(kDisplaySpectrumBinCount - 1);
         const auto frequency = std::exp(
             logMinimum + position * (logMaximum - logMinimum));
-        const auto rawBin = frequency * static_cast<double>(kFftSize) /
-            input.sampleRate;
+        const auto rawBin = frequency * static_cast<double>(kFftSize) / input.sampleRate;
         const auto lowerBin = static_cast<std::size_t>(rawBin);
         const auto clampedLowerBin = std::min(
             lowerBin, kSpectrumBinCount - 1);
@@ -55,11 +53,8 @@ void SpectrumMapper::Calculate(
             clampedLowerBin + 1, kSpectrumBinCount - 1);
         const auto fraction = static_cast<float>(
             rawBin - static_cast<double>(clampedLowerBin));
-        const auto magnitude = input.magnitudes[clampedLowerBin] +
-            fraction * (input.magnitudes[upperBin] -
-                        input.magnitudes[clampedLowerBin]);
-        output.magnitudeDb[index] = 20.0F * std::log10(std::max(
-            magnitude, kMinimumMagnitude));
+        const auto magnitude = input.magnitudes[clampedLowerBin] + fraction * (input.magnitudes[upperBin] - input.magnitudes[clampedLowerBin]);
+        output.magnitudeDb[index] = 20.0F * std::log10(std::max(magnitude, kMinimumMagnitude));
     }
 }
 

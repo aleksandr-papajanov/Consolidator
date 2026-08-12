@@ -25,9 +25,7 @@ std::optional<dsp::ParameterVariant> ToParameterVariant(const StateValue& value)
         [](const auto& typedValue) -> std::optional<dsp::ParameterVariant>
         {
             using ValueType = std::decay_t<decltype(typedValue)>;
-            if constexpr (std::is_same_v<ValueType, bool> ||
-                          std::is_same_v<ValueType, std::int32_t> ||
-                          std::is_same_v<ValueType, float>)
+            if constexpr (std::is_same_v<ValueType, bool> || std::is_same_v<ValueType, std::int32_t> || std::is_same_v<ValueType, float>)
             {
                 return dsp::ParameterVariant{typedValue};
             }
@@ -39,8 +37,7 @@ std::optional<dsp::ParameterVariant> ToParameterVariant(const StateValue& value)
 } // namespace
 
 ConsolidatorInstance::ConsolidatorInstance()
-    : dspChain_(dsp::DspChainBuilder{}.BuildStandardChain())
-    , stateStore_()
+    : dspChain_(dsp::DspChainBuilder{}.BuildStandardChain()), stateStore_()
 {
 }
 
@@ -95,14 +92,17 @@ void ConsolidatorInstance::Process(const double* mainInputLeft,
     ConsumeRuntimeUpdates();
     ProcessRealtimeCommands();
 
-    analysisHandle_->MainSpectrum().PushAudio(
-        mainInputLeft,
-        mainInputRight,
-        frameCount);
-    analysisHandle_->ReferenceSpectrum().PushAudio(
-        referenceInputLeft,
-        referenceInputRight,
-        frameCount);
+    if (analysisHandle_->IsSpectrumEnabled())
+    {
+        analysisHandle_->MainSpectrum().PushAudio(
+            mainInputLeft,
+            mainInputRight,
+            frameCount);
+        analysisHandle_->ReferenceSpectrum().PushAudio(
+            referenceInputLeft,
+            referenceInputRight,
+            frameCount);
+    }
 
     dspChain_->Process(mainInputLeft, mainInputRight,
                        referenceOutputLeft, referenceOutputRight,
@@ -113,29 +113,6 @@ void ConsolidatorInstance::Process(const double* mainInputLeft,
 
     ApplyOutputGate(mainOutputLeft, frameCount);
     ApplyOutputGate(mainOutputRight, frameCount);
-}
-
-bool ConsolidatorInstance::TryReadLatestSpectrum(
-    analysis::SpectrumSnapshot& snapshot) noexcept
-{
-    return analysisHandle_ && analysisHandle_->MainSpectrum().TryReadOutput(
-        snapshot, lastSpectrumRevision_);
-}
-
-bool ConsolidatorInstance::TryReadLatestReferenceSpectrum(
-    analysis::SpectrumSnapshot& snapshot) noexcept
-{
-    return analysisHandle_ &&
-        analysisHandle_->ReferenceSpectrum().TryReadOutput(
-            snapshot, lastReferenceSpectrumRevision_);
-}
-
-bool ConsolidatorInstance::TryReadLatestEqualizerResponse(
-    analysis::FrequencyResponseSnapshot& snapshot) noexcept
-{
-    return analysisHandle_ &&
-        analysisHandle_->EqualizerResponse().TryReadOutput(
-            snapshot, lastEqualizerResponseRevision_);
 }
 
 void ConsolidatorInstance::ConsumeParameterUpdates()
@@ -160,8 +137,7 @@ void ConsolidatorInstance::ConsumeRuntimeUpdates()
     for (std::size_t index = 0; index < controlBatch.count; ++index)
     {
         const auto& update = controlBatch.updates[index];
-        if (update.property == RuntimeProperty::OutputEnabled &&
-            update.target.instanceId == GetInstanceId())
+        if (update.property == RuntimeProperty::OutputEnabled && update.target.instanceId == GetInstanceId())
         {
             outputEnabled_ = update.value;
             continue;
@@ -255,25 +231,28 @@ void ConsolidatorInstance::PublishInitialRuntimeState()
         resolution.controls.size()});
 }
 
-void ConsolidatorInstance::PublishEqualizerResponseRequest()
+void ConsolidatorInstance::PublishAnalysisState()
 {
+    const auto sampleRateRevision = sampleRateRevision_.load(
+        std::memory_order_acquire);
     const auto sampleRate = sampleRate_.load(std::memory_order_acquire);
     if (sampleRate <= 0.0 || !analysisHandle_)
+    {
         return;
+    }
 
-    auto request = equalizerResponseBuilder_.Build(
-        stateStore_, sampleRate, nextEqualizerResponseRevision_++);
-    analysisHandle_->EqualizerResponse().PublishRequest(request);
-    publishedSampleRateRevision_ = sampleRateRevision_.load(
-        std::memory_order_acquire);
+    const auto input = equalizerCurveInputBuilder_.Build(
+        stateStore_.GetChain(), sampleRate, nextAnalysisRevision_++);
+    analysisHandle_->Curves().Publish(input);
+    publishedSampleRateRevision_ = sampleRateRevision;
 }
 
-void ConsolidatorInstance::RefreshEqualizerResponseRequest()
+void ConsolidatorInstance::RefreshAnalysisState()
 {
     if (sampleRateRevision_.load(std::memory_order_acquire) !=
         publishedSampleRateRevision_)
     {
-        PublishEqualizerResponseRequest();
+        PublishAnalysisState();
     }
 }
 

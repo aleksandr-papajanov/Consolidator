@@ -3,37 +3,32 @@
 namespace consolidator::analysis
 {
 
-void FrequencyResponseStream::PublishRequest(
-    const FrequencyResponseRequest& request) noexcept
-{
-    input_.Publish(request);
-}
-
-bool FrequencyResponseStream::TryConsumeRequest(
-    FrequencyResponseRequest& request) noexcept
-{
-    if (!input_.TryReadNewerThan(request, processedRevision_))
-        return false;
-
-    processedRevision_ = request.revision;
-    return true;
-}
-
 void FrequencyResponseStream::PublishOutput(
-    const FrequencyResponseSnapshot& snapshot) noexcept
+    const EqualizerCurveSnapshot& snapshot) noexcept
 {
     output_.Publish(snapshot);
 }
 
-bool FrequencyResponseStream::TryReadOutput(
-    FrequencyResponseSnapshot& snapshot,
-    std::uint64_t& revision) const noexcept
+bool FrequencyResponseStream::ReadLatestOutput(
+    EqualizerCurveSnapshot& snapshot) const noexcept
 {
-    if (!output_.TryReadNewerThan(snapshot, revision))
-        return false;
+    return output_.ReadLatest(snapshot);
+}
 
-    revision = snapshot.revision;
-    return true;
+bool FrequencyResponseStream::NeedsProcessing(
+    std::uint64_t inputRevision,
+    std::uint64_t viewRevision) const noexcept
+{
+    return inputRevision != processedInputRevision_ ||
+        viewRevision != processedViewRevision_;
+}
+
+void FrequencyResponseStream::MarkProcessed(
+    std::uint64_t inputRevision,
+    std::uint64_t viewRevision) noexcept
+{
+    processedInputRevision_ = inputRevision;
+    processedViewRevision_ = viewRevision;
 }
 
 } // namespace consolidator::analysis

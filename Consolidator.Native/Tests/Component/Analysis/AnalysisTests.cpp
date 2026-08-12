@@ -2,7 +2,10 @@
 #include "Analysis/Spectrum/AudioWindowAccumulator.h"
 #include "Analysis/Spectrum/SpectrumAnalyzer.h"
 #include "Analysis/Spectrum/SpectrumMapper.h"
-#include "Core/Analysis/EqualizerResponseBuilder.h"
+#include "Analysis/Spectrum/SpectrumStream.h"
+#include "Analysis/FrequencyResponse/FrequencyResponseRequestBuilder.h"
+#include "Analysis/LatestValue.h"
+#include "Core/Analysis/EqualizerCurveInputBuilder.h"
 #include "Dsp/DspChainBuilder.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"
@@ -38,6 +41,24 @@ TEST_CASE("LatestSnapshot returns only the newest published revision")
     EXPECT_FALSE(mailbox.TryReadNewerThan(output, output.revision));
 }
 
+TEST_CASE("LatestValue allows repeated reads of one result")
+{
+    analysis::LatestValue<TestSnapshot> result;
+    result.Publish(TestSnapshot{0, 7});
+
+    TestSnapshot first;
+    TestSnapshot second;
+    EXPECT_TRUE(result.ReadLatest(first));
+    EXPECT_TRUE(result.ReadLatest(second));
+    EXPECT_EQ(first.revision, 7U);
+    EXPECT_EQ(second.revision, 7U);
+
+    TestSnapshot newer;
+    EXPECT_TRUE(result.TryReadNewerThan(newer, 0));
+    EXPECT_EQ(newer.revision, 7U);
+    EXPECT_FALSE(result.TryReadNewerThan(newer, 7));
+}
+
 TEST_CASE("AudioWindowAccumulator publishes every complete window")
 {
     analysis::AudioWindowAccumulator accumulator;
@@ -48,6 +69,7 @@ TEST_CASE("AudioWindowAccumulator publishes every complete window")
 
     accumulator.Push(
         left.data(), right.data(), left.size(),
+        0,
         [&windows](const analysis::AudioWindow& window)
         {
             windows.push_back(window);
@@ -59,11 +81,66 @@ TEST_CASE("AudioWindowAccumulator publishes every complete window")
     EXPECT_NEAR(windows[0].sampleRate, 48000.0, 0.0);
 }
 
+TEST_CASE("AudioWindowAccumulator resets a partial window between generations")
+{
+    analysis::AudioWindowAccumulator accumulator;
+    accumulator.Prepare(48000.0);
+    std::array<double, analysis::kFftSize> left{};
+    std::array<double, analysis::kFftSize> right{};
+    std::vector<analysis::AudioWindow> windows;
+
+    accumulator.Push(
+        left.data(), right.data(), analysis::kFftSize / 2,
+        0,
+        [&windows](const analysis::AudioWindow& window)
+        {
+            windows.push_back(window);
+        });
+    accumulator.Reset();
+    accumulator.Push(
+        left.data(), right.data(), analysis::kFftSize / 2,
+        0,
+        [&windows](const analysis::AudioWindow& window)
+        {
+            windows.push_back(window);
+        });
+
+    EXPECT_TRUE(windows.empty());
+
+    accumulator.Push(
+        left.data(), right.data(), analysis::kFftSize / 2,
+        0,
+        [&windows](const analysis::AudioWindow& window)
+        {
+            windows.push_back(window);
+        });
+    EXPECT_EQ(windows.size(), 1U);
+    EXPECT_EQ(windows.front().generation, 0U);
+}
+
+TEST_CASE("SpectrumStream rejects windows from before an audio-thread reset")
+{
+    analysis::SpectrumStream stream;
+    stream.Prepare(48000.0);
+    std::array<double, analysis::kFftSize> left{};
+    std::array<double, analysis::kFftSize> right{};
+    analysis::AudioWindow window;
+
+    stream.PushAudio(left.data(), right.data(), left.size());
+    stream.Reset();
+    EXPECT_FALSE(stream.TryConsumeInput(window));
+
+    stream.PushAudio(left.data(), right.data(), left.size());
+    EXPECT_TRUE(stream.TryConsumeInput(window));
+    EXPECT_EQ(window.generation, 1U);
+}
+
 TEST_CASE("SpectrumAnalyzer normalizes a constant window at DC")
 {
     analysis::SpectrumAnalyzer analyzer;
     analysis::AudioWindow input;
-    input.samples.fill(1.0F);
+    input.leftSamples.fill(1.0F);
+    input.rightSamples.fill(-1.0F);
     input.sampleRate = 48000.0;
     input.revision = 7;
 
@@ -88,20 +165,26 @@ TEST_CASE("SpectrumMapper creates a 256 point dB curve")
     EXPECT_EQ(output.magnitudeDb.size(), 256U);
     EXPECT_NEAR(output.magnitudeDb[0], 0.0, 0.001);
     EXPECT_NEAR(output.magnitudeDb[255], 0.0, 0.001);
-    EXPECT_EQ(output.revision, 11U);
+    EXPECT_EQ(output.sourceRevision, 11U);
 }
 
-TEST_CASE("EqualizerResponseBuilder emits normalized EQ sections")
+TEST_CASE("EqualizerCurveInputBuilder emits normalized EQ sections")
 {
     core::StateStore stateStore;
-    const auto request = core::EqualizerResponseBuilder{}.Build(
-        stateStore, 48000.0, 5);
+    const auto input = core::EqualizerCurveInputBuilder{}.Build(
+        stateStore.GetChain(), 48000.0, 5);
+    const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
+        input, analysis::AnalysisView{core::InstanceId{0}, dsp::BankId::Bank0});
+    const auto& request = requests.combined;
 
     EXPECT_EQ(request.revision, 5U);
     EXPECT_NEAR(request.sampleRate, 48000.0, 0.0);
-    // Seven banks with seven filters each; each tilt filter expands to a
-    // low-shelf/high-shelf pair, giving eight response stages per bank.
-    EXPECT_EQ(request.stageCount, 56U);
+    // The worker calculates individual filters and the current/all-bank aggregates.
+    EXPECT_EQ(request.stageCount, 8U);
+    EXPECT_EQ(requests.filters[0].stageCount, 1U);
+    EXPECT_EQ(requests.filters[1].stageCount, 2U);
+    EXPECT_EQ(requests.filters[2].stageCount, 1U);
+    EXPECT_EQ(requests.allBanksCombined.stageCount, 56U);
     EXPECT_NEAR(request.stages[0].b0, 1.0, 0.001);
 
     auto chain = dsp::DspChainBuilder{}.BuildStandardChain();
@@ -112,20 +195,50 @@ TEST_CASE("EqualizerResponseBuilder emits normalized EQ sections")
         firstEqualizer = dynamic_cast<const dsp::Equalizer*>(
             chain->GetDevice(index));
         if (firstEqualizer != nullptr)
+        {
             break;
+        }
     }
 
     EXPECT_TRUE(firstEqualizer != nullptr);
     if (firstEqualizer == nullptr || firstEqualizer->GetFilter(0) == nullptr)
+    {
         return;
+    }
     const auto& coefficients = firstEqualizer->GetFilter(0)
-        ->GetRuntimeState().coefficients;
+                                   ->GetRuntimeState()
+                                   .coefficients;
     EXPECT_NEAR(request.stages[0].b0, coefficients.b0, 0.001);
     EXPECT_NEAR(request.stages[0].b1, coefficients.b1, 0.001);
     EXPECT_NEAR(request.stages[0].a1, coefficients.a1, 0.001);
 }
 
-TEST_CASE("EqualizerResponseBuilder follows the chain solo boundary")
+TEST_CASE("FrequencyResponseRequestBuilder rejects an invalid bank")
+{
+    core::StateStore stateStore;
+    const auto input = core::EqualizerCurveInputBuilder{}.Build(
+        stateStore.GetChain(), 48000.0, 1);
+    const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
+        input,
+        analysis::AnalysisView{
+            core::InstanceId{1},
+            static_cast<dsp::BankId>(core::InstanceState::kBankCount)});
+
+    EXPECT_EQ(requests.combined.stageCount, 0U);
+}
+
+TEST_CASE("CurveState keeps the latest input available for repeated reads")
+{
+    analysis::CurveState state;
+    analysis::CurveInput input;
+    input.revision = 9;
+    state.Publish(input);
+
+    EXPECT_EQ(state.Read().revision, 9U);
+    EXPECT_EQ(state.Read().revision, 9U);
+}
+
+TEST_CASE("EqualizerCurveInputBuilder follows the chain solo boundary")
 {
     core::StateStore stateStore;
     const core::InstanceId instanceId{1};
@@ -141,8 +254,11 @@ TEST_CASE("EqualizerResponseBuilder follows the chain solo boundary")
         response);
     EXPECT_EQ(status, core::StateWriteStatus::Applied);
 
-    const auto request = core::EqualizerResponseBuilder{}.Build(
-        stateStore, 48000.0, 6);
+    const auto input = core::EqualizerCurveInputBuilder{}.Build(
+        stateStore.GetChain(), 48000.0, 6);
+    const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
+        input, analysis::AnalysisView{instanceId, dsp::BankId::Bank0});
+    const auto& request = requests.combined;
     EXPECT_EQ(request.stageCount, 0U);
 }
 

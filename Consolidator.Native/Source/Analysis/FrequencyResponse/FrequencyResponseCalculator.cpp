@@ -47,7 +47,7 @@ void FrequencyResponseCalculator::Calculate(
     const FrequencyResponseRequest& request,
     FrequencyResponseSnapshot& output) const noexcept
 {
-    output.revision = request.revision;
+    output.sourceRevision = request.revision;
     if (request.sampleRate <= 0.0)
     {
         output.magnitudeDb.fill(static_cast<float>(kMinimumMagnitudeDb));
@@ -67,16 +67,15 @@ void FrequencyResponseCalculator::Calculate(
     const auto logMaximum = std::log(maximumFrequency);
     for (std::size_t index = 0; index < kResponsePointCount; ++index)
     {
-        const auto position = static_cast<double>(index) /
-            static_cast<double>(kResponsePointCount - 1);
+        const auto position = static_cast<double>(index) / static_cast<double>(kResponsePointCount - 1);
         const auto frequency = std::exp(
             logMinimum + position * (logMaximum - logMinimum));
         const auto angularFrequency =
             2.0 * std::numbers::pi * frequency / request.sampleRate;
         const auto magnitude = CalculateMagnitude(request, angularFrequency);
         const auto magnitudeDb = magnitude > 0.0
-            ? 20.0 * std::log10(magnitude)
-            : kMinimumMagnitudeDb;
+                                     ? 20.0 * std::log10(magnitude)
+                                     : kMinimumMagnitudeDb;
         output.magnitudeDb[index] = static_cast<float>(std::max(
             magnitudeDb,
             kMinimumMagnitudeDb));

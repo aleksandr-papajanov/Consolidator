@@ -206,43 +206,59 @@ the UI receives refreshed effective ranges after group changes.
 `InstanceCoordinator`. It starts one background analysis worker and owns one
 fixed analysis slot per registered `ConsolidatorInstance`.
 
-An instance's audio thread accumulates a mono FFT window from its input block
-and publishes the completed window into the slot's latest-value state. The
-worker reads the newest window, calculates the spectrum, and publishes the
-newest result through another latest-value state. FFT windows and analysis jobs
-are never kept in a FIFO: a newer window replaces an older pending one. Each
-stream receives at most one retry per worker pass when newer input arrives
-during calculation; any remaining work is handled on the next pass so one busy
-slot cannot starve the other registered instances.
+The audio thread of the instance in the current view accumulates stereo FFT
+windows for its main and reference inputs and publishes completed windows into
+the slot's latest-input states. The worker reads the newest windows, calculates
+the spectra, and publishes persistent latest results. FFT windows and analysis
+jobs are never kept in a FIFO: a newer window replaces an older pending one.
 The worker uses adaptive polling: it yields after a productive pass and sleeps
 for 2 ms when no stream has work. The audio thread performs no wake-up,
 mutex, or scheduler operation.
-The worker copies the registered `vector<shared_ptr<...>>` under its mutex on
-each polling cycle, then processes the copied handles without holding the
-registry mutex.
+The worker acquires the current view and its `shared_ptr` slot under the
+registry mutex on each polling cycle, then processes that slot without holding
+the mutex. Non-viewed slots do not accumulate or process spectra.
 Service destruction explicitly requests worker stop and joins it before the
 service-owned analysis state is destroyed.
-Spectrum consumption cursors belong to consumers, not slots. The current
-contract is one consumer per stream; `ConsolidatorInstance` owns the cursor
-for its Max-facing spectrum reader. A second consumer requires a separate
-stream/mailbox.
+Spectrum result revisions belong to consumers, not slots. Result reads are
+persistent, so multiple physical externals can read the same output and keep
+their own last-seen revision. Audio-window input remains a one-consumer
+destructive stream.
 `SpectrumStream` encapsulates accumulation, input publication, worker
 consumption and output publication; `AnalysisService` does not access its
 internal buffers or revisions.
 Spectrum-specific types and the stream now live under `Analysis/Spectrum`,
 separate from the service and buffer primitives.
 The independent theoretical response calculator lives under
-`Analysis/FrequencyResponse`. It accepts an immutable request containing
-normalized biquad sections and produces 256 logarithmically spaced magnitude
-dB points from 20 Hz to `min(20 kHz, Nyquist)`. The coordinator-side EQ
-builder publishes requests into each instance's response stream, and the
-analysis worker calculates the latest response.
-`ConsolidatorInstance::TryReadLatestEqualizerResponse()` exposes that latest
-curve to the external consumer with the same one-consumer cursor semantics as
-the live spectrum readers.
+`Analysis/FrequencyResponse`. Core converts authoritative `ChainState` into
+the analysis-specific immutable `CurveInput`; Analysis converts that input
+into one normalized request for the bank in the current view and produces 256
+logarithmically spaced magnitude dB points from 20 Hz to
+`min(20 kHz, Nyquist)`.
+Both DSP filters and analysis use the shared pure `dsp::BiquadDesigner`, so
+Bell, shelf, gain, and Tilt component coefficients have one implementation.
+The standard seven-band topology is defined once in
+`Dsp/Processors/Equalizer/EqualizerLayout.h` and is shared by DSP
+construction and analysis request building.
+The curve result contains one snapshot per EQ filter, a combined snapshot for
+the current bank, and an `allBanksCombined` snapshot containing the aggregate
+curve for every active bank. A Tilt filter's individual snapshot contains its
+low- and high-shelf stages. `AnalysisService::TryReadLatestCurve()` exposes
+this aggregate result to the UI. Every result has a service-wide result
+revision and a view epoch;
+the source revision remains available inside each curve snapshot.
 `ConsolidatorInstance::Prepare(sampleRate)` forwards the sample rate to its
-analysis slot. Each display `SpectrumSnapshot` carries that rate alongside
+analysis slot and atomically marks the curve input stale. The coordinator
+worker then republishes immutable curve input from its authoritative
+`StateStore`; `Prepare()` never reads coordinator-owned state. Each display
+`SpectrumSnapshot` carries the rate captured with its source window alongside
 its magnitudes and revision.
+The analysis service exposes the current-instance main spectrum, reference
+spectrum, and their dB difference through separate latest-result readers.
+The difference is calculated as `main - reference` after both spectra have
+been produced for the current view epoch. `TryReadLatestSpectrum()` and
+`TryReadLatestReferenceSpectrum()` expose the source snapshots independently;
+`TryReadLatestDifferenceSpectrum()` exposes the derived snapshot without
+requiring the consumer to synchronize the two source cursors.
 The rate is captured into each immutable `AudioWindow` by the audio-side
 accumulator; `SpectrumStream` has no mutable sample-rate state shared
 with the worker.
@@ -255,29 +271,63 @@ The analyzer implementation lives under `Source/Analysis/Spectrum`; the
 service only schedules slots and publishes their completed results.
 `SpectrumAnalyzer` precomputes its Hann window once and reuses preallocated FFT
 input/output buffers for every calculation.
-Raw magnitudes use Hann coherent-gain normalization and one-sided amplitude
-normalization: DC and Nyquist are not doubled, while interior bins are doubled.
+Raw magnitudes use separate left/right FFTs, Hann coherent-gain normalization,
+and one-sided amplitude normalization: DC and Nyquist are not doubled, while
+interior bins are doubled. The channels are combined as spectral power,
+`sqrt((|L|^2 + |R|^2) / 2)`, so opposite-phase stereo signals do not cancel.
 The latest window revision is sufficient to identify pending analysis work;
 the worker keeps its own processed revision and skips a window when both
 revisions match. The large preallocated sample buffer is therefore not routed
 through a second mailbox.
-Window and display spectrum storage use `LatestSnapshot<T>` with preallocated
-ownership-state buffers. A producer must acquire a writable slot and a
-consumer must acquire a published slot before accessing its value, so one
-storage value cannot be read and written simultaneously. Completed display
-spectra use `LatestSnapshot<SpectrumSnapshot>`;
-the consumer supplies its consumed revision instead of the slot maintaining
-seqlock state.
+Audio windows use the destructive `LatestSnapshot<T>` transport with
+preallocated ownership-state buffers: the worker consumes a published window
+and releases its storage for reuse. Worker results use the persistent
+`LatestValue<T>` transport instead. `ReadLatest()` can return the same result
+repeatedly, while `TryReadNewerThan()` lets each UI consumer keep its own
+revision cursor. This allows multiple physical externals to reopen the same
+instance/bank without requiring another state or audio change.
 The FFT transform itself uses the vendored BSD-3-Clause KissFFT sources under
 `Source/Analysis/KissFFT`.
 
 The slot handle is registered after the instance receives its `InstanceId`.
-During destruction the instance first leaves the coordinator registry, which
-waits out any coordinator pass that could refresh its analysis request; only
+During destruction the instance first leaves the coordinator registry; only
 then is the analysis slot unregistered and released. Analysis does not
 participate in command routing or authoritative state ownership.
 
 ## Lifecycle
+
+### Analysis view
+
+`AnalysisService` is global and owns one latest-value `AnalysisSlot` per
+registered instance plus one worker. The UI selects an
+`AnalysisView { instanceId, bankId }`; this view is independent from the
+instance's `selectedBankId`. Instances publish only latest audio windows and
+immutable curve input state. Curve state is persistent latest-value data so a
+bank switch can recalculate from the same state without waiting for another
+state change. The worker calculates FFT for the instance in the current view
+and calculates the selected-bank curves plus the all-banks aggregate, while
+the UI reads all snapshots from
+`AnalysisService`. Worker processing revisions and UI consumption revisions
+are separate. Curve processing state is owned by each curve stream rather
+than by the global service, so additional result streams do not require more
+service-wide processed-revision fields. The registry mutex is held only while
+acquiring the current `shared_ptr` slot and view metadata; FFT and curve
+calculation run without
+the registry lock. Each slot has an atomic spectrum-enabled flag; only the
+current view's slot accumulates and publishes audio windows on the audio
+thread. Switching a slot from disabled to enabled requests an audio-thread
+accumulator reset. `SpectrumStream` owns the atomic window generation at the
+audio/worker boundary; the accumulator itself is audio-thread-only. A partial
+FFT window therefore cannot combine audio from two separate view intervals,
+and the worker never reads accumulator internals.
+Published spectrum and curve snapshots also carry the view epoch. The service
+rejects snapshots from an older epoch, preventing a cached result from a
+previous visit to the same instance from being returned after a view switch.
+Every published result also receives a service-wide monotonic result revision;
+it changes for new audio, state, instance, or bank results independently of
+the source input revision. `GetView()` returns `std::nullopt` when no view is
+selected; unregistering the viewed instance clears the view instead of using a
+sentinel instance ID.
 
 Instance unregistering is serialized by the coordinator registry mutex. Pending
 runtime updates are owned by the instance mailbox and cannot be published after

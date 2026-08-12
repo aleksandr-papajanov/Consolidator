@@ -9,11 +9,11 @@
 namespace consolidator::analysis
 {
 
-// Lock-free latest-value transport.
+// Lock-free latest-input transport.
 // Intermediate revisions may be dropped intentionally.
 // Each mailbox has exactly one logical producer and one logical consumer.
-// It is not a multi-consumer snapshot store: a read releases the published
-// storage for reuse, so a second consumer must use a separate mailbox.
+// A read consumes the published storage and releases it for reuse. Use
+// LatestValue for persistent worker results and UI readers.
 template <typename T>
 class LatestSnapshot final
 {

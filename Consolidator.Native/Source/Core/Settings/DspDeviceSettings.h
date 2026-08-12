@@ -3,6 +3,7 @@
 #include <array>
 
 #include "Core/Domain/Ids/DspIds.h"
+#include "Dsp/Processors/Equalizer/EqualizerLayout.h"
 
 namespace consolidator::core::settings
 {
@@ -110,14 +111,7 @@ namespace CompressorDefaults
 
 // ---- Filter kind ----
 
-enum class FilterKind
-{
-    Bell,
-    LowShelf,
-    HighShelf,
-    Tilt,
-    GainFilter
-};
+using FilterKind = dsp::EqualizerFilterKind;
 
 // ---- Filter settings (one EQ band) ----
 
@@ -155,7 +149,7 @@ struct EqualizerSettings
     {{
         {
             dsp::FilterId::Filter1,
-            FilterKind::GainFilter,
+            dsp::kStandardEqualizerLayout[0],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, FilterDefaults::kDefaultFrequencyHz },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
@@ -163,7 +157,7 @@ struct EqualizerSettings
         },
         {
             dsp::FilterId::Filter2,
-            FilterKind::Tilt,
+            dsp::kStandardEqualizerLayout[1],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 1000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
@@ -171,7 +165,7 @@ struct EqualizerSettings
         },
         {
             dsp::FilterId::Filter3,
-            FilterKind::LowShelf,
+            dsp::kStandardEqualizerLayout[2],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 100.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
@@ -179,7 +173,7 @@ struct EqualizerSettings
         },
         {
             dsp::FilterId::Filter4,
-            FilterKind::HighShelf,
+            dsp::kStandardEqualizerLayout[3],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 10000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
@@ -187,7 +181,7 @@ struct EqualizerSettings
         },
         {
             dsp::FilterId::Filter5,
-            FilterKind::Bell,
+            dsp::kStandardEqualizerLayout[4],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 1000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
@@ -195,7 +189,7 @@ struct EqualizerSettings
         },
         {
             dsp::FilterId::Filter6,
-            FilterKind::Bell,
+            dsp::kStandardEqualizerLayout[5],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 2000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },
@@ -203,7 +197,7 @@ struct EqualizerSettings
         },
         {
             dsp::FilterId::Filter7,
-            FilterKind::Bell,
+            dsp::kStandardEqualizerLayout[6],
             { FilterDefaults::kMinFrequencyHz, FilterDefaults::kMaxFrequencyHz, 4000.0 },
             { FilterDefaults::kMinQ, FilterDefaults::kMaxQ, FilterDefaults::kDefaultQ },
             { FilterDefaults::kMinGainDb, FilterDefaults::kMaxGainDb, FilterDefaults::kDefaultGainDb },

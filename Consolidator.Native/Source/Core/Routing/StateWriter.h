@@ -16,6 +16,7 @@ namespace consolidator::core
 struct StateEffects
 {
     bool audibilityChanged = false;
+    std::vector<InstanceId> analysisInstances;
 };
 
 struct StateWriteResult
@@ -26,7 +27,7 @@ struct StateWriteResult
 
 class StateWriter final
 {
-public:
+  public:
     StateWriter(
         InstanceRegistry& registry,
         const StateRouter& stateRouter,
@@ -36,7 +37,7 @@ public:
     [[nodiscard]] StateWriteResult Write(
         const WriteStateCommand& command);
 
-private:
+  private:
     struct ParameterUpdateTarget
     {
         InstanceId instanceId;

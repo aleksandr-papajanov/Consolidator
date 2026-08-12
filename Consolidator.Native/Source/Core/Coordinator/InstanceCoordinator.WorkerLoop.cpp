@@ -16,9 +16,7 @@ void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
     {
         std::unique_lock wakeLock{wakeMutex_};
         wakeCondition_.wait_for(wakeLock, std::chrono::milliseconds{1}, [this]
-        {
-            return commandQueue_.HasCommands();
-        });
+                                { return commandQueue_.HasCommands(); });
         wakeLock.unlock();
 
         {
@@ -27,7 +25,7 @@ void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
                 std::lock_guard registryLock{registryMutex_};
                 for (auto* instance : registry_.GetInstances())
                 {
-                    instance->RefreshEqualizerResponseRequest();
+                    instance->RefreshAnalysisState();
                 }
                 while (const auto command = commandQueue_.TryDequeue())
                 {
@@ -42,6 +40,14 @@ void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
                                 {
                                     RefreshAudibility();
                                 }
+                                for (const auto instanceId :
+                                     typedResult.effects.analysisInstances)
+                                {
+                                    if (auto* affected = registry_.FindInstance(instanceId))
+                                    {
+                                        affected->PublishAnalysisState();
+                                    }
+                                }
                                 const auto instanceId = typedResult.response.instanceId;
                                 if (auto* instance = registry_.FindInstance(instanceId))
                                 {
@@ -53,8 +59,7 @@ void InstanceCoordinator::WorkerLoop(std::stop_token stopToken)
                                     }
                                 }
                             }
-                            else if constexpr (std::is_same_v<ResultType, StateResponse> ||
-                                               std::is_same_v<ResultType, ActionResponse>)
+                            else if constexpr (std::is_same_v<ResultType, StateResponse> || std::is_same_v<ResultType, ActionResponse>)
                             {
                                 const auto instanceId = typedResult.instanceId;
                                 if (auto* instance = registry_.FindInstance(instanceId))

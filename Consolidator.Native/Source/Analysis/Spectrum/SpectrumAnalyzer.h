@@ -33,6 +33,7 @@ private:
     float windowSum_ = 0.0F;
     std::array<kiss_fft_scalar, kFftSize> fftInput_{};
     std::array<kiss_fft_cpx, kSpectrumBinCount> fftOutput_{};
+    std::array<float, kSpectrumBinCount> leftMagnitudes_{};
 };
 
 } // namespace consolidator::analysis
