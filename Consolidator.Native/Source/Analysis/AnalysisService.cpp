@@ -105,7 +105,8 @@ AnalysisHandle AnalysisService::FindViewedSlot() const
 
 bool AnalysisService::TryReadLatestSpectrum(
     SpectrumSnapshot& snapshot,
-    std::uint64_t lastRevision)
+    std::uint64_t lastRevision,
+    AnalysisView& view)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
@@ -117,12 +118,14 @@ bool AnalysisService::TryReadLatestSpectrum(
     {
         return false;
     }
+    view = *currentView_;
     return true;
 }
 
 bool AnalysisService::TryReadLatestReferenceSpectrum(
     SpectrumSnapshot& snapshot,
-    std::uint64_t lastRevision)
+    std::uint64_t lastRevision,
+    AnalysisView& view)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
@@ -135,12 +138,14 @@ bool AnalysisService::TryReadLatestReferenceSpectrum(
     {
         return false;
     }
+    view = *currentView_;
     return true;
 }
 
 bool AnalysisService::TryReadLatestDifferenceSpectrum(
     SpectrumSnapshot& snapshot,
-    std::uint64_t lastRevision)
+    std::uint64_t lastRevision,
+    AnalysisView& view)
 {
     std::lock_guard lock{slotsMutex_};
     if (!FindViewedSlot())
@@ -154,12 +159,14 @@ bool AnalysisService::TryReadLatestDifferenceSpectrum(
     {
         return false;
     }
+    view = *currentView_;
     return true;
 }
 
 bool AnalysisService::TryReadLatestCurve(
     EqualizerCurveSnapshot& snapshot,
-    std::uint64_t lastRevision)
+    std::uint64_t lastRevision,
+    AnalysisView& view)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
@@ -171,13 +178,15 @@ bool AnalysisService::TryReadLatestCurve(
     {
         return false;
     }
+    view = *currentView_;
     return true;
 }
 
 bool AnalysisService::TryReadLatestTelemetry(
     dsp::TelemetrySnapshot& snapshot,
     std::uint64_t lastRevision,
-    std::uint64_t lastViewRevision)
+    std::uint64_t lastViewRevision,
+    AnalysisView& view)
 {
     std::lock_guard lock{slotsMutex_};
     const auto slot = FindViewedSlot();
@@ -195,6 +204,7 @@ bool AnalysisService::TryReadLatestTelemetry(
     }
 
     snapshot.viewRevision = viewRevision_;
+    view = *currentView_;
     return true;
 }
 

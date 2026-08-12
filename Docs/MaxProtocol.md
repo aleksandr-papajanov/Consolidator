@@ -258,11 +258,17 @@ exposes a response notifier callback; the external binds it to a thread-safe
 thread-safe scheduling call is permitted, but it does not call outlets, emit
 messages, or encode atoms. Analysis uses a separate `analysisOutput` outlet.
 The UI sends `analysis_view <instanceId> <bank>` to any physical external to
-select the global analysis view; `bank` uses the public `1..7` numbering. The
+select the global analysis view. `instanceId` uses the same canonical decimal
+symbol representation as control frames; `bank` uses public `1..7` numbering. The
 UI then sends argument-free `analysis_tick` to read changed persistent
 snapshots on the Max main thread and emit selector-framed telemetry;
 analysis has no external worker, notification callback, or response queue.
-Telemetry selectors are `meter <point> <rmsDb> <peakDb> <smoothedDb>`,
+Each analysis frame starts with decimal-symbol `viewRevision` and `instanceId`,
+followed by the public numeric bank. Snapshot data and this view metadata are
+read atomically from `AnalysisService`, so a concurrent global view switch
+cannot relabel a frame.
+After the common `<viewRevision> <instanceId> <bank>` metadata, telemetry
+selectors carry `meter <point> <rmsDb> <peakDb> <smoothedDb>`,
 `saturator_distortion <percent> <smoothedPercent>` (normalized nonlinear
 residual percent, not spectral THD), and
 `compressor_reduction <rmsDb> <peakDb> <smoothedDb>`. The meter points are

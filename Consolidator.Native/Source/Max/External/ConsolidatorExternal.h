@@ -77,11 +77,14 @@ private:
     void EmitLatestAnalysis();
     void EmitSpectrum(
         c74::min::symbol selector,
-        const consolidator::analysis::SpectrumSnapshot& snapshot);
+        const consolidator::analysis::SpectrumSnapshot& snapshot,
+        const consolidator::analysis::AnalysisView& view);
     void EmitCurves(
-        const consolidator::analysis::EqualizerCurveSnapshot& snapshot);
+        const consolidator::analysis::EqualizerCurveSnapshot& snapshot,
+        const consolidator::analysis::AnalysisView& view);
     void EmitTelemetry(
-        const consolidator::dsp::TelemetrySnapshot& snapshot);
+        const consolidator::dsp::TelemetrySnapshot& snapshot,
+        const consolidator::analysis::AnalysisView& view);
     void EmitProtocolError(const ProtocolError& error);
 
     core::ConsolidatorInstance instance_;

@@ -335,6 +335,9 @@ and the worker never reads accumulator internals.
 Published spectrum and curve snapshots also carry the view epoch. The service
 rejects snapshots from an older epoch, preventing a cached result from a
 previous visit to the same instance from being returned after a view switch.
+Successful UI reads return the matching `AnalysisView` under the same registry
+lock as snapshot validation, so a concurrent view switch cannot attach metadata
+from another view to the result.
 Every published result also receives a service-wide monotonic result revision;
 it changes for new audio, state, instance, or bank results independently of
 the source input revision. `GetView()` returns `std::nullopt` when no view is

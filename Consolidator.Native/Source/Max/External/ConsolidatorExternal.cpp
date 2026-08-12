@@ -1,5 +1,7 @@
 #include "ConsolidatorExternal.h"
 
+#include "../Protocol/WireIdCodec.h"
+
 #include <cstddef>
 #include <utility>
 
@@ -93,15 +95,14 @@ void ConsolidatorExternal::DrainResponses()
 void ConsolidatorExternal::HandleAnalysisView(const atoms& args)
 {
     if (args.size() != 2 ||
-        args[0].a_type != c74::max::A_LONG ||
         args[1].a_type != c74::max::A_LONG)
     {
         return;
     }
 
-    const auto instanceValue = static_cast<long>(args[0]);
+    const auto instanceValue = DecodeWireId(args[0]);
     const auto publicBankId = static_cast<int>(args[1]);
-    if (instanceValue < 0)
+    if (!instanceValue)
     {
         return;
     }
@@ -111,7 +112,7 @@ void ConsolidatorExternal::HandleAnalysisView(const atoms& args)
     }
 
     analysis::AnalysisService::Get().SetView({
-        core::InstanceId{static_cast<std::size_t>(instanceValue)},
+        core::InstanceId{static_cast<core::InstanceId::ValueType>(*instanceValue)},
         static_cast<dsp::BankId>(publicBankId - 1)});
     ResetAnalysisRevisions();
 }
@@ -139,55 +140,63 @@ void ConsolidatorExternal::ResetAnalysisRevisions() noexcept
 void ConsolidatorExternal::EmitLatestAnalysis()
 {
     auto& analysisService = analysis::AnalysisService::Get();
+    analysis::AnalysisView view;
 
     analysis::SpectrumSnapshot spectrum;
     if (analysisService.TryReadLatestSpectrum(
-            spectrum, lastSpectrumRevision_))
+            spectrum, lastSpectrumRevision_, view))
     {
         lastSpectrumRevision_ = spectrum.revision;
-        EmitSpectrum(symbol("spectrum_main"), spectrum);
+        EmitSpectrum(symbol("spectrum_main"), spectrum, view);
     }
 
     analysis::SpectrumSnapshot reference;
     if (analysisService.TryReadLatestReferenceSpectrum(
-            reference, lastReferenceSpectrumRevision_))
+            reference, lastReferenceSpectrumRevision_, view))
     {
         lastReferenceSpectrumRevision_ = reference.revision;
-        EmitSpectrum(symbol("spectrum_reference"), reference);
+        EmitSpectrum(symbol("spectrum_reference"), reference, view);
     }
 
     analysis::SpectrumSnapshot difference;
     if (analysisService.TryReadLatestDifferenceSpectrum(
-            difference, lastDifferenceSpectrumRevision_))
+            difference, lastDifferenceSpectrumRevision_, view))
     {
         lastDifferenceSpectrumRevision_ = difference.revision;
-        EmitSpectrum(symbol("spectrum_difference"), difference);
+        EmitSpectrum(symbol("spectrum_difference"), difference, view);
     }
 
     analysis::EqualizerCurveSnapshot curves;
-    if (analysisService.TryReadLatestCurve(curves, lastCurveRevision_))
+    if (analysisService.TryReadLatestCurve(curves, lastCurveRevision_, view))
     {
         lastCurveRevision_ = curves.revision;
-        EmitCurves(curves);
+        EmitCurves(curves, view);
     }
 
     dsp::TelemetrySnapshot telemetry;
     if (analysisService.TryReadLatestTelemetry(
             telemetry,
             lastTelemetryRevision_,
-            lastTelemetryViewRevision_))
+            lastTelemetryViewRevision_,
+            view))
     {
         lastTelemetryRevision_ = telemetry.revision;
         lastTelemetryViewRevision_ = telemetry.viewRevision;
-        EmitTelemetry(telemetry);
+        EmitTelemetry(telemetry, view);
     }
 }
 
 void ConsolidatorExternal::EmitSpectrum(
     symbol selector,
-    const analysis::SpectrumSnapshot& snapshot)
+    const analysis::SpectrumSnapshot& snapshot,
+    const analysis::AnalysisView& view)
 {
-    atoms frame{atom{selector}};
+    atoms frame{
+        atom{selector},
+        EncodeWireId(snapshot.viewRevision),
+        EncodeWireId(view.instanceId.GetValue()),
+        atom{static_cast<c74::max::t_atom_long>(
+            static_cast<int>(view.bankId) + 1)}};
     frame.reserve(frame.size() + snapshot.magnitudeDb.size());
     for (const auto value : snapshot.magnitudeDb)
     {
@@ -197,11 +206,18 @@ void ConsolidatorExternal::EmitSpectrum(
 }
 
 void ConsolidatorExternal::EmitCurves(
-    const analysis::EqualizerCurveSnapshot& snapshot)
+    const analysis::EqualizerCurveSnapshot& snapshot,
+    const analysis::AnalysisView& view)
 {
     for (std::size_t index = 0; index < snapshot.filters.size(); ++index)
     {
-        atoms frame{atom{symbol("eq_filter")}, atom{static_cast<int>(index + 1)}};
+        atoms frame{
+            atom{symbol("eq_filter")},
+            EncodeWireId(snapshot.viewRevision),
+            EncodeWireId(view.instanceId.GetValue()),
+            atom{static_cast<c74::max::t_atom_long>(
+                static_cast<int>(view.bankId) + 1)},
+            atom{static_cast<int>(index + 1)}};
         frame.reserve(frame.size() + snapshot.filters[index].magnitudeDb.size());
         for (const auto value : snapshot.filters[index].magnitudeDb)
         {
@@ -210,10 +226,15 @@ void ConsolidatorExternal::EmitCurves(
         analysisOutput.send(frame);
     }
 
-    const auto emitAggregate = [this](symbol selector,
-                                       const analysis::FrequencyResponseSnapshot& curve)
+    const auto emitAggregate = [this, &view](symbol selector,
+                                             const analysis::FrequencyResponseSnapshot& curve)
     {
-        atoms frame{atom{selector}};
+        atoms frame{
+            atom{selector},
+            EncodeWireId(curve.viewRevision),
+            EncodeWireId(view.instanceId.GetValue()),
+            atom{static_cast<c74::max::t_atom_long>(
+                static_cast<int>(view.bankId) + 1)}};
         frame.reserve(frame.size() + curve.magnitudeDb.size());
         for (const auto value : curve.magnitudeDb)
         {
@@ -226,17 +247,23 @@ void ConsolidatorExternal::EmitCurves(
 }
 
 void ConsolidatorExternal::EmitTelemetry(
-    const dsp::TelemetrySnapshot& snapshot)
+    const dsp::TelemetrySnapshot& snapshot,
+    const analysis::AnalysisView& view)
 {
     using dsp::MeterPoint;
     using dsp::ToIndex;
 
-    const auto emitMeter = [this](symbol point,
-                                  const dsp::LevelTelemetry& meter)
+    const auto emitMeter = [this, &snapshot, &view](symbol point,
+                                                    const dsp::LevelTelemetry& meter)
     {
         analysisOutput.send(atoms{
-            atom{symbol("meter")}, atom{point}, atom{meter.rmsDb},
-            atom{meter.peakDb}, atom{meter.smoothedDb}});
+            atom{symbol("meter")},
+            EncodeWireId(snapshot.viewRevision),
+            EncodeWireId(view.instanceId.GetValue()),
+            atom{static_cast<c74::max::t_atom_long>(
+                static_cast<int>(view.bankId) + 1)},
+            atom{point}, atom{meter.rmsDb}, atom{meter.peakDb},
+            atom{meter.smoothedDb}});
     };
     emitMeter(
         symbol("input_gain"),
@@ -253,10 +280,18 @@ void ConsolidatorExternal::EmitTelemetry(
 
     analysisOutput.send(atoms{
         atom{symbol("saturator_distortion")},
+        EncodeWireId(snapshot.viewRevision),
+        EncodeWireId(view.instanceId.GetValue()),
+        atom{static_cast<c74::max::t_atom_long>(
+            static_cast<int>(view.bankId) + 1)},
         atom{snapshot.saturator.distortionPercent},
         atom{snapshot.saturator.distortionSmoothedPercent}});
     analysisOutput.send(atoms{
         atom{symbol("compressor_reduction")},
+        EncodeWireId(snapshot.viewRevision),
+        EncodeWireId(view.instanceId.GetValue()),
+        atom{static_cast<c74::max::t_atom_long>(
+            static_cast<int>(view.bankId) + 1)},
         atom{snapshot.compressor.gainReductionRmsDb},
         atom{snapshot.compressor.gainReductionPeakDb},
         atom{snapshot.compressor.gainReductionSmoothedDb}});

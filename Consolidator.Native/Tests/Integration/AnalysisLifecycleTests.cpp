@@ -18,10 +18,12 @@ namespace
 analysis::EqualizerCurveSnapshot AwaitEqualizerResponse(
     const std::function<bool(const analysis::EqualizerCurveSnapshot&)>& accept)
 {
+    analysis::AnalysisView view;
     for (std::size_t attempt = 0; attempt < 500; ++attempt)
     {
         analysis::EqualizerCurveSnapshot snapshot;
-        if (analysis::AnalysisService::Get().TryReadLatestCurve(snapshot, 0) &&
+        if (analysis::AnalysisService::Get().TryReadLatestCurve(
+                snapshot, 0, view) &&
             accept(snapshot))
         {
             return snapshot;
@@ -66,10 +68,12 @@ TEST_CASE("Instance publishes live spectrum after a complete audio window")
     }
 
     analysis::SpectrumSnapshot snapshot;
+    analysis::AnalysisView resultView;
     bool received = false;
     for (std::size_t attempt = 0; attempt < 500 && !received; ++attempt)
     {
-        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot, 0);
+        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(
+            snapshot, 0, resultView);
         if (!received)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{2});
@@ -99,11 +103,12 @@ TEST_CASE("Instance publishes main-reference difference spectrum")
     }
 
     analysis::SpectrumSnapshot snapshot;
+    analysis::AnalysisView resultView;
     bool received = false;
     for (std::size_t attempt = 0; attempt < 500 && !received; ++attempt)
     {
         received = analysis::AnalysisService::Get()
-            .TryReadLatestDifferenceSpectrum(snapshot, 0);
+            .TryReadLatestDifferenceSpectrum(snapshot, 0, resultView);
         if (!received)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{2});
@@ -116,19 +121,20 @@ TEST_CASE("Instance publishes main-reference difference spectrum")
     analysis::SpectrumSnapshot mainSnapshot;
     analysis::SpectrumSnapshot referenceSnapshot;
     EXPECT_TRUE(
-        analysis::AnalysisService::Get().TryReadLatestSpectrum(mainSnapshot, 0));
+        analysis::AnalysisService::Get().TryReadLatestSpectrum(
+            mainSnapshot, 0, resultView));
     EXPECT_TRUE(analysis::AnalysisService::Get().TryReadLatestReferenceSpectrum(
-        referenceSnapshot, 0));
+        referenceSnapshot, 0, resultView));
     EXPECT_TRUE(mainSnapshot.sourceRevision > 0);
     EXPECT_TRUE(referenceSnapshot.sourceRevision > 0);
     analysis::SpectrumSnapshot repeatedMainSnapshot;
     EXPECT_TRUE(
         analysis::AnalysisService::Get().TryReadLatestSpectrum(
-            repeatedMainSnapshot, 0));
+            repeatedMainSnapshot, 0, resultView));
     EXPECT_EQ(repeatedMainSnapshot.revision, mainSnapshot.revision);
     EXPECT_FALSE(
         analysis::AnalysisService::Get().TryReadLatestSpectrum(
-            repeatedMainSnapshot, mainSnapshot.revision));
+            repeatedMainSnapshot, mainSnapshot.revision, resultView));
 }
 
 TEST_CASE("Chain solo republishes a flat equalizer response")
@@ -211,12 +217,14 @@ TEST_CASE("Changing the analysis bank publishes all curve variants")
                 std::abs(snapshot.allBanksCombined.magnitudeDb[0] - 9.0F) < 0.05F;
         });
     analysis::EqualizerCurveSnapshot repeatedCurve;
+    analysis::AnalysisView resultView;
     EXPECT_TRUE(
-        analysis::AnalysisService::Get().TryReadLatestCurve(repeatedCurve, 0));
+        analysis::AnalysisService::Get().TryReadLatestCurve(
+            repeatedCurve, 0, resultView));
     EXPECT_EQ(repeatedCurve.revision, bank0.revision);
     EXPECT_FALSE(
         analysis::AnalysisService::Get().TryReadLatestCurve(
-            repeatedCurve, bank0.revision));
+            repeatedCurve, bank0.revision, resultView));
 
     analysis::AnalysisService::Get().SetView(
         {instanceId, dsp::BankId::Bank1});
@@ -261,7 +269,9 @@ TEST_CASE("Switching spectrum instances discards a partial FFT window")
     }
 
     analysis::SpectrumSnapshot snapshot;
-    EXPECT_FALSE(analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot, 0));
+    analysis::AnalysisView resultView;
+    EXPECT_FALSE(analysis::AnalysisService::Get().TryReadLatestSpectrum(
+        snapshot, 0, resultView));
 
     for (std::size_t block = 0; block < analysis::kFftSize / 32; ++block)
     {
@@ -271,7 +281,8 @@ TEST_CASE("Switching spectrum instances discards a partial FFT window")
     bool received = false;
     for (std::size_t attempt = 0; attempt < 500 && !received; ++attempt)
     {
-        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(snapshot, 0);
+        received = analysis::AnalysisService::Get().TryReadLatestSpectrum(
+            snapshot, 0, resultView);
         if (!received)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds{2});
@@ -294,16 +305,19 @@ TEST_CASE("Current analysis view publishes revision-aware DSP telemetry")
     driver.ProcessAll();
 
     dsp::TelemetrySnapshot snapshot;
+    analysis::AnalysisView resultView;
     EXPECT_TRUE(analysis::AnalysisService::Get().TryReadLatestTelemetry(
-        snapshot, 0, 0));
+        snapshot, 0, 0, resultView));
     EXPECT_TRUE(snapshot.revision > 0);
     EXPECT_TRUE(snapshot.viewRevision > 0);
+    EXPECT_EQ(resultView.instanceId, viewed.GetInstanceId());
+    EXPECT_EQ(resultView.bankId, dsp::BankId::Bank0);
     EXPECT_NEAR(
         snapshot.levels[dsp::ToIndex(dsp::MeterPoint::InputGainOutput)].rmsDb,
         -6.0206,
         0.01);
     EXPECT_FALSE(analysis::AnalysisService::Get().TryReadLatestTelemetry(
-        snapshot, snapshot.revision, snapshot.viewRevision));
+        snapshot, snapshot.revision, snapshot.viewRevision, resultView));
 
     const auto previousRevision = snapshot.revision;
     const auto previousViewRevision = snapshot.viewRevision;
@@ -312,8 +326,9 @@ TEST_CASE("Current analysis view publishes revision-aware DSP telemetry")
     driver.ProcessAll();
 
     EXPECT_TRUE(analysis::AnalysisService::Get().TryReadLatestTelemetry(
-        snapshot, previousRevision, previousViewRevision));
+        snapshot, previousRevision, previousViewRevision, resultView));
     EXPECT_TRUE(snapshot.viewRevision > previousViewRevision);
+    EXPECT_EQ(resultView.instanceId, hidden.GetInstanceId());
 }
 
 TEST_MAIN()

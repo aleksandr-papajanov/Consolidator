@@ -36,20 +36,25 @@ class AnalysisService final
     [[nodiscard]] std::optional<AnalysisView> GetView() const;
     [[nodiscard]] bool TryReadLatestSpectrum(
         SpectrumSnapshot& snapshot,
-        std::uint64_t lastRevision);
+        std::uint64_t lastRevision,
+        AnalysisView& view);
     [[nodiscard]] bool TryReadLatestReferenceSpectrum(
         SpectrumSnapshot& snapshot,
-        std::uint64_t lastRevision);
+        std::uint64_t lastRevision,
+        AnalysisView& view);
     [[nodiscard]] bool TryReadLatestDifferenceSpectrum(
         SpectrumSnapshot& snapshot,
-        std::uint64_t lastRevision);
+        std::uint64_t lastRevision,
+        AnalysisView& view);
     [[nodiscard]] bool TryReadLatestCurve(
         EqualizerCurveSnapshot& snapshot,
-        std::uint64_t lastRevision);
+        std::uint64_t lastRevision,
+        AnalysisView& view);
     [[nodiscard]] bool TryReadLatestTelemetry(
         dsp::TelemetrySnapshot& snapshot,
         std::uint64_t lastRevision,
-        std::uint64_t lastViewRevision);
+        std::uint64_t lastViewRevision,
+        AnalysisView& view);
 
     ~AnalysisService();
 

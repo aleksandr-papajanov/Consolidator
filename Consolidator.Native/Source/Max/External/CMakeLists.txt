@@ -35,6 +35,9 @@ add_library(${PROJECT_NAME} MODULE
     ../Protocol/WireIdCodec.cpp
 )
 
+option(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX
+    "Copy native Max artifacts to the working Consolidator.Max domain" OFF)
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${C74_INCLUDES}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../.."   # root Source/ for Core headers
@@ -48,6 +51,22 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         $<TARGET_FILE:ConsolidatorCore>
         $<TARGET_FILE_DIR:${PROJECT_NAME}>
 )
+
+if(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX)
+    set(CONSOLIDATOR_MAX_EXTERNALS_DIR
+        "${CMAKE_SOURCE_DIR}/../Consolidator.Max/externals")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${CONSOLIDATOR_MAX_EXTERNALS_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+            "${CONSOLIDATOR_MAX_EXTERNALS_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:ConsolidatorCore>"
+            "${CONSOLIDATOR_MAX_EXTERNALS_DIR}"
+        COMMENT "Copying Consolidator Max artifacts to Consolidator.Max/externals"
+    )
+endif()
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 

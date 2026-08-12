@@ -9,5 +9,8 @@ Native/Consolidator/vcpkg_static/
 *.suo
 *.VC.db
 *.VC.VC.opendb
+Max/
+Consolidator.Max/externals/*.dll
+Consolidator.Max/externals/*.mxe64
 Native.Old/
 Consolidator.Native/externals/
