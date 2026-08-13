@@ -2,6 +2,8 @@
 #include "Max/Protocol/AtomPathCodec.h"
 #include "Max/Protocol/AtomResponseEncoder.h"
 #include "Max/Protocol/AtomValueCodec.h"
+#include "Max/Protocol/BankIdCodec.h"
+#include "Max/Protocol/WireIdCodec.h"
 #include "Max/Protocol/MaxProtocolAdapter.h"
 #include "Support/TestFramework.h"
 
@@ -286,6 +288,109 @@ TEST_CASE("Adapter encodes complete state response framing")
     EXPECT_EQ(static_cast<int>(frames[2][4]), 1);
     EXPECT_EQ(Text(frames[3][2]), "12");
     EXPECT_EQ(Text(frames[3][3]), "7");
+}
+
+TEST_CASE("Bank ID codec keeps the public wire coordinate one-based")
+{
+    EXPECT_EQ(EncodeBankId(dsp::BankId::Bank0), 1);
+    EXPECT_EQ(EncodeBankId(dsp::BankId::Bank6), 7);
+    EXPECT_EQ(*DecodeBankId(1), dsp::BankId::Bank0);
+    EXPECT_EQ(*DecodeBankId(7), dsp::BankId::Bank6);
+    EXPECT_FALSE(DecodeBankId(0).has_value());
+    EXPECT_FALSE(DecodeBankId(8).has_value());
+}
+
+TEST_CASE("Adapter rejects malformed and unsupported version framing")
+{
+    MaxProtocolAdapter adapter;
+    const auto malformed = adapter.Decode(
+        symbol("read"), atoms{atom{1}}, core::InstanceId{7});
+    EXPECT_FALSE(malformed.command.has_value());
+    EXPECT_TRUE(malformed.error.has_value());
+    EXPECT_EQ(malformed.error->code, "malformed");
+
+    const auto unsupported = adapter.Decode(
+        symbol("read"),
+        atoms{atom{2}, atom{"ui"}, atom{"10"}, atom{0}},
+        core::InstanceId{7});
+    EXPECT_FALSE(unsupported.command.has_value());
+    EXPECT_TRUE(unsupported.error.has_value());
+    EXPECT_EQ(unsupported.error->code, "unsupported_version");
+}
+
+TEST_CASE("Adapter encodes registry snapshot with public bank IDs")
+{
+    MaxProtocolAdapter adapter;
+    core::RegistrySnapshot snapshot;
+    snapshot.revision = 42;
+    core::RegistryInstanceSnapshot instance;
+    instance.instanceId = core::InstanceId{7};
+    instance.label = "Kick";
+    instance.selectedBankId = dsp::BankId::Bank2;
+    instance.banks = {
+        {dsp::BankId::Bank0, std::nullopt},
+        {dsp::BankId::Bank1, core::GroupId{0}}};
+    snapshot.instances.push_back(instance);
+
+    std::vector<symbol> selectors;
+    std::vector<atoms> frames;
+    adapter.EncodeRegistrySnapshot(
+        snapshot, symbol("ui"), 11,
+        [&](symbol selector, const atoms& values)
+        {
+            selectors.push_back(selector);
+            frames.push_back(values);
+        });
+
+    EXPECT_EQ(Text(atom{selectors[0]}), "registry_begin");
+    const auto revision = DecodeWireId(frames[0][3]);
+    EXPECT_TRUE(revision.has_value());
+    EXPECT_EQ(*revision, 42U);
+    EXPECT_EQ(Text(atom{selectors[1]}), "registry_instance");
+    EXPECT_EQ(static_cast<int>(frames[1][5]), 3);
+    EXPECT_EQ(Text(atom{selectors[2]}), "registry_bank");
+    EXPECT_EQ(static_cast<int>(frames[2][4]), 1);
+    EXPECT_EQ(Text(atom{selectors[3]}), "registry_bank");
+    EXPECT_EQ(static_cast<int>(frames[3][4]), 2);
+    EXPECT_EQ(static_cast<long long>(frames[3][5]), 0);
+}
+
+TEST_CASE("Adapter correlates registry commands and responses")
+{
+    MaxProtocolAdapter adapter;
+    const auto decoded = adapter.Decode(
+        symbol("registry"),
+        atoms{atom{1}, atom{"ui"}, atom{"11"}},
+        core::InstanceId{7});
+
+    EXPECT_TRUE(decoded.command.has_value());
+    EXPECT_TRUE(std::holds_alternative<core::ReadRegistryCommand>(
+        *decoded.command));
+    const auto& command = std::get<core::ReadRegistryCommand>(
+        *decoded.command);
+
+    core::RegistrySnapshot snapshot;
+    snapshot.revision = 42;
+    std::vector<symbol> selectors;
+    adapter.EncodeResponse(
+        core::RegistryResponse{
+            command.requestId,
+            command.instanceId,
+            snapshot},
+        [&](symbol selector, const atoms&)
+        {
+            selectors.push_back(selector);
+        });
+
+    EXPECT_EQ(selectors.size(), 2U);
+    EXPECT_EQ(Text(atom{selectors.front()}), "registry_begin");
+    EXPECT_EQ(Text(atom{selectors.back()}), "registry_done");
+
+    const auto reused = adapter.Decode(
+        symbol("registry"),
+        atoms{atom{1}, atom{"ui"}, atom{"11"}},
+        core::InstanceId{7});
+    EXPECT_TRUE(reused.command.has_value());
 }
 
 TEST_MAIN()

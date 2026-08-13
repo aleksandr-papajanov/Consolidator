@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -23,6 +24,7 @@ using StateValue = std::variant<
     bool,
     std::int32_t,
     float,
+    std::string,
     InstanceId,
     dsp::BankId,
     GroupId>;

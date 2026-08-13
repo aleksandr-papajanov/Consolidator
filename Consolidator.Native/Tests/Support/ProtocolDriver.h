@@ -88,6 +88,24 @@ public:
         return AwaitAction(sourceIndex, requestId);
     }
 
+    void EnqueueRegistryRead(
+        std::size_t sourceIndex,
+        core::RequestId requestId)
+    {
+        At(sourceIndex).EnqueueCommand(core::ReadRegistryCommand{
+            .requestId = requestId});
+    }
+
+    core::RegistryResponse AwaitRegistry(
+        std::size_t sourceIndex,
+        core::RequestId requestId)
+    {
+        return AwaitResponse<core::RegistryResponse>(
+            sourceIndex,
+            requestId,
+            "registry response timeout");
+    }
+
     void ProcessAll()
     {
         for (auto& instance : instances_)
@@ -107,9 +125,13 @@ public:
     const std::array<double, 32>& ReferenceOutput() const noexcept { return referenceOutput_; }
 
 private:
-    core::StateResponse Await(std::size_t sourceIndex, core::RequestId requestId)
+    template <typename ResponseType>
+    ResponseType AwaitResponse(
+        std::size_t sourceIndex,
+        core::RequestId requestId,
+        const char* timeoutMessage)
     {
-        if (auto response = TakePending<core::StateResponse>(sourceIndex, requestId))
+        if (auto response = TakePending<ResponseType>(sourceIndex, requestId))
         {
             return std::move(*response);
         }
@@ -118,43 +140,37 @@ private:
             ProcessAll();
             while (auto response = At(sourceIndex).TryDequeueResponse())
             {
-                if (const auto* stateResponse =
-                        std::get_if<core::StateResponse>(&*response);
-                    stateResponse != nullptr && stateResponse->requestId == requestId)
+                if (const auto* typedResponse =
+                        std::get_if<ResponseType>(&*response);
+                    typedResponse != nullptr &&
+                    typedResponse->requestId == requestId)
                 {
-                    return std::move(*stateResponse);
+                    return std::move(*typedResponse);
                 }
-                pendingResponses_.at(sourceIndex).push_back(std::move(*response));
+                pendingResponses_.at(sourceIndex).push_back(
+                    std::move(*response));
             }
             std::this_thread::sleep_for(std::chrono::milliseconds{1});
         }
-        throw std::runtime_error("state protocol response timeout");
+        throw std::runtime_error(timeoutMessage);
+    }
+
+    core::StateResponse Await(std::size_t sourceIndex, core::RequestId requestId)
+    {
+        return AwaitResponse<core::StateResponse>(
+            sourceIndex,
+            requestId,
+            "state protocol response timeout");
     }
 
     core::ActionResponse AwaitAction(
         std::size_t sourceIndex,
         core::RequestId requestId)
     {
-        if (auto response = TakePending<core::ActionResponse>(sourceIndex, requestId))
-        {
-            return std::move(*response);
-        }
-        for (std::size_t attempt = 0; attempt < 500; ++attempt)
-        {
-            ProcessAll();
-            while (auto response = At(sourceIndex).TryDequeueResponse())
-            {
-                if (const auto* actionResponse =
-                        std::get_if<core::ActionResponse>(&*response);
-                    actionResponse != nullptr && actionResponse->requestId == requestId)
-                {
-                    return std::move(*actionResponse);
-                }
-                pendingResponses_.at(sourceIndex).push_back(std::move(*response));
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
-        }
-        throw std::runtime_error("action response timeout");
+        return AwaitResponse<core::ActionResponse>(
+            sourceIndex,
+            requestId,
+            "action response timeout");
     }
 
     template <typename ResponseType>

@@ -13,6 +13,7 @@ js/
 │   ├── ConsolidatorClient.js
 │   ├── StateClient.js
 │   ├── AnalysisClient.js
+│   ├── RegistryClient.js
 │   └── NativeProtocolClient.js
 └── ViewModels/
     ├── ConsolidatorViewModel.js
@@ -20,11 +21,31 @@ js/
     ├── AnalyzerViewModel.js
     ├── EqualizerViewModel.js
     ├── BankViewModel.js
+    ├── BankManagerViewModel.js
     ├── FilterViewModel.js
     ├── CompressorViewModel.js
     ├── SaturatorViewModel.js
     ├── GainViewModel.js
     └── ObservableValue.js
+└── Presenters/
+    ├── Core/PresentationObservable.js
+    ├── Core/Normalization.js
+    ├── Core/PresentationBinding.js
+    ├── Dial/DialPresentation.js
+    ├── Dial/DialPresenter.js
+    ├── Button/ButtonPresentation.js
+    ├── Button/ButtonPresenter.js
+    ├── Slider/SliderPresentation.js
+    ├── Slider/SliderPresenter.js
+    ├── BankManager/BankManagerPresentation.js
+    └── BankManager/BankManagerPresenter.js
+├── Controllers/
+    └── BankManagerController.js
+└── Controls/
+    ├── Dial/DialControl.js
+    ├── Button/ButtonControl.js
+    ├── Slider/SliderControl.js
+    └── BankManager/BankManagerControl.js
 ```
 
 ## Публичная граница
@@ -105,6 +126,232 @@ analysis keys или native protocol. `StateValueViewModel.set()` делегир
 `loaded === true` только после первого native entry; immediate subscription не
 вызывает callback до этого момента.
 
+## Presenter layer
+
+`Presenters/` находится между ViewModels и будущими generic controls. Presenter
+композирует state и analysis ViewModels в semantic presentation snapshot:
+`DialPresenter` создаёт normalized rings, display metadata и telemetry, а
+`ButtonPresenter` создаёт простой button snapshot. Presenters не используют Max
+API, renderer или client напрямую. Их подписки снимаются через `destroy()`.
+
+`BankManagerPresenter` принимает только semantic `BankManagerViewModel`: rows,
+banks, link groups, focus, edit mode и action state. Scroll position не входит в
+presentation и хранится только Control-ом как viewport interaction state. Он не знает legacy manager,
+`visibilityPolicy`, `groupOperations` или Max APIs. `BankManagerControl` получает
+готовые `rows`, `banks`, `linkGroups`, `editAction` и `clearAction` и выполняет
+только layout, drawing и hit testing.
+
+`BankManagerController(viewModel, rootViewModel)` принимает generic control intents и решает application
+semantics: обычный bank selection, link-edit selection, group application,
+clear confirmation. Scroll остаётся локальным viewport state Control и не
+становится application intent. Clear confirmation живёт в Controller:
+первый `clearRequested` arm-ит `clearAction`, второй выполняет clear, timeout
+сбрасывает armed state. Это отдельная граница между Control и ViewModel.
+
+`BankManagerViewModel` не содержит legacy `manager`/policy objects и не хранит
+action callbacks. Он публикует только semantic feature state; сценарии действий
+живут в `BankManagerController`, который получает ViewModel и root
+`ConsolidatorViewModel`.
+Для link groups ViewModel публикует `activeLink` и `selectionActive` отдельно;
+Presenter использует `selectionActive` в edit mode и `activeLink` в обычном
+режиме.
+
+Bindings используют единый формат `{ source, read, write, map }`. `read`
+преобразует source value для presentation, `write` выполняет обратное
+преобразование перед записью, а `map` собирает сложный source в semantic
+presentation value. Например, inverted active binding и telemetry mapping
+выглядят так:
+
+```js
+active: bindPresentation(vm.compressor.bypass, {
+    read: function (value) { return !value; },
+    write: function (value) { return !value; }
+}),
+visualization: {
+    source: vm.analyzer.compressorMeter,
+    map: function (meter) {
+        return {
+            type: "level",
+            peak: normalizeDb(meter.peakDb),
+            smoothed: normalizeDb(meter.smoothedDb)
+        };
+    }
+}
+```
+
+`DialPresenter` использует этот binding contract для всех application sources,
+поэтому feature-specific инверсии и преобразования не попадают в generic
+presenter. `activeIndex` и `displayIndex` являются interaction state presenter-а
+и не binding-ятся к ViewModel.
+
+`ButtonPresenter` и `SliderPresenter` используют ту же границу. Button публикует
+`value`, optional `active`, `enabled`, `mode` и `label`; `value` является
+пользовательским toggle state и определяет selected-визуализацию control, тогда
+как `active` не участвует в toggle semantics. Slider публикует
+normalized `value/minimum/maximum`, orientation, formatted display value и color.
+Slider хранит physical range и physical step только во внутреннем mapping и
+делает обратное преобразование в `setValue()`.
+
+Telemetry также преобразуется на composition boundary, а не внутри dial:
+
+```js
+function levelVisualization(source) {
+    return {
+        source: source,
+        map: function (meter) {
+            return {
+                type: "level",
+                peak: normalizePresentationValue(meter.peakDb, -60, 0),
+                smoothed: normalizePresentationValue(meter.smoothedDb, -60, 0)
+            };
+        }
+    };
+}
+
+function saturationVisualization(source) {
+    return {
+        source: source,
+        map: function (meter) {
+            return {
+                type: "saturation",
+                value: Number(meter.percent) / 100,
+                smoothed: Number(meter.smoothedPercent) / 100
+            };
+        }
+    };
+}
+```
+
+После mapping `DialPresenter` создаёт sparse type-specific presentation:
+`{ type: "level", peak, smoothed }`, `{ type: "reduction", value }`, либо
+`{ type: "relative", value }`. Он не знает, был ли source level, reduction или
+saturation telemetry.
+
+Для простого source mapping можно передать физическую telemetry напрямую с
+явным range:
+
+```js
+visualization: {
+    type: "level",
+    peak: vm.analyzer.compressorMeterPeakDb,
+    smoothed: vm.analyzer.compressorMeterSmoothedDb,
+    range: { minimum: -60, maximum: 0 }
+}
+```
+
+Presenter нормализует все visualization values в `0..1` до публикации
+`DialPresentation`. Например, для gain reduction используется range `0..20`,
+для процента distortion — `0..100`. Control получает только normalized values и
+не знает физические единицы.
+
+Для dial normalized `value`, `minimum`, `maximum` и `defaultValue` вычисляются
+от physical range; `setValue()` выполняет обратное преобразование и делегирует
+physical value в исходный writable ViewModel. Presenter actions включают value,
+reset, active и active index intents. Bindings не изменяются после создания presenter;
+visualization и ring color приходят из ViewModel sources либо static
+configuration. Existing controls и renderers на этом этапе не изменяются и
+presenters к ним не подключаются.
+
+Если ViewModel не предоставляет настоящий default value, presentation содержит
+`defaultValue: null`; reset не делает optimistic preview и ждёт authoritative
+snapshot после `source.reset()`.
+
+## Generic controls
+
+`js/Controls/Dial/DialControl.js` — новый нейтральный Max JS control. Он
+принимает `DialPresentation` snapshot и не знает о ViewModels, Client или
+feature-specific actions. Control рисует rings/visualization и публикует через
+outlet generic events: `valueChanged`, `reset`, `gestureBegan` и
+`gestureEnded`. Presentation принадлежит Presenter и не мутируется control-ом;
+во время drag control использует только локальный preview до прихода нового
+snapshot. Legacy dial в `Max/` остаётся без изменений.
+
+Во время active gesture control сохраняет локальный preview только для текущего
+ring. Authoritative snapshots продолжают обновлять metadata, limits и
+visualization, но не сбрасывают этот preview; он удаляется при
+`gestureEnded`.
+
+## Presenter boundary
+
+Новый Presenter layer фиксирует однонаправленную границу:
+
+```text
+ViewModels
+    │
+binding/config
+    ↓
+DialPresenter
+    ┌───────────────┴───────────────┐
+    ↓                               ↑
+presentation                    actions
+    ↓                               ↑
+DialControl ────────────────────────┘
+```
+
+Downward presentation включает `value`, `limits`, `display`, `visualization`,
+`active`, `enabled` и `color`. Upward идут только user intents: `setValue`,
+`reset`, `setActive`, `setActiveIndex` и `gestureBegan`/`gestureEnded`.
+
+Presenter observable уведомляет только об изменении presentation snapshot.
+Отдельные presenter events оставлены лишь для gesture lifecycle; `valueChanged`,
+`reset` и `activeChanged` не эмитятся обратно, потому что authoritative result
+приходит через ViewModel и следующий snapshot.
+
+`DialPresenter` является reference implementation для нового Presenter layer:
+physical `step` применяется только после denormalization, snapshots не
+мутируются control-ом, bindings остаются неизменными после конструктора, а
+`PresentationBinding` предоставляет общий `source` + `read`/`map`/`write`
+contract. Дальнейшее расширение `DialControl` отложено до стабилизации этой
+границы.
+
+Published ring presentation содержит только UI data:
+
+```js
+{
+    value: 0.63,
+    minimum: 0.2,
+    maximum: 0.9,
+    display: { value: "-18.0 dB" },
+    visualization: { type: "level", peak: 0.78, smoothed: 0.61 },
+    color: null
+}
+```
+
+Physical ranges, steps, logarithmic mapping и обратные transforms остаются во
+внутренней configuration/mapping Presenter-а и не попадают в `DialPresentation`.
+
+Mapping и display разделены:
+
+```js
+new SliderPresenter({
+    value: vm.frequency,
+    mapping: { type: "logarithmic" },
+    display: { decimals: 0, suffix: " Hz" }
+});
+```
+
+`mapping` описывает преобразование physical/UI values, а `display` — только
+форматирование уже выбранного physical value.
+
+### Runtime boundary
+
+`DialPresentation` — локальный JS snapshot. Если Presenter и Control находятся
+в разных Max JS contexts, snapshot нельзя передать через patch cord как object.
+Поэтому `DialControl.applyPresentation(presentation)` является только
+in-process seam и не считается transport API:
+
+```text
+DialPresenter
+    ↓ snapshot
+PresentationAdapter / encoder
+    ↓ Max atoms/messages
+DialControl
+```
+
+Будущий `DialControlAdapter` будет отвечать за кодирование presentation в
+messages и декодирование control intents обратно. Headless Presenter не должен
+знать о Max atoms, outlet или patch wiring.
+
 `selectBank(bankId)` и `analyzer.show(instanceId, bankId)` намеренно разделены:
 первый меняет authoritative `selected_bank` собственного instance, второй лишь
 меняет global analysis view и не переводит parameter controls на чужой instance.
@@ -155,6 +402,16 @@ Wire-level `viewRevision` и `instanceId` кодируются decimal symbols �
 также относится к `subscribeFor()`, поэтому UI может закрывать lifecycle без
 повторного хранения path и callback. Третий аргумент `immediate === true`
 сразу передаёт callback уже закэшированное значение, если оно существует.
+
+`RegistryClient` — третий client поверх того же `NativeProtocolClient`. Он
+хранит только последний registry snapshot, отбрасывает response с более
+старой `revision` и предоставляет `get()`, `fetch()` и `subscribe()`.
+`BankManagerViewModel` принимает этот client и строит semantic rows и link
+groups из snapshot; Control по-прежнему получает только presentation.
+Registry updates arrive as a small broadcast `registry_changed version revision`
+notification;
+the client then performs an explicit snapshot fetch, so no polling or event
+replay is needed.
 
 ## Native transport
 

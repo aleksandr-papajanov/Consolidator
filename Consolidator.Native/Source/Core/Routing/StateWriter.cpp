@@ -197,7 +197,7 @@ bool StateWriter::TryApplyTopology(
     }
 
     const auto field = *entry.path.field;
-    if (field != StateField::SelectedBank && field != StateField::GroupId && field != StateField::Mute && field != StateField::Solo)
+    if (field != StateField::Label && field != StateField::SelectedBank && field != StateField::GroupId && field != StateField::Mute && field != StateField::Solo)
     {
         return false;
     }
@@ -236,7 +236,13 @@ bool StateWriter::TryApplyTopology(
 
     case StateWriteStatus::Applied:
         AppendApplied(applied, context);
-        context.effects.audibilityChanged = true;
+        context.effects.audibilityChanged =
+            context.effects.audibilityChanged || AffectsAudibility(entry);
+        context.effects.registryChanged =
+            context.effects.registryChanged ||
+            field == StateField::Label ||
+            field == StateField::SelectedBank ||
+            field == StateField::GroupId;
         break;
     }
 

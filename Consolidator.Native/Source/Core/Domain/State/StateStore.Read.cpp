@@ -163,6 +163,14 @@ void AppendInstanceState(
             StateValue{state.selectedBankId}});
     }
 
+    const auto labelPath = StatePath::Label(state.instanceId);
+    if (query.Matches(labelPath))
+    {
+        (void)snapshot.TryAppend(StateEntry{
+            labelPath,
+            StateValue{state.label}});
+    }
+
     for (const auto& bank : state.banks)
     {
         auto bankPath = instancePath;

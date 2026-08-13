@@ -114,8 +114,12 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Queues/ConcurrentQueue.h
     Source/Core/Queues/SpscQueue.h
     Source/Core/Queues/LatestValueMailbox.h
+    Source/Core/Registry/BankAddress.h
     Source/Core/Registry/InstanceRegistry.h
     Source/Core/Registry/InstanceRegistry.cpp
+    Source/Core/Registry/RegistryState.h
+    Source/Core/Registry/RegistryState.cpp
+    Source/Core/Registry/RegistrySnapshot.h
     Source/Core/Logging/Log.h
     Source/Core/Logging/Log.cpp
     Source/Core/Settings/DspDeviceSettings.h
@@ -180,6 +184,7 @@ function(add_consolidator_test target source category)
 endfunction()
 
 add_consolidator_test(StateModelTests Tests/Component/Core/StateModelTests.cpp component)
+add_consolidator_test(RegistryStateTests Tests/Component/Core/RegistryStateTests.cpp component)
 add_consolidator_test(StateStoreTests Tests/Component/Core/StateStoreTests.cpp component)
 add_consolidator_test(QueueTests Tests/Component/Core/QueueTests.cpp component)
 add_consolidator_test(RoutingTests Tests/Component/Core/RoutingTests.cpp component)

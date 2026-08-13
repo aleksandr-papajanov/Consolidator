@@ -41,6 +41,7 @@ DecodeResult AtomCommandDecoder::Decode(
     DecodeResult result;
     const auto verb = Text(atom{selector});
     const bool action = verb == "reset";
+    const bool registry = verb == "registry";
     const auto fail = [&](const char* code, const char* message)
     {
         const auto source = args.size() > 1 && IsSymbol(args[1])
@@ -56,7 +57,8 @@ DecodeResult AtomCommandDecoder::Decode(
         return result;
     };
 
-    if ((verb != "read" && verb != "write" && verb != "reset") ||
+    if ((verb != "read" && verb != "write" && verb != "reset" &&
+         verb != "registry") ||
         args.empty() || !IsInteger(args[0]))
     {
         return fail("malformed", "invalid frame");
@@ -67,7 +69,7 @@ DecodeResult AtomCommandDecoder::Decode(
         return fail("unsupported_version", "unsupported protocol version");
     }
 
-    if (args.size() < 4u || !IsSymbol(args[1]))
+    if (args.size() < 3u || !IsSymbol(args[1]))
     {
         return fail("malformed", "invalid frame");
     }
@@ -82,6 +84,23 @@ DecodeResult AtomCommandDecoder::Decode(
     if (!wire)
     {
         return fail("malformed", "request must be an unsigned decimal symbol");
+    }
+
+    if (registry)
+    {
+        if (args.size() != 3u)
+        {
+            return fail("malformed", "invalid registry request");
+        }
+        result.command = core::ReadRegistryCommand{
+            requestId,
+            instance};
+        return result;
+    }
+
+    if (args.size() < 4u)
+    {
+        return fail("malformed", "invalid frame");
     }
 
     const auto invalidPath = [&]

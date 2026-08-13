@@ -67,4 +67,21 @@ TEST_CASE("Read command for missing instance produces no response")
     EXPECT_TRUE(std::holds_alternative<core::NoCommandResponse>(result));
 }
 
+TEST_CASE("Registry read command returns the coordinator snapshot")
+{
+    test::CommandFixture fixture;
+    const auto id = fixture.instance.GetInstanceId();
+    const auto result = fixture.commandRouter.HandleCommand(
+        core::ReadRegistryCommand{
+            .requestId = 104,
+            .instanceId = id});
+
+    EXPECT_TRUE(std::holds_alternative<core::RegistryResponse>(result));
+    const auto& response = std::get<core::RegistryResponse>(result);
+    EXPECT_EQ(response.requestId, 104U);
+    EXPECT_EQ(response.instanceId, id);
+    EXPECT_EQ(response.snapshot.instances.size(), 1U);
+    EXPECT_EQ(response.snapshot.instances[0].instanceId, id);
+}
+
 TEST_MAIN()

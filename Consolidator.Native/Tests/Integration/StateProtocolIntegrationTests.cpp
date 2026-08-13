@@ -4,6 +4,10 @@
 #include "Dsp/Processors/Saturator/Saturator.h"
 
 #include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <string>
+#include <thread>
 #include <variant>
 
 using namespace consolidator;
@@ -76,6 +80,51 @@ TEST_CASE("Response notifier is immutable after instance initialization")
 {
     test::ProtocolDriver driver{1};
     EXPECT_FALSE(driver.At(0).SetResponseNotifier([] {}));
+    EXPECT_FALSE(driver.At(0).SetRegistryNotifier([](std::uint64_t) {}));
+}
+
+TEST_CASE("Registry notifier publishes a newer revision after topology writes")
+{
+    std::atomic<std::uint64_t> revision{0};
+    core::ConsolidatorInstance instance;
+    EXPECT_TRUE(instance.SetRegistryNotifier([&](std::uint64_t value)
+    {
+        revision.store(value, std::memory_order_relaxed);
+    }));
+    instance.Initialize();
+    const auto initialRevision = revision.load(std::memory_order_relaxed);
+    EXPECT_TRUE(initialRevision > 0);
+
+    instance.EnqueueCommand(core::WriteStateCommand{
+        .requestId = 1052,
+        .entries = test::Entries({test::Write(
+            core::StatePath::Label(instance.GetInstanceId()),
+            std::string{"Snare"})})});
+
+    for (std::size_t attempt = 0;
+         attempt < 500 &&
+         revision.load(std::memory_order_relaxed) <= initialRevision;
+         ++attempt)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    EXPECT_TRUE(revision.load(std::memory_order_relaxed) > initialRevision);
+}
+
+TEST_CASE("Registry read observes an earlier topology write in the same queue")
+{
+    test::ProtocolDriver driver{1};
+    const auto id = driver.At(0).GetInstanceId();
+    driver.At(0).EnqueueCommand(core::WriteStateCommand{
+        .requestId = 1053,
+        .entries = test::Entries({test::Write(
+            core::StatePath::Label(id), std::string{"Kick"})})});
+    driver.EnqueueRegistryRead(0, 1054);
+
+    const auto registry = driver.AwaitRegistry(0, 1054);
+    EXPECT_EQ(registry.snapshot.instances.size(), 1U);
+    EXPECT_EQ(registry.snapshot.instances[0].instanceId, id);
+    EXPECT_EQ(registry.snapshot.instances[0].label, "Kick");
 }
 
 TEST_CASE("Destroying an instance with a pending response notifier is safe")

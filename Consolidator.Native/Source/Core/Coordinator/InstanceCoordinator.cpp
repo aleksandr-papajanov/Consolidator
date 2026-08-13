@@ -25,6 +25,7 @@ InstanceCoordinator::InstanceCoordinator()
           constraintResolver_)
     , commandRouter_(
           registry_,
+          registryState_,
           constraintResolver_,
           stateWriter_)
     , worker_([this](std::stop_token stopToken)
@@ -42,21 +43,50 @@ InstanceCoordinator::~InstanceCoordinator()
 
 void InstanceCoordinator::RegisterInstance(ConsolidatorInstance& instance)
 {
+    std::vector<ConsolidatorInstance::RegistryNotifierHandle> notifiers;
+    std::uint64_t revision = 0;
     {
         std::lock_guard lock{registryMutex_};
         const auto instanceId = nextInstanceId_;
         nextInstanceId_ = InstanceId{nextInstanceId_.GetValue() + 1};
         instance.stateStore_.SetInstanceId(instanceId);
         registry_.RegisterInstance(instanceId, &instance);
+        if (registryState_.Refresh(registry_))
+        {
+            revision = registryState_.Get().revision;
+            for (auto* registered : registry_.GetInstances())
+            {
+                notifiers.push_back(registered->GetRegistryNotifierHandle());
+            }
+        }
     }
+    PublishRegistryChanged(std::move(notifiers), revision);
 }
 
 void InstanceCoordinator::UnregisterInstance(InstanceId instanceId)
 {
-    std::lock_guard lock{registryMutex_};
-    if (const auto* instance = registry_.FindInstance(instanceId))
     {
-        registry_.UnregisterInstance(instanceId, instance->GetStateStore().GetInstance());
+        std::vector<ConsolidatorInstance::RegistryNotifierHandle> notifiers;
+        std::uint64_t revision = 0;
+        {
+            std::lock_guard lock{registryMutex_};
+            if (const auto* instance = registry_.FindInstance(instanceId))
+            {
+                registry_.UnregisterInstance(
+                    instanceId,
+                    instance->GetStateStore().GetInstance());
+                if (registryState_.Refresh(registry_))
+                {
+                    revision = registryState_.Get().revision;
+                    for (auto* registered : registry_.GetInstances())
+                    {
+                        notifiers.push_back(
+                            registered->GetRegistryNotifierHandle());
+                    }
+                }
+            }
+        }
+        PublishRegistryChanged(std::move(notifiers), revision);
     }
 }
 
@@ -86,6 +116,21 @@ void InstanceCoordinator::RefreshAudibility()
             std::span<const RuntimeControlUpdate>{
                 instanceUpdates.data(),
                 instanceUpdates.size()});
+    }
+}
+
+void InstanceCoordinator::PublishRegistryChanged(
+    std::vector<ConsolidatorInstance::RegistryNotifierHandle> notifiers,
+    std::uint64_t revision)
+{
+    if (revision == 0)
+    {
+        return;
+    }
+    for (auto& notifier : notifiers)
+    {
+        ConsolidatorInstance::NotifyRegistryChanged(
+            std::move(notifier), revision);
     }
 }
 

@@ -19,6 +19,12 @@ void ConsolidatorInstance::EnqueueCommand(WriteStateCommand command)
     InstanceCoordinator::Get().EnqueueCommand(Command{std::move(command)});
 }
 
+void ConsolidatorInstance::EnqueueCommand(ReadRegistryCommand command)
+{
+    command.instanceId = GetInstanceId();
+    InstanceCoordinator::Get().EnqueueCommand(Command{std::move(command)});
+}
+
 void ConsolidatorInstance::EnqueueCommand(ResetDspCommand command)
 {
     command.instanceId = GetInstanceId();
@@ -46,6 +52,17 @@ bool ConsolidatorInstance::SetResponseNotifier(ResponseNotifier notifier)
     return true;
 }
 
+bool ConsolidatorInstance::SetRegistryNotifier(RegistryNotifier notifier)
+{
+    if (initialized_)
+    {
+        return false;
+    }
+    registryNotifier_ = std::make_shared<RegistryNotifierState>(
+        std::move(notifier));
+    return true;
+}
+
 void ConsolidatorInstance::EnqueueResponse(CommandResponse response)
 {
     responseQueue_.Enqueue(std::move(response));
@@ -55,6 +72,12 @@ ConsolidatorInstance::ResponseNotifierHandle
 ConsolidatorInstance::GetResponseNotifierHandle() const noexcept
 {
     return responseNotifier_;
+}
+
+ConsolidatorInstance::RegistryNotifierHandle
+ConsolidatorInstance::GetRegistryNotifierHandle() const noexcept
+{
+    return registryNotifier_;
 }
 
 void ConsolidatorInstance::NotifyResponseAvailable(
@@ -71,14 +94,30 @@ void ConsolidatorInstance::NotifyResponseAvailable(
     }
 }
 
-void ConsolidatorInstance::ShutdownResponseNotifier() noexcept
+void ConsolidatorInstance::NotifyRegistryChanged(
+    RegistryNotifierHandle notifier,
+    std::uint64_t revision)
 {
-    if (!responseNotifier_)
+    if (!notifier) return;
+    std::lock_guard lock{notifier->mutex};
+    if (notifier->active && notifier->callback)
     {
-        return;
+        notifier->callback(revision);
     }
-    std::lock_guard lock{responseNotifier_->mutex};
-    responseNotifier_->active = false;
+}
+
+void ConsolidatorInstance::ShutdownNotifiers() noexcept
+{
+    if (responseNotifier_)
+    {
+        std::lock_guard lock{responseNotifier_->mutex};
+        responseNotifier_->active = false;
+    }
+    if (registryNotifier_)
+    {
+        std::lock_guard lock{registryNotifier_->mutex};
+        registryNotifier_->active = false;
+    }
 }
 
 void ConsolidatorInstance::EnqueueParameterUpdates(

@@ -51,7 +51,7 @@ TEST_CASE("Response notifier shutdown waits for an active callback")
 
     auto shutdown = std::async(
         std::launch::async,
-        [&] { instance.ShutdownResponseNotifier(); });
+        [&] { instance.ShutdownNotifiers(); });
 
     EXPECT_EQ(
         shutdown.wait_for(std::chrono::milliseconds{20}),

@@ -52,6 +52,13 @@ NativeProtocolClient.prototype.dispatch = function (selector, args) {
 
 NativeProtocolClient.prototype.handleControl = function (selector, args) {
     args = args || [];
+    if (selector === "registry_changed") {
+        if (args.length !== 2 || args[0] !== PROTOCOL_VERSION) {
+            return;
+        }
+        this.dispatch(selector, args);
+        return;
+    }
     if (args.length < 2) {
         return;
     }
@@ -62,6 +69,12 @@ NativeProtocolClient.prototype.handleControl = function (selector, args) {
         return;
     }
     this.dispatch(selector, args);
+    if (selector === "error" && args.length >= 6) {
+        this.complete(String(args[2]), {
+            error: args[4],
+            message: args[5]
+        });
+    }
 };
 
 NativeProtocolClient.prototype.handleAnalysis = function (selector, args) {

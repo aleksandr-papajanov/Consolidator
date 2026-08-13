@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 
 #include "Core/Domain/Ids/DspIds.h"
 #include "Core/Domain/Ids/InstanceId.h"
@@ -17,6 +18,7 @@ struct InstanceState
     static constexpr std::size_t kBankCount = 7;
 
     InstanceId instanceId{0};
+    std::string label;
     dsp::BankId selectedBankId{dsp::BankId::Bank0};
     std::array<BankState, kBankCount> banks{
         BankState{dsp::BankId::Bank0},

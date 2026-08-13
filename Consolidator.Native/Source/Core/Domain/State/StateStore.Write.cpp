@@ -132,6 +132,22 @@ StateWriteStatus StateStore::WriteInstanceState(
     {
         return WriteSelectedBank(entry, applied);
     }
+    if (*entry.path.field == StateField::Label)
+    {
+        const auto* value = std::get_if<std::string>(&entry.value);
+        if (value == nullptr)
+        {
+            return StateWriteStatus::Rejected;
+        }
+        const auto status = instance_.label == *value
+            ? StateWriteStatus::Unchanged
+            : StateWriteStatus::Applied;
+        instance_.label = *value;
+        StateEntry result{entry.path, StateValue{instance_.label}};
+        result.status = status;
+        (void)applied.TryAppend(std::move(result));
+        return status;
+    }
     if (*entry.path.field == StateField::GroupId)
     {
         return WriteBankGroup(entry, applied);

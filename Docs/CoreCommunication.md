@@ -26,6 +26,13 @@ accessed through `StateStore` and are written only by the coordinator worker.
 Reads are also resolved from `StateStore`; the coordinator never reads a live
 DSP chain.
 
+Instance metadata such as `label` is authoritative `StateStore` data as well.
+`InstanceCoordinator` maintains `RegistryState` as a read-model over the
+registered stores. It contains sorted instances, labels, selected banks,
+bank/group membership and a monotonically increasing `revision`. The
+projection is rebuilt after coordinator work and never accepts writes, so it
+cannot become a second source of truth.
+
 `ConsolidatorInstance::Initialize()` registers the fully constructed instance,
 then registers every DSP `StatePath` and publishes the complete initial runtime
 state before returning to the external owner. `Process()` is not exposed by the
@@ -79,12 +86,17 @@ segment and delegates the remainder to its child.
 
 Addressable state uses two self-contained command types: `ReadStateCommand`
 with bounded `queries` and `WriteStateCommand` with bounded `entries`.
-`Command` is their variant. The `ConsolidatorInstance` fills `instanceId`
+`ReadRegistryCommand` reads the process-wide `RegistryState` projection through
+the same serialized command queue and produces a `RegistryResponse`.
+`Command` contains these state, registry, and action requests. The
+`ConsolidatorInstance` fills `instanceId`
 before enqueueing. `StatePath` is a prefix query for reads and a complete address
 for writes. State requests produce one consolidated `StateResponse` addressed
 by the same `instanceId`; it contains `requestId`, `entries`, and `truncated`.
 Action requests produce an `ActionResponse` with `requestId`, `instanceId`, and
-`ActionStatus`.
+`ActionStatus`. Registry reads produce a `RegistryResponse` containing the
+current immutable snapshot. The Max external does not access the coordinator or
+registry directly.
 The Max-side atom contract, wire correlation and batch limits are fixed in
 `Docs/MaxProtocol.md`; Core does not expose the wire `source`.
 `StateStore` owns both topology
@@ -97,6 +109,7 @@ StatePath::Instance(instanceId);
 StatePath::InstanceMute(instanceId);
 StatePath::InstanceSolo(instanceId);
 StatePath::SelectedBank(instanceId);
+StatePath::Label(instanceId);
 StatePath::BankGroup(instanceId, bankId);
 StatePath::DspParameter(instanceId, route);
 ```
@@ -137,7 +150,7 @@ before that scan are collapsed by path.
 
 The coordinator routes each command response to the `ConsolidatorInstance` whose
 `instanceId` is carried by the response. Every instance owns its own response
-queue of `StateResponse` and `ActionResponse` values, and its owner reads
+queue of `StateResponse`, `ActionResponse`, and `RegistryResponse` values, and its owner reads
 responses through `TryDequeueResponse()`; there is no process-wide response
 queue. For `ResetDspCommand`, `ActionStatus::Accepted` means that the reset
 event was placed in the instance realtime queue; it does not mean that the DSP

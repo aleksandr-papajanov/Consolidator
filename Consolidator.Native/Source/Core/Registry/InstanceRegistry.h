@@ -7,7 +7,7 @@
 
 #include "Core/Domain/Ids/GroupId.h"
 #include "Core/Domain/Ids/InstanceId.h"
-#include "Core/Domain/Ids/DspIds.h"
+#include "Core/Registry/BankAddress.h"
 
 namespace consolidator::core
 {
@@ -16,15 +16,6 @@ class ConsolidatorInstance;
 struct InstanceState;
 
 using InstanceHandle = ConsolidatorInstance*;
-
-// Identifies a bank together with the instance that owns it.
-struct BankAddress
-{
-    InstanceId instanceId;
-    dsp::BankId bankId;
-
-    friend bool operator==(const BankAddress&, const BankAddress&) = default;
-};
 
 // Tracks live instances and the reverse index from groups to their banks.
 class InstanceRegistry

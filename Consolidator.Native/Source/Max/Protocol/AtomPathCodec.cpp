@@ -3,6 +3,7 @@
 #include <string>
 
 #include "Core/Domain/Ids/DspIds.h"
+#include "BankIdCodec.h"
 
 namespace consolidator::max
 {
@@ -155,7 +156,8 @@ void EncodeNode(atoms& output, dsp::RouteNodeId node)
              node <= dsp::RouteNodeId::Bank6)
     {
         output.emplace_back("bank");
-        output.emplace_back(value - static_cast<int>(dsp::RouteNodeId::Bank0) + 1);
+        output.emplace_back(EncodeBankId(static_cast<dsp::BankId>(
+            value - static_cast<int>(dsp::RouteNodeId::Bank0))));
     }
     else if (node >= dsp::RouteNodeId::Filter1 &&
              node <= dsp::RouteNodeId::Filter7)
@@ -209,6 +211,11 @@ std::optional<core::StatePath> AtomPathCodec::Decode(
         path.field = core::StateField::InstanceId;
         return path;
     }
+    if (first == "label")
+    {
+        path.field = core::StateField::Label;
+        return path;
+    }
     if (first == "selected_bank")
     {
         path.field = core::StateField::SelectedBank;
@@ -232,12 +239,13 @@ std::optional<core::StatePath> AtomPathCodec::Decode(
             return false;
         }
         const auto bank = Number(input[position++]);
-        if (!bank || *bank < 1 || *bank > 7)
+        if (!bank || !DecodeBankId(*bank))
         {
             return false;
         }
         target.nodes[0] = static_cast<dsp::RouteNodeId>(
-            static_cast<int>(dsp::RouteNodeId::Bank0) + *bank - 1);
+            static_cast<int>(dsp::RouteNodeId::Bank0) +
+            static_cast<int>(*DecodeBankId(*bank)));
         target.depth = 1;
         return true;
     };
@@ -380,6 +388,11 @@ void AtomPathCodec::Encode(atoms& output, const core::StatePath& path) const
         output.emplace_back("instance_id");
         return;
     }
+    if (path.field == core::StateField::Label)
+    {
+        output.emplace_back("label");
+        return;
+    }
     if (path.field == core::StateField::SelectedBank)
     {
         output.emplace_back("selected_bank");
@@ -389,16 +402,18 @@ void AtomPathCodec::Encode(atoms& output, const core::StatePath& path) const
     {
         output.emplace_back("bank");
         output.emplace_back(
-            static_cast<int>(path.nodes[0]) -
-            static_cast<int>(dsp::RouteNodeId::Bank0) + 1);
+            EncodeBankId(static_cast<dsp::BankId>(
+                static_cast<int>(path.nodes[0]) -
+                static_cast<int>(dsp::RouteNodeId::Bank0))));
         return;
     }
     if (path.field == core::StateField::GroupId && path.depth == 1)
     {
         output.emplace_back("bank");
         output.emplace_back(
-            static_cast<int>(path.nodes[0]) -
-            static_cast<int>(dsp::RouteNodeId::Bank0) + 1);
+            EncodeBankId(static_cast<dsp::BankId>(
+                static_cast<int>(path.nodes[0]) -
+                static_cast<int>(dsp::RouteNodeId::Bank0))));
         output.emplace_back("group");
         return;
     }

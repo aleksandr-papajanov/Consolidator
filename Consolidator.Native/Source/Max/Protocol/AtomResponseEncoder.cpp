@@ -98,7 +98,7 @@ void AtomResponseEncoder::Encode(
                     EncodeWireId(wireRequestId),
                     EncodeWireId(responseInstance.GetValue())});
             }
-            else
+            else if constexpr (std::is_same_v<ResponseType, core::ActionResponse>)
             {
                 sink(symbol("action_done"), atoms{
                     atom{kProtocolVersion}, atom{source},

@@ -53,3 +53,13 @@ ctest -C RelWithDebInfo -L integration --output-on-failure
   from derived runtime effects.
 - New production components and command variants require a matching focused
   suite and, when they cross boundaries, an integration scenario.
+
+Registry/state coverage includes `RegistryStateTests` for the Core projection,
+`StateStoreTests` for authoritative labels, and `MaxProtocolTests` for public
+one-based bank IDs, registry framing, and strict protocol-version handling.
+The JS client contract is covered by `Consolidator.Max/tests/ClientTests.js`,
+including registry snapshot assembly, broadcast version validation, retained
+revisions during an in-flight fetch, terminal registry errors, GroupId `0`, and
+BankManager local-instance/link-group projection. It also verifies same-revision
+deduplication and source isolation. Integration coverage verifies that a registry
+read queued after a topology write observes the updated projection.

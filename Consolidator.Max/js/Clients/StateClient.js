@@ -156,10 +156,6 @@ StateClient.prototype.handleActionDone = function (args) {
 StateClient.prototype.handleError = function (args) {
     var requestId = String(args[2]);
     delete this.responses[requestId];
-    this.protocol.complete(requestId, {
-        error: args[4],
-        message: args[5]
-    });
 };
 
 StateClient.prototype.publish = function (path, entry, sourceInstanceId) {

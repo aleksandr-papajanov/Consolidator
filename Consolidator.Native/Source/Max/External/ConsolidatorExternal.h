@@ -46,6 +46,8 @@ public:
         MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("write"), args); return {}; } };
     c74::min::message<> reset { this, "reset", "Reset DSP through the protocol.",
         MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("reset"), args); return {}; } };
+    c74::min::message<> registry { this, "registry", "Read the global registry snapshot.",
+        MIN_FUNCTION { HandleProtocolMessage(c74::min::symbol("registry"), args); return {}; } };
     c74::min::message<> analysisView { this, "analysis_view",
         "Select the global analysis instance and bank.",
         MIN_FUNCTION { HandleAnalysisView(args); return {}; } };
@@ -70,6 +72,7 @@ private:
     void HandleProtocolMessage(c74::min::symbol selector,
                                const c74::min::atoms& args);
     void NotifyResponseAvailable();
+    void NotifyRegistryChanged(std::uint64_t revision);
     void DrainResponses();
     void HandleAnalysisView(const c74::min::atoms& args);
     void HandleAnalysisTick(const c74::min::atoms& args);
@@ -92,6 +95,8 @@ private:
     c74::min::queue<> responseQueue_;
     std::atomic_bool responseDispatchPending_{false};
     std::atomic_bool acceptingResponses_{true};
+    std::atomic<std::uint64_t> pendingRegistryRevision_{0};
+    std::uint64_t emittedRegistryRevision_ = 0;
     std::uint64_t lastSpectrumRevision_ = 0;
     std::uint64_t lastReferenceSpectrumRevision_ = 0;
     std::uint64_t lastDifferenceSpectrumRevision_ = 0;

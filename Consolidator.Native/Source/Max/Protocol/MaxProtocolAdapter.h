@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "Core/Domain/Commands/StateProtocolCommands.h"
+#include "Core/Registry/RegistryState.h"
 #include "c74_min_api.h"
 
 namespace consolidator::max
@@ -67,6 +68,11 @@ public:
     using FrameSink = std::function<void(c74::min::symbol, const c74::min::atoms&)>;
     void EncodeResponse(const core::CommandResponse& response, FrameSink sink);
     void EmitError(const ProtocolError& error, FrameSink sink) const;
+    void EncodeRegistrySnapshot(
+        const core::RegistrySnapshot& snapshot,
+        c74::min::symbol source,
+        std::uint64_t wireRequestId,
+        FrameSink sink) const;
 
 private:
     struct Correlation

@@ -4,6 +4,7 @@
 #include <type_traits>
 
 #include "WireIdCodec.h"
+#include "BankIdCodec.h"
 
 namespace consolidator::max
 {
@@ -40,9 +41,20 @@ std::optional<core::StateValue> AtomValueCodec::Decode(
     }
     switch (*path.field)
     {
+    case core::StateField::Label:
+        if (value.a_type == c74::max::A_SYM)
+        {
+            return core::StateValue{Text(value)};
+        }
+        return std::nullopt;
     case core::StateField::SelectedBank:
     {
-        std::optional<std::size_t> index = PositiveIndex(value, 7);
+        std::optional<std::size_t> index;
+        if (value.a_type == c74::max::A_LONG)
+        {
+            const auto bank = DecodeBankId(static_cast<int>(value));
+            if (bank) index = static_cast<std::size_t>(*bank);
+        }
         if (!index && value.a_type == c74::max::A_SYM)
         {
             const auto text = Text(value);
@@ -51,7 +63,8 @@ std::optional<core::StateValue> AtomValueCodec::Decode(
                 text[4] >= '1' &&
                 text[4] <= '7')
             {
-                index = static_cast<std::size_t>(text[4] - '1');
+                index = static_cast<std::size_t>(
+                    *DecodeBankId(text[4] - '0'));
             }
         }
         if (!index)
@@ -122,6 +135,10 @@ void AtomValueCodec::Encode(atoms& output, const core::StateValue& value) const
             else if constexpr (std::is_same_v<T, core::InstanceId>)
             {
                 output.emplace_back(EncodeWireId(typed.GetValue()));
+            }
+            else if constexpr (std::is_same_v<T, std::string>)
+            {
+                output.emplace_back(typed);
             }
             else
             {

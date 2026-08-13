@@ -37,10 +37,11 @@ marker. The following grammar uses `*` for repetition and `none` for an
 explicit absent value:
 
 ```text
-command     := read | write | reset
+command     := read | write | reset | registry
 read        := read version source wireId count (query path)*
 write       := write version source wireId count (entry path valueMarker valueAtom)*
 reset       := reset version source wireId path
+registry    := registry version source wireId
 
 version     := the integer `1`
 source      := a non-empty Max symbol identifying the client endpoint
@@ -52,7 +53,7 @@ entry       := the symbol "entry"
 valueMarker := the symbol "value"
 
 path        := semantic-path
-semantic-path := selected_bank | mute | solo | bank bankNumber |
+semantic-path := label | selected_bank | mute | solo | bank bankNumber |
                 bank bankNumber group |
                 device [detector [filter filterNumber]] (parameter | marker)
 bankNumber  := an integer in 1..7
@@ -109,7 +110,10 @@ node array are not part of the wire protocol.
 `bank N group`. DSP paths always use the canonical `equalizer bank N ...`
 form, including bank-level markers such as `equalizer bank 2 bypass`.
 
-Values are decoded by `AtomValueCodec` from the semantic path. `selected_bank`
+Values are decoded by `AtomValueCodec` from the semantic path. `label` accepts
+a Max symbol and is the authoritative instance metadata path. A label write
+updates the instance `StateStore`; the process-wide registry projection
+observes that state and advances its revision. `selected_bank`
 accepts `bank1..bank7` (or the corresponding public number `1..7`) and produces
 a Core `BankId`. `bank N group` accepts a non-negative group number or `none`,
 where `none` produces an empty group. DSP parameters accept integer or
@@ -177,6 +181,32 @@ path value writeStatus physicalMinimum physicalMaximum minimum maximum
 `rejected`. Each range atom is either `none` or a path-compatible numeric
 value. Thus physical and effective ranges are both preserved; `none` means the
 range is not present. Read entries use `none` for `writeStatus`.
+
+## Registry snapshots
+
+`registry` is a global read command. It uses the same `(source, wireId)`
+correlation as state requests but returns the process-wide `RegistryState`:
+
+```text
+registry_begin 1 source request revision instanceCount groupCount
+registry_instance 1 source request instanceId label selectedBank
+registry_bank 1 source request instanceId bankId groupId
+registry_group 1 source request groupId
+registry_member 1 source request groupId instanceId bankId
+registry_done 1 source request
+```
+
+Registry bank IDs use the public one-based wire format `1..7`, including
+`selectedBank` and group members. Core converts them to internal `Bank0..Bank6`
+IDs at the native boundary, exactly like `analysis_view` and state paths.
+
+The Core sends only `registry_changed 1 revision` as an unsolicited broadcast
+invalidation notification. It contains no snapshot and no source, so the JS client fetches
+the current snapshot explicitly. This avoids replaying a global event log and
+keeps dropped notifications harmless.
+
+Protocol tests must use `EncodeBankId` and `DecodeBankId` for bank coordinate
+conversion instead of duplicating the one-based mapping.
 
 The response `instance` is always the Core `StateResponse::instanceId` or
 `ActionResponse::instanceId`; it is never inferred from `source`.

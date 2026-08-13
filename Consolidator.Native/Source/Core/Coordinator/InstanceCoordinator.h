@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "Core/Queues/ConcurrentQueue.h"
 #include "Core/Domain/Commands/StateProtocolCommands.h"
@@ -13,11 +14,11 @@
 #include "Core/Routing/InstanceAudibilityResolver.h"
 #include "Core/Routing/StateWriter.h"
 #include "Core/Registry/InstanceRegistry.h"
+#include "Core/Registry/RegistryState.h"
+#include "Core/Instance/ConsolidatorInstance.h"
 
 namespace consolidator::core
 {
-
-class ConsolidatorInstance;
 
 // Owns the process-wide command worker and coordinates registered instances.
 class InstanceCoordinator
@@ -45,12 +46,16 @@ private:
     void RegisterInstance(ConsolidatorInstance& instance);
     void UnregisterInstance(InstanceId instanceId);
     void RefreshAudibility();
+    void PublishRegistryChanged(
+        std::vector<ConsolidatorInstance::RegistryNotifierHandle> notifiers,
+        std::uint64_t revision);
 
     // Processes commands and routes responses until the coordinator is stopped.
     void WorkerLoop(std::stop_token stopToken);
 
     InstanceId nextInstanceId_{0};
     InstanceRegistry registry_;
+    RegistryState registryState_;
     GroupGraph groupGraph_;
     StateRouter stateRouter_;
     ParameterConstraintResolver constraintResolver_;

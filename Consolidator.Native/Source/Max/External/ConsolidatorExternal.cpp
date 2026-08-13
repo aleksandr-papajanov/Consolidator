@@ -1,5 +1,6 @@
 #include "ConsolidatorExternal.h"
 
+#include "../Protocol/BankIdCodec.h"
 #include "../Protocol/WireIdCodec.h"
 
 #include <cstddef>
@@ -13,13 +14,15 @@ ConsolidatorExternal::ConsolidatorExternal()
     : responseQueue_(this, MIN_FUNCTION { DrainResponses(); return {}; })
 {
     (void)instance_.SetResponseNotifier([this] { NotifyResponseAvailable(); });
+    (void)instance_.SetRegistryNotifier(
+        [this](std::uint64_t revision) { NotifyRegistryChanged(revision); });
     instance_.Initialize();
 }
 
 ConsolidatorExternal::~ConsolidatorExternal()
 {
     acceptingResponses_.store(false, std::memory_order_release);
-    instance_.ShutdownResponseNotifier();
+    instance_.ShutdownNotifiers();
     responseQueue_.unset();
 }
 
@@ -70,6 +73,18 @@ void ConsolidatorExternal::NotifyResponseAvailable()
     }
 }
 
+void ConsolidatorExternal::NotifyRegistryChanged(std::uint64_t revision)
+{
+    auto current = pendingRegistryRevision_.load(std::memory_order_relaxed);
+    while (current < revision &&
+           !pendingRegistryRevision_.compare_exchange_weak(
+               current, revision, std::memory_order_release,
+               std::memory_order_relaxed))
+    {
+    }
+    NotifyResponseAvailable();
+}
+
 void ConsolidatorExternal::DrainResponses()
 {
     while (auto response = instance_.TryDequeueResponse())
@@ -84,11 +99,31 @@ void ConsolidatorExternal::DrainResponses()
             });
     }
 
-    responseDispatchPending_.store(false, std::memory_order_release);
-    if (instance_.HasResponse())
+    const auto registryRevision = pendingRegistryRevision_.load(
+        std::memory_order_acquire);
+    if (registryRevision > emittedRegistryRevision_)
     {
-        responseDispatchPending_.store(true, std::memory_order_release);
-        responseQueue_.set();
+        emittedRegistryRevision_ = registryRevision;
+        controlOutput.send(atoms{
+            atom{symbol("registry_changed")},
+            atom{kProtocolVersion},
+            EncodeWireId(registryRevision)});
+    }
+
+    responseDispatchPending_.store(false, std::memory_order_release);
+    const bool hasPendingRegistry =
+        pendingRegistryRevision_.load(std::memory_order_acquire) >
+        emittedRegistryRevision_;
+    if (instance_.HasResponse() || hasPendingRegistry)
+    {
+        bool expected = false;
+        if (responseDispatchPending_.compare_exchange_strong(
+                expected,
+                true,
+                std::memory_order_acq_rel))
+        {
+            responseQueue_.set();
+        }
     }
 }
 
@@ -106,14 +141,15 @@ void ConsolidatorExternal::HandleAnalysisView(const atoms& args)
     {
         return;
     }
-    if (publicBankId < 1 || publicBankId > 7)
+    const auto bankId = DecodeBankId(publicBankId);
+    if (!bankId)
     {
         return;
     }
 
     analysis::AnalysisService::Get().SetView({
         core::InstanceId{static_cast<core::InstanceId::ValueType>(*instanceValue)},
-        static_cast<dsp::BankId>(publicBankId - 1)});
+        *bankId});
     ResetAnalysisRevisions();
 }
 
@@ -196,7 +232,7 @@ void ConsolidatorExternal::EmitSpectrum(
         EncodeWireId(snapshot.viewRevision),
         EncodeWireId(view.instanceId.GetValue()),
         atom{static_cast<c74::max::t_atom_long>(
-            static_cast<int>(view.bankId) + 1)}};
+            EncodeBankId(view.bankId))}};
     frame.reserve(frame.size() + snapshot.magnitudeDb.size());
     for (const auto value : snapshot.magnitudeDb)
     {
@@ -216,7 +252,7 @@ void ConsolidatorExternal::EmitCurves(
             EncodeWireId(snapshot.viewRevision),
             EncodeWireId(view.instanceId.GetValue()),
             atom{static_cast<c74::max::t_atom_long>(
-                static_cast<int>(view.bankId) + 1)},
+                EncodeBankId(view.bankId))},
             atom{static_cast<int>(index + 1)}};
         frame.reserve(frame.size() + snapshot.filters[index].magnitudeDb.size());
         for (const auto value : snapshot.filters[index].magnitudeDb)
@@ -234,7 +270,7 @@ void ConsolidatorExternal::EmitCurves(
             EncodeWireId(curve.viewRevision),
             EncodeWireId(view.instanceId.GetValue()),
             atom{static_cast<c74::max::t_atom_long>(
-                static_cast<int>(view.bankId) + 1)}};
+            EncodeBankId(view.bankId))}};
         frame.reserve(frame.size() + curve.magnitudeDb.size());
         for (const auto value : curve.magnitudeDb)
         {
@@ -261,7 +297,7 @@ void ConsolidatorExternal::EmitTelemetry(
             EncodeWireId(snapshot.viewRevision),
             EncodeWireId(view.instanceId.GetValue()),
             atom{static_cast<c74::max::t_atom_long>(
-                static_cast<int>(view.bankId) + 1)},
+                EncodeBankId(view.bankId))},
             atom{point}, atom{meter.rmsDb}, atom{meter.peakDb},
             atom{meter.smoothedDb}});
     };
@@ -283,7 +319,7 @@ void ConsolidatorExternal::EmitTelemetry(
         EncodeWireId(snapshot.viewRevision),
         EncodeWireId(view.instanceId.GetValue()),
         atom{static_cast<c74::max::t_atom_long>(
-            static_cast<int>(view.bankId) + 1)},
+            EncodeBankId(view.bankId))},
         atom{snapshot.saturator.distortionPercent},
         atom{snapshot.saturator.distortionSmoothedPercent}});
     analysisOutput.send(atoms{
@@ -291,7 +327,7 @@ void ConsolidatorExternal::EmitTelemetry(
         EncodeWireId(snapshot.viewRevision),
         EncodeWireId(view.instanceId.GetValue()),
         atom{static_cast<c74::max::t_atom_long>(
-            static_cast<int>(view.bankId) + 1)},
+            EncodeBankId(view.bankId))},
         atom{snapshot.compressor.gainReductionRmsDb},
         atom{snapshot.compressor.gainReductionPeakDb},
         atom{snapshot.compressor.gainReductionSmoothedDb}});

@@ -2,6 +2,7 @@
 
 #include "Core/Instance/ConsolidatorInstance.h"
 #include "Core/Registry/InstanceRegistry.h"
+#include "Core/Registry/RegistryState.h"
 #include "Core/Routing/CommandRouter.h"
 #include "Core/Routing/GroupGraph.h"
 #include "Core/Routing/ParameterConstraintResolver.h"
@@ -21,13 +22,15 @@ public:
         , stateRouter(registry, groups)
         , constraints(registry, stateRouter)
         , stateWriter(registry, stateRouter, constraints)
-        , commandRouter(registry, constraints, stateWriter)
+        , commandRouter(registry, registryState, constraints, stateWriter)
     {
         instance.Initialize();
         registry.RegisterInstance(instance.GetInstanceId(), &instance);
+        (void)registryState.Refresh(registry);
     }
 
     core::InstanceRegistry registry;
+    core::RegistryState registryState;
     core::GroupGraph groups;
     core::StateRouter stateRouter;
     core::ParameterConstraintResolver constraints;

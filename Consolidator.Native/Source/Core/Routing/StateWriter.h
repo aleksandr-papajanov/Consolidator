@@ -16,6 +16,7 @@ namespace consolidator::core
 struct StateEffects
 {
     bool audibilityChanged = false;
+    bool registryChanged = false;
     std::vector<InstanceId> analysisInstances;
 };
 

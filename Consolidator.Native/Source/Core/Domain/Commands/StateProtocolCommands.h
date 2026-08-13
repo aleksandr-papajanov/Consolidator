@@ -5,6 +5,7 @@
 
 #include "Core/Domain/Ids/InstanceId.h"
 #include "Core/Domain/State/StateEntry.h"
+#include "Core/Registry/RegistrySnapshot.h"
 
 namespace consolidator::core
 {
@@ -34,10 +35,17 @@ struct ResetDspCommand
     StatePath target;
 };
 
+struct ReadRegistryCommand
+{
+    RequestId requestId{0};
+    InstanceId instanceId{0};
+};
+
 using Command = std::variant<
     ReadStateCommand,
     WriteStateCommand,
-    ResetDspCommand>;
+    ResetDspCommand,
+    ReadRegistryCommand>;
 
 struct StateResponse
 {
@@ -60,6 +68,16 @@ struct ActionResponse
     ActionStatus status{ActionStatus::Rejected};
 };
 
-using CommandResponse = std::variant<StateResponse, ActionResponse>;
+struct RegistryResponse
+{
+    RequestId requestId{0};
+    InstanceId instanceId{0};
+    RegistrySnapshot snapshot;
+};
+
+using CommandResponse = std::variant<
+    StateResponse,
+    ActionResponse,
+    RegistryResponse>;
 
 } // namespace consolidator::core

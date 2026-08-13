@@ -2,6 +2,7 @@ function ConsolidatorClient(source, send) {
     this.protocol = new NativeProtocolClient(source, send);
     this.state = new StateClient(this.protocol);
     this.analysis = new AnalysisClient(this.protocol);
+    this.registry = new RegistryClient(this.protocol);
 }
 
 ConsolidatorClient.prototype.handleControl = function (selector, args) {

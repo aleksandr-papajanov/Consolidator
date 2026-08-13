@@ -15,6 +15,7 @@ namespace consolidator::core
 enum class StateField : std::uint8_t
 {
     InstanceId,
+    Label,
     SelectedBank,
     BankId,
     GroupId,
@@ -47,6 +48,13 @@ struct StatePath
     {
         auto path = Instance(instance);
         path.field = StateField::SelectedBank;
+        return path;
+    }
+
+    [[nodiscard]] static constexpr StatePath Label(InstanceId instance) noexcept
+    {
+        auto path = Instance(instance);
+        path.field = StateField::Label;
         return path;
     }
 

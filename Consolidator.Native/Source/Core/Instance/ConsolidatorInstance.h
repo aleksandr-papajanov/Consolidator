@@ -45,6 +45,19 @@ class ConsolidatorInstance
         bool active = true;
     };
     using ResponseNotifierHandle = std::shared_ptr<ResponseNotifierState>;
+    using RegistryNotifier = std::function<void(std::uint64_t)>;
+    struct RegistryNotifierState
+    {
+        explicit RegistryNotifierState(RegistryNotifier callback)
+            : callback(std::move(callback))
+        {
+        }
+
+        std::mutex mutex;
+        RegistryNotifier callback;
+        bool active = true;
+    };
+    using RegistryNotifierHandle = std::shared_ptr<RegistryNotifierState>;
 
     ConsolidatorInstance();
     ~ConsolidatorInstance();
@@ -73,13 +86,15 @@ class ConsolidatorInstance
 
     void EnqueueCommand(ReadStateCommand command);
     void EnqueueCommand(WriteStateCommand command);
+    void EnqueueCommand(ReadRegistryCommand command);
     // Enqueues a non-coalescable real-time reset event.
     void EnqueueCommand(ResetDspCommand command);
 
     [[nodiscard]] std::optional<CommandResponse> TryDequeueResponse();
     [[nodiscard]] bool HasResponse() const;
     [[nodiscard]] bool SetResponseNotifier(ResponseNotifier notifier);
-    void ShutdownResponseNotifier() noexcept;
+    [[nodiscard]] bool SetRegistryNotifier(RegistryNotifier notifier);
+    void ShutdownNotifiers() noexcept;
 
     [[nodiscard]] InstanceId GetInstanceId() const noexcept;
     [[nodiscard]] bool IsOutputEnabled() const noexcept
@@ -97,7 +112,11 @@ class ConsolidatorInstance
 
     void EnqueueResponse(CommandResponse response);
     [[nodiscard]] ResponseNotifierHandle GetResponseNotifierHandle() const noexcept;
+    [[nodiscard]] RegistryNotifierHandle GetRegistryNotifierHandle() const noexcept;
     static void NotifyResponseAvailable(ResponseNotifierHandle notifier);
+    static void NotifyRegistryChanged(
+        RegistryNotifierHandle notifier,
+        std::uint64_t revision);
 
     // Enqueues coordinator-owned latest-value updates for the audio thread.
     void EnqueueParameterUpdates(std::span<const ParameterUpdate> updates);
@@ -137,6 +156,7 @@ class ConsolidatorInstance
     SpscQueue<RealtimeCommand, 17> realtimeCommandQueue_;
     ConcurrentQueue<CommandResponse> responseQueue_;
     ResponseNotifierHandle responseNotifier_;
+    RegistryNotifierHandle registryNotifier_;
     bool outputEnabled_ = true;
     bool initialized_ = false;
 };

@@ -33,6 +33,8 @@ add_library(${PROJECT_NAME} MODULE
     ../Protocol/AtomResponseEncoder.cpp
     ../Protocol/WireIdCodec.h
     ../Protocol/WireIdCodec.cpp
+    ../Protocol/BankIdCodec.h
+    ../Protocol/BankIdCodec.cpp
 )
 
 option(CONSOLIDATOR_COPY_BUILT_EXTERNALS_TO_MAX
@@ -80,6 +82,7 @@ add_executable(MaxProtocolTests
     ../Protocol/AtomValueCodec.cpp
     ../Protocol/AtomResponseEncoder.cpp
     ../Protocol/WireIdCodec.cpp
+    ../Protocol/BankIdCodec.cpp
     ../../../Tests/Support/MaxApiTestStubs.cpp
 )
 

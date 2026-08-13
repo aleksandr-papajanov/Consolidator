@@ -4,18 +4,18 @@
 #include "Support/TestFramework.h"
 
 #include <variant>
+#include <string>
 
 using namespace consolidator;
 
 namespace
 {
 
-const core::StateEntry& ReadOne(
+core::StateEntry ReadOne(
     const core::StateStore& store,
     const core::StatePath& path)
 {
-    static core::StateResponseEntries snapshot;
-    snapshot.Clear();
+    core::StateResponseEntries snapshot;
     store.ReadState(path, snapshot);
     EXPECT_EQ(snapshot.size, 1U);
     return snapshot.entries[0];
@@ -37,7 +37,7 @@ TEST_CASE("StateStore factory owns complete defaults and physical ranges")
     core::StateStore store;
     store.SetInstanceId(core::InstanceId{4});
 
-    const auto& gain = ReadOne(store, test::DevicePath(
+    const auto gain = ReadOne(store, test::DevicePath(
         core::InstanceId{4}, dsp::DeviceId::MainInputGain, dsp::ParameterId::Gain));
     EXPECT_EQ(std::get<float>(gain.value), 0.0f);
     EXPECT_EQ(std::get<float>(*gain.physicalMinimum),
@@ -45,7 +45,7 @@ TEST_CASE("StateStore factory owns complete defaults and physical ranges")
     EXPECT_EQ(std::get<float>(*gain.physicalMaximum),
               static_cast<float>(core::settings::GainDefaults::kMaxGainDb));
 
-    const auto& filter = ReadOne(store, test::FilterPath(
+    const auto filter = ReadOne(store, test::FilterPath(
         core::InstanceId{4}, dsp::BankId::Bank0, 2, dsp::ParameterId::Frequency));
     EXPECT_EQ(std::get<float>(filter.value), 100.0f);
 }
@@ -128,6 +128,23 @@ TEST_CASE("StateStore writes topology and authoritative markers")
     EXPECT_EQ(Apply(store, test::Write(core::StatePath::InstanceMute(id), true), response),
               core::StateWriteStatus::Applied);
     EXPECT_TRUE(store.GetInstance().audibility.mute.value);
+}
+
+TEST_CASE("StateStore reads and writes authoritative instance labels")
+{
+    core::StateStore store;
+    const core::InstanceId id{12};
+    store.SetInstanceId(id);
+    core::StateResponseEntries response;
+
+    EXPECT_EQ(Apply(store, test::Write(
+        core::StatePath::Label(id), std::string{"Kick"}), response),
+        core::StateWriteStatus::Applied);
+    EXPECT_EQ(store.GetInstance().label, "Kick");
+    EXPECT_EQ(std::get<std::string>(response.entries[0].value), "Kick");
+
+    const auto entry = ReadOne(store, core::StatePath::Label(id));
+    EXPECT_EQ(std::get<std::string>(entry.value), "Kick");
 }
 
 TEST_CASE("StateStore validates writable path and value shape")

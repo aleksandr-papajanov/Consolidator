@@ -45,7 +45,7 @@ ConsolidatorInstance::~ConsolidatorInstance()
 {
     if (initialized_)
     {
-        ShutdownResponseNotifier();
+        ShutdownNotifiers();
         InstanceCoordinator::Get().UnregisterInstance(stateStore_.GetInstanceId());
         analysis::AnalysisService::Get().UnregisterInstance(analysisHandle_);
         analysisHandle_.reset();

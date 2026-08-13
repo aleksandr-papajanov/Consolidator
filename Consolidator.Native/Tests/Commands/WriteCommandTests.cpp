@@ -2,6 +2,7 @@
 #include "Support/StateBuilders.h"
 #include "Support/TestFramework.h"
 
+#include <string>
 #include <variant>
 
 using namespace consolidator;
@@ -95,7 +96,19 @@ TEST_CASE("Topology writes expose audibility effects")
         test::Write(core::StatePath::BankGroup(id, dsp::BankId::Bank2),
                     core::GroupId{77})}));
     EXPECT_TRUE(group.effects.audibilityChanged);
+    EXPECT_TRUE(group.effects.registryChanged);
     EXPECT_EQ(fixture.registry.FindGroupMembers(core::GroupId{77}).size(), 1U);
+}
+
+TEST_CASE("Registry effects distinguish labels from audibility")
+{
+    test::CommandFixture fixture;
+    const auto id = fixture.instance.GetInstanceId();
+    const auto& label = Write(fixture, 207, test::Entries({
+        test::Write(core::StatePath::Label(id), std::string{"Lead"})}));
+
+    EXPECT_TRUE(label.effects.registryChanged);
+    EXPECT_FALSE(label.effects.audibilityChanged);
 }
 
 TEST_CASE("Write command for missing instance produces no response")
