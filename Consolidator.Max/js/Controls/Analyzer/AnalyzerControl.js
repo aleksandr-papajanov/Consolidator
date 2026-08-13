@@ -24,6 +24,54 @@ AnalyzerControl.prototype.applyPresentation = function (presentation) {
     mgraphics.redraw();
 };
 
+AnalyzerControl.prototype.beginPresentation = function (mode, enabled) {
+    this.presentation = {
+        mode: String(mode),
+        enabled: Number(enabled) !== 0,
+        spectrum: null,
+        referenceSpectrum: null,
+        differenceSpectrum: null,
+        curves: [],
+        combinedCurve: null,
+        handles: []
+    };
+};
+
+AnalyzerControl.prototype.addCurve = function (name, args, id) {
+    var curve = {
+        active: Number(args[0]) !== 0,
+        values: args.slice(1)
+    };
+    if (name === "spectrum") this.presentation.spectrum = curve;
+    else if (name === "reference_spectrum") {
+        this.presentation.referenceSpectrum = curve;
+    }
+    else if (name === "difference_spectrum") {
+        this.presentation.differenceSpectrum = curve;
+    }
+    else if (name === "combined") this.presentation.combinedCurve = curve;
+    else this.presentation.curves.push({
+        id: Number(id),
+        active: curve.active,
+        values: curve.values
+    });
+};
+
+AnalyzerControl.prototype.addHandle = function (args) {
+    this.presentation.handles.push({
+        id: Number(args[0]),
+        frequency: Number(args[1]),
+        gain: Number(args[2]),
+        enabled: Number(args[3]) !== 0,
+        capabilities: {
+            frequency: Number(args[4]) !== 0,
+            gain: Number(args[5]) !== 0,
+            q: Number(args[6]) !== 0
+        },
+        selected: Number(args[7]) !== 0
+    });
+};
+
 AnalyzerControl.prototype.paint = function () {
     this.renderer.paint(this.presentation,
         new AnalyzerLayout(mgraphics.size[0], mgraphics.size[1]), this.state);
@@ -122,6 +170,40 @@ function onwheel(x, y, delta, mod1, shift, caps, opt, mod2) {
     analyzerControl.emitIntent("filterQChanged", [id, Number(delta) * 0.05]);
 }
 function onidleout() { analyzerControl.endGesture(); }
+
+function presentation_begin(mode, enabled) {
+    analyzerControl.beginPresentation(mode, enabled);
+}
+
+function spectrum() {
+    analyzerControl.addCurve("spectrum", arrayfromargs(arguments));
+}
+
+function reference_spectrum() {
+    analyzerControl.addCurve("reference_spectrum", arrayfromargs(arguments));
+}
+
+function difference_spectrum() {
+    analyzerControl.addCurve("difference_spectrum", arrayfromargs(arguments));
+}
+
+function curve() {
+    var args = arrayfromargs(arguments);
+    var id = args.shift();
+    analyzerControl.addCurve("curve", args, id);
+}
+
+function combined() {
+    analyzerControl.addCurve("combined", arrayfromargs(arguments));
+}
+
+function handle() {
+    analyzerControl.addHandle(arrayfromargs(arguments));
+}
+
+function presentation_end() {
+    analyzerControl.applyPresentation(analyzerControl.presentation);
+}
 
 AnalyzerControl.prototype.endGesture = function () {
     if (!this.state.dragging) return;

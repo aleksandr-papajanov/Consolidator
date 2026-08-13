@@ -7,6 +7,7 @@ function AnalyzerPresenter(options) {
     this.options = options || {};
     this.eventListeners = {};
     this.unsubscribers = [];
+    this.parameterUnsubscribers = [];
     var frequencyRange = this.options.frequencyRange || {};
     var gainRange = this.options.gainRange || {};
     this.frequencyMinimum = frequencyRange.minimum === undefined
@@ -55,16 +56,44 @@ AnalyzerPresenter.prototype.subscribeSources = function () {
         this.options.combined,
         this.options.enabled
     ];
-    (this.options.curves || []).forEach(function (curve) { sources.push(curve); });
-    (this.options.parameters || []).forEach(function (parameter) {
-        sources.push(parameter.frequency, parameter.gain, parameter.q,
-            parameter.enabled);
-    });
     sources.forEach(function (source) {
         if (!source) return;
         subscribePresentationBinding(source, function () { self.rebuild(); },
             self.unsubscribers);
     });
+    (this.options.curves || []).forEach(function (curve) {
+        if (!curve) return;
+        subscribePresentationBinding(curve, function () { self.rebuild(); },
+            self.unsubscribers);
+    });
+    this.subscribeParameters();
+};
+
+AnalyzerPresenter.prototype.subscribeParameterSource = function (source) {
+    if (!source) return;
+    subscribePresentationBinding(source, this.rebuild.bind(this),
+        this.parameterUnsubscribers);
+};
+
+AnalyzerPresenter.prototype.subscribeParameters = function () {
+    var self = this;
+    (this.options.parameters || []).forEach(function (parameter) {
+        self.subscribeParameterSource(parameter.frequency);
+        self.subscribeParameterSource(parameter.gain);
+        self.subscribeParameterSource(parameter.q);
+        self.subscribeParameterSource(parameter.enabled);
+    });
+};
+
+AnalyzerPresenter.prototype.setParameters = function (parameters) {
+    this.parameterUnsubscribers.forEach(function (unsubscribe) {
+        unsubscribe();
+    });
+    this.parameterUnsubscribers = [];
+    this.options.parameters = parameters || [];
+    this.selectedId = 0;
+    this.subscribeParameters();
+    this.rebuild();
 };
 
 AnalyzerPresenter.prototype.read = function (source, fallback) {
@@ -201,6 +230,10 @@ AnalyzerPresenter.prototype.filterQChanged = function (id, delta) {
 AnalyzerPresenter.prototype.destroy = function () {
     this.unsubscribers.forEach(function (unsubscribe) { unsubscribe(); });
     this.unsubscribers = [];
+    this.parameterUnsubscribers.forEach(function (unsubscribe) {
+        unsubscribe();
+    });
+    this.parameterUnsubscribers = [];
     this.eventListeners = {};
     PresentationObservable.prototype.destroy.call(this);
 };

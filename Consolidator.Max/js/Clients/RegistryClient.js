@@ -138,3 +138,10 @@ RegistryClient.prototype.notify = function (snapshot) {
         listeners[index](snapshot);
     }
 };
+
+RegistryClient.prototype.destroy = function () {
+    this.snapshot = null;
+    this.subscribers = [];
+    this.responses = {};
+    this.fetchPending = false;
+};

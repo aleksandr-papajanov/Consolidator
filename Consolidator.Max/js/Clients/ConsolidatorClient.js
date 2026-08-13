@@ -12,3 +12,10 @@ ConsolidatorClient.prototype.handleControl = function (selector, args) {
 ConsolidatorClient.prototype.handleAnalysis = function (selector, args) {
     this.protocol.handleAnalysis(selector, args);
 };
+
+ConsolidatorClient.prototype.destroy = function () {
+    this.state.destroy();
+    this.analysis.destroy();
+    this.registry.destroy();
+    this.protocol.destroy();
+};

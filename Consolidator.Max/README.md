@@ -9,6 +9,10 @@
 - `ViewModels/` — UI projections без native paths и selectors;
 - `Controls/` — новые generic Max JS controls, работающие с presentation
   snapshots.
+- `Bindings/` — adapters между presenters/controllers и уже найденными Max
+  controls;
+- `ConsolidatorUiHost.js` — composition root одного UI instance, lifecycle и
+  маршрутизация control/analysis потоков.
 
 Клиентский интерфейс работает поверх трёх native-потоков/границ:
 
@@ -37,6 +41,18 @@ instance, bank/group membership, selected bank и `revision`; этот snapshot
 
 `selectBank()` изменяет selected bank собственного instance. Analysis view
 другого instance/bank выбирается отдельно через `analyzer.show()`.
+
+`ConsolidatorUiHost` использует три inlet-а: native control, native analysis и
+UI intents. Native сообщения идут в `handleControl()`/`handleAnalysis()`, а UI
+intent имеет форму `<control-varname> <intent> <args...>`. Один
+`analysis_tick` обслуживает все spectrum, curves и telemetry. Stable varname
+mapping хранится в Host. Bindings отправляют вниз Max messages, а patch через
+`prepend <control-varname>` маршрутизирует generic control events вверх.
+Host не ищет controls через `patcher.getnamed()`: для nested bpatcher controls
+panel wiring маршрутизирует Host outlet локально внутри панели.
+BankManager получает отдельный `BankManagerContext`: его selection/link state
+живёт в `BankManagerViewModel`, записи group выполняются через `StateClient`, а
+analysis view и local `selected_bank` передаются controller-у явно.
 
 Presenters
 -----------
@@ -93,17 +109,17 @@ var compressorBypassButton = new ButtonPresenter({
 освобождает все подписки через `destroy()`.
 
 Новый нейтральный dial находится в `js/Controls/Dial/DialControl.js`. Он
-принимает `DialPresentation` через `presentation()`/`applyPresentation()`,
+принимает message-based presentation (`ringCount`, `set`, `limits`, `enabled`,
+`active`),
 рисует rings и generic visualization, а через outlet выдаёт только generic
 events (`valueChanged`, `reset`, `gestureBegan`, `gestureEnded`). Старый
 `Max/.../DialControl.js` этим control не заменяется и не изменяется.
-Передача object snapshot между разными Max JS contexts пока не является частью
-transport contract; для этого позже появится отдельный adapter/encoder.
+Передача object snapshot между разными Max JS contexts не является transport
+contract. Analyzer использует отдельные list messages для curves и handles.
 
 Новые generic controls находятся в `js/Controls/Dial`, `js/Controls/Button`,
-`js/Controls/Slider` и `js/Controls/BankManager`. Они принимают presentation snapshots через in-process
-`applyPresentation()` seam, не знают о ViewModels и выдают только generic
-intent messages.
+`js/Controls/Slider` и `js/Controls/BankManager`. Они принимают только generic
+Max messages, не знают о ViewModels и выдают generic intent messages.
 
 Папка `Max/` в корне репозитория — legacy-источник контекста. Она больше не
 является рабочим доменом и используется только для изучения старых патчей,
@@ -114,4 +130,5 @@ JS contract-test запускается командой `node tests/ClientTests
 registry multipart snapshots, `registry_changed` version framing, latest-value
 fetch semantics, построение BankManager из registry snapshot и orchestration
 `BankManagerController` для local/remote/link-edit selection и clear
-confirmation.
+confirmation. Там же проверяются message bindings, маршрутизация по control
+varname, изолированная загрузка composition root и полный lifecycle Host.

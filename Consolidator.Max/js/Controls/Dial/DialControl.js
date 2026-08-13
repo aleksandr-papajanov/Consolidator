@@ -49,6 +49,42 @@ DialControl.prototype.applyPresentation = function (presentation) {
     mgraphics.redraw();
 };
 
+DialControl.prototype.setPresentationValue = function (index, value) {
+    var ring = this.presentation.rings[index];
+    if (!ring) return;
+    ring.value = this.clamp(Number(value), ring.minimum, ring.maximum);
+    delete this.previewValues[index];
+    mgraphics.redraw();
+};
+
+DialControl.prototype.setRingCount = function (count) {
+    count = Math.max(0, Math.min(
+        DialControlOptions.maximumRingCount,
+        Math.floor(Number(count))
+    ));
+    if (!isFinite(count)) return;
+    while (this.presentation.rings.length < count) {
+        this.presentation.rings.push({
+            value: 0,
+            minimum: 0,
+            maximum: 1,
+            visualization: null,
+            color: null
+        });
+    }
+    this.presentation.rings.length = count;
+    this.previewValues.length = count;
+    mgraphics.redraw();
+};
+
+DialControl.prototype.setPresentationLimits = function (index, minimum, maximum) {
+    var ring = this.presentation.rings[index];
+    if (!ring) return;
+    ring.minimum = Number(minimum);
+    ring.maximum = Number(maximum);
+    mgraphics.redraw();
+};
+
 DialControl.prototype.clamp = function (value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, value));
 };
@@ -227,6 +263,40 @@ function setValue(index, value) {
 
 function resetValue(index) {
     dialControl.resetValue(Number(index));
+}
+
+function set(index, value) {
+    dialControl.setPresentationValue(Number(index), Number(value));
+}
+
+function limits(index, minimum, maximum) {
+    dialControl.setPresentationLimits(
+        Number(index), Number(minimum), Number(maximum)
+    );
+}
+
+function enabled(value) {
+    dialControl.presentation.enabled = Number(value) !== 0;
+    mgraphics.redraw();
+}
+
+function active(value) {
+    dialControl.presentation.active = Number(value) !== 0;
+    mgraphics.redraw();
+}
+
+function activeIndex(value) {
+    dialControl.presentation.activeIndex = Number(value);
+    mgraphics.redraw();
+}
+
+function displayIndex(value) {
+    dialControl.presentation.displayIndex = Number(value);
+    mgraphics.redraw();
+}
+
+function ringCount(value) {
+    dialControl.setRingCount(value);
 }
 
 var dialControl = new DialControl();

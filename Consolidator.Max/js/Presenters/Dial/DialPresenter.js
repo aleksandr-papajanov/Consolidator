@@ -155,6 +155,9 @@ DialPresenter.prototype.buildRing = function (configuration) {
 };
 
 DialPresenter.prototype.formatDisplayValue = function (value, display) {
+    var scale = display.scale === undefined ? 1 : Number(display.scale);
+    if (!isFinite(scale)) scale = 1;
+    value *= scale;
     var decimals = display.decimals === undefined ? 2
         : Math.max(0, Math.floor(Number(display.decimals)));
     var suffix = display.suffix === undefined ? "" : String(display.suffix);

@@ -10,10 +10,14 @@ function ConsolidatorViewModel(client) {
     this.equalizer = new EqualizerViewModel(client.state);
     this.outputGain = new GainViewModel(client.state, "main_output_gain");
     this.analyzer = new AnalyzerViewModel(client.analysis);
+    this.initialized = false;
     var self = this;
     this.unsubscribeSelectedBank = this.selectedBank.subscribe(function (value) {
         if (value.value !== undefined && value.value !== null) {
             self.equalizer.showBank(value.value);
+            if (self.initialized) {
+                self.fetchValues(self.equalizer.getCurrentBankStateValues());
+            }
         }
     }, true);
 }
@@ -66,8 +70,11 @@ ConsolidatorViewModel.prototype.initialize = function (callback) {
         if (error && !firstError) {
             firstError = error;
         }
-        if (initialDone && bankDone && callback) {
-            callback(firstError);
+        if (initialDone && bankDone) {
+            self.initialized = !firstError;
+            if (callback) {
+                callback(firstError);
+            }
         }
     }
 
@@ -91,9 +98,7 @@ ConsolidatorViewModel.prototype.initialize = function (callback) {
 };
 
 ConsolidatorViewModel.prototype.selectBank = function (bankId) {
-    this.equalizer.showBank(bankId);
     this.selectedBank.set(bankId);
-    this.fetchValues(this.equalizer.getCurrentBankStateValues());
 };
 
 ConsolidatorViewModel.prototype.destroy = function () {

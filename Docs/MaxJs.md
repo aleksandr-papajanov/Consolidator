@@ -365,29 +365,48 @@ new SliderPresenter({
 
 `mapping` описывает преобразование physical/UI values, а `display` — только
 форматирование уже выбранного physical value.
+Display configuration может содержать `scale`; например Core mix `0..1`
+показывается как percentage через `scale: 100`, не меняя значение, которое
+уходит обратно в StateClient.
 
 ### Runtime boundary
 
 `DialPresentation` — локальный JS snapshot. Если Presenter и Control находятся
 в разных Max JS contexts, snapshot нельзя передать через patch cord как object.
-Поэтому `DialControl.applyPresentation(presentation)` является только
-in-process seam и не считается transport API:
+Рабочий transport использует message-based bindings:
 
 ```text
 DialPresenter
-    ↓ snapshot
-PresentationAdapter / encoder
+    ↓ Binding encoder
+Max object.message("set"/"limits"/...)
     ↓ Max atoms/messages
 DialControl
+    ↓ outlet: valueChanged/reset/gesture...
+prepend <control-varname>
+    ↓
+ConsolidatorUiHost UI-intent inlet
 ```
 
-Будущий `DialControlAdapter` будет отвечать за кодирование presentation в
-messages и декодирование control intents обратно. Headless Presenter не должен
-знать о Max atoms, outlet или patch wiring.
+`DialControl.applyPresentation(presentation)` остаётся только локальным helper-ом
+внутри control и не является межконтекстным API. Простые controls получают
+`ringCount`, `set`, `limits`, `enabled` и lifecycle messages; button transport
+также сохраняет `active`, `mode` и `label`. Analyzer передаёт curves и handles
+отдельными list messages между `presentation_begin` и
+`presentation_end`, поэтому FFT/curve arrays не упаковываются в JS object.
+Host имеет три inlet-а: native control, native analysis и UI intents.
+Presentation messages выходят отдельным Host outlet с префиксом stable
+control varname и маршрутизируются patch/bpatcher wiring-ом. Host не использует
+`patcher.getnamed()` для поиска controls во вложенных panels.
 
 `selectBank(bankId)` и `analyzer.show(instanceId, bankId)` намеренно разделены:
 первый меняет authoritative `selected_bank` собственного instance, второй лишь
 меняет global analysis view и не переводит parameter controls на чужой instance.
+
+`BankManagerController` не использует root ViewModel как service locator. Он
+получает feature context с `BankManagerViewModel`, `StateClient`,
+`AnalyzerViewModel`, `selectedBank` и local `instanceId`. Selection/link-edit
+state принадлежит BankManager feature, а group writes выполняются через
+`StateClient`.
 
 State projections покрывают текущие native paths для compressor (`gain`, `mix`,
 `bypass`, `solo`), saturator (`gain`, `detectorAmount`, `bypass`, `solo`),

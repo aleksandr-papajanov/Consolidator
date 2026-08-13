@@ -284,7 +284,9 @@ BankManagerControl.prototype.endGesture = function () {
 };
 
 function applyPresentation(presentation) { bankManagerControl.applyPresentation(presentation); }
-function presentation(presentation) { applyPresentation(presentation); }
+function presentation(value) {
+    applyPresentation(JSON.parse(String(value)));
+}
 function paint() { bankManagerControl.paint(); }
 function onclick(x, y) {
     bankManagerControl.beginPointer(x, y);

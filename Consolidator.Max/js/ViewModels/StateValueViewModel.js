@@ -7,6 +7,7 @@ function StateValueViewModel(state, path) {
     this.physicalMinimum = undefined;
     this.physicalMaximum = undefined;
     this.status = undefined;
+    this.instanceId = undefined;
     this.loaded = false;
     this.listeners = [];
 
@@ -27,6 +28,7 @@ StateValueViewModel.prototype.applyEntry = function (entry) {
     this.physicalMinimum = entry.physicalMin;
     this.physicalMaximum = entry.physicalMax;
     this.status = entry.status;
+    this.instanceId = entry.instanceId;
     this.notify();
 };
 

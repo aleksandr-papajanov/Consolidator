@@ -4,6 +4,8 @@ function AnalysisClient(protocol) {
     this.subscribers = {};
     this.currentView = null;
     this.currentViewRevision = null;
+    this.lastSeenViewRevision = 0;
+    this.minimumViewRevision = 0;
     this.registerFrames();
 }
 
@@ -92,6 +94,7 @@ AnalysisClient.prototype.view = function (instanceId, bankId) {
         instanceId: instanceId,
         bankId: bankId
     };
+    this.minimumViewRevision = this.lastSeenViewRevision + 1;
     this.currentViewRevision = null;
     this.invalidate();
     this.protocol.sendMessage("analysis_view", [instanceId, bankId]);
@@ -156,6 +159,9 @@ AnalysisClient.prototype.publish = function (
     if (!isFinite(numericViewRevision)) {
         return;
     }
+    if (numericViewRevision < this.minimumViewRevision) {
+        return;
+    }
     if (this.currentViewRevision !== null &&
         numericViewRevision < this.currentViewRevision) {
         return;
@@ -165,6 +171,10 @@ AnalysisClient.prototype.publish = function (
         this.invalidate();
     }
     this.currentViewRevision = numericViewRevision;
+    this.lastSeenViewRevision = Math.max(
+        this.lastSeenViewRevision,
+        numericViewRevision
+    );
     value.viewRevision = viewRevision;
     value.view = {
         instanceId: instanceId,
@@ -185,4 +195,13 @@ AnalysisClient.prototype.notify = function (key, value) {
     for (var index = 0; index < listeners.length; index += 1) {
         listeners[index](value);
     }
+};
+
+AnalysisClient.prototype.destroy = function () {
+    this.cache = {};
+    this.subscribers = {};
+    this.currentView = null;
+    this.currentViewRevision = null;
+    this.lastSeenViewRevision = 0;
+    this.minimumViewRevision = 0;
 };

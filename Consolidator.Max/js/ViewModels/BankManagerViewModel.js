@@ -4,6 +4,7 @@ function BankManagerViewModel(registryClient, localInstanceId) {
     this.enabled = true;
     this.rows = [];
     this.linkEditing = false;
+    this.selectedBanks = {};
     this.linkGroups = [];
     this.editAction = { enabled: false, active: false };
     this.clearAction = { enabled: false, armed: false };
@@ -14,6 +15,7 @@ function BankManagerViewModel(registryClient, localInstanceId) {
 
 BankManagerViewModel.prototype.applyRegistrySnapshot = function (snapshot) {
     if (!snapshot) return;
+    var selectedBanks = this.selectedBanks;
     this.rows = snapshot.instances.map(function (instance) {
         return {
             instanceId: instance.instanceId,
@@ -28,7 +30,9 @@ BankManagerViewModel.prototype.applyRegistrySnapshot = function (snapshot) {
                     visible: true,
                     enabled: bankId !== 1,
                     focused: bankId === Number(instance.selectedBank),
-                    linkSelected: false,
+                    linkSelected: Boolean(selectedBanks[
+                        String(instance.instanceId) + ":" + String(bankId)
+                    ]),
                     groupId: bank.groupId,
                     color: null,
                     opacity: 1
@@ -46,13 +50,64 @@ BankManagerViewModel.prototype.applyRegistrySnapshot = function (snapshot) {
             members: group.members
         };
     });
+    this.refreshActions();
     this.notify();
+};
+
+BankManagerViewModel.prototype.refreshActions = function () {
+    var localRow = this.rows.filter(function (row) { return row.local; })[0];
+    var editableBanks = localRow ? localRow.banks.filter(function (bank) {
+        return !bank.system;
+    }) : [];
+    var editEnabled = editableBanks.length > 0;
+    var clearEnabled = editableBanks.some(function (bank) {
+        return bank.groupId !== undefined && bank.groupId !== null;
+    });
+    this.editAction = {
+        enabled: editEnabled,
+        active: editEnabled && this.linkEditing
+    };
+    this.clearAction = {
+        enabled: clearEnabled,
+        armed: clearEnabled && Boolean(this.clearAction.armed)
+    };
 };
 
 BankManagerViewModel.prototype.setLocalInstanceId = function (instanceId) {
     if (String(this.localInstanceId) === String(instanceId)) return;
     this.localInstanceId = instanceId;
     this.applyRegistrySnapshot(this.registryClient.get());
+};
+
+BankManagerViewModel.prototype.toggleBankSelection = function (
+    instanceId,
+    bankId
+) {
+    var key = String(instanceId) + ":" + String(bankId);
+    if (this.selectedBanks[key]) delete this.selectedBanks[key];
+    else this.selectedBanks[key] = {
+        instanceId: instanceId,
+        bankId: Number(bankId)
+    };
+    this.applyRegistrySnapshot(this.registryClient.get());
+};
+
+BankManagerViewModel.prototype.getSelectedBanks = function () {
+    return Object.keys(this.selectedBanks).map(function (key) {
+        return this.selectedBanks[key];
+    }, this);
+};
+
+BankManagerViewModel.prototype.clearBankSelection = function () {
+    this.selectedBanks = {};
+    this.applyRegistrySnapshot(this.registryClient.get());
+};
+
+BankManagerViewModel.prototype.toggleLinkEditing = function () {
+    this.linkEditing = !this.linkEditing;
+    if (!this.linkEditing) this.selectedBanks = {};
+    this.refreshActions();
+    this.notify();
 };
 
 BankManagerViewModel.prototype.subscribe = function (callback, immediate) {

@@ -25,11 +25,25 @@ var root = path.resolve(__dirname, "..");
     "js/ViewModels/ConsolidatorViewModel.js",
     "js/Presenters/Core/PresentationObservable.js",
     "js/Presenters/Core/PresentationBinding.js",
+    "js/Presenters/Core/Normalization.js",
+    "js/Presenters/Dial/DialPresentation.js",
+    "js/Presenters/Dial/DialPresenter.js",
+    "js/Presenters/Button/ButtonPresentation.js",
+    "js/Presenters/Button/ButtonPresenter.js",
     "js/Presenters/Analyzer/AnalyzerPresentation.js",
     "js/Presenters/Analyzer/AnalyzerPresenter.js",
     "js/Controllers/AnalyzerController.js",
+    "js/Controllers/FeaturePresenterSet.js",
     "js/Controllers/EqualizerController.js",
-    "js/Controllers/BankManagerController.js"
+    "js/Controllers/BankManagerContext.js",
+    "js/Controllers/BankManagerController.js",
+    "js/Bindings/ControlBinding.js",
+    "js/Bindings/DialControlBinding.js",
+    "js/Bindings/ButtonControlBinding.js",
+    "js/Bindings/AnalyzerControlBinding.js",
+    "js/Bindings/BankManagerControlBinding.js",
+    "js/Bindings/ControlBindings.js",
+    "js/ConsolidatorUiHost.js"
 ].forEach(function (file) {
     vm.runInThisContext(
         fs.readFileSync(path.join(root, file), "utf8"),
@@ -110,6 +124,229 @@ function testDetectorAnalysisFrames() {
     assert.deepStrictEqual(combined[0].values, [3, 4]);
     assert.strictEqual(filters[0].active, true);
     assert.strictEqual(combined[0].active, true);
+}
+
+function testControlBindingsDispatchByControlId() {
+    var calls = [];
+    var bindings = new ControlBindings();
+    bindings.add("compressor_threshold", {
+        handleIntent: function (intent, values) {
+            calls.push([intent, values]);
+        },
+        destroy: function () {}
+    });
+
+    bindings.handle("compressor_threshold", "valueChanged", [0, 0.5]);
+    bindings.handle("compressor_ratio", "valueChanged", [0, 4]);
+
+    assert.deepStrictEqual(calls, [["valueChanged", [0, 0.5]]]);
+    assert.throws(function () {
+        bindings.add("compressor_threshold", {
+            handleIntent: function () {},
+            destroy: function () {}
+        });
+    }, /Duplicate control binding varname/);
+    bindings.destroy();
+    assert.deepStrictEqual(bindings.items, {});
+}
+
+function testDialBindingUsesMessageTransportAndIntents() {
+    var messages = [];
+    var intents = [];
+    var presentation = {
+        enabled: true,
+        active: true,
+        activeIndex: 0,
+        displayIndex: 0,
+        rings: [{ minimum: 0, maximum: 1, value: 0.5 }]
+    };
+    var presenter = {
+        subscribe: function (callback, immediate) {
+            if (immediate) callback(presentation);
+            return function () {};
+        },
+        setValue: function (index, value) {
+            intents.push(["setValue", index, value]);
+        },
+        resetValue: function (index) {
+            intents.push(["resetValue", index]);
+        },
+        beginGesture: function (index) {
+            intents.push(["beginGesture", index]);
+        },
+        endGesture: function (index) {
+            intents.push(["endGesture", index]);
+        }
+    };
+    var binding = new DialControlBinding(presenter, function (name, args) {
+        messages.push([name, args]);
+    });
+
+    assert.deepStrictEqual(messages, [
+        ["enabled", [1]],
+        ["active", [1]],
+        ["activeIndex", [0]],
+        ["displayIndex", [0]],
+        ["ringCount", [1]],
+        ["limits", [0, 0, 1]],
+        ["set", [0, 0.5]]
+    ]);
+    binding.handleIntent("valueChanged", [0, 0.75]);
+    binding.handleIntent("reset", [0]);
+    binding.handleIntent("gestureBegan", [0]);
+    binding.handleIntent("gestureEnded", [0]);
+    assert.deepStrictEqual(intents, [
+        ["setValue", 0, 0.75],
+        ["resetValue", 0],
+        ["beginGesture", 0],
+        ["endGesture", 0]
+    ]);
+    binding.destroy();
+}
+
+function testButtonBindingPreservesPresentationMetadata() {
+    var messages = [];
+    var presenter = {
+        subscribe: function (callback, immediate) {
+            if (immediate) callback({
+                value: true,
+                enabled: true,
+                active: true,
+                mode: "momentary",
+                label: "SOLO"
+            });
+            return function () {};
+        }
+    };
+    var binding = new ButtonControlBinding(presenter, function (name, args) {
+        messages.push([name, args]);
+    });
+
+    assert.deepStrictEqual(messages, [
+        ["set", [1]],
+        ["enabled", [1]],
+        ["active", [1]],
+        ["mode", ["momentary"]],
+        ["label", ["SOLO"]]
+    ]);
+    binding.destroy();
+}
+
+function testUiHostRoutesIntentsByControlVarname() {
+    var calls = [];
+    var host = Object.create(ConsolidatorUiHost.prototype);
+    host.bindings = new ControlBindings();
+    host.sendControlMessage = function () {};
+    host.bind("input_gain", function () {
+        return {
+            handleIntent: function (name, values) {
+                calls.push([name, values]);
+            },
+            destroy: function () {}
+        };
+    });
+
+    host.handleUiIntent("input_gain", "valueChanged", [0, 0.75]);
+    assert.deepStrictEqual(calls, [["valueChanged", [0, 0.75]]]);
+    host.bindings.destroy();
+}
+
+function testUiHostLoadsInIsolatedMaxContext() {
+    var context = vm.createContext({
+        console: console,
+        setTimeout: setTimeout,
+        clearTimeout: clearTimeout,
+        jsarguments: ["ConsolidatorUiHost.js", "test.ui"],
+        arrayfromargs: function (values) {
+            return Array.prototype.slice.call(values);
+        },
+        outlet: function () {}
+    });
+    var includeStack = [];
+    context.include = function (relativePath) {
+        var base = includeStack.length
+            ? path.dirname(includeStack[includeStack.length - 1])
+            : path.join(root, "js");
+        run(path.resolve(base, relativePath));
+    };
+    function run(file) {
+        includeStack.push(file);
+        vm.runInContext(fs.readFileSync(file, "utf8"), context, {
+            filename: path.relative(root, file)
+        });
+        includeStack.pop();
+    }
+
+    run(path.join(root, "js/ConsolidatorUiHost.js"));
+    var host = new context.ConsolidatorUiHost("test.ui", function () {},
+        function () {});
+    assert.strictEqual(host.lifecycle, "created");
+    host.mapping = context.ConsolidatorControlMapping;
+    host.bindControls();
+    assert.deepStrictEqual(
+        Object.keys(host.bindings.items).sort(),
+        Object.keys(context.ConsolidatorControlMapping).map(function (key) {
+            return context.ConsolidatorControlMapping[key];
+        }).sort()
+    );
+    host.destroy();
+    assert.strictEqual(host.lifecycle, "destroyed");
+}
+
+function testFeaturePresenterSetEnumeratesTypedPresenters() {
+    var set = new FeaturePresenterSet();
+    set.addDial("threshold", { value: 0.5 });
+    set.addButton("bypass", { value: false });
+    var entries = [];
+    set.forEach(function (name, presenter, type) {
+        entries.push([name, typeof presenter, type]);
+    });
+
+    assert.deepStrictEqual(entries, [
+        ["threshold", "object", "dial"],
+        ["bypass", "object", "button"]
+    ]);
+    set.destroy();
+}
+
+function testDialDisplayScaleDoesNotChangePhysicalValue() {
+    var value = {
+        value: 0.5,
+        physicalMinimum: 0,
+        physicalMaximum: 1,
+        set: function (next) { this.value = next; }
+    };
+    var presenter = new DialPresenter({
+        rings: [{
+            value: value,
+            display: { decimals: 1, suffix: "%", scale: 100 }
+        }]
+    });
+
+    assert.strictEqual(presenter.presentation.rings[0].display.value, "50.0%");
+    presenter.setValue(0, 0.25);
+    assert.strictEqual(value.value, 0.25);
+    presenter.destroy();
+}
+
+function testAnalysisRejectsLateFrameAfterReturningToView() {
+    var client = new ConsolidatorClient("ui.main", function () {});
+    var values = [];
+    client.analysis.subscribe("spectrum.main", function (value) {
+        values.push(value);
+    });
+
+    client.analysis.view("a", 2);
+    client.handleAnalysis("spectrum_main", [10, "a", 2, 1]);
+    client.analysis.view("b", 2);
+    client.handleAnalysis("spectrum_main", [11, "b", 2, 2]);
+    client.analysis.view("a", 2);
+    client.handleAnalysis("spectrum_main", [10, "a", 2, 3]);
+    client.handleAnalysis("spectrum_main", [12, "a", 2, 4]);
+
+    assert.strictEqual(values.length, 5);
+    assert.strictEqual(values[3], null);
+    assert.deepStrictEqual(values[4].values, [4]);
 }
 
 function makeStateFixture() {
@@ -200,6 +437,11 @@ function testEqualizerControllerRebindsOnBankChange() {
     assert.ok(controller.analyzer.presenter.options.parameters[0].frequency.path.indexOf("bank.1") >= 0);
     root.equalizer.showBank(2);
     assert.ok(controller.analyzer.presenter.options.parameters[0].frequency.path.indexOf("bank.2") >= 0);
+    root.analyzer.filterCurves[0].set({ active: true, values: [0] });
+    assert.deepStrictEqual(
+        controller.analyzer.presenter.presentation.curves[0].values,
+        [0.5]
+    );
     controller.destroy();
     root.destroy();
 }
@@ -215,7 +457,7 @@ function testDetectorBypassIsInvertedForPresentation() {
 }
 
 function testAnalyzerControlEndsDragOnRelease() {
-    global.mgraphics = { init: function () {} };
+    global.mgraphics = { init: function () {}, redraw: function () {} };
     global.outlet = function () {};
     [
         "js/Controls/Analyzer/AnalyzerViewState.js",
@@ -239,6 +481,35 @@ function testAnalyzerControlEndsDragOnRelease() {
     };
     ondrag(0, 0, 0);
     assert.strictEqual(intents[0][0], "gestureEnded");
+}
+
+function testMessageControlsConstructCompletePresentation() {
+    vm.runInThisContext(
+        fs.readFileSync(path.join(root, "js/Controls/Dial/DialControl.js"), "utf8"),
+        { filename: "js/Controls/Dial/DialControl.js" }
+    );
+    ringCount(1);
+    limits(0, 0.1, 0.9);
+    set(0, 0.4);
+    assert.strictEqual(dialControl.presentation.rings.length, 1);
+    assert.deepStrictEqual(dialControl.presentation.rings[0], {
+        value: 0.4,
+        minimum: 0.1,
+        maximum: 0.9,
+        visualization: null,
+        color: null
+    });
+
+    vm.runInThisContext(
+        fs.readFileSync(path.join(root, "js/Controls/Button/ButtonControl.js"), "utf8"),
+        { filename: "js/Controls/Button/ButtonControl.js" }
+    );
+    active(1);
+    mode("momentary");
+    label("SOLO");
+    assert.strictEqual(buttonControl.presentation.active, true);
+    assert.strictEqual(buttonControl.presentation.mode, "momentary");
+    assert.strictEqual(buttonControl.presentation.label, "SOLO");
 }
 
 function testRegistrySnapshotRoundTrip() {
@@ -387,6 +658,10 @@ function testBankManagerUsesRegistryAndLocalInstance() {
     assert.strictEqual(vm.rows[0].banks[1].system, false);
     assert.strictEqual(vm.linkGroups[0].linkId, 0);
     assert.strictEqual(vm.linkGroups[0].used, true);
+    assert.strictEqual(vm.editAction.enabled, true);
+    assert.strictEqual(vm.clearAction.enabled, true);
+    vm.toggleLinkEditing();
+    assert.strictEqual(vm.editAction.active, true);
     vm.destroy();
 }
 
@@ -404,25 +679,29 @@ function makeBankManagerControllerFixture(linkEditing) {
             if (state.clearAction) this.clearAction = state.clearAction;
         }
     };
-    var rootViewModel = {
-        instanceId: "local",
-        analyzer: {
+    viewModel.toggleBankSelection = function (instanceId, bankId) {
+        calls.toggled.push([instanceId, bankId]);
+    };
+    viewModel.toggleLinkEditing = function () {};
+    viewModel.getSelectedBanks = function () { return []; };
+    viewModel.clearBankSelection = function () {};
+    var context = new BankManagerContext(
+        viewModel,
+        {
+            setMany: function () { calls.cleared += 1; }
+        },
+        {
             show: function (instanceId, bankId) {
                 calls.views.push([instanceId, bankId]);
             }
         },
-        selectedBank: {
+        {
             set: function (bankId) { calls.selected.push(bankId); }
         },
-        bankSelection: {
-            toggle: function (instanceId, bankId) {
-                calls.toggled.push([instanceId, bankId]);
-            }
-        },
-        clearAllBanks: function () { calls.cleared += 1; }
-    };
+        "local"
+    );
     return {
-        controller: new BankManagerController(viewModel, rootViewModel),
+        controller: new BankManagerController(context),
         calls: calls,
         viewModel: viewModel
     };
@@ -461,9 +740,47 @@ function testBankManagerControllerClearRequiresConfirmation() {
     assert.strictEqual(fixture.calls.cleared, 1);
 }
 
+function testBankManagerWritesOnlyLocalSelectedGroups() {
+    var writes = [];
+    var viewModel = {
+        linkEditing: true,
+        clearAction: { enabled: true, armed: false },
+        getSelectedBanks: function () {
+            return [
+                { instanceId: "local", bankId: 2 },
+                { instanceId: "remote", bankId: 3 }
+            ];
+        },
+        clearBankSelection: function () {},
+        toggleLinkEditing: function () {}
+    };
+    var controller = new BankManagerController(new BankManagerContext(
+        viewModel,
+        { setMany: function (entries) { writes.push(entries); } },
+        { show: function () {} },
+        { set: function () {} },
+        "local"
+    ));
+
+    controller.applyLinkGroup(7);
+    assert.deepStrictEqual(writes, [[{
+        path: "bank.2.group",
+        value: 7
+    }]]);
+    controller.destroy();
+}
+
 testStateRoundTrip();
 testAnalysisViewFiltering();
+testAnalysisRejectsLateFrameAfterReturningToView();
 testDetectorAnalysisFrames();
+testControlBindingsDispatchByControlId();
+testDialBindingUsesMessageTransportAndIntents();
+testButtonBindingPreservesPresentationMetadata();
+testUiHostRoutesIntentsByControlVarname();
+testUiHostLoadsInIsolatedMaxContext();
+testFeaturePresenterSetEnumeratesTypedPresenters();
+testDialDisplayScaleDoesNotChangePhysicalValue();
 testConsolidatorInitializesDetectorState();
 testFilterPositionUsesOneStateBatch();
 testDetectorPositionUsesOneStateBatch();
@@ -471,6 +788,7 @@ testAnalyzerPresenterIsReactiveAndSelectable();
 testEqualizerControllerRebindsOnBankChange();
 testDetectorBypassIsInvertedForPresentation();
 testAnalyzerControlEndsDragOnRelease();
+testMessageControlsConstructCompletePresentation();
 testRegistrySnapshotRoundTrip();
 testRegistryChangedDuringFetchIsRetained();
 testRegistryChangedFetchesWhenIdle();
@@ -482,4 +800,5 @@ testBankManagerUsesRegistryAndLocalInstance();
 testBankManagerControllerLocalAndRemoteSelection();
 testBankManagerControllerLinkEditingOnlyTogglesSelection();
 testBankManagerControllerClearRequiresConfirmation();
+testBankManagerWritesOnlyLocalSelectedGroups();
 console.log("ClientTests passed");

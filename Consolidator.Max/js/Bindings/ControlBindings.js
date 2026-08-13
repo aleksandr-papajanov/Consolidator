@@ -1,0 +1,31 @@
+include("DialControlBinding.js");
+include("ButtonControlBinding.js");
+include("AnalyzerControlBinding.js");
+include("BankManagerControlBinding.js");
+
+function ControlBindings() {
+    this.items = {};
+}
+
+ControlBindings.prototype.add = function (name, binding) {
+    if (!name) throw new Error("Control binding requires a varname.");
+    if (this.items.hasOwnProperty(name)) {
+        throw new Error("Duplicate control binding varname: " + name);
+    }
+    if (binding) this.items[name] = binding;
+    return binding;
+};
+
+ControlBindings.prototype.handle = function (name, intent, values) {
+    var binding = this.items[name];
+    if (binding) {
+        binding.handleIntent(intent, values || []);
+    }
+};
+
+ControlBindings.prototype.destroy = function () {
+    Object.keys(this.items).forEach(function (name) {
+        this.items[name].destroy();
+    }, this);
+    this.items = {};
+};

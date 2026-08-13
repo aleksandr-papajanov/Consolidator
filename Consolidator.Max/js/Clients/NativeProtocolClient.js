@@ -89,3 +89,9 @@ NativeProtocolClient.prototype.complete = function (requestId, response) {
     delete this.pending[String(requestId)];
     callback(response);
 };
+
+NativeProtocolClient.prototype.destroy = function () {
+    this.pending = {};
+    this.handlers = {};
+    this.send = function () {};
+};

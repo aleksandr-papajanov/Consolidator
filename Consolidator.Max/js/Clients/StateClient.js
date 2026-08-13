@@ -231,3 +231,9 @@ StateClient.prototype.decodeValue = function (path, value) {
 StateClient.prototype.decodeOptional = function (value) {
     return value === "none" ? undefined : value;
 };
+
+StateClient.prototype.destroy = function () {
+    this.cache = {};
+    this.subscribers = {};
+    this.responses = {};
+};

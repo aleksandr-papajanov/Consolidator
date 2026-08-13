@@ -31,6 +31,32 @@ ButtonControl.prototype.applyPresentation = function (presentation) {
     mgraphics.redraw();
 };
 
+ButtonControl.prototype.setPresentationValue = function (value) {
+    this.presentation.value = Number(value) !== 0;
+    mgraphics.redraw();
+};
+
+ButtonControl.prototype.setPresentationEnabled = function (value) {
+    this.presentation.enabled = Number(value) !== 0;
+    mgraphics.redraw();
+};
+
+ButtonControl.prototype.setPresentationActive = function (value) {
+    this.presentation.active = Number(value) !== 0;
+    mgraphics.redraw();
+};
+
+ButtonControl.prototype.setPresentationMode = function (value) {
+    this.presentation.mode = String(value) === "momentary"
+        ? "momentary" : "toggle";
+    mgraphics.redraw();
+};
+
+ButtonControl.prototype.setPresentationLabel = function (value) {
+    this.presentation.label = String(value);
+    mgraphics.redraw();
+};
+
 ButtonControl.prototype.emit = function (name, payload) {
     if (payload === undefined) outlet(0, name);
     else if (payload instanceof Array) outlet(0, [name].concat(payload));
@@ -108,6 +134,26 @@ function ondrag(x, y, button) {
 
 function onidleout() {
     buttonControl.release();
+}
+
+function set(value) {
+    buttonControl.setPresentationValue(value);
+}
+
+function enabled(value) {
+    buttonControl.setPresentationEnabled(value);
+}
+
+function active(value) {
+    buttonControl.setPresentationActive(value);
+}
+
+function mode(value) {
+    buttonControl.setPresentationMode(value);
+}
+
+function label(value) {
+    buttonControl.setPresentationLabel(value);
 }
 
 var buttonControl = new ButtonControl();
