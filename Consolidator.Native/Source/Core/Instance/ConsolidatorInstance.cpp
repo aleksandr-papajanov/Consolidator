@@ -250,7 +250,7 @@ void ConsolidatorInstance::PublishAnalysisState()
         return;
     }
 
-    const auto input = equalizerCurveInputBuilder_.Build(
+    const auto input = analysisCurveInputBuilder_.Build(
         stateStore_.GetChain(), sampleRate, nextAnalysisRevision_++);
     analysisHandle_->Curves().Publish(input);
     publishedSampleRateRevision_ = sampleRateRevision;

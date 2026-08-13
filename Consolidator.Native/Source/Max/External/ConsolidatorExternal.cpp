@@ -202,8 +202,8 @@ void ConsolidatorExternal::EmitLatestAnalysis()
         EmitSpectrum(symbol("spectrum_difference"), difference, view);
     }
 
-    analysis::EqualizerCurveSnapshot curves;
-    if (analysisService.TryReadLatestCurve(curves, lastCurveRevision_, view))
+    analysis::AnalysisCurveSnapshot curves;
+    if (analysisService.TryReadLatestCurves(curves, lastCurveRevision_, view))
     {
         lastCurveRevision_ = curves.revision;
         EmitCurves(curves, view);
@@ -242,10 +242,10 @@ void ConsolidatorExternal::EmitSpectrum(
 }
 
 void ConsolidatorExternal::EmitCurves(
-    const analysis::EqualizerCurveSnapshot& snapshot,
+    const analysis::AnalysisCurveSnapshot& snapshot,
     const analysis::AnalysisView& view)
 {
-    for (std::size_t index = 0; index < snapshot.filters.size(); ++index)
+    for (std::size_t index = 0; index < snapshot.equalizer.filters.size(); ++index)
     {
         atoms frame{
             atom{symbol("eq_filter")},
@@ -254,8 +254,8 @@ void ConsolidatorExternal::EmitCurves(
             atom{static_cast<c74::max::t_atom_long>(
                 EncodeBankId(view.bankId))},
             atom{static_cast<int>(index + 1)}};
-        frame.reserve(frame.size() + snapshot.filters[index].magnitudeDb.size());
-        for (const auto value : snapshot.filters[index].magnitudeDb)
+        frame.reserve(frame.size() + snapshot.equalizer.filters[index].magnitudeDb.size());
+        for (const auto value : snapshot.equalizer.filters[index].magnitudeDb)
         {
             frame.emplace_back(atom{static_cast<double>(value)});
         }
@@ -278,8 +278,45 @@ void ConsolidatorExternal::EmitCurves(
         }
         analysisOutput.send(frame);
     };
-    emitAggregate(symbol("eq_combined"), snapshot.combined);
-    emitAggregate(symbol("eq_all_banks"), snapshot.allBanksCombined);
+    emitAggregate(symbol("eq_combined"), snapshot.equalizer.combined);
+    emitAggregate(symbol("eq_all_banks"), snapshot.equalizer.allBanksCombined);
+
+    const auto emitDevice = [this, &view](symbol device,
+                                          const analysis::DetectorCurveSnapshot& curves)
+    {
+        for (std::size_t index = 0; index < curves.filters.size(); ++index)
+        {
+            atoms frame{
+                atom{symbol("detector_filter")},
+                EncodeWireId(curves.viewRevision),
+                EncodeWireId(view.instanceId.GetValue()),
+                atom{static_cast<c74::max::t_atom_long>(
+                    EncodeBankId(view.bankId))},
+                atom{device},
+                atom{static_cast<c74::max::t_atom_long>(index + 1)},
+                atom{curves.filterActive[index] ? 1 : 0}};
+            frame.reserve(frame.size() + curves.filters[index].magnitudeDb.size());
+            for (const auto value : curves.filters[index].magnitudeDb)
+                frame.emplace_back(atom{static_cast<double>(value)});
+            analysisOutput.send(frame);
+        }
+
+        atoms combined{
+            atom{symbol("detector_combined")},
+            EncodeWireId(curves.combined.viewRevision),
+            EncodeWireId(view.instanceId.GetValue()),
+            atom{static_cast<c74::max::t_atom_long>(
+                EncodeBankId(view.bankId))},
+            atom{device},
+            atom{curves.active ? 1 : 0}};
+        combined.reserve(combined.size() + curves.combined.magnitudeDb.size());
+        for (const auto value : curves.combined.magnitudeDb)
+            combined.emplace_back(atom{static_cast<double>(value)});
+        analysisOutput.send(combined);
+    };
+
+    emitDevice(symbol("compressor"), snapshot.detectors.compressor);
+    emitDevice(symbol("saturator"), snapshot.detectors.saturator);
 }
 
 void ConsolidatorExternal::EmitTelemetry(

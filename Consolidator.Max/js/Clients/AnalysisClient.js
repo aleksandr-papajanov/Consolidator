@@ -38,6 +38,20 @@ AnalysisClient.prototype.registerFrames = function () {
             args[2]
         );
     });
+    this.protocol.on("detector_filter", function (args) {
+        self.publish(
+            "detector." + args[3] + ".filter." + args[4],
+            { active: args[5] === 1, values: args.slice(6) },
+            args[0], args[1], args[2]
+        );
+    });
+    this.protocol.on("detector_combined", function (args) {
+        self.publish(
+            "detector." + args[3] + ".combined",
+            { active: args[4] === 1, values: args.slice(5) },
+            args[0], args[1], args[2]
+        );
+    });
     this.protocol.on("meter", function (args) {
         self.publish(
             "meter." + args[3],

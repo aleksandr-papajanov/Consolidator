@@ -252,11 +252,18 @@ Bell, shelf, gain, and Tilt component coefficients have one implementation.
 The standard seven-band topology is defined once in
 `Dsp/Processors/Equalizer/EqualizerLayout.h` and is shared by DSP
 construction and analysis request building.
-The curve result contains one snapshot per EQ filter, a combined snapshot for
-the current bank, and an `allBanksCombined` snapshot containing the aggregate
-curve for every active bank. A Tilt filter's individual snapshot contains its
-low- and high-shelf stages. `AnalysisService::TryReadLatestCurve(snapshot,
-lastRevision)` exposes this aggregate result to the UI. Every result has a
+Resolved processing visibility is defined once by
+`Core/Routing/ProcessingState.h`; both `ProcessingStateResolver` and
+`AnalysisCurveInputBuilder` consume that snapshot, so solo, bypass, bank,
+filter, and detector-listen semantics cannot diverge between DSP and analysis.
+`CurveInput` contains one resolved `equalizerActive` flag; request building
+does not reconstruct a second chain-visibility condition.
+The curve result contains one immutable `AnalysisCurveSnapshot`: EQ curves,
+compressor detector curves, and saturator detector curves share one result
+revision and view epoch. A Tilt filter's individual snapshot contains its
+low- and high-shelf stages. `AnalysisService::TryReadLatestCurves(snapshot,
+lastRevision)` exposes this aggregate result to the UI, preventing readers
+from observing mixed EQ and detector generations. Every result has a
 service-wide result revision and a view epoch;
 the source revision remains available inside each curve snapshot.
 `ConsolidatorInstance::Prepare(sampleRate)` forwards the sample rate to its
@@ -276,8 +283,14 @@ on the Max main thread, reads every latest result
 whose revision changed and emits the changed frames through one
 `analysisOutput` outlet. The selectors are
 `spectrum_main`, `spectrum_reference`, `spectrum_difference`, `eq_filter` with
-a 1-based filter id, `eq_combined`, and `eq_all_banks`. This coalesces worker
+a 1-based filter id, `eq_combined`, `eq_all_banks`, `detector_filter`, and
+`detector_combined`. This coalesces worker
 updates to the UI refresh rate while keeping analysis independent of Max.
+Individual detector response snapshots preserve configured coefficients even
+when a device or detector filter is inactive; separate active flags let the UI
+render those curves without losing their editable shape. The detector combined
+snapshot includes only filters active after bypass, solo, parent, and listen
+resolution, so it matches the effective DSP response.
 The difference is calculated as `main - reference` after both spectra have
 been produced for the current view epoch. `TryReadLatestSpectrum(snapshot,
 lastRevision)` and `TryReadLatestReferenceSpectrum(snapshot, lastRevision)`

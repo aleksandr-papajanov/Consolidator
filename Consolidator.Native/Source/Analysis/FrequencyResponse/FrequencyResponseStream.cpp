@@ -4,13 +4,13 @@ namespace consolidator::analysis
 {
 
 void FrequencyResponseStream::PublishOutput(
-    const EqualizerCurveSnapshot& snapshot)
+    const AnalysisCurveSnapshot& snapshot)
 {
     output_.Publish(snapshot);
 }
 
 bool FrequencyResponseStream::ReadLatestOutput(
-    EqualizerCurveSnapshot& snapshot,
+    AnalysisCurveSnapshot& snapshot,
     std::uint64_t lastRevision) const
 {
     return output_.TryReadNewerThan(snapshot, lastRevision);

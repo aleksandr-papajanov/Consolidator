@@ -1,30 +1,31 @@
-function FilterViewModel(state, bankId, filterId) {
+function DetectorFilterViewModel(state, device, filterId) {
     this.state = state;
-    var prefix = "equalizer.bank." + bankId + ".filter." + filterId;
-    this.bankId = bankId;
-    this.filterId = filterId;
+    var prefix = device + ".detector.filter." + filterId;
     this.frequency = new StateValueViewModel(state, prefix + ".frequency");
     this.q = new StateValueViewModel(state, prefix + ".q");
     this.gain = new StateValueViewModel(state, prefix + ".gain");
     this.bypass = new StateValueViewModel(state, prefix + ".bypass");
-    this.solo = new StateValueViewModel(state, prefix + ".solo");
+    this.enabled = {
+        source: this.bypass,
+        read: function (value) { return !value; },
+        write: function (value) { return !value; }
+    };
 }
 
-FilterViewModel.prototype.getStateValues = function () {
-    return [this.frequency, this.q, this.gain, this.bypass, this.solo];
+DetectorFilterViewModel.prototype.getStateValues = function () {
+    return [this.frequency, this.q, this.gain, this.bypass];
 };
 
-FilterViewModel.prototype.setPosition = function (frequency, gain) {
+DetectorFilterViewModel.prototype.setPosition = function (frequency, gain) {
     this.state.setMany([
         { path: this.frequency.path, value: frequency },
         { path: this.gain.path, value: gain }
     ]);
 };
 
-FilterViewModel.prototype.destroy = function () {
+DetectorFilterViewModel.prototype.destroy = function () {
     this.frequency.destroy();
     this.q.destroy();
     this.gain.destroy();
     this.bypass.destroy();
-    this.solo.destroy();
 };

@@ -47,8 +47,10 @@ ctest -C RelWithDebInfo -L integration --output-on-failure
   and release behavior plus disabled telemetry accumulation are covered too.
 - Analysis integration tests cover global view switching, view epochs,
   main/reference/difference spectra, individual EQ curves, the current-bank
-  aggregate, the all-banks aggregate, and spectrum accumulator resets when a
-  slot is reactivated.
+  aggregate, the all-banks aggregate, compressor and saturator detector
+  curves, unified curve revisions, and spectrum accumulator resets when a slot
+  is reactivated. Command tests verify that detector parameters and monitoring
+  changes invalidate the analysis curve projection.
 - Exact paths, response statuses and persistent state are asserted separately
   from derived runtime effects.
 - New production components and command variants require a matching focused

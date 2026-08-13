@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "Dsp/Utilities/TimeCoefficient.h"
+#include "Dsp/Processors/Equalizer/EqualizerLayout.h"
 #include "Dsp/Processors/Equalizer/Filters/BellFilter.h"
 #include "Dsp/Processors/Equalizer/Filters/LowShelfFilter.h"
 
@@ -15,13 +16,31 @@ namespace consolidator::dsp
 Compressor::Compressor()
     : DspDevice(DeviceId::Compressor, detail::ElementKind::Device, 0)
 {
-    detectorEqualizer_.AddFilter(std::make_unique<LowShelfFilter>(
-        FilterId::Filter1,
-        core::settings::DetectorDefaults::kDefaultLowShelfFrequencyHz));
+    if (kCompressorDetectorLayout[0] == DetectorFilterKind::LowShelf)
+    {
+        detectorEqualizer_.AddFilter(std::make_unique<LowShelfFilter>(
+            FilterId::Filter1,
+            core::settings::DetectorDefaults::kDefaultLowShelfFrequencyHz));
+    }
+    else
+    {
+        detectorEqualizer_.AddFilter(std::make_unique<BellFilter>(
+            FilterId::Filter1,
+            core::settings::DetectorDefaults::kDefaultBellFrequencyHz));
+    }
 
-    detectorEqualizer_.AddFilter(std::make_unique<BellFilter>(
-        FilterId::Filter2,
-        core::settings::DetectorDefaults::kDefaultBellFrequencyHz));
+    if (kCompressorDetectorLayout[1] == DetectorFilterKind::LowShelf)
+    {
+        detectorEqualizer_.AddFilter(std::make_unique<LowShelfFilter>(
+            FilterId::Filter2,
+            core::settings::DetectorDefaults::kDefaultLowShelfFrequencyHz));
+    }
+    else
+    {
+        detectorEqualizer_.AddFilter(std::make_unique<BellFilter>(
+            FilterId::Filter2,
+            core::settings::DetectorDefaults::kDefaultBellFrequencyHz));
+    }
 
     RecalculateRuntime();
 }

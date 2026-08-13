@@ -28,9 +28,11 @@ void AppendFilter(
     dsp::BiquadType kind,
     const CurveFilterState& state,
     double sampleRate,
-    double gainDb)
+    double gainDb,
+    bool respectBypass = true)
 {
-    if (request.stageCount >= request.stages.size() || state.bypass)
+    if (request.stageCount >= request.stages.size() ||
+        (respectBypass && state.bypass))
     {
         return;
     }
@@ -87,102 +89,112 @@ void AppendBankFilters(
 
 } // namespace
 
-EqualizerCurveRequest FrequencyResponseRequestBuilder::Build(
+AnalysisCurveRequest FrequencyResponseRequestBuilder::Build(
     const CurveInput& input,
     AnalysisView view) const noexcept
 {
-    EqualizerCurveRequest result;
-    for (auto& request : result.filters)
+    AnalysisCurveRequest result;
+    auto initializeDetector = [&](DetectorCurveRequest& detector)
+    {
+        for (auto& request : detector.filters)
+        {
+            request.sampleRate = input.sampleRate;
+            request.revision = input.revision;
+        }
+        detector.combined.sampleRate = input.sampleRate;
+        detector.combined.revision = input.revision;
+    };
+    for (auto& request : result.equalizer.filters)
     {
         request.sampleRate = input.sampleRate;
         request.revision = input.revision;
     }
-    result.combined.sampleRate = input.sampleRate;
-    result.combined.revision = input.revision;
-    result.allBanksCombined.sampleRate = input.sampleRate;
-    result.allBanksCombined.revision = input.revision;
-    if (!input.equalizerActive || !input.chainAllowsEqualizer ||
-        input.sampleRate <= 0.0)
+    result.equalizer.combined.sampleRate = input.sampleRate;
+    result.equalizer.combined.revision = input.revision;
+    result.equalizer.allBanksCombined.sampleRate = input.sampleRate;
+    result.equalizer.allBanksCombined.revision = input.revision;
+    initializeDetector(result.compressorDetector);
+    initializeDetector(result.saturatorDetector);
+    if (input.equalizerActive && input.sampleRate > 0.0)
     {
-        return result;
-    }
+        bool bankSolo = false;
+        for (const auto& candidate : input.banks)
+            bankSolo = bankSolo || candidate.solo;
 
-    bool bankSolo = false;
-    for (const auto& candidate : input.banks)
-    {
-        bankSolo = bankSolo || candidate.solo;
-    }
-
-    constexpr auto& kinds = dsp::kStandardEqualizerLayout;
-    for (const auto& candidate : input.banks)
-    {
-        AppendBankFilters(
-            result.allBanksCombined,
-            candidate,
-            bankSolo,
-            input.sampleRate,
-            kinds);
-    }
-
-    const auto bankIndex = static_cast<std::size_t>(view.bankId);
-    if (bankIndex >= input.banks.size())
-    {
-        return result;
-    }
-
-    const auto& bank = input.banks[bankIndex];
-    if (bank.bypass || (bankSolo && !bank.solo))
-    {
-        return result;
-    }
-
-    bool filterSolo = false;
-    for (const auto& filter : bank.filters)
-    {
-        filterSolo = filterSolo || filter.solo;
-    }
-    for (std::size_t index = 0; index < bank.filters.size(); ++index)
-    {
-        const auto& filter = bank.filters[index];
-        if (filterSolo && !filter.solo)
+        constexpr auto& kinds = dsp::kStandardEqualizerLayout;
+        for (const auto& candidate : input.banks)
         {
-            continue;
+            AppendBankFilters(result.equalizer.allBanksCombined, candidate,
+                              bankSolo, input.sampleRate, kinds);
         }
-        auto& filterRequest = result.filters[index];
-        if (kinds[index] == dsp::EqualizerFilterKind::Tilt)
+
+        const auto bankIndex = static_cast<std::size_t>(view.bankId);
+        if (bankIndex < input.banks.size())
         {
-            AppendFilter(
-                filterRequest,
-                dsp::BiquadType::LowShelf,
-                filter,
-                input.sampleRate,
-                -filter.gainDb * 0.5);
-            AppendFilter(
-                filterRequest,
-                dsp::BiquadType::HighShelf,
-                filter,
-                input.sampleRate,
-                filter.gainDb * 0.5);
-            AppendFilter(result.combined, dsp::BiquadType::LowShelf, filter,
-                         input.sampleRate, -filter.gainDb * 0.5);
-            AppendFilter(result.combined, dsp::BiquadType::HighShelf, filter,
-                         input.sampleRate, filter.gainDb * 0.5);
-        }
-        else
-        {
-            const auto kind = kinds[index] == dsp::EqualizerFilterKind::Gain
-                              ? dsp::BiquadType::Gain
-                              : kinds[index] == dsp::EqualizerFilterKind::LowShelf
-                                  ? dsp::BiquadType::LowShelf
-                              : kinds[index] == dsp::EqualizerFilterKind::HighShelf
-                                  ? dsp::BiquadType::HighShelf
-                                  : dsp::BiquadType::Bell;
-            AppendFilter(filterRequest, kind, filter, input.sampleRate,
-                         filter.gainDb);
-            AppendFilter(result.combined, kind, filter, input.sampleRate,
-                         filter.gainDb);
+            const auto& bank = input.banks[bankIndex];
+            if (!bank.bypass && !(bankSolo && !bank.solo))
+            {
+                bool filterSolo = false;
+                for (const auto& filter : bank.filters)
+                    filterSolo = filterSolo || filter.solo;
+                for (std::size_t index = 0; index < bank.filters.size(); ++index)
+                {
+                    const auto& filter = bank.filters[index];
+                    if (filterSolo && !filter.solo)
+                        continue;
+                    auto& filterRequest = result.equalizer.filters[index];
+                    if (kinds[index] == dsp::EqualizerFilterKind::Tilt)
+                    {
+                        AppendFilter(filterRequest, dsp::BiquadType::LowShelf,
+                                     filter, input.sampleRate, -filter.gainDb * 0.5);
+                        AppendFilter(filterRequest, dsp::BiquadType::HighShelf,
+                                     filter, input.sampleRate, filter.gainDb * 0.5);
+                        AppendFilter(result.equalizer.combined,
+                                     dsp::BiquadType::LowShelf, filter,
+                                     input.sampleRate, -filter.gainDb * 0.5);
+                        AppendFilter(result.equalizer.combined,
+                                     dsp::BiquadType::HighShelf, filter,
+                                     input.sampleRate, filter.gainDb * 0.5);
+                    }
+                    else
+                    {
+                        const auto kind = kinds[index] == dsp::EqualizerFilterKind::Gain
+                            ? dsp::BiquadType::Gain
+                            : kinds[index] == dsp::EqualizerFilterKind::LowShelf
+                                ? dsp::BiquadType::LowShelf
+                                : kinds[index] == dsp::EqualizerFilterKind::HighShelf
+                                    ? dsp::BiquadType::HighShelf
+                                    : dsp::BiquadType::Bell;
+                        AppendFilter(filterRequest, kind, filter,
+                                     input.sampleRate, filter.gainDb);
+                        AppendFilter(result.equalizer.combined, kind, filter,
+                                     input.sampleRate, filter.gainDb);
+                    }
+                }
+            }
         }
     }
+    auto appendDetector = [&](DetectorCurveRequest& request,
+                              const DetectorCurveState& state,
+                              const auto& kinds)
+    {
+        if (!state.active || input.sampleRate <= 0.0)
+            return;
+        for (std::size_t index = 0; index < state.filters.size(); ++index)
+        {
+            const auto& filter = state.filters[index];
+            const auto kind = kinds[index] == dsp::DetectorFilterKind::LowShelf
+                ? dsp::BiquadType::LowShelf : dsp::BiquadType::Bell;
+            AppendFilter(request.filters[index], kind, filter,
+                          input.sampleRate, filter.gainDb, false);
+            AppendFilter(request.combined, kind, filter,
+                          input.sampleRate, filter.gainDb);
+        }
+    };
+    appendDetector(result.compressorDetector, input.compressorDetector,
+                   dsp::kCompressorDetectorLayout);
+    appendDetector(result.saturatorDetector, input.saturatorDetector,
+                   dsp::kSaturatorDetectorLayout);
     return result;
 }
 

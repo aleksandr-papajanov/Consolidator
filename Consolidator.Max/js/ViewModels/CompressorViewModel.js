@@ -11,6 +11,9 @@ function CompressorViewModel(state) {
         state,
         "compressor.detector.listen"
     );
+    this.detectorFilters = [1, 2].map(function (filterId) {
+        return new DetectorFilterViewModel(state, "compressor", filterId);
+    });
 }
 
 CompressorViewModel.prototype.getStateValues = function () {
@@ -24,7 +27,9 @@ CompressorViewModel.prototype.getStateValues = function () {
         this.bypass,
         this.solo,
         this.detectorListen
-    ];
+    ].concat(this.detectorFilters.reduce(function (values, filter) {
+        return values.concat(filter.getStateValues());
+    }, []));
 };
 
 CompressorViewModel.prototype.destroy = function () {
@@ -37,4 +42,5 @@ CompressorViewModel.prototype.destroy = function () {
     this.bypass.destroy();
     this.solo.destroy();
     this.detectorListen.destroy();
+    this.detectorFilters.forEach(function (filter) { filter.destroy(); });
 };

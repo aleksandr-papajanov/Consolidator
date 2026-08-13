@@ -13,7 +13,7 @@
 Клиентский интерфейс работает поверх трёх native-потоков/границ:
 
 - `state` — authoritative state protocol;
-- `analysis` — global analysis view, spectrum/curves и telemetry.
+- `analysis` — global analysis view, spectrum, EQ/detector curves и telemetry.
 - `registry` — global instance/bank/group read-model.
 
 Основной lifecycle:
@@ -40,6 +40,18 @@ instance, bank/group membership, selected bank и `revision`; этот snapshot
 
 Presenters
 -----------
+
+`AnalyzerPresenter` is the single generic presentation layer for equalizer and
+detector modes. Feature controllers provide its sources and capabilities;
+`AnalyzerControl` and `AnalyzerRenderer` only handle generic intents and
+pixels. Axis ranges are supplied by feature controllers through
+`frequencyRange` and `gainRange`; detector mode is not coupled to the EQ
+vertical range. Detector curves are exposed by `AnalyzerViewModel` under
+separate compressor and saturator observables. `AnalyzerPresenter` converts
+frequency-response dB points into normalized y coordinates. Main/reference
+spectra use their own configured `spectrumRange` (normally `-120..0 dB`),
+while difference and response curves use the configured gain range. The
+renderer does not interpret dB ranges.
 
 Presenters получают только ViewModels и не зависят от Max API, controls или
 renderers. `DialPresenter` композирует несколько state/analysis sources,

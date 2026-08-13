@@ -6,6 +6,10 @@ function AnalyzerViewModel(analysis) {
     this.combinedCurve = new ObservableValue();
     this.allBanksCurve = new ObservableValue();
     this.filterCurves = [];
+    this.compressorDetectorCurves = [];
+    this.saturatorDetectorCurves = [];
+    this.compressorDetectorCombined = new ObservableValue();
+    this.saturatorDetectorCombined = new ObservableValue();
     this.inputGainMeter = new ObservableValue();
     this.saturatorMeter = new ObservableValue();
     this.compressorMeter = new ObservableValue();
@@ -25,6 +29,10 @@ function AnalyzerViewModel(analysis) {
         this.filterCurves.push(filterCurve);
         this.subscribeAnalysis("eq.filter." + filterId, filterCurve);
     }
+    this.subscribeDetector("compressor", this.compressorDetectorCurves,
+        this.compressorDetectorCombined);
+    this.subscribeDetector("saturator", this.saturatorDetectorCurves,
+        this.saturatorDetectorCombined);
 
     this.subscribeAnalysis("meter.input_gain", this.inputGainMeter);
     this.subscribeAnalysis("meter.saturator", this.saturatorMeter);
@@ -38,6 +46,19 @@ AnalyzerViewModel.prototype.subscribeAnalysis = function (key, target) {
     this.unsubscribers.push(this.analysis.subscribe(key, function (value) {
         target.set(value);
     }, true));
+};
+
+AnalyzerViewModel.prototype.subscribeDetector = function (
+    device, curves, combined
+) {
+    var self = this;
+    for (var filterId = 1; filterId <= 2; filterId += 1) {
+        var curve = new ObservableValue();
+        curves.push(curve);
+        self.subscribeAnalysis("detector." + device + ".filter." + filterId,
+            curve);
+    }
+    self.subscribeAnalysis("detector." + device + ".combined", combined);
 };
 
 AnalyzerViewModel.prototype.show = function (instanceId, bankId) {

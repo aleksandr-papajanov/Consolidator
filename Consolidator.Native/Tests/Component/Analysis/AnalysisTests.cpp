@@ -5,7 +5,7 @@
 #include "Analysis/Spectrum/SpectrumStream.h"
 #include "Analysis/FrequencyResponse/FrequencyResponseRequestBuilder.h"
 #include "Analysis/LatestValue.h"
-#include "Core/Analysis/EqualizerCurveInputBuilder.h"
+#include "Core/Analysis/AnalysisCurveInputBuilder.h"
 #include "Dsp/DspChainBuilder.h"
 #include "Dsp/Processors/DspChain.h"
 #include "Dsp/Processors/Equalizer/Equalizer.h"
@@ -168,23 +168,23 @@ TEST_CASE("SpectrumMapper creates a 256 point dB curve")
     EXPECT_EQ(output.sourceRevision, 11U);
 }
 
-TEST_CASE("EqualizerCurveInputBuilder emits normalized EQ sections")
+TEST_CASE("AnalysisCurveInputBuilder emits normalized EQ sections")
 {
     core::StateStore stateStore;
-    const auto input = core::EqualizerCurveInputBuilder{}.Build(
+    const auto input = core::AnalysisCurveInputBuilder{}.Build(
         stateStore.GetChain(), 48000.0, 5);
     const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
         input, analysis::AnalysisView{core::InstanceId{0}, dsp::BankId::Bank0});
-    const auto& request = requests.combined;
+    const auto& request = requests.equalizer.combined;
 
     EXPECT_EQ(request.revision, 5U);
     EXPECT_NEAR(request.sampleRate, 48000.0, 0.0);
     // The worker calculates individual filters and the current/all-bank aggregates.
     EXPECT_EQ(request.stageCount, 8U);
-    EXPECT_EQ(requests.filters[0].stageCount, 1U);
-    EXPECT_EQ(requests.filters[1].stageCount, 2U);
-    EXPECT_EQ(requests.filters[2].stageCount, 1U);
-    EXPECT_EQ(requests.allBanksCombined.stageCount, 56U);
+    EXPECT_EQ(requests.equalizer.filters[0].stageCount, 1U);
+    EXPECT_EQ(requests.equalizer.filters[1].stageCount, 2U);
+    EXPECT_EQ(requests.equalizer.filters[2].stageCount, 1U);
+    EXPECT_EQ(requests.equalizer.allBanksCombined.stageCount, 56U);
     EXPECT_NEAR(request.stages[0].b0, 1.0, 0.001);
 
     auto chain = dsp::DspChainBuilder{}.BuildStandardChain();
@@ -216,7 +216,7 @@ TEST_CASE("EqualizerCurveInputBuilder emits normalized EQ sections")
 TEST_CASE("FrequencyResponseRequestBuilder rejects an invalid bank")
 {
     core::StateStore stateStore;
-    const auto input = core::EqualizerCurveInputBuilder{}.Build(
+    const auto input = core::AnalysisCurveInputBuilder{}.Build(
         stateStore.GetChain(), 48000.0, 1);
     const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
         input,
@@ -224,7 +224,7 @@ TEST_CASE("FrequencyResponseRequestBuilder rejects an invalid bank")
             core::InstanceId{1},
             static_cast<dsp::BankId>(core::InstanceState::kBankCount)});
 
-    EXPECT_EQ(requests.combined.stageCount, 0U);
+    EXPECT_EQ(requests.equalizer.combined.stageCount, 0U);
 }
 
 TEST_CASE("CurveState keeps the latest input available for repeated reads")
@@ -238,7 +238,7 @@ TEST_CASE("CurveState keeps the latest input available for repeated reads")
     EXPECT_EQ(state.Read().revision, 9U);
 }
 
-TEST_CASE("EqualizerCurveInputBuilder follows the chain solo boundary")
+TEST_CASE("AnalysisCurveInputBuilder follows the chain solo boundary")
 {
     core::StateStore stateStore;
     const core::InstanceId instanceId{1};
@@ -254,12 +254,76 @@ TEST_CASE("EqualizerCurveInputBuilder follows the chain solo boundary")
         response);
     EXPECT_EQ(status, core::StateWriteStatus::Applied);
 
-    const auto input = core::EqualizerCurveInputBuilder{}.Build(
+    const auto input = core::AnalysisCurveInputBuilder{}.Build(
         stateStore.GetChain(), 48000.0, 6);
     const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
         input, analysis::AnalysisView{instanceId, dsp::BankId::Bank0});
-    const auto& request = requests.combined;
+    const auto& request = requests.equalizer.combined;
     EXPECT_EQ(request.stageCount, 0U);
+}
+
+TEST_CASE("AnalysisCurveInputBuilder emits detector responses with solo semantics")
+{
+    core::StateStore stateStore;
+    const core::InstanceId instanceId{2};
+    stateStore.SetInstanceId(instanceId);
+    core::StateResponseEntries response;
+
+    EXPECT_EQ(
+        stateStore.WriteState(
+            test::Write(test::DetectorFilterPath(
+                instanceId, dsp::DeviceId::Compressor, 0,
+                dsp::ParameterId::Gain), 6.0F),
+            response),
+        core::StateWriteStatus::Applied);
+    EXPECT_EQ(
+        stateStore.WriteState(
+            test::Write(test::DetectorFilterPath(
+                instanceId, dsp::DeviceId::Compressor, 0,
+                dsp::ParameterId::Frequency), 750.0F),
+            response),
+        core::StateWriteStatus::Applied);
+    EXPECT_EQ(
+        stateStore.WriteState(
+            test::Write(test::DetectorFilterPath(
+                instanceId, dsp::DeviceId::Compressor, 0,
+                dsp::ParameterId::Q), 2.0F),
+            response),
+        core::StateWriteStatus::Applied);
+    EXPECT_EQ(
+        stateStore.WriteState(
+            test::Write(test::DetectorFilterPath(
+                instanceId, dsp::DeviceId::Compressor, 1,
+                core::StateMarkerId::Solo), true),
+            response),
+        core::StateWriteStatus::Applied);
+
+    const auto input = core::AnalysisCurveInputBuilder{}.Build(
+        stateStore.GetChain(), 48000.0, 12);
+    const auto requests = analysis::FrequencyResponseRequestBuilder{}.Build(
+        input, analysis::AnalysisView{instanceId, dsp::BankId::Bank0});
+
+    EXPECT_NEAR(input.compressorDetector.filters[0].frequencyHz, 750.0F, 0.001F);
+    EXPECT_NEAR(input.compressorDetector.filters[0].q, 2.0F, 0.001F);
+    EXPECT_NEAR(input.compressorDetector.filters[0].gainDb, 6.0F, 0.001F);
+    EXPECT_EQ(requests.compressorDetector.filters[0].stageCount, 1U);
+    EXPECT_EQ(requests.compressorDetector.filters[1].stageCount, 1U);
+    EXPECT_EQ(requests.compressorDetector.combined.stageCount, 1U);
+
+    EXPECT_EQ(
+        stateStore.WriteState(
+            test::Write(test::DetectorFilterPath(
+                instanceId, dsp::DeviceId::Compressor, 1,
+                core::StateMarkerId::Bypass), true),
+            response),
+        core::StateWriteStatus::Applied);
+    const auto bypassedInput = core::AnalysisCurveInputBuilder{}.Build(
+        stateStore.GetChain(), 48000.0, 13);
+    const auto bypassedRequests = analysis::FrequencyResponseRequestBuilder{}.Build(
+        bypassedInput, analysis::AnalysisView{instanceId, dsp::BankId::Bank0});
+    EXPECT_EQ(bypassedRequests.compressorDetector.filters[0].stageCount, 1U);
+    EXPECT_EQ(bypassedRequests.compressorDetector.filters[1].stageCount, 1U);
+    EXPECT_EQ(bypassedRequests.compressorDetector.combined.stageCount, 0U);
 }
 
 TEST_MAIN()

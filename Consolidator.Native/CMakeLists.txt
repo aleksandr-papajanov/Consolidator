@@ -64,8 +64,8 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Analysis/KissFFT/kiss_fftr.c
     Source/Core/Instance/ConsolidatorInstance.h
     Source/Core/Instance/ConsolidatorInstance.cpp
-    Source/Core/Analysis/EqualizerCurveInputBuilder.h
-    Source/Core/Analysis/EqualizerCurveInputBuilder.cpp
+    Source/Core/Analysis/AnalysisCurveInputBuilder.h
+    Source/Core/Analysis/AnalysisCurveInputBuilder.cpp
     Source/Dsp/Telemetry/Telemetry.h
     Source/Core/Instance/ConsolidatorInstance.CommandSubmission.cpp
     Source/Core/Domain/Ids/InstanceId.h
@@ -94,6 +94,7 @@ target_sources(ConsolidatorCore PRIVATE
     Source/Core/Routing/StateWriter.cpp
     Source/Core/Routing/ProcessingStateResolver.h
     Source/Core/Routing/ProcessingStateResolver.cpp
+    Source/Core/Routing/ProcessingState.h
     Source/Core/Routing/InstanceAudibilityResolver.h
     Source/Core/Routing/InstanceAudibilityResolver.cpp
     Source/Core/Domain/State/InstanceState.h

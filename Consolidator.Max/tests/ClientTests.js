@@ -2,6 +2,7 @@ var assert = require("assert");
 var fs = require("fs");
 var path = require("path");
 var vm = require("vm");
+global.include = function () {};
 
 var root = path.resolve(__dirname, "..");
 [
@@ -10,7 +11,24 @@ var root = path.resolve(__dirname, "..");
     "js/Clients/AnalysisClient.js",
     "js/Clients/RegistryClient.js",
     "js/Clients/ConsolidatorClient.js",
+    "js/ViewModels/ObservableValue.js",
+    "js/ViewModels/StateValueViewModel.js",
+    "js/ViewModels/FilterViewModel.js",
+    "js/ViewModels/DetectorFilterViewModel.js",
+    "js/ViewModels/BankViewModel.js",
     "js/ViewModels/BankManagerViewModel.js",
+    "js/ViewModels/GainViewModel.js",
+    "js/ViewModels/CompressorViewModel.js",
+    "js/ViewModels/SaturatorViewModel.js",
+    "js/ViewModels/EqualizerViewModel.js",
+    "js/ViewModels/AnalyzerViewModel.js",
+    "js/ViewModels/ConsolidatorViewModel.js",
+    "js/Presenters/Core/PresentationObservable.js",
+    "js/Presenters/Core/PresentationBinding.js",
+    "js/Presenters/Analyzer/AnalyzerPresentation.js",
+    "js/Presenters/Analyzer/AnalyzerPresenter.js",
+    "js/Controllers/AnalyzerController.js",
+    "js/Controllers/EqualizerController.js",
     "js/Controllers/BankManagerController.js"
 ].forEach(function (file) {
     vm.runInThisContext(
@@ -69,6 +87,158 @@ function testAnalysisViewFiltering() {
     client.handleAnalysis("spectrum_main", ["11", "7", 2, 5, 6]);
     assert.strictEqual(values[1], null);
     assert.deepStrictEqual(values[2].values, [5, 6]);
+}
+
+function testDetectorAnalysisFrames() {
+    var client = new ConsolidatorClient("ui.main", function () {});
+    var filters = [];
+    var combined = [];
+    client.analysis.view("7", 2);
+    client.analysis.subscribe("detector.compressor.filter.1", function (value) {
+        filters.push(value);
+    });
+    client.analysis.subscribe("detector.saturator.combined", function (value) {
+        combined.push(value);
+    });
+    client.handleAnalysis("detector_filter", [
+        "10", "7", 2, "compressor", 1, 1, 1, 2
+    ]);
+    client.handleAnalysis("detector_combined", [
+        "10", "7", 2, "saturator", 1, 3, 4
+    ]);
+    assert.deepStrictEqual(filters[0].values, [1, 2]);
+    assert.deepStrictEqual(combined[0].values, [3, 4]);
+    assert.strictEqual(filters[0].active, true);
+    assert.strictEqual(combined[0].active, true);
+}
+
+function makeStateFixture() {
+    var paths = [];
+    var batches = [];
+    return {
+        paths: paths,
+        batches: batches,
+        subscribe: function () { return function () {}; },
+        set: function () {},
+        setMany: function (entries) { batches.push(entries); },
+        reset: function () {},
+        fetch: function (path, callback) {
+            callback({ path: path, value: 1 }, null);
+        },
+        fetchMany: function (requested, callback) {
+            requested.forEach(function (path) { paths.push(path); });
+            callback({ error: null });
+        }
+    };
+}
+
+function testFilterPositionUsesOneStateBatch() {
+    var state = makeStateFixture();
+    var filter = new FilterViewModel(state, 2, 4);
+    filter.setPosition(750, 3);
+    assert.strictEqual(state.batches.length, 1);
+    assert.deepStrictEqual(state.batches[0], [
+        { path: "equalizer.bank.2.filter.4.frequency", value: 750 },
+        { path: "equalizer.bank.2.filter.4.gain", value: 3 }
+    ]);
+    filter.destroy();
+}
+
+function testDetectorPositionUsesOneStateBatch() {
+    var state = makeStateFixture();
+    var filter = new DetectorFilterViewModel(state, "compressor", 2);
+    filter.setPosition(1200, -3);
+    assert.deepStrictEqual(state.batches[0], [
+        { path: "compressor.detector.filter.2.frequency", value: 1200 },
+        { path: "compressor.detector.filter.2.gain", value: -3 }
+    ]);
+    filter.destroy();
+}
+
+function testConsolidatorInitializesDetectorState() {
+    var state = makeStateFixture();
+    var analysis = { subscribe: function () { return function () {}; } };
+    var root = new ConsolidatorViewModel({ state: state, analysis: analysis });
+    var error = "not complete";
+    root.initialize(function (result) { error = result; });
+    assert.strictEqual(error, null);
+    assert.ok(state.paths.indexOf("compressor.detector.filter.1.frequency") >= 0);
+    assert.ok(state.paths.indexOf("saturator.detector.filter.2.q") >= 0);
+    root.destroy();
+}
+
+function testAnalyzerPresenterIsReactiveAndSelectable() {
+    var spectrum = new ObservableValue();
+    var combined = new ObservableValue();
+    var frequency = new ObservableValue(1000);
+    var gain = new ObservableValue(0);
+    var q = new ObservableValue(1);
+    var enabled = new ObservableValue(true);
+    var presenter = new AnalyzerPresenter({
+        spectrum: spectrum,
+        combined: combined,
+        curves: [],
+        parameters: [{ frequency: frequency, gain: gain, q: q, enabled: enabled }]
+    });
+    var updates = 0;
+    presenter.subscribe(function () { updates += 1; });
+    spectrum.set({ values: [1] });
+    combined.set({ values: [2] });
+    presenter.selectFilter(1);
+    assert.ok(updates >= 3);
+    assert.strictEqual(presenter.presentation.handles[0].selected, true);
+    presenter.destroy();
+}
+
+function testEqualizerControllerRebindsOnBankChange() {
+    var state = makeStateFixture();
+    var root = new ConsolidatorViewModel({
+        state: state,
+        analysis: { subscribe: function () { return function () {}; } }
+    });
+    var controller = new EqualizerController(root);
+    assert.ok(controller.analyzer.presenter.options.parameters[0].frequency.path.indexOf("bank.1") >= 0);
+    root.equalizer.showBank(2);
+    assert.ok(controller.analyzer.presenter.options.parameters[0].frequency.path.indexOf("bank.2") >= 0);
+    controller.destroy();
+    root.destroy();
+}
+
+function testDetectorBypassIsInvertedForPresentation() {
+    var state = makeStateFixture();
+    var filter = new DetectorFilterViewModel(state, "compressor", 1);
+    filter.bypass.value = false;
+    assert.strictEqual(presentationBindingValue(filter.enabled), true);
+    filter.bypass.value = true;
+    assert.strictEqual(presentationBindingValue(filter.enabled), false);
+    filter.destroy();
+}
+
+function testAnalyzerControlEndsDragOnRelease() {
+    global.mgraphics = { init: function () {} };
+    global.outlet = function () {};
+    [
+        "js/Controls/Analyzer/AnalyzerViewState.js",
+        "js/Controls/Analyzer/AnalyzerLayout.js",
+        "js/Controls/Analyzer/AnalyzerRenderer.js"
+    ].forEach(function (file) {
+        vm.runInThisContext(
+            fs.readFileSync(path.join(root, file), "utf8"),
+            { filename: file }
+        );
+    });
+    vm.runInThisContext(
+        fs.readFileSync(path.join(root, "js/Controls/Analyzer/AnalyzerControl.js"), "utf8"),
+        { filename: "js/Controls/Analyzer/AnalyzerControl.js" }
+    );
+    var intents = [];
+    analyzerControl.state.dragging = true;
+    analyzerControl.state.selectedId = 1;
+    analyzerControl.emitIntent = function (name, values) {
+        intents.push([name, values]);
+    };
+    ondrag(0, 0, 0);
+    assert.strictEqual(intents[0][0], "gestureEnded");
 }
 
 function testRegistrySnapshotRoundTrip() {
@@ -293,6 +463,14 @@ function testBankManagerControllerClearRequiresConfirmation() {
 
 testStateRoundTrip();
 testAnalysisViewFiltering();
+testDetectorAnalysisFrames();
+testConsolidatorInitializesDetectorState();
+testFilterPositionUsesOneStateBatch();
+testDetectorPositionUsesOneStateBatch();
+testAnalyzerPresenterIsReactiveAndSelectable();
+testEqualizerControllerRebindsOnBankChange();
+testDetectorBypassIsInvertedForPresentation();
+testAnalyzerControlEndsDragOnRelease();
 testRegistrySnapshotRoundTrip();
 testRegistryChangedDuringFetchIsRetained();
 testRegistryChangedFetchesWhenIdle();

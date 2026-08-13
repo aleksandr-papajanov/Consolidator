@@ -3,6 +3,7 @@ function EqualizerViewModel(state) {
     this.bypass = new StateValueViewModel(state, "equalizer.bypass");
     this.solo = new StateValueViewModel(state, "equalizer.solo");
     this.currentBank = null;
+    this.currentBankChanged = new ObservableValue();
     this.showBank(1);
 }
 
@@ -23,6 +24,7 @@ EqualizerViewModel.prototype.showBank = function (bankId) {
         this.currentBank.destroy();
     }
     this.currentBank = new BankViewModel(this.state, bankId);
+    this.currentBankChanged.set(this.currentBank);
 };
 
 EqualizerViewModel.prototype.destroy = function () {

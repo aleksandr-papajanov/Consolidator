@@ -44,4 +44,30 @@ struct EqualizerCurveSnapshot
     std::uint64_t viewRevision = 0;
 };
 
+struct DetectorCurveSnapshot
+{
+    std::array<FrequencyResponseSnapshot, 2> filters{};
+    std::array<bool, 2> filterActive{};
+    FrequencyResponseSnapshot combined;
+    bool active = false;
+    std::uint64_t revision = 0;
+    std::uint64_t viewRevision = 0;
+};
+
+struct DetectorCurvesSnapshot
+{
+    DetectorCurveSnapshot compressor;
+    DetectorCurveSnapshot saturator;
+    std::uint64_t revision = 0;
+    std::uint64_t viewRevision = 0;
+};
+
+struct AnalysisCurveSnapshot
+{
+    EqualizerCurveSnapshot equalizer;
+    DetectorCurvesSnapshot detectors;
+    std::uint64_t revision = 0;
+    std::uint64_t viewRevision = 0;
+};
+
 } // namespace consolidator::analysis

@@ -111,6 +111,25 @@ TEST_CASE("Registry effects distinguish labels from audibility")
     EXPECT_FALSE(label.effects.audibilityChanged);
 }
 
+TEST_CASE("Detector writes invalidate the analysis curve projection")
+{
+    test::CommandFixture fixture;
+    const auto id = fixture.instance.GetInstanceId();
+    const auto& parameter = Write(fixture, 208, test::Entries({
+        test::Write(test::DetectorFilterPath(
+            id, dsp::DeviceId::Compressor, 0,
+            dsp::ParameterId::Frequency), 500.0F)}));
+    EXPECT_EQ(parameter.effects.analysisInstances.size(), 1U);
+    EXPECT_EQ(parameter.effects.analysisInstances[0], id);
+
+    const auto& listen = Write(fixture, 209, test::Entries({
+        test::Write(test::DetectorPath(
+            id, dsp::DeviceId::Compressor,
+            core::StateMarkerId::Listen), true)}));
+    EXPECT_EQ(listen.effects.analysisInstances.size(), 1U);
+    EXPECT_EQ(listen.effects.analysisInstances[0], id);
+}
+
 TEST_CASE("Write command for missing instance produces no response")
 {
     test::CommandFixture fixture;

@@ -15,14 +15,14 @@ using namespace consolidator;
 namespace
 {
 
-analysis::EqualizerCurveSnapshot AwaitEqualizerResponse(
-    const std::function<bool(const analysis::EqualizerCurveSnapshot&)>& accept)
+analysis::AnalysisCurveSnapshot AwaitEqualizerResponse(
+    const std::function<bool(const analysis::AnalysisCurveSnapshot&)>& accept)
 {
     analysis::AnalysisView view;
     for (std::size_t attempt = 0; attempt < 500; ++attempt)
     {
-        analysis::EqualizerCurveSnapshot snapshot;
-        if (analysis::AnalysisService::Get().TryReadLatestCurve(
+        analysis::AnalysisCurveSnapshot snapshot;
+        if (analysis::AnalysisService::Get().TryReadLatestCurves(
                 snapshot, 0, view) &&
             accept(snapshot))
         {
@@ -149,14 +149,14 @@ TEST_CASE("Chain solo republishes a flat equalizer response")
     const auto boosted = AwaitEqualizerResponse(
         [](const auto& snapshot)
         {
-            return std::abs(snapshot.combined.magnitudeDb[0] - 6.0F) < 0.05F;
+            return std::abs(snapshot.equalizer.combined.magnitudeDb[0] - 6.0F) < 0.05F;
         });
 
     (void)driver.Write(0, 3001, test::Entries({test::Write(test::DevicePath(instanceId, dsp::DeviceId::Compressor, core::StateMarkerId::Solo), true)}));
     const auto bypassed = AwaitEqualizerResponse(
         [&boosted](const auto& snapshot)
         {
-            return snapshot.revision > boosted.revision && std::abs(snapshot.combined.magnitudeDb[0]) < 0.05F;
+            return snapshot.revision > boosted.revision && std::abs(snapshot.equalizer.combined.magnitudeDb[0]) < 0.05F;
         });
 
     EXPECT_TRUE(bypassed.revision > boosted.revision);
@@ -173,15 +173,15 @@ TEST_CASE("Prepare republishes curve input after a sample-rate change")
     const auto initial = AwaitEqualizerResponse(
         [](const auto& snapshot)
         {
-            return snapshot.combined.sourceRevision > 0;
+            return snapshot.equalizer.combined.sourceRevision > 0;
         });
 
     instance.Prepare(96000.0);
     const auto updated = AwaitEqualizerResponse(
         [&initial](const auto& snapshot)
         {
-            return snapshot.combined.sourceRevision >
-                initial.combined.sourceRevision;
+            return snapshot.equalizer.combined.sourceRevision >
+                initial.equalizer.combined.sourceRevision;
         });
 
     EXPECT_TRUE(updated.revision > initial.revision);
@@ -212,18 +212,21 @@ TEST_CASE("Changing the analysis bank publishes all curve variants")
     const auto bank0 = AwaitEqualizerResponse(
         [](const auto& snapshot)
         {
-            return std::abs(snapshot.filters[0].magnitudeDb[0] - 6.0F) < 0.05F &&
-                std::abs(snapshot.combined.magnitudeDb[0] - 6.0F) < 0.05F &&
-                std::abs(snapshot.allBanksCombined.magnitudeDb[0] - 9.0F) < 0.05F;
+            return snapshot.detectors.revision == snapshot.revision &&
+                snapshot.detectors.compressor.revision == snapshot.revision &&
+                snapshot.detectors.saturator.revision == snapshot.revision &&
+                std::abs(snapshot.equalizer.filters[0].magnitudeDb[0] - 6.0F) < 0.05F &&
+                std::abs(snapshot.equalizer.combined.magnitudeDb[0] - 6.0F) < 0.05F &&
+                std::abs(snapshot.equalizer.allBanksCombined.magnitudeDb[0] - 9.0F) < 0.05F;
         });
-    analysis::EqualizerCurveSnapshot repeatedCurve;
+    analysis::AnalysisCurveSnapshot repeatedCurve;
     analysis::AnalysisView resultView;
     EXPECT_TRUE(
-        analysis::AnalysisService::Get().TryReadLatestCurve(
+        analysis::AnalysisService::Get().TryReadLatestCurves(
             repeatedCurve, 0, resultView));
     EXPECT_EQ(repeatedCurve.revision, bank0.revision);
     EXPECT_FALSE(
-        analysis::AnalysisService::Get().TryReadLatestCurve(
+        analysis::AnalysisService::Get().TryReadLatestCurves(
             repeatedCurve, bank0.revision, resultView));
 
     analysis::AnalysisService::Get().SetView(
@@ -233,11 +236,11 @@ TEST_CASE("Changing the analysis bank publishes all curve variants")
         {
             return snapshot.revision > bank0.revision &&
                 snapshot.viewRevision > bank0.viewRevision &&
-                snapshot.combined.sourceRevision ==
-                    bank0.combined.sourceRevision &&
-                std::abs(snapshot.filters[0].magnitudeDb[0] - 3.0F) < 0.05F &&
-                std::abs(snapshot.combined.magnitudeDb[0] - 3.0F) < 0.05F &&
-                std::abs(snapshot.allBanksCombined.magnitudeDb[0] - 9.0F) < 0.05F;
+                snapshot.equalizer.combined.sourceRevision ==
+                    bank0.equalizer.combined.sourceRevision &&
+                std::abs(snapshot.equalizer.filters[0].magnitudeDb[0] - 3.0F) < 0.05F &&
+                std::abs(snapshot.equalizer.combined.magnitudeDb[0] - 3.0F) < 0.05F &&
+                std::abs(snapshot.equalizer.allBanksCombined.magnitudeDb[0] - 9.0F) < 0.05F;
         });
 
     EXPECT_TRUE(bank1.revision > bank0.revision);

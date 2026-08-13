@@ -5,6 +5,7 @@
 #include "Core/Domain/State/StateStore.h"
 #include "Core/Domain/State/ChainState.h"
 #include "Core/Instance/Queues/RuntimeUpdateMailbox.h"
+#include "Core/Routing/ProcessingState.h"
 
 namespace consolidator::core
 {
@@ -25,38 +26,6 @@ public:
         RuntimeResolution& resolution) const;
 
 private:
-    [[nodiscard]] bool ResolveChain(
-        InstanceId instanceId,
-        const StateStore& stateStore,
-        std::vector<RuntimeControlUpdate>& updates,
-        bool& saturatorActive,
-        bool& compressorActive) const;
-
-    void ResolveEqualizer(
-        InstanceId instanceId,
-        const StateStore& stateStore,
-        bool equalizerActive,
-        std::vector<RuntimeControlUpdate>& updates) const;
-
-    void ResolveBankFilters(
-        InstanceId instanceId,
-        dsp::BankId bankId,
-        const dsp::EqualizerBankState& bank,
-        bool bankActive,
-        std::vector<RuntimeControlUpdate>& updates) const;
-
-    void ResolveDetectorFilters(
-        InstanceId instanceId,
-        const StateStore& stateStore,
-        bool saturatorActive,
-        bool compressorActive,
-        std::vector<RuntimeControlUpdate>& updates) const;
-
-    void ResolveMonitoring(
-        InstanceId instanceId,
-        const StateStore& stateStore,
-        std::vector<RuntimeControlUpdate>& updates) const;
-
     static void AppendActiveUpdate(
         const StatePath& path,
         bool active,
@@ -66,7 +35,6 @@ private:
         const StatePath& path,
         bool enabled,
         std::vector<RuntimeControlUpdate>& updates);
-
 };
 
 } // namespace consolidator::core

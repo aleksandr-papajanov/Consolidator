@@ -24,11 +24,18 @@ struct CurveBankState
     std::array<CurveFilterState, 7> filters{};
 };
 
+struct DetectorCurveState
+{
+    std::array<CurveFilterState, 2> filters{};
+    bool active = false;
+};
+
 struct CurveInput
 {
     std::array<CurveBankState, 7> banks{};
+    DetectorCurveState compressorDetector;
+    DetectorCurveState saturatorDetector;
     bool equalizerActive = false;
-    bool chainAllowsEqualizer = false;
     double sampleRate = 0.0;
     std::uint64_t revision = 0;
 };

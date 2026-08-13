@@ -12,6 +12,9 @@ function SaturatorViewModel(state) {
         state,
         "saturator.detector.listen"
     );
+    this.detectorFilters = [1, 2].map(function (filterId) {
+        return new DetectorFilterViewModel(state, "saturator", filterId);
+    });
 }
 
 SaturatorViewModel.prototype.getStateValues = function () {
@@ -23,7 +26,9 @@ SaturatorViewModel.prototype.getStateValues = function () {
         this.bypass,
         this.solo,
         this.detectorListen
-    ];
+    ].concat(this.detectorFilters.reduce(function (values, filter) {
+        return values.concat(filter.getStateValues());
+    }, []));
 };
 
 SaturatorViewModel.prototype.destroy = function () {
@@ -34,4 +39,5 @@ SaturatorViewModel.prototype.destroy = function () {
     this.bypass.destroy();
     this.solo.destroy();
     this.detectorListen.destroy();
+    this.detectorFilters.forEach(function (filter) { filter.destroy(); });
 };

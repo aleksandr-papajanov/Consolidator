@@ -14,11 +14,24 @@ struct EqualizerCurveRequest
     FrequencyResponseRequest allBanksCombined;
 };
 
+struct DetectorCurveRequest
+{
+    std::array<FrequencyResponseRequest, 2> filters{};
+    FrequencyResponseRequest combined;
+};
+
+struct AnalysisCurveRequest
+{
+    EqualizerCurveRequest equalizer;
+    DetectorCurveRequest compressorDetector;
+    DetectorCurveRequest saturatorDetector;
+};
+
 // Builds individual filter requests and one combined request for the view bank.
 class FrequencyResponseRequestBuilder final
 {
   public:
-    [[nodiscard]] EqualizerCurveRequest Build(
+    [[nodiscard]] AnalysisCurveRequest Build(
         const CurveInput& input,
         AnalysisView view) const noexcept;
 };

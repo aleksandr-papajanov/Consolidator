@@ -297,8 +297,28 @@ Each analysis frame starts with decimal-symbol `viewRevision` and `instanceId`,
 followed by the public numeric bank. Snapshot data and this view metadata are
 read atomically from `AnalysisService`, so a concurrent global view switch
 cannot relabel a frame.
-After the common `<viewRevision> <instanceId> <bank>` metadata, telemetry
-selectors carry `meter <point> <rmsDb> <peakDb> <smoothedDb>`,
+After the common `<viewRevision> <instanceId> <bank>` metadata, analysis
+selectors carry `eq_filter <filterId> <256 values>`,
+`detector_filter <device> <filterId> <active> <256 values>`, and
+`detector_combined <device> <active> <256 values>`. Individual detector-filter
+curves retain their configured coefficient response while `active` communicates
+bypass/solo/listen visibility to the UI. The combined curve contains only the
+filters active in the resolved DSP processing state.
+
+For example, a compressor detector response is emitted as:
+
+```text
+detector_filter <viewRevision> <instanceId> <bankId> compressor 1 <active> <256 values>
+detector_filter <viewRevision> <instanceId> <bankId> compressor 2 <active> <256 values>
+detector_combined <viewRevision> <instanceId> <bankId> compressor <active> <256 values>
+```
+
+Saturator uses the same framing with `saturator` as the device symbol. EQ and
+both detector devices are read from one immutable curve snapshot and share its
+single revision cursor.
+
+Telemetry selectors carry
+`meter <point> <rmsDb> <peakDb> <smoothedDb>`,
 `saturator_distortion <percent> <smoothedPercent>` (normalized nonlinear
 residual percent, not spectral THD), and
 `compressor_reduction <rmsDb> <peakDb> <smoothedDb>`. The meter points are

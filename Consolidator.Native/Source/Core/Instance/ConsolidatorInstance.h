@@ -17,7 +17,7 @@
 #include "Core/Queues/ConcurrentQueue.h"
 #include "Core/Queues/SpscQueue.h"
 #include "Analysis/AnalysisService.h"
-#include "Core/Analysis/EqualizerCurveInputBuilder.h"
+#include "Core/Analysis/AnalysisCurveInputBuilder.h"
 
 namespace consolidator::dsp
 {
@@ -144,7 +144,7 @@ class ConsolidatorInstance
     std::unique_ptr<dsp::DspChain> dspChain_;
     StateStore stateStore_;
     analysis::AnalysisHandle analysisHandle_;
-    EqualizerCurveInputBuilder equalizerCurveInputBuilder_;
+    AnalysisCurveInputBuilder analysisCurveInputBuilder_;
     std::atomic<double> sampleRate_{0.0};
     std::atomic<std::uint64_t> sampleRateRevision_{0};
     std::uint64_t nextAnalysisRevision_ = 1;

@@ -83,7 +83,7 @@ private:
         const consolidator::analysis::SpectrumSnapshot& snapshot,
         const consolidator::analysis::AnalysisView& view);
     void EmitCurves(
-        const consolidator::analysis::EqualizerCurveSnapshot& snapshot,
+        const consolidator::analysis::AnalysisCurveSnapshot& snapshot,
         const consolidator::analysis::AnalysisView& view);
     void EmitTelemetry(
         const consolidator::dsp::TelemetrySnapshot& snapshot,

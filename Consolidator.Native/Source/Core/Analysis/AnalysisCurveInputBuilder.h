@@ -6,8 +6,8 @@
 namespace consolidator::core
 {
 
-// Converts authoritative equalizer state into the analysis input model.
-class EqualizerCurveInputBuilder final
+// Converts authoritative chain state into the immutable analysis input model.
+class AnalysisCurveInputBuilder final
 {
   public:
     [[nodiscard]] analysis::CurveInput Build(

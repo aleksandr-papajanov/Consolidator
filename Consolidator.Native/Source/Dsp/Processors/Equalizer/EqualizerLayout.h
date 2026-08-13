@@ -27,4 +27,20 @@ inline constexpr std::array<EqualizerFilterKind, kStandardEqualizerBandCount>
         EqualizerFilterKind::Bell,
         EqualizerFilterKind::Bell};
 
+enum class DetectorFilterKind
+{
+    LowShelf,
+    Bell
+};
+
+inline constexpr std::array<DetectorFilterKind, 2>
+    kCompressorDetectorLayout{
+        DetectorFilterKind::LowShelf,
+        DetectorFilterKind::Bell};
+
+inline constexpr std::array<DetectorFilterKind, 2>
+    kSaturatorDetectorLayout{
+        DetectorFilterKind::LowShelf,
+        DetectorFilterKind::Bell};
+
 } // namespace consolidator::dsp

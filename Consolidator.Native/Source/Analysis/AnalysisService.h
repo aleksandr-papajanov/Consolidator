@@ -46,8 +46,8 @@ class AnalysisService final
         SpectrumSnapshot& snapshot,
         std::uint64_t lastRevision,
         AnalysisView& view);
-    [[nodiscard]] bool TryReadLatestCurve(
-        EqualizerCurveSnapshot& snapshot,
+    [[nodiscard]] bool TryReadLatestCurves(
+        AnalysisCurveSnapshot& snapshot,
         std::uint64_t lastRevision,
         AnalysisView& view);
     [[nodiscard]] bool TryReadLatestTelemetry(

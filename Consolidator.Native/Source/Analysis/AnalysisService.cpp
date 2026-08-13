@@ -163,8 +163,8 @@ bool AnalysisService::TryReadLatestDifferenceSpectrum(
     return true;
 }
 
-bool AnalysisService::TryReadLatestCurve(
-    EqualizerCurveSnapshot& snapshot,
+bool AnalysisService::TryReadLatestCurves(
+    AnalysisCurveSnapshot& snapshot,
     std::uint64_t lastRevision,
     AnalysisView& view)
 {
@@ -242,27 +242,63 @@ bool AnalysisService::ProcessFrequencyResponse(
 
     const auto request = FrequencyResponseRequestBuilder{}.Build(
         input, view);
-    EqualizerCurveSnapshot output;
-    for (std::size_t index = 0; index < request.filters.size(); ++index)
+    AnalysisCurveSnapshot output;
+    for (std::size_t index = 0; index < request.equalizer.filters.size(); ++index)
     {
         frequencyResponseCalculator_.Calculate(
-            request.filters[index], output.filters[index]);
+            request.equalizer.filters[index], output.equalizer.filters[index]);
     }
     frequencyResponseCalculator_.Calculate(
-        request.combined, output.combined);
+        request.equalizer.combined, output.equalizer.combined);
     frequencyResponseCalculator_.Calculate(
-        request.allBanksCombined, output.allBanksCombined);
+        request.equalizer.allBanksCombined, output.equalizer.allBanksCombined);
     output.revision = nextResultRevision_++;
     output.viewRevision = viewRevision;
-    for (auto& filter : output.filters)
+    output.equalizer.revision = output.revision;
+    output.equalizer.viewRevision = viewRevision;
+    for (auto& filter : output.equalizer.filters)
     {
         filter.revision = output.revision;
         filter.viewRevision = viewRevision;
     }
-    output.combined.revision = output.revision;
-    output.combined.viewRevision = viewRevision;
-    output.allBanksCombined.revision = output.revision;
-    output.allBanksCombined.viewRevision = viewRevision;
+    output.equalizer.combined.revision = output.revision;
+    output.equalizer.combined.viewRevision = viewRevision;
+    output.equalizer.allBanksCombined.revision = output.revision;
+    output.equalizer.allBanksCombined.viewRevision = viewRevision;
+
+    const auto calculateDetector = [&](const DetectorCurveRequest& request,
+                                       DetectorCurveSnapshot& snapshot,
+                                       const DetectorCurveState& state)
+    {
+        snapshot.active = state.active;
+        for (std::size_t index = 0; index < request.filters.size(); ++index)
+        {
+            snapshot.filterActive[index] = !state.filters[index].bypass;
+            frequencyResponseCalculator_.Calculate(request.filters[index],
+                                                   snapshot.filters[index]);
+        }
+        frequencyResponseCalculator_.Calculate(request.combined,
+                                                snapshot.combined);
+    };
+    calculateDetector(request.compressorDetector, output.detectors.compressor,
+                      input.compressorDetector);
+    calculateDetector(request.saturatorDetector, output.detectors.saturator,
+                      input.saturatorDetector);
+    output.detectors.revision = output.revision;
+    output.detectors.viewRevision = viewRevision;
+    for (auto* detector : {&output.detectors.compressor,
+                           &output.detectors.saturator})
+    {
+        detector->revision = output.revision;
+        detector->viewRevision = viewRevision;
+        for (auto& filter : detector->filters)
+        {
+            filter.revision = output.revision;
+            filter.viewRevision = viewRevision;
+        }
+        detector->combined.revision = output.revision;
+        detector->combined.viewRevision = viewRevision;
+    }
     slot.CurveOutput().PublishOutput(output);
     slot.CurveOutput().MarkProcessed(input.revision, viewRevision);
     return true;

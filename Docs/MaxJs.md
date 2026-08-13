@@ -40,12 +40,16 @@ js/
     ├── BankManager/BankManagerPresentation.js
     └── BankManager/BankManagerPresenter.js
 ├── Controllers/
-    └── BankManagerController.js
+    ├── AnalyzerController.js
+    ├── EqualizerController.js
+    ├── CompressorController.js
+    └── SaturatorController.js
 └── Controls/
     ├── Dial/DialControl.js
     ├── Button/ButtonControl.js
     ├── Slider/SliderControl.js
-    └── BankManager/BankManagerControl.js
+    ├── BankManager/BankManagerControl.js
+    └── Analyzer/AnalyzerControl.js
 ```
 
 ## Публичная граница
@@ -54,7 +58,7 @@ js/
 
 - `client.state` — чтение, запись, reset и подписки на authoritative state;
 - `client.analysis` — выбор global `AnalysisView`, единый `tick()` и подписки на
-  spectrum, EQ curves и telemetry.
+  spectrum, EQ curves, detector curves и telemetry.
 
 Основной API:
 
@@ -72,10 +76,29 @@ client.analysis.view(instanceId, bankId);
 client.analysis.tick();
 client.analysis.subscribe("spectrum.main", drawSpectrum);
 client.analysis.subscribe("eq.filter.4", drawFilter);
+client.analysis.subscribe("detector.compressor.filter.1", drawDetectorFilter);
+client.analysis.subscribe("detector.saturator.combined", drawDetectorCurve);
 client.analysis.subscribe("meter.compressor", drawCompressorLevel);
 client.analysis.subscribe("compressor.reduction", drawReduction);
 client.analysis.subscribe("saturator.distortion", drawDistortion);
 ```
+
+Detector analysis keys are independent of EQ keys and share the same view
+validation and `analysis.tick()` lifecycle:
+
+```js
+detector.compressor.filter.1
+detector.compressor.filter.2
+detector.compressor.combined
+detector.saturator.filter.1
+detector.saturator.filter.2
+detector.saturator.combined
+```
+
+Detector curve values contain `values` and `active`. Individual filter values
+preserve the configured response even when that filter is inactive; `active`
+controls disabled rendering. The combined value represents the resolved active
+detector chain.
 
 `fetch()` передаёт callback entry собственного instance и вторым аргументом
 ошибку response: `(entry, errorResponse)`. При успехе второй аргумент равен
@@ -115,7 +138,7 @@ transport и client code находится в `Consolidator.Max/js/Clients`.
 - `GainViewModel`, `SaturatorViewModel`, `CompressorViewModel` и
   `EqualizerViewModel` — projections видимых controls. EQ создаёт только один
   `currentBank` с семью фильтрами и перепривязывает его при `showBank(bankId)`;
-- `AnalyzerViewModel` — spectrum, curves и telemetry;
+- `AnalyzerViewModel` — spectrum, EQ/detector curves и telemetry;
 - `ConsolidatorViewModel` — root aggregation и `selectBank(bankId)` для
   собственного source instance.
 
@@ -125,6 +148,16 @@ analysis keys или native protocol. `StateValueViewModel.set()` делегир
 Каждый ViewModel имеет `destroy()` для снятия подписок. State value получает
 `loaded === true` только после первого native entry; immediate subscription не
 вызывает callback до этого момента.
+
+`AnalyzerPresenter` получает physical state и analysis values, а публикует
+`AnalyzerPresentation` с normalized coordinates. `frequencyRange` и
+`gainRange` задаются feature controller-ом. Main/reference spectrum отдельно
+используют `spectrumRange`, обычно `-120..0 dB`; renderer не знает о Hz или dB.
+Analyzer control выдаёт generic intents:
+`filterSelected`, `filterMoved`, `filterQChanged`, `gestureBegan`,
+`gestureEnded`. XY-drag фильтра coalesces writes в control и отправляет
+последнюю позицию немедленно при завершении gesture; EQ presenter передаёт
+frequency и gain одним `StateClient.setMany()` batch.
 
 ## Presenter layer
 

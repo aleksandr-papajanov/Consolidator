@@ -34,6 +34,9 @@ Reference input  [2 ch] ─┤
 ```
 
 Analyzer spectra, curves, and DSP telemetry are exposed by the Max external through one analysis outlet;
+EQ and detector frequency responses are published as one immutable curve
+snapshot with one revision cursor, so consumers cannot observe mixed-result
+generations.
 the Core and Analysis layers remain unaware of Max. UI code selects the
 refresh rate and requests changed latest snapshots with `analysis_tick`.
 `analysis_view <instanceId> <bank>` selects the global view using the public

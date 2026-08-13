@@ -54,7 +54,7 @@ bool AffectsProcessingState(const StateEntry& entry)
     return *entry.path.markerId == StateMarkerId::Solo || *entry.path.markerId == StateMarkerId::Bypass;
 }
 
-bool AffectsEqualizerResponse(const StateEntry& entry)
+bool AffectsCurveResponse(const StateEntry& entry)
 {
     if (!entry.path.deviceId)
     {
@@ -66,7 +66,30 @@ bool AffectsEqualizerResponse(const StateEntry& entry)
         return true;
     }
 
-    return entry.path.field == StateField::DspMarker && entry.path.markerId == StateMarkerId::Solo && (*entry.path.deviceId == dsp::DeviceId::Saturator || *entry.path.deviceId == dsp::DeviceId::Compressor);
+    if (*entry.path.deviceId != dsp::DeviceId::Saturator &&
+        *entry.path.deviceId != dsp::DeviceId::Compressor)
+    {
+        return false;
+    }
+
+    if (entry.path.field == StateField::DspMarker && entry.path.markerId)
+    {
+        return *entry.path.markerId == StateMarkerId::Bypass ||
+            *entry.path.markerId == StateMarkerId::Solo ||
+            (*entry.path.markerId == StateMarkerId::Listen &&
+             entry.path.depth >= 1 &&
+             entry.path.nodes[0] == dsp::RouteNodeId::Detector);
+    }
+
+    if (entry.path.field != StateField::DspParameter ||
+        entry.path.depth < 2 ||
+        entry.path.nodes[0] != dsp::RouteNodeId::Detector)
+    {
+        return false;
+    }
+
+    return entry.path.nodes[1] == dsp::RouteNodeId::Filter1 ||
+        entry.path.nodes[1] == dsp::RouteNodeId::Filter2;
 }
 
 void AddAnalysisInstance(StateEffects& effects, InstanceId instanceId)
@@ -319,7 +342,7 @@ bool StateWriter::ApplyToInstance(
 
     case StateWriteStatus::Applied:
         AppendApplied(applied, context);
-        if (AffectsEqualizerResponse(entry))
+        if (AffectsCurveResponse(entry))
         {
             AddAnalysisInstance(context.effects, targetInstanceId);
         }
