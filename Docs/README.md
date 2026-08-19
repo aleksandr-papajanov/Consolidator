@@ -11,6 +11,7 @@
 | [`JavaScriptFormatting.md`](JavaScriptFormatting.md) | ES5-compatible Max runtime style, include order, callbacks, lifecycle, protocol и UI layer conventions для JavaScript. |
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
 | [`Coordinator.md`](Coordinator.md) | Lifetime и ownership общего Managed Coordinator, per-instance state и границы control/audio paths. |
+| [`StateHistory.md`](StateHistory.md) | Глобальный Managed cursor истории, per-value ring buffers и lifecycle state values. |
 
 ## Правила работы с документацией
 

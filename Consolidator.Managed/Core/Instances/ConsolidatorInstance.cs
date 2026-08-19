@@ -1,5 +1,6 @@
 using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Core.Dsp;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Core.Instances;
@@ -11,25 +12,15 @@ public sealed class ConsolidatorInstance
     private readonly DspStateCompiler _dspCompiler;
     private readonly IDspStatePublisher _dspPublisher;
     private readonly InstanceState _state;
+    private readonly StateHistory _history;
+    private readonly InstanceStateStore _stateStore;
     private bool _active = true;
 
     public ConsolidatorInstance(
         ulong id,
         IInstanceOutput output,
-        IDspStatePublisher dspPublisher)
-        : this(
-            id,
-            output,
-            dspPublisher,
-            new DspStateCompiler(),
-            DspDefaults.CreateState())
-    {
-    }
-
-    public ConsolidatorInstance(
-        ulong id,
-        IInstanceOutput output,
         IDspStatePublisher dspPublisher,
+        StateHistory history,
         DspStateCompiler dspCompiler,
         InstanceState state)
     {
@@ -38,10 +29,18 @@ public sealed class ConsolidatorInstance
         _dspCompiler = dspCompiler;
         _dspPublisher = dspPublisher;
         _state = state;
+        _history = history;
+        _stateStore = new InstanceStateStore();
+        _stateStore.Add(_history.CreateValue(
+            StateIds.Gain,
+            _state.Gain,
+            ApplyGain));
         PublishDspState();
     }
 
     public ulong Id { get; }
+
+    public InstanceStateStore StateStore => _stateStore;
 
     public bool TrySend(
         string selector,
@@ -99,13 +98,27 @@ public sealed class ConsolidatorInstance
             }
 
             _active = false;
+            _stateStore.Dispose();
             _dspPublisher.Stop();
         }
     }
 
-    private void PublishDspState()
+    public void PublishDspState()
     {
-        var snapshot = _dspCompiler.Compile(_state);
-        _dspPublisher.Publish(snapshot);
+        lock (_lifecycleLock)
+        {
+            if (!_active)
+            {
+                return;
+            }
+
+            var snapshot = _dspCompiler.Compile(_state);
+            _dspPublisher.Publish(snapshot);
+        }
+    }
+
+    private void ApplyGain(float value)
+    {
+        _state.Gain = value;
     }
 }

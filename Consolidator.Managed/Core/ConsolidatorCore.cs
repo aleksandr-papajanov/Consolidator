@@ -45,4 +45,22 @@ public sealed class ConsolidatorCore
             maximumFrameCount);
     }
 
+    /// <summary>
+    /// Opens a history point before the next logical operation begins.
+    /// </summary>
+    public void AdvanceHistoryPoint()
+    {
+        _coordinator.AdvanceHistoryPoint();
+    }
+
+    public bool UndoHistory()
+    {
+        return _coordinator.UndoHistory();
+    }
+
+    public bool RedoHistory()
+    {
+        return _coordinator.RedoHistory();
+    }
+
 }

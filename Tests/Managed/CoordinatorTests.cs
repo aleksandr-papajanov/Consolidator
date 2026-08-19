@@ -6,6 +6,7 @@ using Consolidator.Managed.Core;
 using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Instances;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +28,10 @@ public sealed class CoordinatorTests
     [Fact]
     public unsafe void CoordinatorIssuesDistinctIdsForMultipleInstances()
     {
-        var coordinator = new Coordinator(new TestLogger());
+        var coordinator = new Coordinator(
+            new TestLogger(),
+            new StateHistory(),
+            new DspStateCompiler());
         var firstExchange = AllocateExchange();
         var secondExchange = AllocateExchange();
         var firstPublisher = new NativeDspStatePublisher(firstExchange);
@@ -47,6 +51,46 @@ public sealed class CoordinatorTests
             coordinator.UnregisterInstance(second.Id);
             NativeMemory.Free(firstExchange);
             NativeMemory.Free(secondExchange);
+        }
+    }
+
+    [Fact]
+    public void CoordinatorUndoRestoresAllInstancesAndPublishesEachSnapshotOnce()
+    {
+        var coordinator = new Coordinator(
+            new TestLogger(),
+            new StateHistory(),
+            new DspStateCompiler());
+        var firstPublisher = new RecordingDspStatePublisher();
+        var secondPublisher = new RecordingDspStatePublisher();
+        var first = coordinator.RegisterInstance(new TestOutput(), firstPublisher);
+        var second = coordinator.RegisterInstance(new TestOutput(), secondPublisher);
+
+        try
+        {
+            second.StateStore.Find<float>(StateIds.Gain)!.Value = 10.0F;
+
+            coordinator.AdvanceHistoryPoint();
+            first.StateStore.Find<float>(StateIds.Gain)!.Value = 2.0F;
+            second.StateStore.Find<float>(StateIds.Gain)!.Value = 20.0F;
+
+            coordinator.AdvanceHistoryPoint();
+            first.StateStore.Find<float>(StateIds.Gain)!.Value = 3.0F;
+            second.StateStore.Find<float>(StateIds.Gain)!.Value = 30.0F;
+
+            Assert.True(coordinator.UndoHistory());
+
+            Assert.Equal(2.0F, first.StateStore.Find<float>(StateIds.Gain)!.Value);
+            Assert.Equal(20.0F, second.StateStore.Find<float>(StateIds.Gain)!.Value);
+            Assert.Equal(2.0F, firstPublisher.LastSnapshot.Gain);
+            Assert.Equal(20.0F, secondPublisher.LastSnapshot.Gain);
+            Assert.Equal(2, firstPublisher.PublishCount);
+            Assert.Equal(2, secondPublisher.PublishCount);
+        }
+        finally
+        {
+            coordinator.UnregisterInstance(first.Id);
+            coordinator.UnregisterInstance(second.Id);
         }
     }
 
@@ -136,7 +180,10 @@ public sealed class CoordinatorTests
         var instance = new ConsolidatorInstance(
             1,
             new TestOutput(),
-            publisher);
+            publisher,
+            new StateHistory(),
+            new DspStateCompiler(),
+            DspDefaults.CreateState());
 
         try
         {
@@ -164,7 +211,10 @@ public sealed class CoordinatorTests
         var instance = new ConsolidatorInstance(
             1,
             output,
-            publisher);
+            publisher,
+            new StateHistory(),
+            new DspStateCompiler(),
+            DspDefaults.CreateState());
 
         try
         {
@@ -198,7 +248,10 @@ public sealed class CoordinatorTests
     [Fact]
     public unsafe void UnregisterStopsDspPublisherBeforeExchangeIsFreed()
     {
-        var coordinator = new Coordinator(new TestLogger());
+        var coordinator = new Coordinator(
+            new TestLogger(),
+            new StateHistory(),
+            new DspStateCompiler());
         var exchange = AllocateExchange();
         var publisher = new NativeDspStatePublisher(exchange);
         var instance = coordinator.RegisterInstance(
@@ -233,7 +286,10 @@ public sealed class CoordinatorTests
         var instance = new ConsolidatorInstance(
             1,
             new TestOutput(),
-            publisher);
+            publisher,
+            new StateHistory(),
+            new DspStateCompiler(),
+            DspDefaults.CreateState());
         var audioInput = new NativeAudioInput(instance);
 
         try
@@ -263,7 +319,10 @@ public sealed class CoordinatorTests
         var instance = new ConsolidatorInstance(
             1,
             new TestOutput(),
-            publisher);
+            publisher,
+            new StateHistory(),
+            new DspStateCompiler(),
+            DspDefaults.CreateState());
 
         var publishTask = Task.Run(() => publisher.Publish(
             new DspSnapshot { Gain = 0.5F }));
@@ -390,6 +449,23 @@ public sealed class CoordinatorTests
             lock (_publishLock)
             {
             }
+        }
+    }
+
+    private sealed class RecordingDspStatePublisher : IDspStatePublisher
+    {
+        public DspSnapshot LastSnapshot { get; private set; }
+
+        public int PublishCount { get; private set; }
+
+        public void Publish(in DspSnapshot snapshot)
+        {
+            LastSnapshot = snapshot;
+            PublishCount++;
+        }
+
+        public void Stop()
+        {
         }
     }
 
