@@ -12,9 +12,11 @@ public sealed class ConsolidatorCore
         _coordinator = coordinator;
     }
 
-    public ulong RegisterInstance(IInstanceOutput output)
+    public ulong RegisterInstance(
+        IInstanceOutput output,
+        IDspStatePublisher dspPublisher)
     {
-        return _coordinator.RegisterInstance(output);
+        return _coordinator.RegisterInstance(output, dspPublisher);
     }
 
     public void UnregisterInstance(

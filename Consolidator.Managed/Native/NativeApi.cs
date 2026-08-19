@@ -1,5 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Consolidator.Managed.Core;
 using Consolidator.Managed.Protocol;
@@ -12,6 +13,7 @@ public static unsafe class NativeApi
         ManagedServices.Provider.GetRequiredService<NativeLogSink>();
     private static readonly ConsolidatorCore Core =
         ManagedServices.Provider.GetRequiredService<ConsolidatorCore>();
+    private static long _audioBoundaryExceptionCount;
 
     [UnmanagedCallersOnly(
         EntryPoint = "ConsolidatorSetLogCallback",
@@ -42,7 +44,8 @@ public static unsafe class NativeApi
             byte*,
             NativeAtom*,
             nuint,
-            void> outputCallback)
+            void> outputCallback,
+        SharedDspExchange* dspExchange)
     {
         try
         {
@@ -51,8 +54,14 @@ public static unsafe class NativeApi
                 return 0;
             }
 
+            if (dspExchange == null)
+            {
+                return 0;
+            }
+
             var output = new NativeOutput(context, outputCallback);
-            return Core.RegisterInstance(output);
+            var publisher = new NativeDspStatePublisher(dspExchange);
+            return Core.RegisterInstance(output, publisher);
         }
         catch (Exception exception)
         {
@@ -70,6 +79,7 @@ public static unsafe class NativeApi
     {
         try
         {
+            ReportPendingAudioBoundaryExceptions();
             Core.UnregisterInstance(instanceId);
         }
         catch (Exception exception)
@@ -91,6 +101,8 @@ public static unsafe class NativeApi
     {
         try
         {
+            ReportPendingAudioBoundaryExceptions();
+
             var managedSelector = Marshal.PtrToStringUTF8((nint)selector);
 
             if (managedSelector is null)
@@ -139,6 +151,8 @@ public static unsafe class NativeApi
     {
         try
         {
+            ReportPendingAudioBoundaryExceptions();
+
             Core.Prepare(
                 instanceId,
                 sampleRate,
@@ -173,11 +187,31 @@ public static unsafe class NativeApi
                 referenceRight,
                 frameCount);
         }
-        catch (Exception exception)
+        catch
         {
-            LogBoundaryException(
-                "ConsolidatorSendAudio",
-                exception);
+            Interlocked.Increment(ref _audioBoundaryExceptionCount);
+        }
+    }
+
+    private static void ReportPendingAudioBoundaryExceptions()
+    {
+        var exceptionCount =
+            Interlocked.Exchange(
+                ref _audioBoundaryExceptionCount,
+                0);
+
+        if (exceptionCount == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            LogSink.Write(
+                $"Managed audio boundary exceptions: {exceptionCount}");
+        }
+        catch
+        {
         }
     }
 

@@ -65,7 +65,8 @@ struct ManagedBridge::Implementation
 {
     using RegisterInstanceFn = InstanceId (__cdecl *)(
         void*,
-        ManagedOutputCallback);
+        ManagedOutputCallback,
+        SharedDspExchange*);
 
     using UnregisterInstanceFn = void (__cdecl *)(InstanceId);
 
@@ -165,14 +166,12 @@ ManagedBridge::ManagedBridge(c74::min::logger& errorLogger)
 
 ManagedBridge::~ManagedBridge()
 {
-    if (implementation_->library && implementation_->setLogCallback)
+    if (usesLogCallback_)
     {
         std::lock_guard lock{ g_logCallbackMutex };
 
-        if (g_logCallbackUsers > 0)
-        {
-            --g_logCallbackUsers;
-        }
+        --g_logCallbackUsers;
+        usesLogCallback_ = false;
 
         if (g_logCallbackUsers == 0)
         {
@@ -203,24 +202,39 @@ bool ManagedBridge::IsLoaded() const noexcept
 
 InstanceId ManagedBridge::RegisterInstance(
     void* context,
-    ManagedOutputCallback outputCallback) const
+    ManagedOutputCallback outputCallback,
+    SharedDspExchange* dspExchange) const
 {
+    std::lock_guard lock{ g_logCallbackMutex };
+
+    if (g_logCallbackUsers == 0)
     {
-        std::lock_guard lock{ g_logCallbackMutex };
+        implementation_->setLogCallback(
+            nullptr,
+            ManagedLogCallbackHandler);
+    }
+
+    ++g_logCallbackUsers;
+
+    const auto instanceId = implementation_->registerInstance(
+        context,
+        outputCallback,
+        dspExchange);
+
+    if (instanceId == 0)
+    {
+        --g_logCallbackUsers;
 
         if (g_logCallbackUsers == 0)
         {
-            implementation_->setLogCallback(
-                nullptr,
-                ManagedLogCallbackHandler);
+            implementation_->setLogCallback(nullptr, nullptr);
         }
 
-        ++g_logCallbackUsers;
+        return 0;
     }
 
-    return implementation_->registerInstance(
-        context,
-        outputCallback);
+    usesLogCallback_ = true;
+    return instanceId;
 }
 
 void ManagedBridge::UnregisterInstance(InstanceId instanceId) const

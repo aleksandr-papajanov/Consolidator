@@ -1,6 +1,7 @@
 #include "ConsolidatorExternal.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
@@ -28,7 +29,8 @@ ConsolidatorExternal::ConsolidatorExternal()
 
     instanceId_ = managed_.RegisterInstance(
         this,
-        &ConsolidatorExternal::ManagedOutputCallbackHandler);
+        &ConsolidatorExternal::ManagedOutputCallbackHandler,
+        &dspExchange_);
 
     if (instanceId_ == 0)
     {
@@ -210,6 +212,8 @@ void ConsolidatorExternal::operator()(
         static_cast<std::size_t>(
             input.frame_count());
 
+    ConsumeDspState();
+
     //
     // Analyzer input.
     //
@@ -250,6 +254,32 @@ void ConsolidatorExternal::operator()(
         input.samples(3),
         frameCount,
         output.samples(3));
+
+    for (std::size_t index = 0; index < frameCount; ++index)
+    {
+        output.samples(0)[index] *= dspState_.gain;
+        output.samples(1)[index] *= dspState_.gain;
+    }
+}
+
+void ConsolidatorExternal::ConsumeDspState() noexcept
+{
+    const auto publishedIndex =
+        std::atomic_ref{ dspExchange_.publishedIndex }
+            .load(std::memory_order_acquire);
+
+    if (publishedIndex > 2 ||
+        publishedIndex == consumerDspIndex_)
+    {
+        return;
+    }
+
+    std::atomic_ref{ dspExchange_.consumerIndex }
+        .store(
+            publishedIndex,
+            std::memory_order_release);
+    dspState_ = dspExchange_.snapshots[publishedIndex];
+    consumerDspIndex_ = publishedIndex;
 }
 
 } // namespace consolidator::max

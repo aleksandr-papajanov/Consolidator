@@ -25,16 +25,4 @@
       Properties="Configuration=$(Configuration);Platform=$(Platform)" />
   </Target>
 
-  <Target
-    Name="CopyManagedToMaxExternals"
-    AfterTargets="Publish"
-    Condition="'$(BuildNativeBeforePublish)' == 'true'">
-    <MakeDir
-      Directories="$(MSBuildThisFileDirectory)..\Consolidator.Max\externals" />
-    <Copy
-      SourceFiles="$(PublishDir)Consolidator.Managed.dll"
-      DestinationFolder="$(MSBuildThisFileDirectory)..\Consolidator.Max\externals"
-      SkipUnchangedFiles="true" />
-  </Target>
-  
 </Project>

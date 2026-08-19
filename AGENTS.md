@@ -20,6 +20,7 @@
 - Документация не должна становиться огромным файлом: каждый самостоятельный scope хранить отдельно.
 - Новый файл документации создавать и сразу добавлять в [`Docs/README.md`](Docs/README.md).
 - Перед коммитом убедиться, что документация обновлена и соответствует коду.
+- Если пользователь явно просит создать коммит, включать в него все текущие изменения рабочего дерева, включая незатреканные файлы и артефакты, без самостоятельного отбора.
 
 ## Запрещённые действия без разрешения
 
@@ -62,10 +63,9 @@ dotnet publish Consolidator.Managed\Consolidator.Managed.csproj /p:PublishProfil
 
 Профиль `NativeAndManaged` нужно запускать через Visual Studio `MSBuild.exe`,
 потому что обычный `dotnet publish` не предоставляет C++ targets. Профиль
-сначала собирает Native в `Release|x64`, затем публикует Managed и копирует
-свежие `ConsolidatorExternal.mxe64` и `Consolidator.Managed.dll` в
+сначала собирает Native в `Release|x64`, затем публикует Managed напрямую в
 `Consolidator.Max\externals`. Профиль `FolderProfile` публикует только Managed
-и Native не собирает.
+в отдельную папку `publish` и Native не собирает.
 
 ## Архитектура
 

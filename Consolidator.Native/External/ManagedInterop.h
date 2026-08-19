@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "SharedDspState.h"
+
 namespace consolidator::max
 {
 

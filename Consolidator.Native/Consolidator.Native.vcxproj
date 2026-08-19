@@ -112,6 +112,7 @@
     <ClInclude Include="External\AtomCodec.h" />
     <ClInclude Include="External\ManagedBridge.h" />
     <ClInclude Include="External\ManagedInterop.h" />
+    <ClInclude Include="External\SharedDspState.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- Deploy the external for the InteropSandbox ConsolidatorV3 patch. -->

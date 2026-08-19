@@ -1,8 +1,10 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Consolidator.Managed.Core;
 using Consolidator.Managed.Core.Abstractions;
+using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol;
@@ -11,7 +13,7 @@ using Xunit;
 
 namespace Consolidator.Managed.Tests;
 
-public sealed class CoordinatorTests
+public unsafe sealed class CoordinatorTests
 {
     [Fact]
     public void ManagedServicesProvidesOneCoordinatorSingleton()
@@ -26,9 +28,13 @@ public sealed class CoordinatorTests
     public void CoordinatorIssuesDistinctIdsForMultipleInstances()
     {
         var coordinator = new Coordinator(new TestLogger());
+        var firstExchange = AllocateExchange();
+        var secondExchange = AllocateExchange();
+        var firstPublisher = new NativeDspStatePublisher(firstExchange);
+        var secondPublisher = new NativeDspStatePublisher(secondExchange);
 
-        var first = coordinator.RegisterInstance(new TestOutput());
-        var second = coordinator.RegisterInstance(new TestOutput());
+        var first = coordinator.RegisterInstance(new TestOutput(), firstPublisher);
+        var second = coordinator.RegisterInstance(new TestOutput(), secondPublisher);
 
         try
         {
@@ -39,6 +45,111 @@ public sealed class CoordinatorTests
         {
             coordinator.UnregisterInstance(first);
             coordinator.UnregisterInstance(second);
+            NativeMemory.Free(firstExchange);
+            NativeMemory.Free(secondExchange);
+        }
+    }
+
+    [Fact]
+    public void DspPublisherPublishesToTheOnlyWritableTripleBufferSlot()
+    {
+        var exchange = AllocateExchange();
+
+        try
+        {
+            var publisher = new NativeDspStatePublisher(exchange);
+
+            publisher.Publish(new DspSnapshot { Gain = 0.5F });
+
+            Assert.Equal(1U, exchange->PublishedIndex);
+            Assert.Equal(0.5F, exchange->Snapshot1.Gain);
+
+            publisher.Publish(new DspSnapshot { Gain = 0.75F });
+
+            Assert.Equal(2U, exchange->PublishedIndex);
+            Assert.Equal(0.75F, exchange->Snapshot2.Gain);
+
+            exchange->ConsumerIndex = exchange->PublishedIndex;
+
+            publisher.Publish(new DspSnapshot { Gain = 0.25F });
+
+            Assert.Equal(0U, exchange->PublishedIndex);
+            Assert.Equal(0.25F, exchange->Snapshot0.Gain);
+        }
+        finally
+        {
+            NativeMemory.Free(exchange);
+        }
+    }
+
+    [Fact]
+    public void DspPublisherLatestSnapshotWinsWhenConsumerLags()
+    {
+        var exchange = AllocateExchange();
+
+        try
+        {
+            var publisher = new NativeDspStatePublisher(exchange);
+
+            publisher.Publish(new DspSnapshot { Gain = 0.2F });
+            publisher.Publish(new DspSnapshot { Gain = 0.4F });
+            publisher.Publish(new DspSnapshot { Gain = 0.8F });
+
+            var publishedIndex = exchange->PublishedIndex;
+            exchange->ConsumerIndex = publishedIndex;
+
+            Assert.Equal(1U, publishedIndex);
+            Assert.Equal(0.8F, exchange->Snapshot1.Gain);
+        }
+        finally
+        {
+            NativeMemory.Free(exchange);
+        }
+    }
+
+    [Fact]
+    public void DspDefaultsCreateUnityGainState()
+    {
+        var state = DspDefaults.CreateState();
+
+        Assert.Equal(1.0F, state.Gain);
+    }
+
+    [Fact]
+    public void DspStateCompilerCreatesRuntimeSnapshotFromInstanceState()
+    {
+        var state = new InstanceState
+        {
+            Gain = 0.5F
+        };
+
+        var snapshot = new DspStateCompiler().Compile(state);
+
+        Assert.Equal(0.5F, snapshot.Gain);
+    }
+
+    [Fact]
+    public void PrepareDoesNotResetPublishedDspSnapshot()
+    {
+        var exchange = AllocateExchange();
+        var publisher = new NativeDspStatePublisher(exchange);
+        var instance = new ConsolidatorInstance(
+            1,
+            new TestOutput(),
+            publisher);
+
+        try
+        {
+            publisher.Publish(new DspSnapshot { Gain = 0.5F });
+            instance.Prepare(48000, 0);
+
+            Assert.Equal(2U, exchange->PublishedIndex);
+            Assert.Equal(0.5F, exchange->Snapshot2.Gain);
+        }
+        finally
+        {
+            instance.Stop();
+            NativeMemory.Free(exchange);
         }
     }
 
@@ -48,25 +159,78 @@ public sealed class CoordinatorTests
         using var outputEntered = new ManualResetEventSlim();
         using var releaseOutput = new ManualResetEventSlim();
         var output = new BlockingOutput(outputEntered, releaseOutput);
-        var instance = new ConsolidatorInstance(1, output);
+        var exchange = AllocateExchange();
+        var publisher = new NativeDspStatePublisher(exchange);
+        var instance = new ConsolidatorInstance(
+            1,
+            output,
+            publisher);
 
-        var sendTask = Task.Run(() => instance.TrySend(
-            "ready",
-            Array.Empty<Atom>()));
+        try
+        {
+            var sendTask = Task.Run(() => instance.TrySend(
+                "ready",
+                Array.Empty<Atom>()));
 
-        Assert.True(outputEntered.Wait(TimeSpan.FromSeconds(5)));
+            Assert.True(outputEntered.Wait(TimeSpan.FromSeconds(5)));
 
-        var unregisterTask = Task.Run(instance.Stop);
+            var unregisterTask = Task.Run(instance.Stop);
 
+            var completedTask = await Task.WhenAny(
+                unregisterTask,
+                Task.Delay(TimeSpan.FromMilliseconds(100)));
+
+            Assert.NotSame(unregisterTask, completedTask);
+
+            releaseOutput.Set();
+            await sendTask;
+            await unregisterTask;
+
+            publisher.Publish(new DspSnapshot { Gain = 0.25F });
+            Assert.Equal(1U, exchange->PublishedIndex);
+        }
+        finally
+        {
+            NativeMemory.Free(exchange);
+        }
+    }
+
+    [Fact]
+    public async Task StopWaitsForActiveDspPublish()
+    {
+        using var publishEntered = new ManualResetEventSlim();
+        using var releasePublish = new ManualResetEventSlim();
+        var publisher = new BlockingDspStatePublisher(
+            publishEntered,
+            releasePublish);
+        var instance = new ConsolidatorInstance(
+            1,
+            new TestOutput(),
+            publisher);
+
+        var prepareTask = Task.Run(() => instance.Prepare(48000, 0));
+
+        Assert.True(publishEntered.Wait(TimeSpan.FromSeconds(5)));
+
+        var stopTask = Task.Run(instance.Stop);
         var completedTask = await Task.WhenAny(
-            unregisterTask,
+            stopTask,
             Task.Delay(TimeSpan.FromMilliseconds(100)));
 
-        Assert.NotSame(unregisterTask, completedTask);
+        Assert.NotSame(stopTask, completedTask);
 
-        releaseOutput.Set();
-        await sendTask;
-        await unregisterTask;
+        releasePublish.Set();
+        await prepareTask;
+        await stopTask;
+    }
+
+    private static SharedDspExchange* AllocateExchange()
+    {
+        var exchange =
+            (SharedDspExchange*)NativeMemory.Alloc(
+                (nuint)sizeof(SharedDspExchange));
+        *exchange = default;
+        return exchange;
     }
 
     private sealed class TestOutput : IInstanceOutput
@@ -97,6 +261,36 @@ public sealed class CoordinatorTests
         {
             _entered.Set();
             _release.Wait();
+        }
+    }
+
+    private sealed class BlockingDspStatePublisher : IDspStatePublisher
+    {
+        private readonly ManualResetEventSlim _publishEntered;
+        private readonly ManualResetEventSlim _releasePublish;
+        private int _publishCount;
+
+        public BlockingDspStatePublisher(
+            ManualResetEventSlim publishEntered,
+            ManualResetEventSlim releasePublish)
+        {
+            _publishEntered = publishEntered;
+            _releasePublish = releasePublish;
+        }
+
+        public void Publish(in DspSnapshot snapshot)
+        {
+            if (Interlocked.Increment(ref _publishCount) == 1)
+            {
+                return;
+            }
+
+            _publishEntered.Set();
+            _releasePublish.Wait();
+        }
+
+        public void Stop()
+        {
         }
     }
 

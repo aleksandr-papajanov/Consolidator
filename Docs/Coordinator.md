@@ -32,8 +32,23 @@ ServiceProvider
 `ConsolidatorInstance` владеет только состоянием конкретного external:
 
 - lifecycle state;
+- authoritative `InstanceState` and `DspStateCompiler`;
 - `IInstanceOutput` transport;
+- `IDspStatePublisher` for the native-owned exchange;
 - instance-specific services и context.
+
+`ConsolidatorInstance`, `Coordinator` и `ConsolidatorCore` depend only on the
+managed `IDspStatePublisher` abstraction. The pointer-based
+`NativeDspStatePublisher` implementation remains in the Native boundary and
+is created by `NativeApi`.
+
+`InstanceState` is authoritative Managed state. `DspStateCompiler` derives the
+fixed-layout `DspSnapshot` from it, and only that runtime snapshot is published
+to Native. `Prepare(sampleRate, maximumFrameCount)` is the lifecycle-safe place
+to update the DSP compilation context; it must not reset parameter state. The
+current gain-only prototype has no sample-rate-dependent values yet, while
+future attack/release coefficients and filter coefficients belong in this
+prepare-time compilation.
 
 После `UnregisterInstance` соответствующий instance ID больше не используется.
 Следующая регистрация получает новый ID.

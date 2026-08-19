@@ -16,11 +16,49 @@ Consolidator.Managed.dll
 Managed instance registry
 ```
 
+## Managed to Native: DSP State
+
+Each native external owns one `SharedDspExchange` and passes its pointer during
+instance registration. The exchange has three snapshots plus `publishedIndex`,
+and `consumerIndex`. Managed reads the published and consumer-protected slots,
+writes the only remaining slot, and publishes its index with `Volatile.Write`.
+The publisher serializes this read-select-write-publish sequence with a
+Managed control-side lock, so one publisher has a single writer even when
+control events arrive on multiple Managed threads. The lock is never used by
+the native audio thread.
+The publisher also has a lifecycle gate. `ConsolidatorInstance.Stop()` waits
+for an active publish, marks the publisher stopped, and clears its exchange
+pointer before `UnregisterInstance` returns. Later publishes are ignored, so
+the native external can destroy its exchange after the unregister barrier.
+The native audio callback reads the published index with acquire ordering,
+claims it as `consumerIndex` with release ordering, and copies it once into the
+native-local DSP state. Managed never writes the published or consumer-protected
+slot, so
+the payload copy has explicit ownership and does not require a retry loop.
+If `publishedIndex` equals the native local reading index, there is no new
+snapshot. The exchange remains a POD layout; C++ applies `std::atomic_ref` to
+its two publication fields.
+
+The prototype snapshot contains only `gain`. It is a derived runtime
+representation, not authoritative application state. Managed `InstanceState`
+holds the source values and `DspStateCompiler` derives the fixed-layout
+snapshot; future compressor and filter coefficients belong in that snapshot.
+Snapshot structs have no domain defaults. The initial `gain = 1.0` state is
+created by Managed `DspDefaults` and compiled before the first publish.
+`Prepare(sampleRate, maximumFrameCount)` is reserved for updating the DSP
+compilation context after audio configuration; it must not reset or republish
+parameter state. Managed writes the exchange and native reads it, so telemetry
+must use a separate native-owned channel.
+
 Each Max external owns one managed instance. The instance ID addresses all control and audio calls for that external.
 
 ## ABI Types
 
 The shared ABI is declared in `Consolidator.Native/External/ManagedInterop.h` and mirrored by the C# unmanaged types.
+DSP runtime structs use natural platform alignment: C# uses
+`StructLayout(LayoutKind.Sequential)` without `Pack`, and C++ uses ordinary
+struct layout without packing pragmas. ABI size and offset tests document the
+resulting contract; packing must not be used to force those values.
 
 `NativeAtom` is a 16-byte value with a type tag and a union payload:
 
@@ -40,9 +78,12 @@ The exported native entry points use the C calling convention:
 - `ConsolidatorSendAudio`
 
 Every `[UnmanagedCallersOnly]` entrypoint catches exceptions before returning to
-native code. Registration returns `0` after a boundary failure; void entrypoints
-report the failure through the Managed log sink and return. The boundary logger
-also absorbs its own failures, so no managed exception can cross the C ABI.
+native code. Registration returns `0` after a boundary failure; control-path
+void entrypoints report failures through the Managed log sink and return. The
+audio entrypoint does not format or log exceptions on the realtime thread: it
+increments an atomic counter, which a later control-path entrypoint drains and
+reports. The boundary logger also absorbs its own failures, so no managed
+exception can cross the C ABI.
 
 ## Instance Registration
 
@@ -51,7 +92,8 @@ The native external registers an instance with a callback and context:
 ```text
 ConsolidatorRegisterInstance(
     context,
-    outputCallback)
+    outputCallback,
+    dspExchange)
         -> instanceId
 ```
 
@@ -62,6 +104,12 @@ The callback has this shape:
 ```
 
 The context is the native external instance. A null output callback is rejected by managed registration and produces instance ID `0`.
+The DSP exchange pointer is required and points to memory owned by the native external for the lifetime of the registered instance.
+
+The process-wide Managed log callback user count is incremented only for a
+successful instance registration. Each `ManagedBridge` records whether it owns
+one count, and its destructor releases only that ownership. Failed registration
+does not leave the callback count or callback configuration active.
 
 The managed registry stores a `ConsolidatorInstance`. Its `NativeOutput` is private and can only be used through the instance lifecycle gate.
 

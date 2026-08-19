@@ -8,6 +8,7 @@
 
 #include "AtomCodec.h"
 #include "ManagedBridge.h"
+#include "SharedDspState.h"
 #include "c74_min_api.h"
 
 namespace consolidator::max
@@ -199,8 +200,13 @@ private:
     void Prepare(
         const c74::min::atoms& atoms);
 
+    void ConsumeDspState() noexcept;
+
     ManagedBridge managed_;
     InstanceId instanceId_{};
+    SharedDspExchange dspExchange_{};
+    DspSnapshot dspState_{};
+    std::uint32_t consumerDspIndex_{};
 
     c74::min::queue<> outputQueue_{
         this,

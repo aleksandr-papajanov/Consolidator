@@ -16,16 +16,24 @@ public sealed class Coordinator
         _logger = logger;
     }
 
-    public ulong RegisterInstance(IInstanceOutput output)
+    public ulong RegisterInstance(
+        IInstanceOutput output,
+        IDspStatePublisher dspPublisher)
     {
         ArgumentNullException.ThrowIfNull(output);
+        ArgumentNullException.ThrowIfNull(dspPublisher);
 
         ulong id;
 
         lock (_instanceLock)
         {
             id = ++_nextInstanceId;
-            _instances.Add(id, new ConsolidatorInstance(id, output));
+            _instances.Add(
+                id,
+                new ConsolidatorInstance(
+                    id,
+                    output,
+                    dspPublisher));
         }
 
         _logger.Info($"Registered instance {id}");

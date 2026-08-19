@@ -28,7 +28,8 @@ public:
 
     [[nodiscard]] InstanceId RegisterInstance(
         void* context,
-        ManagedOutputCallback outputCallback) const;
+        ManagedOutputCallback outputCallback,
+        SharedDspExchange* dspExchange) const;
 
     void UnregisterInstance(InstanceId instanceId) const;
 
@@ -55,6 +56,7 @@ private:
     struct Implementation;
     Implementation* implementation_;
     c74::min::logger& errorLogger_;
+    mutable bool usesLogCallback_{};
 };
 
 } // namespace consolidator::max
