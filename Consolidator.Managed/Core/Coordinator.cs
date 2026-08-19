@@ -11,6 +11,7 @@ public sealed class Coordinator
     private readonly IConsolidatorLogger _logger;
     private readonly StateHistory _history;
     private readonly DspStateCompiler _dspCompiler;
+    private readonly InstanceStateBuilder _stateBuilder;
     private readonly Dictionary<ulong, ConsolidatorInstance> _instances = new();
     private readonly object _instanceLock = new();
     private ulong _nextInstanceId;
@@ -18,11 +19,13 @@ public sealed class Coordinator
     public Coordinator(
         IConsolidatorLogger logger,
         StateHistory history,
-        DspStateCompiler dspCompiler)
+        DspStateCompiler dspCompiler,
+        InstanceStateBuilder stateBuilder)
     {
         _logger = logger;
         _history = history;
         _dspCompiler = dspCompiler;
+        _stateBuilder = stateBuilder;
     }
 
     public ConsolidatorInstance RegisterInstance(
@@ -43,7 +46,8 @@ public sealed class Coordinator
                 dspPublisher,
                 _history,
                 _dspCompiler,
-                DspDefaults.CreateState());
+                DspDefaults.CreateState(),
+                _stateBuilder);
             _instances.Add(id, instance);
         }
 

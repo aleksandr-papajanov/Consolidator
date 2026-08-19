@@ -1,21 +1,24 @@
+using Consolidator.Managed.Core.State.Bindings;
+
 namespace Consolidator.Managed.Core.State;
 
 public sealed class StateValue<TValue> : IStateValue, IHistoryValue
 {
     private readonly StateHistory _history;
     private readonly TValue[] _values;
-    private readonly Action<TValue>? _apply;
+    private readonly IStateBinding<TValue>? _binding;
+    private bool _disposed;
 
     internal StateValue(
         StateId id,
         StateHistory history,
         TValue initialValue,
-        Action<TValue>? apply)
+        IStateBinding<TValue>? binding)
     {
         Id = id;
         _history = history;
         _values = new TValue[StateHistory.Capacity];
-        _apply = apply;
+        _binding = binding;
         Array.Fill(_values, initialValue);
     }
 
@@ -25,7 +28,7 @@ public sealed class StateValue<TValue> : IStateValue, IHistoryValue
     {
         get
         {
-            return _values[_history.CurrentSlot];
+            return _history.GetValue(this);
         }
         set
         {
@@ -42,17 +45,34 @@ public sealed class StateValue<TValue> : IStateValue, IHistoryValue
 
     void IHistoryValue.ApplySlot(int slot)
     {
-        _apply?.Invoke(_values[slot]);
+        _binding?.Apply(_values[slot]);
     }
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _history.Remove(this);
     }
 
-    internal void SetValue(TValue value)
+    internal TValue GetValue(int slot)
     {
-        _values[_history.CurrentSlot] = value;
-        _apply?.Invoke(value);
+        return _values[slot];
+    }
+
+    internal void SetValue(
+        int slot,
+        TValue value)
+    {
+        ObjectDisposedException.ThrowIf(
+            _disposed,
+            this);
+
+        _values[slot] = value;
+        _binding?.Apply(value);
     }
 }

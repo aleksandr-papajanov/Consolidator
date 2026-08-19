@@ -1,4 +1,6 @@
+using System;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.State.Bindings;
 using Xunit;
 
 namespace Consolidator.Managed.Tests;
@@ -108,13 +110,15 @@ public sealed class StateHistoryTests
         var first = history.CreateValue(
             new StateId(1),
             0,
-            _ => firstApplyCount++);
+            new StateBinding<int>(_ => firstApplyCount++));
         var second = history.CreateValue(
             new StateId(2),
             10,
-            _ => secondApplyCount++);
+            new StateBinding<int>(_ => secondApplyCount++));
 
         first.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => first.Value = 1);
 
         history.AdvanceHistoryPoint();
         second.Value = 20;

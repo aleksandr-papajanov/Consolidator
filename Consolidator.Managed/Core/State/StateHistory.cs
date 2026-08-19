@@ -1,3 +1,5 @@
+using Consolidator.Managed.Core.State.Bindings;
+
 namespace Consolidator.Managed.Core.State;
 
 public sealed class StateHistory
@@ -47,7 +49,7 @@ public sealed class StateHistory
     /// Registers a value in the shared history.
     /// </summary>
     /// <remarks>
-    /// The apply callback runs while the history lock is held. It must only
+    /// The binding runs while the history lock is held. It must only
     /// perform fast local Managed projection updates. It must not publish DSP,
     /// send output, call Coordinator or history operations, perform I/O, or do
     /// long-running work.
@@ -55,7 +57,7 @@ public sealed class StateHistory
     public StateValue<TValue> CreateValue<TValue>(
         StateId id,
         TValue initialValue,
-        Action<TValue>? apply = null)
+        IStateBinding<TValue>? binding = null)
     {
         lock (_lock)
         {
@@ -63,7 +65,7 @@ public sealed class StateHistory
                 id,
                 this,
                 initialValue,
-                apply);
+                binding);
             _values.Add(value);
             return value;
         }
@@ -131,7 +133,17 @@ public sealed class StateHistory
     {
         lock (_lock)
         {
-            value.SetValue(newValue);
+            value.SetValue(
+                _currentSlot,
+                newValue);
+        }
+    }
+
+    internal TValue GetValue<TValue>(StateValue<TValue> value)
+    {
+        lock (_lock)
+        {
+            return value.GetValue(_currentSlot);
         }
     }
 

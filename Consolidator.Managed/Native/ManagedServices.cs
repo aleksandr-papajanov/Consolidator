@@ -1,6 +1,7 @@
 using Consolidator.Managed.Core;
 using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Core.Dsp;
+using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Core.State;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,6 +21,7 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<NativeLogSink>()));
         services.AddSingleton<StateHistory>();
         services.AddSingleton<DspStateCompiler>();
+        services.AddSingleton<InstanceStateBuilder>();
         services.AddSingleton<Coordinator>();
         services.AddSingleton<ConsolidatorCore>(serviceProvider =>
             new ConsolidatorCore(

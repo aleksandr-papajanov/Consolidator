@@ -12,7 +12,6 @@ public sealed class ConsolidatorInstance
     private readonly DspStateCompiler _dspCompiler;
     private readonly IDspStatePublisher _dspPublisher;
     private readonly InstanceState _state;
-    private readonly StateHistory _history;
     private readonly InstanceStateStore _stateStore;
     private bool _active = true;
 
@@ -22,19 +21,15 @@ public sealed class ConsolidatorInstance
         IDspStatePublisher dspPublisher,
         StateHistory history,
         DspStateCompiler dspCompiler,
-        InstanceState state)
+        InstanceState state,
+        InstanceStateBuilder stateBuilder)
     {
         Id = id;
         _output = output;
         _dspCompiler = dspCompiler;
         _dspPublisher = dspPublisher;
         _state = state;
-        _history = history;
-        _stateStore = new InstanceStateStore();
-        _stateStore.Add(_history.CreateValue(
-            StateIds.Gain,
-            _state.Gain,
-            ApplyGain));
+        _stateStore = stateBuilder.Build(history, state);
         PublishDspState();
     }
 
@@ -117,8 +112,4 @@ public sealed class ConsolidatorInstance
         }
     }
 
-    private void ApplyGain(float value)
-    {
-        _state.Gain = value;
-    }
 }

@@ -7,6 +7,7 @@ using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.State.Bindings;
 using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +32,8 @@ public sealed class CoordinatorTests
         var coordinator = new Coordinator(
             new TestLogger(),
             new StateHistory(),
-            new DspStateCompiler());
+            new DspStateCompiler(),
+            new InstanceStateBuilder());
         var firstExchange = AllocateExchange();
         var secondExchange = AllocateExchange();
         var firstPublisher = new NativeDspStatePublisher(firstExchange);
@@ -60,7 +62,8 @@ public sealed class CoordinatorTests
         var coordinator = new Coordinator(
             new TestLogger(),
             new StateHistory(),
-            new DspStateCompiler());
+            new DspStateCompiler(),
+            new InstanceStateBuilder());
         var firstPublisher = new RecordingDspStatePublisher();
         var secondPublisher = new RecordingDspStatePublisher();
         var first = coordinator.RegisterInstance(new TestOutput(), firstPublisher);
@@ -183,7 +186,8 @@ public sealed class CoordinatorTests
             publisher,
             new StateHistory(),
             new DspStateCompiler(),
-            DspDefaults.CreateState());
+            DspDefaults.CreateState(),
+            new InstanceStateBuilder());
 
         try
         {
@@ -214,7 +218,8 @@ public sealed class CoordinatorTests
             publisher,
             new StateHistory(),
             new DspStateCompiler(),
-            DspDefaults.CreateState());
+            DspDefaults.CreateState(),
+            new InstanceStateBuilder());
 
         try
         {
@@ -251,7 +256,8 @@ public sealed class CoordinatorTests
         var coordinator = new Coordinator(
             new TestLogger(),
             new StateHistory(),
-            new DspStateCompiler());
+            new DspStateCompiler(),
+            new InstanceStateBuilder());
         var exchange = AllocateExchange();
         var publisher = new NativeDspStatePublisher(exchange);
         var instance = coordinator.RegisterInstance(
@@ -289,7 +295,8 @@ public sealed class CoordinatorTests
             publisher,
             new StateHistory(),
             new DspStateCompiler(),
-            DspDefaults.CreateState());
+            DspDefaults.CreateState(),
+            new InstanceStateBuilder());
         var audioInput = new NativeAudioInput(instance);
 
         try
@@ -322,7 +329,8 @@ public sealed class CoordinatorTests
             publisher,
             new StateHistory(),
             new DspStateCompiler(),
-            DspDefaults.CreateState());
+            DspDefaults.CreateState(),
+            new InstanceStateBuilder());
 
         var publishTask = Task.Run(() => publisher.Publish(
             new DspSnapshot { Gain = 0.5F }));

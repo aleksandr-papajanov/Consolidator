@@ -32,10 +32,23 @@ ServiceProvider
 `ConsolidatorInstance` владеет только состоянием конкретного external:
 
 - lifecycle state;
-- authoritative `InstanceState` and `DspStateCompiler`;
+- `InstanceState` and its `InstanceStateStore`;
+- per-instance state registration through `InstanceStateBuilder`;
 - `IInstanceOutput` transport;
 - `IDspStatePublisher` for the native-owned exchange;
 - instance-specific services и context.
+
+`StateHistory` is a Managed DI singleton shared by the Coordinator and all
+active instances. An instance must receive that history explicitly; production
+constructors do not create a private history. `InstanceStateBuilder` creates
+the instance's `StateValue<T>` registrations and their `IStateBinding<T>`
+projections. A binding may update a simple field, derived state, a graph
+component, or non-DSP application state; it must remain fast and local because
+history applies bindings while holding its control-path lock.
+
+`DspStateCompiler` is a stateless Managed DI singleton. It is shared by the
+Coordinator and instances and only derives runtime snapshots from an
+instance's current Managed state; it does not own per-instance state.
 
 `ConsolidatorInstance`, `Coordinator` и `ConsolidatorCore` depend only on the
 managed `IDspStatePublisher` abstraction. The pointer-based
