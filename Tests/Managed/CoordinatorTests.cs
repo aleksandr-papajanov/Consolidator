@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Consolidator.Managed.Tests;
 
-public unsafe sealed class CoordinatorTests
+public sealed class CoordinatorTests
 {
     [Fact]
     public void ManagedServicesProvidesOneCoordinatorSingleton()
@@ -25,7 +25,7 @@ public unsafe sealed class CoordinatorTests
     }
 
     [Fact]
-    public void CoordinatorIssuesDistinctIdsForMultipleInstances()
+    public unsafe void CoordinatorIssuesDistinctIdsForMultipleInstances()
     {
         var coordinator = new Coordinator(new TestLogger());
         var firstExchange = AllocateExchange();
@@ -51,7 +51,7 @@ public unsafe sealed class CoordinatorTests
     }
 
     [Fact]
-    public void DspPublisherPublishesToTheOnlyWritableTripleBufferSlot()
+    public unsafe void DspPublisherPublishesToTheOnlyWritableTripleBufferSlot()
     {
         var exchange = AllocateExchange();
 
@@ -83,7 +83,7 @@ public unsafe sealed class CoordinatorTests
     }
 
     [Fact]
-    public void DspPublisherLatestSnapshotWinsWhenConsumerLags()
+    public unsafe void DspPublisherLatestSnapshotWinsWhenConsumerLags()
     {
         var exchange = AllocateExchange();
 
@@ -129,7 +129,7 @@ public unsafe sealed class CoordinatorTests
     }
 
     [Fact]
-    public void PrepareDoesNotResetPublishedDspSnapshot()
+    public unsafe void PrepareDoesNotResetPublishedDspSnapshot()
     {
         var exchange = AllocateExchange();
         var publisher = new NativeDspStatePublisher(exchange);
@@ -159,8 +159,8 @@ public unsafe sealed class CoordinatorTests
         using var outputEntered = new ManualResetEventSlim();
         using var releaseOutput = new ManualResetEventSlim();
         var output = new BlockingOutput(outputEntered, releaseOutput);
-        var exchange = AllocateExchange();
-        var publisher = new NativeDspStatePublisher(exchange);
+        var exchangeAddress = AllocateExchangeAddress();
+        var publisher = CreatePublisher(exchangeAddress);
         var instance = new ConsolidatorInstance(
             1,
             output,
@@ -187,11 +187,11 @@ public unsafe sealed class CoordinatorTests
             await unregisterTask;
 
             publisher.Publish(new DspSnapshot { Gain = 0.25F });
-            Assert.Equal(1U, exchange->PublishedIndex);
+            Assert.Equal(1U, ReadPublishedIndex(exchangeAddress));
         }
         finally
         {
-            NativeMemory.Free(exchange);
+            FreeExchange(exchangeAddress);
         }
     }
 
@@ -208,7 +208,8 @@ public unsafe sealed class CoordinatorTests
             new TestOutput(),
             publisher);
 
-        var prepareTask = Task.Run(() => instance.Prepare(48000, 0));
+        var publishTask = Task.Run(() => publisher.Publish(
+            new DspSnapshot { Gain = 0.5F }));
 
         Assert.True(publishEntered.Wait(TimeSpan.FromSeconds(5)));
 
@@ -220,17 +221,51 @@ public unsafe sealed class CoordinatorTests
         Assert.NotSame(stopTask, completedTask);
 
         releasePublish.Set();
-        await prepareTask;
+        await publishTask;
         await stopTask;
     }
 
-    private static SharedDspExchange* AllocateExchange()
+    private static unsafe SharedDspExchange* AllocateExchange()
     {
         var exchange =
             (SharedDspExchange*)NativeMemory.Alloc(
                 (nuint)sizeof(SharedDspExchange));
         *exchange = default;
         return exchange;
+    }
+
+    private static nint AllocateExchangeAddress()
+    {
+        unsafe
+        {
+            return (nint)AllocateExchange();
+        }
+    }
+
+    private static NativeDspStatePublisher CreatePublisher(
+        nint exchangeAddress)
+    {
+        unsafe
+        {
+            return new NativeDspStatePublisher(
+                (SharedDspExchange*)exchangeAddress);
+        }
+    }
+
+    private static void FreeExchange(nint exchangeAddress)
+    {
+        unsafe
+        {
+            NativeMemory.Free((void*)exchangeAddress);
+        }
+    }
+
+    private static uint ReadPublishedIndex(nint exchangeAddress)
+    {
+        unsafe
+        {
+            return ((SharedDspExchange*)exchangeAddress)->PublishedIndex;
+        }
     }
 
     private sealed class TestOutput : IInstanceOutput
@@ -266,6 +301,7 @@ public unsafe sealed class CoordinatorTests
 
     private sealed class BlockingDspStatePublisher : IDspStatePublisher
     {
+        private readonly object _publishLock = new();
         private readonly ManualResetEventSlim _publishEntered;
         private readonly ManualResetEventSlim _releasePublish;
         private int _publishCount;
@@ -280,17 +316,23 @@ public unsafe sealed class CoordinatorTests
 
         public void Publish(in DspSnapshot snapshot)
         {
-            if (Interlocked.Increment(ref _publishCount) == 1)
+            lock (_publishLock)
             {
-                return;
-            }
+                if (Interlocked.Increment(ref _publishCount) == 1)
+                {
+                    return;
+                }
 
-            _publishEntered.Set();
-            _releasePublish.Wait();
+                _publishEntered.Set();
+                _releasePublish.Wait();
+            }
         }
 
         public void Stop()
         {
+            lock (_publishLock)
+            {
+            }
         }
     }
 

@@ -35,12 +35,16 @@
 
 Все команды ниже выполнять только после явного разрешения пользователя на
 сборку или публикацию. Команды запускаются из корня репозитория в Developer
-PowerShell for Visual Studio.
+PowerShell for Visual Studio. Для MSBuild использовать:
+
+```text
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe
+```
 
 ### Отдельная сборка Native
 
 ```powershell
-msbuild Consolidator.Native\Consolidator.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Consolidator.Native\Consolidator.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
 ```
 
 Для отладочной сборки заменить `Release` на `Debug`.

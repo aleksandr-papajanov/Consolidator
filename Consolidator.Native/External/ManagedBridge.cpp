@@ -4,8 +4,6 @@
 #undef SendMessage
 
 #include <cstring>
-#include <mutex>
-#include <stdexcept>
 
 #include "c74_min_api.h"
 
@@ -17,17 +15,18 @@ namespace
 
 constexpr auto kManagedLibraryName = "Consolidator.Managed.dll";
 
-std::mutex g_logCallbackMutex;
-std::size_t g_logCallbackUsers{};
-
-void __cdecl ManagedLogCallbackHandler(void*, const char* message)
+void __cdecl ManagedLogCallbackHandler(
+    void*,
+    const char* message) noexcept
 {
-    if (message != nullptr)
+    if (message == nullptr)
     {
-        c74::max::post(
-            "[Consolidator.Managed] %s",
-            message);
+        return;
     }
+
+    c74::max::post(
+        "[Consolidator.Managed] %s",
+        message);
 }
 
 HMODULE LoadManagedLibrary()
@@ -59,10 +58,11 @@ HMODULE LoadManagedLibrary()
     return LoadLibraryA(absolutePath);
 }
 
-}
-
-struct ManagedBridge::Implementation
+struct ManagedRuntime
 {
+    ManagedRuntime(const ManagedRuntime&) = delete;
+    ManagedRuntime& operator=(const ManagedRuntime&) = delete;
+
     using RegisterInstanceFn = InstanceId (__cdecl *)(
         void*,
         ManagedOutputCallback,
@@ -97,8 +97,61 @@ struct ManagedBridge::Implementation
             const double*,
             std::size_t);
 
-    HMODULE library{};
+    ManagedRuntime()
+    {
+        library = LoadManagedLibrary();
 
+        if (!library)
+        {
+            return;
+        }
+
+        registerInstance = reinterpret_cast<RegisterInstanceFn>(
+            GetProcAddress(library, "ConsolidatorRegisterInstance"));
+        unregisterInstance = reinterpret_cast<UnregisterInstanceFn>(
+            GetProcAddress(library, "ConsolidatorUnregisterInstance"));
+        setLogCallback = reinterpret_cast<SetLogCallbackFn>(
+            GetProcAddress(library, "ConsolidatorSetLogCallback"));
+        sendMessage = reinterpret_cast<SendMessageFn>(
+            GetProcAddress(library, "ConsolidatorSendMessage"));
+        prepare = reinterpret_cast<PrepareFn>(
+            GetProcAddress(library, "ConsolidatorPrepare"));
+        sendAudio = reinterpret_cast<SendAudioFn>(
+            GetProcAddress(library, "ConsolidatorSendAudio"));
+
+        if (IsLoaded())
+        {
+            setLogCallback(nullptr, ManagedLogCallbackHandler);
+        }
+    }
+
+    ~ManagedRuntime()
+    {
+        if (!library)
+        {
+            return;
+        }
+
+        if (setLogCallback)
+        {
+            setLogCallback(nullptr, nullptr);
+        }
+
+        FreeLibrary(library);
+    }
+
+    [[nodiscard]] bool IsLoaded() const noexcept
+    {
+        return library &&
+               registerInstance &&
+               unregisterInstance &&
+               setLogCallback &&
+               sendMessage &&
+               prepare &&
+               sendAudio;
+    }
+
+    HMODULE library{};
     RegisterInstanceFn registerInstance{};
     UnregisterInstanceFn unregisterInstance{};
     SetLogCallbackFn setLogCallback{};
@@ -107,97 +160,30 @@ struct ManagedBridge::Implementation
     SendAudioFn sendAudio{};
 };
 
-ManagedBridge::ManagedBridge(c74::min::logger& errorLogger)
+ManagedRuntime& GetManagedRuntime()
+{
+    static ManagedRuntime runtime;
+    return runtime;
+}
+
+}
+
+struct ManagedBridge::Implementation
+{
+    ManagedRuntime* runtime{};
+};
+
+ManagedBridge::ManagedBridge()
     : implementation_(new Implementation{})
-    , errorLogger_(errorLogger)
 {
-    auto& implementation = *implementation_;
-
-    implementation.library = LoadManagedLibrary();
-
-    if (!implementation.library)
-    {
-        const auto error = GetLastError();
-
-        errorLogger_
-            << "Consolidator: LoadLibrary failed. Error: "
-            << error
-            << c74::min::endl;
-
-        return;
-    }
-
-    implementation.registerInstance =
-        reinterpret_cast<Implementation::RegisterInstanceFn>(
-            GetProcAddress(
-                implementation.library,
-                "ConsolidatorRegisterInstance"));
-
-    implementation.unregisterInstance =
-        reinterpret_cast<Implementation::UnregisterInstanceFn>(
-            GetProcAddress(
-                implementation.library,
-                "ConsolidatorUnregisterInstance"));
-
-    implementation.setLogCallback =
-        reinterpret_cast<Implementation::SetLogCallbackFn>(
-            GetProcAddress(
-                implementation.library,
-                "ConsolidatorSetLogCallback"));
-
-    implementation.sendMessage =
-        reinterpret_cast<Implementation::SendMessageFn>(
-            GetProcAddress(
-                implementation.library,
-                "ConsolidatorSendMessage"));
-
-    implementation.prepare =
-        reinterpret_cast<Implementation::PrepareFn>(
-            GetProcAddress(
-                implementation.library,
-                "ConsolidatorPrepare"));
-
-    implementation.sendAudio =
-        reinterpret_cast<Implementation::SendAudioFn>(
-            GetProcAddress(
-                implementation.library,
-                "ConsolidatorSendAudio"));
+    implementation_->runtime = &GetManagedRuntime();
 }
 
-ManagedBridge::~ManagedBridge()
-{
-    if (usesLogCallback_)
-    {
-        std::lock_guard lock{ g_logCallbackMutex };
-
-        --g_logCallbackUsers;
-        usesLogCallback_ = false;
-
-        if (g_logCallbackUsers == 0)
-        {
-            implementation_->setLogCallback(nullptr, nullptr);
-        }
-    }
-
-    if (implementation_->library)
-    {
-        FreeLibrary(implementation_->library);
-    }
-
-    delete implementation_;
-}
+ManagedBridge::~ManagedBridge() = default;
 
 bool ManagedBridge::IsLoaded() const noexcept
 {
-    const auto& implementation = *implementation_;
-
-    return implementation.library &&
-           implementation.registerInstance &&
-           implementation.unregisterInstance &&
-           implementation.setLogCallback &&
-           implementation.sendMessage &&
-           implementation.prepare &&
-           implementation.sendAudio;
+    return implementation_->runtime->IsLoaded();
 }
 
 InstanceId ManagedBridge::RegisterInstance(
@@ -205,41 +191,29 @@ InstanceId ManagedBridge::RegisterInstance(
     ManagedOutputCallback outputCallback,
     SharedDspExchange* dspExchange) const
 {
-    std::lock_guard lock{ g_logCallbackMutex };
+    const auto* runtime = implementation_->runtime;
 
-    if (g_logCallbackUsers == 0)
+    if (!runtime->IsLoaded())
     {
-        implementation_->setLogCallback(
-            nullptr,
-            ManagedLogCallbackHandler);
-    }
-
-    ++g_logCallbackUsers;
-
-    const auto instanceId = implementation_->registerInstance(
-        context,
-        outputCallback,
-        dspExchange);
-
-    if (instanceId == 0)
-    {
-        --g_logCallbackUsers;
-
-        if (g_logCallbackUsers == 0)
-        {
-            implementation_->setLogCallback(nullptr, nullptr);
-        }
-
         return 0;
     }
 
-    usesLogCallback_ = true;
-    return instanceId;
+    return runtime->registerInstance(
+        context,
+        outputCallback,
+        dspExchange);
 }
 
 void ManagedBridge::UnregisterInstance(InstanceId instanceId) const
 {
-    implementation_->unregisterInstance(instanceId);
+    const auto* runtime = implementation_->runtime;
+
+    if (!runtime->IsLoaded())
+    {
+        return;
+    }
+
+    runtime->unregisterInstance(instanceId);
 }
 
 void ManagedBridge::SendManagedMessage(
@@ -248,7 +222,14 @@ void ManagedBridge::SendManagedMessage(
     const NativeAtom* atoms,
     std::size_t atomCount) const
 {
-    implementation_->sendMessage(
+    const auto* runtime = implementation_->runtime;
+
+    if (!runtime->IsLoaded())
+    {
+        return;
+    }
+
+    runtime->sendMessage(
         instanceId,
         selector,
         atoms,
@@ -260,7 +241,14 @@ void ManagedBridge::Prepare(
     double sampleRate,
     std::size_t maximumFrameCount) const
 {
-    implementation_->prepare(
+    const auto* runtime = implementation_->runtime;
+
+    if (!runtime->IsLoaded())
+    {
+        return;
+    }
+
+    runtime->prepare(
         instanceId,
         sampleRate,
         maximumFrameCount);
@@ -274,7 +262,14 @@ void ManagedBridge::SendAudio(
     const double* referenceRight,
     std::size_t frameCount) const
 {
-    implementation_->sendAudio(
+    const auto* runtime = implementation_->runtime;
+
+    if (!runtime->IsLoaded())
+    {
+        return;
+    }
+
+    runtime->sendAudio(
         instanceId,
         mainLeft,
         mainRight,

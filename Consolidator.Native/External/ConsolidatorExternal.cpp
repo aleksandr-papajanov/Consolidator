@@ -16,7 +16,7 @@ namespace consolidator::max
 using namespace c74::min;
 
 ConsolidatorExternal::ConsolidatorExternal()
-    : managed_(cerr)
+    : managed_()
 {
     if (!managed_.IsLoaded())
     {

@@ -2,15 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 #include "ManagedInterop.h"
-
-namespace c74::min
-{
-
-class logger;
-
-}
 
 namespace consolidator::max
 {
@@ -18,7 +12,7 @@ namespace consolidator::max
 class ManagedBridge
 {
 public:
-    explicit ManagedBridge(c74::min::logger& errorLogger);
+    ManagedBridge();
     ~ManagedBridge();
 
     ManagedBridge(const ManagedBridge&) = delete;
@@ -54,9 +48,7 @@ public:
 
 private:
     struct Implementation;
-    Implementation* implementation_;
-    c74::min::logger& errorLogger_;
-    mutable bool usesLogCallback_{};
+    std::unique_ptr<Implementation> implementation_;
 };
 
 } // namespace consolidator::max

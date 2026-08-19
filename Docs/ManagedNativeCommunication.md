@@ -106,10 +106,12 @@ The callback has this shape:
 The context is the native external instance. A null output callback is rejected by managed registration and produces instance ID `0`.
 The DSP exchange pointer is required and points to memory owned by the native external for the lifetime of the registered instance.
 
-The process-wide Managed log callback user count is incremented only for a
-successful instance registration. Each `ManagedBridge` records whether it owns
-one count, and its destructor releases only that ownership. Failed registration
-does not leave the callback count or callback configuration active.
+`ManagedBridge` instances share one native `ManagedRuntime`. The runtime lazily
+loads `Consolidator.Managed.dll` and resolves its exported functions once per
+native module. It owns the process-wide Managed log callback registration and
+clears that callback before releasing the DLL in its destructor. Destroying one
+external therefore cannot unload the ManagedAOT module while other externals
+or the shared Managed Coordinator are still active.
 
 The managed registry stores a `ConsolidatorInstance`. Its `NativeOutput` is private and can only be used through the instance lifecycle gate.
 
