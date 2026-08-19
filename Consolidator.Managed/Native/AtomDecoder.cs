@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using Consolidator.Managed.Native;
+using Consolidator.Managed.Protocol;
 
-namespace Consolidator.Managed.Protocol;
+namespace Consolidator.Managed.Native;
 
 public static unsafe class AtomDecoder
 {

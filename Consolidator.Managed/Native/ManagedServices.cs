@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core;
+using Consolidator.Managed.Core.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Consolidator.Managed.Native;
@@ -15,9 +16,10 @@ public static class ManagedServices
         services.AddSingleton<IConsolidatorLogger>(serviceProvider =>
             new ConsolidatorLogger(
                 serviceProvider.GetRequiredService<NativeLogSink>()));
+        services.AddSingleton<Coordinator>();
         services.AddSingleton<ConsolidatorCore>(serviceProvider =>
             new ConsolidatorCore(
-                serviceProvider.GetRequiredService<IConsolidatorLogger>()));
+                serviceProvider.GetRequiredService<Coordinator>()));
 
         return services.BuildServiceProvider(
             new ServiceProviderOptions

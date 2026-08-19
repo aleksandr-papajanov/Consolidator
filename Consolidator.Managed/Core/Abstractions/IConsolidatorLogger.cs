@@ -1,4 +1,4 @@
-namespace Consolidator.Managed.Core;
+namespace Consolidator.Managed.Core.Abstractions;
 
 public interface IConsolidatorLogger
 {

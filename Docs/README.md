@@ -10,6 +10,7 @@
 | [`CSharpFormatting.md`](CSharpFormatting.md) | Форматирование, naming, using directives, managed dependencies и NativeAOT interop conventions для C#. |
 | [`JavaScriptFormatting.md`](JavaScriptFormatting.md) | ES5-compatible Max runtime style, include order, callbacks, lifecycle, protocol и UI layer conventions для JavaScript. |
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
+| [`Coordinator.md`](Coordinator.md) | Lifetime и ownership общего Managed Coordinator, per-instance state и границы control/audio paths. |
 
 ## Правила работы с документацией
 

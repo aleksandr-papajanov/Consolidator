@@ -33,23 +33,23 @@
 ## Сборка для агента
 
 Все команды ниже выполнять только после явного разрешения пользователя на
-сборку или публикацию. Команды относятся к `InteropSandbox` и запускаются из
-корня репозитория в Developer PowerShell for Visual Studio.
+сборку или публикацию. Команды запускаются из корня репозитория в Developer
+PowerShell for Visual Studio.
 
 ### Отдельная сборка Native
 
 ```powershell
-msbuild InteropSandbox\Consolidator.Native\Consolidator.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
+msbuild Consolidator.Native\Consolidator.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
 ```
 
 Для отладочной сборки заменить `Release` на `Debug`.
 Native target `CopyBinaryToExternals` после успешной сборки копирует
-`ConsolidatorExternal.mxe64` в `InteropSandbox\Consolidator.Max\externals`.
+`ConsolidatorExternal.mxe64` в `Consolidator.Max\externals`.
 
 ### Отдельная публикация Managed
 
 ```powershell
-dotnet publish InteropSandbox\Consolidator.Managed\Consolidator.Managed.csproj /p:PublishProfile=FolderProfile
+dotnet publish Consolidator.Managed\Consolidator.Managed.csproj /p:PublishProfile=FolderProfile
 ```
 
 Эта команда использует существующий Managed profile и не собирает Native.
@@ -57,11 +57,15 @@ dotnet publish InteropSandbox\Consolidator.Managed\Consolidator.Managed.csproj /
 ### Сборка Native и публикация Managed
 
 ```powershell
-& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" InteropSandbox\Consolidator.Managed\Consolidator.Managed.csproj /t:Publish /p:PublishProfile=NativeAndManaged /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:PublishAot=true /p:NativeLib=Shared /p:PublishSingleFile=false /p:BuildNativeBeforePublish=true
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Consolidator.Managed\Consolidator.Managed.csproj /t:Publish /p:PublishProfile=NativeAndManaged /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:PublishAot=true /p:NativeLib=Shared /p:PublishSingleFile=false /p:BuildNativeBeforePublish=true
 ```
 
-Профиль `NativeAndManaged` сначала собирает Native в `Release|x64`, затем
-публикует Managed через настройки `FolderProfile`.
+Профиль `NativeAndManaged` нужно запускать через Visual Studio `MSBuild.exe`,
+потому что обычный `dotnet publish` не предоставляет C++ targets. Профиль
+сначала собирает Native в `Release|x64`, затем публикует Managed и копирует
+свежие `ConsolidatorExternal.mxe64` и `Consolidator.Managed.dll` в
+`Consolidator.Max\externals`. Профиль `FolderProfile` публикует только Managed
+и Native не собирает.
 
 ## Архитектура
 

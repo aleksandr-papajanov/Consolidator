@@ -39,6 +39,11 @@ The exported native entry points use the C calling convention:
 - `ConsolidatorPrepare`
 - `ConsolidatorSendAudio`
 
+Every `[UnmanagedCallersOnly]` entrypoint catches exceptions before returning to
+native code. Registration returns `0` after a boundary failure; void entrypoints
+report the failure through the Managed log sink and return. The boundary logger
+also absorbs its own failures, so no managed exception can cross the C ABI.
+
 ## Instance Registration
 
 The native external registers an instance with a callback and context:
@@ -77,11 +82,9 @@ Max control inlet
 
 The native side owns the encoded input atoms only for the duration of the unmanaged call. `SendMessage` immediately converts the selector and atoms into managed values before returning.
 
-The current test behavior echoes the message back to native with this frame:
-
-```text
-message_received <original-selector> <original-atoms...>
-```
+`ReceiveMessage` currently only establishes the managed control-message routing
+boundary. Domain handling and output routing will be added by the Coordinator
+handler/router; incoming messages are not echoed back to native.
 
 ## Managed to Native: Output Callback
 

@@ -1,4 +1,4 @@
-using Consolidator.Managed.Core;
+using Consolidator.Managed.Core.Abstractions;
 
 namespace Consolidator.Managed.Native;
 

@@ -7,7 +7,7 @@
 | Сущность | Стиль | Пример |
 | --- | --- | --- |
 | Class / struct / record | `PascalCase` | `NativeOutput` |
-| Interface | `IPascalCase` | `IMaxOutput` |
+| Interface | `IPascalCase` | `IInstanceOutput` |
 | Enum / member | `PascalCase` | `AtomType.Symbol` |
 | Method | `PascalCase` | `RegisterInstance()` |
 | Property | `PascalCase` | `InstanceId` |
@@ -113,7 +113,9 @@ Application code не вызывает native callback напрямую. Исп�
 managed abstraction, например:
 
 ```csharp
-public interface IMaxOutput
+namespace Consolidator.Managed.Core.Abstractions;
+
+public interface IInstanceOutput
 {
     void Send(
         string selector,

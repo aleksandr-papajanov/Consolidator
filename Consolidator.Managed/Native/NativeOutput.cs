@@ -1,9 +1,10 @@
 using System.Runtime.InteropServices;
+using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Native;
 
-public unsafe sealed class NativeOutput
+public unsafe sealed class NativeOutput : IInstanceOutput
 {
     private readonly void* _context;
     private readonly delegate* unmanaged[Cdecl]<

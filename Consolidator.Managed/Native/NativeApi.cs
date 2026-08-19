@@ -20,7 +20,16 @@ public static unsafe class NativeApi
         void* context,
         delegate* unmanaged[Cdecl]<void*, byte*, void> callback)
     {
-        LogSink.Configure(context, callback);
+        try
+        {
+            LogSink.Configure(context, callback);
+        }
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorSetLogCallback",
+                exception);
+        }
     }
 
     [UnmanagedCallersOnly(
@@ -35,7 +44,23 @@ public static unsafe class NativeApi
             nuint,
             void> outputCallback)
     {
-        return Core.RegisterInstance(context, outputCallback);
+        try
+        {
+            if (outputCallback == null)
+            {
+                return 0;
+            }
+
+            var output = new NativeOutput(context, outputCallback);
+            return Core.RegisterInstance(output);
+        }
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorRegisterInstance",
+                exception);
+            return 0;
+        }
     }
 
     [UnmanagedCallersOnly(
@@ -43,7 +68,16 @@ public static unsafe class NativeApi
         CallConvs = [typeof(CallConvCdecl)])]
     public static void UnregisterInstance(ulong instanceId)
     {
-        Core.UnregisterInstance(instanceId);
+        try
+        {
+            Core.UnregisterInstance(instanceId);
+        }
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorUnregisterInstance",
+                exception);
+        }
     }
 
     [UnmanagedCallersOnly(
@@ -55,24 +89,33 @@ public static unsafe class NativeApi
         NativeAtom* atoms,
         nuint atomCount)
     {
-        var managedSelector = Marshal.PtrToStringUTF8((nint)selector);
-
-        if (managedSelector is null)
+        try
         {
-            return;
+            var managedSelector = Marshal.PtrToStringUTF8((nint)selector);
+
+            if (managedSelector is null)
+            {
+                return;
+            }
+
+            var managedAtoms = AtomDecoder.Decode(atoms, atomCount);
+
+            var atomText = string.Join(
+                " ",
+                managedAtoms.Select(FormatAtom));
+
+            LogSink.Write(
+                $"Managed received: instance={instanceId} "
+                + $"selector={managedSelector} atoms=[{atomText}]");
+
+            Core.ReceiveMessage(instanceId, managedSelector, managedAtoms);
         }
-
-        var managedAtoms = AtomDecoder.Decode(atoms, atomCount);
-
-        var atomText = string.Join(
-            " ",
-            managedAtoms.Select(FormatAtom));
-
-        LogSink.Write(
-            $"Managed received: instance={instanceId} "
-            + $"selector={managedSelector} atoms=[{atomText}]");
-
-        Core.ReceiveMessage(instanceId, managedSelector, managedAtoms);
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorSendMessage",
+                exception);
+        }
     }
 
     private static string FormatAtom(Atom atom)
@@ -94,10 +137,19 @@ public static unsafe class NativeApi
         double sampleRate,
         nuint maximumFrameCount)
     {
-        Core.Prepare(
-            instanceId,
-            sampleRate,
-            maximumFrameCount);
+        try
+        {
+            Core.Prepare(
+                instanceId,
+                sampleRate,
+                maximumFrameCount);
+        }
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorPrepare",
+                exception);
+        }
     }
 
     [UnmanagedCallersOnly(
@@ -111,12 +163,36 @@ public static unsafe class NativeApi
         double* referenceRight,
         nuint frameCount)
     {
-        Core.ReceiveAudio(
-            instanceId,
-            mainLeft,
-            mainRight,
-            referenceLeft,
-            referenceRight,
-            frameCount);
+        try
+        {
+            Core.ReceiveAudio(
+                instanceId,
+                mainLeft,
+                mainRight,
+                referenceLeft,
+                referenceRight,
+                frameCount);
+        }
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorSendAudio",
+                exception);
+        }
+    }
+
+    private static void LogBoundaryException(
+        string entryPoint,
+        Exception exception)
+    {
+        try
+        {
+            LogSink.Write(
+                $"Managed boundary exception in {entryPoint}: "
+                + exception);
+        }
+        catch
+        {
+        }
     }
 }

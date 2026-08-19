@@ -403,6 +403,8 @@ InteropSandbox/
 │
 ├─ Consolidator.Managed/
 │  ├─ Core/
+│  │  ├─ Abstractions/
+│  │  └─ Instances/
 │  ├─ Native/
 │  └─ Protocol/
 │
@@ -412,7 +414,11 @@ InteropSandbox/
 `Consolidator.Native/External/` содержит Max/min-api integration и native
 interop bridge для текущего sandbox.
 
-`Consolidator.Managed/Native/` содержит C# ABI exports и marshaling boundary.
+`Consolidator.Managed/Core/` содержит application orchestration.
+`Consolidator.Managed/Core/Abstractions/` содержит managed application contracts.
+`Consolidator.Managed/Core/Instances/` содержит per-external lifecycle state.
+`Consolidator.Managed/Native/` содержит C# ABI exports, NativeAOT boundary и
+marshaling из native representation в managed protocol types.
 
 Будущие DSP-компоненты не должны зависеть от Max и Managed application logic.
 
@@ -522,7 +528,7 @@ Raw pointers не используются для неявного владен�
 В `Consolidator.Managed/Properties/PublishProfiles/` доступны два профиля:
 
 - `FolderProfile` — публикует только Managed NativeAOT library;
-- `NativeAndManaged` — сначала собирает `Consolidator.Native.vcxproj` в конфигурации `Release|x64`, затем выполняет настройки `FolderProfile` и публикует Managed.
+- `NativeAndManaged` — запускается через Visual Studio `MSBuild.exe`, сначала собирает `Consolidator.Native.vcxproj` в конфигурации `Release|x64`, затем публикует Managed и копирует `ConsolidatorExternal.mxe64` и `Consolidator.Managed.dll` в `Consolidator.Max/externals`. Обычный `dotnet publish` не может выполнить этот профиль, потому что не предоставляет C++ targets.
 
 ---
 
