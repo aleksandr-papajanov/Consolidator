@@ -30,7 +30,8 @@ ConsolidatorExternal::ConsolidatorExternal()
     instanceId_ = managed_.RegisterInstance(
         this,
         &ConsolidatorExternal::ManagedOutputCallbackHandler,
-        &dspExchange_);
+        &dspExchange_,
+        &audioInputHandle_);
 
     if (instanceId_ == 0)
     {
@@ -42,6 +43,7 @@ ConsolidatorExternal::ConsolidatorExternal()
 
 ConsolidatorExternal::~ConsolidatorExternal()
 {
+    // Max stops new audio callbacks before destroying the external.
     if (instanceId_ != 0 &&
         managed_.IsLoaded())
     {
@@ -49,6 +51,7 @@ ConsolidatorExternal::~ConsolidatorExternal()
     }
 
     instanceId_ = 0;
+    audioInputHandle_ = 0;
 
     outputQueue_.unset();
 }
@@ -223,7 +226,7 @@ void ConsolidatorExternal::operator()(
     if (instanceId_ != 0)
     {
         managed_.SendAudio(
-            instanceId_,
+            audioInputHandle_,
             input.samples(0),
             input.samples(1),
             input.samples(2),

@@ -93,7 +93,8 @@ The native external registers an instance with a callback and context:
 ConsolidatorRegisterInstance(
     context,
     outputCallback,
-    dspExchange)
+    dspExchange,
+    audioInputHandle)
         -> instanceId
 ```
 
@@ -104,7 +105,7 @@ The callback has this shape:
 ```
 
 The context is the native external instance. A null output callback is rejected by managed registration and produces instance ID `0`.
-The DSP exchange pointer is required and points to memory owned by the native external for the lifetime of the registered instance.
+The DSP exchange pointer is required and points to memory owned by the native external for the lifetime of the registered instance. Registration also returns an opaque `audioInputHandle` for the native audio path. Managed allocates one `NativeAudioInput` for the instance and tracks its handle by `InstanceId` for control-path cleanup; Native stores the returned handle for audio calls.
 
 `ManagedBridge` instances share one native `ManagedRuntime`. The runtime lazily
 loads `Consolidator.Managed.dll` and resolves its exported functions once per
@@ -205,6 +206,14 @@ UnregisterInstance(id)
 `ConsolidatorInstance.TrySend` holds its per-instance lifecycle lock for the callback. `Stop` takes the same lock, so it cannot complete until a callback already in progress has returned. Producers that look up the instance after registry removal cannot obtain it.
 
 The native destructor calls `UnregisterInstance` before destroying the external, then clears `instanceId_` and unsets the qelem. This makes the native `this` context valid until the managed callback barrier has completed.
+`UnregisterInstance` takes only the `InstanceId`; Managed uses its instance-to-audio-handle ownership to release the audio handle after the instance has stopped.
+Before `UnregisterInstance` starts, the native host must stop starting new
+audio callbacks for that external. An audio callback that already resolved the
+handle may finish while unregister is in progress, but no new
+`SendAudio(audioInputHandle)` may begin after handle release. The native
+external lifecycle must therefore serialize audio callback start with
+destruction; catching an invalid `GCHandle` in Managed is not a lifetime
+mechanism.
 
 ## Audio Calls
 
@@ -215,9 +224,15 @@ ConsolidatorExternal::Prepare
     -> ConsolidatorPrepare
     -> ConsolidatorCore.Prepare
 
-ConsolidatorExternal::operator()
-    -> ConsolidatorSendAudio
-    -> ConsolidatorCore.ReceiveAudio
+`ConsolidatorExternal::operator()`
+    -> ConsolidatorSendAudio(audioInputHandle)
+    -> NativeAudioInput.ReceiveAudio
+    -> ConsolidatorInstance.ReceiveAudio
 ```
 
-`ReceiveAudio` is currently a placeholder. Audio callbacks must remain real-time safe when processing is added: no Max outlet calls, blocking locks, or unbounded allocation on the audio thread.
+`SendAudio` resolves the opaque `GCHandle` directly to the per-instance
+`NativeAudioInput`; it does not query the Coordinator dictionary or take the
+Coordinator lock. Unregistration stops the managed instance before releasing
+the audio handle. `ReceiveAudio` is currently a placeholder. Audio callbacks
+must remain real-time safe when processing is added: no Max outlet calls,
+blocking locks, or unbounded allocation on the audio thread.

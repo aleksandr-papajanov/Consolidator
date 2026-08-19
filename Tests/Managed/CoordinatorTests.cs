@@ -38,13 +38,13 @@ public sealed class CoordinatorTests
 
         try
         {
-            Assert.NotEqual(0UL, first);
-            Assert.NotEqual(first, second);
+            Assert.NotEqual(0UL, first.Id);
+            Assert.NotEqual(first.Id, second.Id);
         }
         finally
         {
-            coordinator.UnregisterInstance(first);
-            coordinator.UnregisterInstance(second);
+            coordinator.UnregisterInstance(first.Id);
+            coordinator.UnregisterInstance(second.Id);
             NativeMemory.Free(firstExchange);
             NativeMemory.Free(secondExchange);
         }
@@ -192,6 +192,63 @@ public sealed class CoordinatorTests
         finally
         {
             FreeExchange(exchangeAddress);
+        }
+    }
+
+    [Fact]
+    public unsafe void UnregisterStopsDspPublisherBeforeExchangeIsFreed()
+    {
+        var coordinator = new Coordinator(new TestLogger());
+        var exchange = AllocateExchange();
+        var publisher = new NativeDspStatePublisher(exchange);
+        var instance = coordinator.RegisterInstance(
+            new TestOutput(),
+            publisher);
+
+        try
+        {
+            publisher.Publish(new DspSnapshot { Gain = 0.5F });
+            Assert.Equal(2U, exchange->PublishedIndex);
+
+            coordinator.UnregisterInstance(instance.Id);
+            NativeMemory.Free(exchange);
+            exchange = null;
+
+            publisher.Publish(new DspSnapshot { Gain = 0.25F });
+        }
+        finally
+        {
+            if (exchange != null)
+            {
+                NativeMemory.Free(exchange);
+            }
+        }
+    }
+
+    [Fact]
+    public unsafe void StoppedAudioInputIgnoresLateAudioAfterInstanceStop()
+    {
+        var exchange = AllocateExchange();
+        var publisher = new NativeDspStatePublisher(exchange);
+        var instance = new ConsolidatorInstance(
+            1,
+            new TestOutput(),
+            publisher);
+        var audioInput = new NativeAudioInput(instance);
+
+        try
+        {
+            instance.Stop();
+            audioInput.ReceiveAudio(
+                null,
+                null,
+                null,
+                null,
+                0);
+        }
+        finally
+        {
+            NativeMemory.Free(exchange);
         }
     }
 

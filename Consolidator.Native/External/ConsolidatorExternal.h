@@ -204,6 +204,7 @@ private:
 
     ManagedBridge managed_;
     InstanceId instanceId_{};
+    AudioInputHandle audioInputHandle_{};
     SharedDspExchange dspExchange_{};
     DspSnapshot dspState_{};
     std::uint32_t consumerDspIndex_{};

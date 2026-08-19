@@ -29,6 +29,7 @@ struct NativeAtom
 };
 
 using InstanceId = std::uint64_t;
+using AudioInputHandle = std::uintptr_t;
 
 using ManagedLogCallback = void (__cdecl *)(void*, const char*);
 

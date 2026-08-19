@@ -23,7 +23,8 @@ public:
     [[nodiscard]] InstanceId RegisterInstance(
         void* context,
         ManagedOutputCallback outputCallback,
-        SharedDspExchange* dspExchange) const;
+        SharedDspExchange* dspExchange,
+        AudioInputHandle* audioInputHandle) const;
 
     void UnregisterInstance(InstanceId instanceId) const;
 
@@ -39,7 +40,7 @@ public:
         std::size_t maximumFrameCount) const;
 
     void SendAudio(
-        InstanceId instanceId,
+        AudioInputHandle audioInputHandle,
         const double* mainLeft,
         const double* mainRight,
         const double* referenceLeft,

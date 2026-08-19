@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core.Abstractions;
+using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Core;
@@ -12,7 +13,7 @@ public sealed class ConsolidatorCore
         _coordinator = coordinator;
     }
 
-    public ulong RegisterInstance(
+    public ConsolidatorInstance RegisterInstance(
         IInstanceOutput output,
         IDspStatePublisher dspPublisher)
     {
@@ -44,19 +45,4 @@ public sealed class ConsolidatorCore
             maximumFrameCount);
     }
 
-    public unsafe void ReceiveAudio(
-        ulong instanceId,
-        double* mainLeft,
-        double* mainRight,
-        double* referenceLeft,
-        double* referenceRight,
-        nuint frameCount)
-    {
-        //
-        // НИЧЕГО тяжёлого пока.
-        //
-        // Позже:
-        // analyzerInput.Write(...)
-        //
-    }
 }

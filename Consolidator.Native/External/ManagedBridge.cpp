@@ -58,15 +58,25 @@ HMODULE LoadManagedLibrary()
     return LoadLibraryA(absolutePath);
 }
 
-struct ManagedRuntime
+class ManagedRuntime
 {
+public:
+    ManagedRuntime();
+    ~ManagedRuntime();
+
     ManagedRuntime(const ManagedRuntime&) = delete;
     ManagedRuntime& operator=(const ManagedRuntime&) = delete;
+
+    [[nodiscard]] bool IsLoaded() const noexcept;
+
+private:
+    friend class ManagedBridge;
 
     using RegisterInstanceFn = InstanceId (__cdecl *)(
         void*,
         ManagedOutputCallback,
-        SharedDspExchange*);
+        SharedDspExchange*,
+        AudioInputHandle*);
 
     using UnregisterInstanceFn = void (__cdecl *)(InstanceId);
 
@@ -90,66 +100,12 @@ struct ManagedRuntime
 
     using SendAudioFn =
         void (__cdecl *)(
-            InstanceId,
+            AudioInputHandle,
             const double*,
             const double*,
             const double*,
             const double*,
             std::size_t);
-
-    ManagedRuntime()
-    {
-        library = LoadManagedLibrary();
-
-        if (!library)
-        {
-            return;
-        }
-
-        registerInstance = reinterpret_cast<RegisterInstanceFn>(
-            GetProcAddress(library, "ConsolidatorRegisterInstance"));
-        unregisterInstance = reinterpret_cast<UnregisterInstanceFn>(
-            GetProcAddress(library, "ConsolidatorUnregisterInstance"));
-        setLogCallback = reinterpret_cast<SetLogCallbackFn>(
-            GetProcAddress(library, "ConsolidatorSetLogCallback"));
-        sendMessage = reinterpret_cast<SendMessageFn>(
-            GetProcAddress(library, "ConsolidatorSendMessage"));
-        prepare = reinterpret_cast<PrepareFn>(
-            GetProcAddress(library, "ConsolidatorPrepare"));
-        sendAudio = reinterpret_cast<SendAudioFn>(
-            GetProcAddress(library, "ConsolidatorSendAudio"));
-
-        if (IsLoaded())
-        {
-            setLogCallback(nullptr, ManagedLogCallbackHandler);
-        }
-    }
-
-    ~ManagedRuntime()
-    {
-        if (!library)
-        {
-            return;
-        }
-
-        if (setLogCallback)
-        {
-            setLogCallback(nullptr, nullptr);
-        }
-
-        FreeLibrary(library);
-    }
-
-    [[nodiscard]] bool IsLoaded() const noexcept
-    {
-        return library &&
-               registerInstance &&
-               unregisterInstance &&
-               setLogCallback &&
-               sendMessage &&
-               prepare &&
-               sendAudio;
-    }
 
     HMODULE library{};
     RegisterInstanceFn registerInstance{};
@@ -159,6 +115,60 @@ struct ManagedRuntime
     PrepareFn prepare{};
     SendAudioFn sendAudio{};
 };
+
+ManagedRuntime::ManagedRuntime()
+{
+    library = LoadManagedLibrary();
+
+    if (!library)
+    {
+        return;
+    }
+
+    registerInstance = reinterpret_cast<RegisterInstanceFn>(
+        GetProcAddress(library, "ConsolidatorRegisterInstance"));
+    unregisterInstance = reinterpret_cast<UnregisterInstanceFn>(
+        GetProcAddress(library, "ConsolidatorUnregisterInstance"));
+    setLogCallback = reinterpret_cast<SetLogCallbackFn>(
+        GetProcAddress(library, "ConsolidatorSetLogCallback"));
+    sendMessage = reinterpret_cast<SendMessageFn>(
+        GetProcAddress(library, "ConsolidatorSendMessage"));
+    prepare = reinterpret_cast<PrepareFn>(
+        GetProcAddress(library, "ConsolidatorPrepare"));
+    sendAudio = reinterpret_cast<SendAudioFn>(
+        GetProcAddress(library, "ConsolidatorSendAudio"));
+
+    if (IsLoaded())
+    {
+        setLogCallback(nullptr, ManagedLogCallbackHandler);
+    }
+}
+
+ManagedRuntime::~ManagedRuntime()
+{
+    if (!library)
+    {
+        return;
+    }
+
+    if (setLogCallback)
+    {
+        setLogCallback(nullptr, nullptr);
+    }
+
+    FreeLibrary(library);
+}
+
+bool ManagedRuntime::IsLoaded() const noexcept
+{
+    return library &&
+           registerInstance &&
+           unregisterInstance &&
+           setLogCallback &&
+           sendMessage &&
+           prepare &&
+           sendAudio;
+}
 
 ManagedRuntime& GetManagedRuntime()
 {
@@ -189,7 +199,8 @@ bool ManagedBridge::IsLoaded() const noexcept
 InstanceId ManagedBridge::RegisterInstance(
     void* context,
     ManagedOutputCallback outputCallback,
-    SharedDspExchange* dspExchange) const
+    SharedDspExchange* dspExchange,
+    AudioInputHandle* audioInputHandle) const
 {
     const auto* runtime = implementation_->runtime;
 
@@ -201,7 +212,8 @@ InstanceId ManagedBridge::RegisterInstance(
     return runtime->registerInstance(
         context,
         outputCallback,
-        dspExchange);
+        dspExchange,
+        audioInputHandle);
 }
 
 void ManagedBridge::UnregisterInstance(InstanceId instanceId) const
@@ -255,7 +267,7 @@ void ManagedBridge::Prepare(
 }
 
 void ManagedBridge::SendAudio(
-    InstanceId instanceId,
+    AudioInputHandle audioInputHandle,
     const double* mainLeft,
     const double* mainRight,
     const double* referenceLeft,
@@ -270,7 +282,7 @@ void ManagedBridge::SendAudio(
     }
 
     runtime->sendAudio(
-        instanceId,
+        audioInputHandle,
         mainLeft,
         mainRight,
         referenceLeft,

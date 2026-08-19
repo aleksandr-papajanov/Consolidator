@@ -74,6 +74,21 @@ public sealed class ConsolidatorInstance
         }
     }
 
+    public unsafe void ReceiveAudio(
+        double* mainLeft,
+        double* mainRight,
+        double* referenceLeft,
+        double* referenceRight,
+        nuint frameCount)
+    {
+        if (!Volatile.Read(ref _active))
+        {
+            return;
+        }
+
+        // Analyzer input will consume these buffers without Coordinator lookup.
+    }
+
     public void Stop()
     {
         lock (_lifecycleLock)

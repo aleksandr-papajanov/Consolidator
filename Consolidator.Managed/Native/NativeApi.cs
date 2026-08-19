@@ -1,8 +1,10 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Consolidator.Managed.Core;
+using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Native;
@@ -13,6 +15,8 @@ public static unsafe class NativeApi
         ManagedServices.Provider.GetRequiredService<NativeLogSink>();
     private static readonly ConsolidatorCore Core =
         ManagedServices.Provider.GetRequiredService<ConsolidatorCore>();
+    private static readonly ConcurrentDictionary<ulong, GCHandle>
+        AudioInputHandles = new();
     private static long _audioBoundaryExceptionCount;
 
     [UnmanagedCallersOnly(
@@ -45,8 +49,12 @@ public static unsafe class NativeApi
             NativeAtom*,
             nuint,
             void> outputCallback,
-        SharedDspExchange* dspExchange)
+        SharedDspExchange* dspExchange,
+        nuint* audioInputHandle)
     {
+        ConsolidatorInstance? instance = null;
+        GCHandle handle = default;
+
         try
         {
             if (outputCallback == null)
@@ -59,12 +67,51 @@ public static unsafe class NativeApi
                 return 0;
             }
 
+            if (audioInputHandle == null)
+            {
+                return 0;
+            }
+
+            *audioInputHandle = 0;
+
             var output = new NativeOutput(context, outputCallback);
             var publisher = new NativeDspStatePublisher(dspExchange);
-            return Core.RegisterInstance(output, publisher);
+            instance = Core.RegisterInstance(output, publisher);
+
+            var audioInput = new NativeAudioInput(instance);
+            handle = GCHandle.Alloc(audioInput);
+
+            if (!AudioInputHandles.TryAdd(instance.Id, handle))
+            {
+                handle.Free();
+                handle = default;
+                Core.UnregisterInstance(instance.Id);
+                return 0;
+            }
+
+            *audioInputHandle = (nuint)GCHandle.ToIntPtr(handle);
+            handle = default;
+            return instance.Id;
         }
         catch (Exception exception)
         {
+            *audioInputHandle = 0;
+
+            if (instance is not null)
+            {
+                Core.UnregisterInstance(instance.Id);
+            }
+
+            if (instance is not null &&
+                AudioInputHandles.TryRemove(instance.Id, out var registeredHandle))
+            {
+                registeredHandle.Free();
+            }
+            else if (handle.IsAllocated)
+            {
+                handle.Free();
+            }
+
             LogBoundaryException(
                 "ConsolidatorRegisterInstance",
                 exception);
@@ -81,6 +128,13 @@ public static unsafe class NativeApi
         {
             ReportPendingAudioBoundaryExceptions();
             Core.UnregisterInstance(instanceId);
+
+            if (AudioInputHandles.TryRemove(
+                instanceId,
+                out var audioInputHandle))
+            {
+                audioInputHandle.Free();
+            }
         }
         catch (Exception exception)
         {
@@ -170,7 +224,7 @@ public static unsafe class NativeApi
         EntryPoint = "ConsolidatorSendAudio",
         CallConvs = [typeof(CallConvCdecl)])]
     public static void SendAudio(
-        ulong instanceId,
+        nuint audioInputHandle,
         double* mainLeft,
         double* mainRight,
         double* referenceLeft,
@@ -179,8 +233,21 @@ public static unsafe class NativeApi
     {
         try
         {
-            Core.ReceiveAudio(
-                instanceId,
+            if (audioInputHandle == 0)
+            {
+                return;
+            }
+
+            var audioInput = (NativeAudioInput?)GCHandle
+                .FromIntPtr((nint)audioInputHandle)
+                .Target;
+
+            if (audioInput is null)
+            {
+                return;
+            }
+
+            audioInput.ReceiveAudio(
                 mainLeft,
                 mainRight,
                 referenceLeft,
