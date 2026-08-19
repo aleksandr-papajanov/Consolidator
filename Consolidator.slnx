@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+
+  <Project Path="Consolidator.Managed/Consolidator.Managed.csproj" />
+  <Project
+    Path="Consolidator.Native/Consolidator.Native.vcxproj"
+    Id="53d621fb-190c-4b00-9fcb-fdc25b6084c4" />
+  <Project Path="Tests/Managed/Consolidator.Managed.Tests.csproj" />
+  <Project
+    Path="Tests/Native/Consolidator.Native.Tests.vcxproj"
+    Id="2e6b3fc9-7e15-4eab-90a7-7db7fefd0f08" />
+  <Project Path="Tests/Integration/Consolidator.Integration.Tests.csproj" />
+</Solution>

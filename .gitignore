@@ -1,0 +1,38 @@
+# Visual Studio and user-specific state
+**/.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+*.userosscache
+*.sln.docstates
+
+# Managed, test, Native and CMake build output
+**/bin/
+**/obj/
+**/build/
+**/out/
+**/x64/
+**/Debug/
+**/Release/
+
+# Native generated artifacts
+/Consolidator.Native/Consolid.*
+/Consolidator.Native/externals/
+
+# Published Max externals
+/Consolidator.Max/externals/*
+!/Consolidator.Max/externals/.gitkeep
+
+# Archived legacy code
+/Legacy/
+
+# Test and coverage output
+**/TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Local operating-system files
+.DS_Store
+Thumbs.db

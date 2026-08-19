@@ -1,0 +1,20 @@
+{
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/MinApi",
+    "${workspaceFolder}/MinApi/include",
+    "${workspaceFolder}/MinApi/max-sdk-base/c74support",
+    "${workspaceFolder}/MinApi/max-sdk-base/c74support/max-includes",
+    "${workspaceFolder}/Consolidator.Native/External"
+  ],
+  "C_Cpp.default.defines": [
+    "WIN32",
+    "_WINDOWS",
+    "MAXAPI_USE_MSCRT",
+    "WIN_VERSION",
+    "_USE_MATH_DEFINES",
+    "_CRT_SECURE_NO_WARNINGS"
+  ],
+  "C_Cpp.default.cppStandard": "c++20",
+  "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+  "C_Cpp.default.compilerPath": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe"
+}
