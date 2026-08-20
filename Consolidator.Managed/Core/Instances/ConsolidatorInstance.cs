@@ -11,7 +11,7 @@ public sealed class ConsolidatorInstance
     private readonly IInstanceOutput _output;
     private readonly DspStateCompiler _dspCompiler;
     private readonly IDspStatePublisher _dspPublisher;
-    private readonly InstanceState _state;
+    private readonly DspState _state;
     private readonly InstanceStateStore _stateStore;
     private bool _active = true;
 
@@ -21,7 +21,7 @@ public sealed class ConsolidatorInstance
         IDspStatePublisher dspPublisher,
         StateHistory history,
         DspStateCompiler dspCompiler,
-        InstanceState state,
+        DspState state,
         InstanceStateBuilder stateBuilder)
     {
         Id = id;

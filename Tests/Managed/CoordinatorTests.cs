@@ -8,6 +8,7 @@ using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Bindings;
+using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,18 +23,27 @@ public sealed class CoordinatorTests
     {
         var first = ManagedServices.Provider.GetRequiredService<Coordinator>();
         var second = ManagedServices.Provider.GetRequiredService<Coordinator>();
+        var firstRegistry = ManagedServices.Provider.GetRequiredService<InstanceRegistry>();
+        var secondRegistry = ManagedServices.Provider.GetRequiredService<InstanceRegistry>();
+        var firstTopologyStore = ManagedServices.Provider.GetRequiredService<TopologyStore>();
+        var secondTopologyStore = ManagedServices.Provider.GetRequiredService<TopologyStore>();
 
         Assert.Same(first, second);
+        Assert.Same(firstRegistry, secondRegistry);
+        Assert.Same(firstTopologyStore, secondTopologyStore);
     }
 
     [Fact]
     public unsafe void CoordinatorIssuesDistinctIdsForMultipleInstances()
     {
+        var history = new StateHistory();
         var coordinator = new Coordinator(
             new TestLogger(),
-            new StateHistory(),
+            history,
             new DspStateCompiler(),
-            new InstanceStateBuilder());
+            new InstanceStateBuilder(),
+            new InstanceRegistry(),
+            new TopologyStore(history));
         var firstExchange = AllocateExchange();
         var secondExchange = AllocateExchange();
         var firstPublisher = new NativeDspStatePublisher(firstExchange);
@@ -59,11 +69,14 @@ public sealed class CoordinatorTests
     [Fact]
     public void CoordinatorUndoRestoresAllInstancesAndPublishesEachSnapshotOnce()
     {
+        var history = new StateHistory();
         var coordinator = new Coordinator(
             new TestLogger(),
-            new StateHistory(),
+            history,
             new DspStateCompiler(),
-            new InstanceStateBuilder());
+            new InstanceStateBuilder(),
+            new InstanceRegistry(),
+            new TopologyStore(history));
         var firstPublisher = new RecordingDspStatePublisher();
         var secondPublisher = new RecordingDspStatePublisher();
         var first = coordinator.RegisterInstance(new TestOutput(), firstPublisher);
@@ -89,6 +102,70 @@ public sealed class CoordinatorTests
             Assert.Equal(20.0F, secondPublisher.LastSnapshot.Gain);
             Assert.Equal(2, firstPublisher.PublishCount);
             Assert.Equal(2, secondPublisher.PublishCount);
+        }
+        finally
+        {
+            coordinator.UnregisterInstance(first.Id);
+            coordinator.UnregisterInstance(second.Id);
+        }
+    }
+
+    [Fact]
+    public void CoordinatorStoresPerInstanceTopologyInSharedHistory()
+    {
+        var history = new StateHistory();
+        var coordinator = new Coordinator(
+            new TestLogger(),
+            history,
+            new DspStateCompiler(),
+            new InstanceStateBuilder(),
+            new InstanceRegistry(),
+            new TopologyStore(history));
+        var first = coordinator.RegisterInstance(
+            new TestOutput(),
+            new RecordingDspStatePublisher());
+        var second = coordinator.RegisterInstance(
+            new TestOutput(),
+            new RecordingDspStatePublisher());
+
+        try
+        {
+            coordinator.AdvanceHistoryPoint();
+            Assert.True(coordinator.SetBankGroup(first.Id, 0, new GroupId(12)));
+            Assert.True(coordinator.SetBankGroup(second.Id, 5, new GroupId(12)));
+            Assert.True(coordinator.SetBankGroup(second.Id, 6, new GroupId(24)));
+            Assert.True(coordinator.SetFocusedBank(
+                first.Id,
+                new BankAddress(second.Id, 6)));
+
+            Assert.Equal(new GroupId(12), coordinator.GetTopology(first.Id)!.GetGroupId(0));
+            Assert.Equal(new GroupId(12), coordinator.GetTopology(second.Id)!.GetGroupId(5));
+            Assert.Equal(new GroupId(24), coordinator.GetTopology(second.Id)!.GetGroupId(6));
+            Assert.Equal(
+                new BankAddress(second.Id, 6),
+                coordinator.GetTopology(first.Id)!.FocusedBank);
+            var groupMembers = coordinator.GetGroupMembers(new BankAddress(first.Id, 0));
+            Assert.Equal(2, groupMembers.Count);
+            Assert.Contains(new BankAddress(first.Id, 0), groupMembers);
+            Assert.Contains(new BankAddress(second.Id, 5), groupMembers);
+            Assert.Same(
+                second,
+                coordinator.Resolve(new BankAddress(second.Id, 5)));
+
+            var groupInstances = coordinator.GetGroupInstanceIds(new GroupId(12));
+            Assert.Equal(2, groupInstances.Count);
+            Assert.Contains(first.Id, groupInstances);
+            Assert.Contains(second.Id, groupInstances);
+            Assert.Equal(2, coordinator.GetGroupInstances(new GroupId(12)).Count);
+            Assert.Contains(
+                new BankAddress(second.Id, 6),
+                coordinator.GetConnectedGroupBanks(
+                    new[] { new BankAddress(first.Id, 0) }));
+
+            Assert.True(coordinator.UndoHistory());
+
+            Assert.Equal(TopologyState.Empty, coordinator.GetTopology(first.Id));
+            Assert.Equal(TopologyState.Empty, coordinator.GetTopology(second.Id));
         }
         finally
         {
@@ -163,9 +240,9 @@ public sealed class CoordinatorTests
     }
 
     [Fact]
-    public void DspStateCompilerCreatesRuntimeSnapshotFromInstanceState()
+    public void DspStateCompilerCreatesRuntimeSnapshotFromDspState()
     {
-        var state = new InstanceState
+        var state = new DspState
         {
             Gain = 0.5F
         };
@@ -253,11 +330,14 @@ public sealed class CoordinatorTests
     [Fact]
     public unsafe void UnregisterStopsDspPublisherBeforeExchangeIsFreed()
     {
+        var history = new StateHistory();
         var coordinator = new Coordinator(
             new TestLogger(),
-            new StateHistory(),
+            history,
             new DspStateCompiler(),
-            new InstanceStateBuilder());
+            new InstanceStateBuilder(),
+            new InstanceRegistry(),
+            new TopologyStore(history));
         var exchange = AllocateExchange();
         var publisher = new NativeDspStatePublisher(exchange);
         var instance = coordinator.RegisterInstance(

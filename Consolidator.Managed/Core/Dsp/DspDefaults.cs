@@ -2,11 +2,8 @@ namespace Consolidator.Managed.Core.Dsp;
 
 public static class DspDefaults
 {
-    public static InstanceState CreateState()
+    public static DspState CreateState()
     {
-        return new InstanceState
-        {
-            Gain = 1.0F
-        };
+        return new DspState();
     }
 }

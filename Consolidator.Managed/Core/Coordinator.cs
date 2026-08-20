@@ -2,30 +2,36 @@ using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Core;
 
 public sealed class Coordinator
 {
+    private readonly object _operationLock = new();
     private readonly IConsolidatorLogger _logger;
     private readonly StateHistory _history;
     private readonly DspStateCompiler _dspCompiler;
     private readonly InstanceStateBuilder _stateBuilder;
-    private readonly Dictionary<ulong, ConsolidatorInstance> _instances = new();
-    private readonly object _instanceLock = new();
+    private readonly InstanceRegistry _instanceRegistry;
+    private readonly TopologyStore _topologyStore;
     private ulong _nextInstanceId;
 
     public Coordinator(
         IConsolidatorLogger logger,
         StateHistory history,
         DspStateCompiler dspCompiler,
-        InstanceStateBuilder stateBuilder)
+        InstanceStateBuilder stateBuilder,
+        InstanceRegistry instanceRegistry,
+        TopologyStore topologyStore)
     {
         _logger = logger;
         _history = history;
         _dspCompiler = dspCompiler;
         _stateBuilder = stateBuilder;
+        _instanceRegistry = instanceRegistry;
+        _topologyStore = topologyStore;
     }
 
     public ConsolidatorInstance RegisterInstance(
@@ -35,12 +41,10 @@ public sealed class Coordinator
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(dspPublisher);
 
-        ConsolidatorInstance instance;
-
-        lock (_instanceLock)
+        lock (_operationLock)
         {
             var id = ++_nextInstanceId;
-            instance = new ConsolidatorInstance(
+            var instance = new ConsolidatorInstance(
                 id,
                 output,
                 dspPublisher,
@@ -48,29 +52,30 @@ public sealed class Coordinator
                 _dspCompiler,
                 DspDefaults.CreateState(),
                 _stateBuilder);
-            _instances.Add(id, instance);
+            _instanceRegistry.Add(instance);
+            _topologyStore.Register(instance.Id);
+
+            _logger.Info($"Registered instance {instance.Id}");
+
+            return instance;
         }
-
-        _logger.Info($"Registered instance {instance.Id}");
-
-        return instance;
     }
 
     public void UnregisterInstance(
         ulong instanceId)
     {
-        ConsolidatorInstance? instance;
-
-        lock (_instanceLock)
+        lock (_operationLock)
         {
-            if (!_instances.Remove(instanceId, out instance))
+            var instance = _instanceRegistry.Remove(instanceId);
+            if (instance is null)
             {
                 return;
             }
-        }
 
-        instance.Stop();
-        _logger.Info($"Unregistered instance {instanceId}");
+            _topologyStore.Unregister(instanceId);
+            instance.Stop();
+            _logger.Info($"Unregistered instance {instanceId}");
+        }
     }
 
     public void ReceiveMessage(
@@ -78,6 +83,9 @@ public sealed class Coordinator
         string selector,
         ReadOnlySpan<Atom> atoms)
     {
+        lock (_operationLock)
+        {
+        }
     }
 
     public void Prepare(
@@ -85,16 +93,101 @@ public sealed class Coordinator
         double sampleRate,
         nuint maximumFrameCount)
     {
-        var instance = FindInstance(instanceId);
-
-        if (instance is null)
+        lock (_operationLock)
         {
-            return;
-        }
+            var instance = _instanceRegistry.Find(instanceId);
 
-        instance.Prepare(
-            sampleRate,
-            maximumFrameCount);
+            if (instance is null)
+            {
+                return;
+            }
+
+            instance.Prepare(
+                sampleRate,
+                maximumFrameCount);
+        }
+    }
+
+    public TopologyState? GetTopology(ulong instanceId)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.Get(instanceId);
+        }
+    }
+
+    public bool SetBankGroup(
+        ulong instanceId,
+        int bankIndex,
+        GroupId? groupId)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.SetBankGroup(instanceId, bankIndex, groupId);
+        }
+    }
+
+    public bool SetFocusedBank(
+        ulong instanceId,
+        BankAddress? focusedBank)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.SetFocusedBank(instanceId, focusedBank);
+        }
+    }
+
+    public IReadOnlyList<BankAddress> GetGroupMembers(BankAddress bank)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.GetGroupMembers(bank);
+        }
+    }
+
+    public ConsolidatorInstance? Resolve(BankAddress bank)
+    {
+        lock (_operationLock)
+        {
+            return _instanceRegistry.Find(bank.InstanceId);
+        }
+    }
+
+    public IReadOnlyList<ConsolidatorInstance> GetGroupInstances(GroupId groupId)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.GetGroupInstanceIds(groupId)
+                .Select(_instanceRegistry.Find)
+                .Where(instance => instance is not null)
+                .Cast<ConsolidatorInstance>()
+                .ToArray();
+        }
+    }
+
+    public IReadOnlyList<ulong> GetGroupInstanceIds(GroupId groupId)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.GetGroupInstanceIds(groupId);
+        }
+    }
+
+    public IReadOnlyList<BankAddress> GetGroupedBanks(ulong instanceId)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.GetGroupedBanks(instanceId);
+        }
+    }
+
+    public IReadOnlyList<BankAddress> GetConnectedGroupBanks(
+        IReadOnlyList<BankAddress> seeds)
+    {
+        lock (_operationLock)
+        {
+            return _topologyStore.GetConnectedGroupBanks(seeds);
+        }
     }
 
     /// <summary>
@@ -102,39 +195,43 @@ public sealed class Coordinator
     /// </summary>
     public void AdvanceHistoryPoint()
     {
-        _history.AdvanceHistoryPoint();
+        lock (_operationLock)
+        {
+            _history.AdvanceHistoryPoint();
+        }
     }
 
     public bool UndoHistory()
     {
-        if (!_history.Undo())
+        lock (_operationLock)
         {
-            return false;
-        }
+            if (!_history.Undo())
+            {
+                return false;
+            }
 
-        PublishDspStates();
-        return true;
+            PublishDspStates();
+            return true;
+        }
     }
 
     public bool RedoHistory()
     {
-        if (!_history.Redo())
+        lock (_operationLock)
         {
-            return false;
-        }
+            if (!_history.Redo())
+            {
+                return false;
+            }
 
-        PublishDspStates();
-        return true;
+            PublishDspStates();
+            return true;
+        }
     }
 
     private void PublishDspStates()
     {
-        ConsolidatorInstance[] instances;
-
-        lock (_instanceLock)
-        {
-            instances = _instances.Values.ToArray();
-        }
+        var instances = _instanceRegistry.GetAll();
 
         foreach (var instance in instances)
         {
@@ -142,12 +239,4 @@ public sealed class Coordinator
         }
     }
 
-    private ConsolidatorInstance? FindInstance(ulong instanceId)
-    {
-        lock (_instanceLock)
-        {
-            _instances.TryGetValue(instanceId, out var instance);
-            return instance;
-        }
-    }
 }

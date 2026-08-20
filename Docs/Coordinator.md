@@ -20,10 +20,9 @@ ServiceProvider
 
 ## Ownership
 
-`Coordinator` владеет общим Managed application state и registry:
+`Coordinator` владеет общим Managed coordination state:
 
 - instance IDs;
-- `ConsolidatorInstance` lookup;
 - registration и unregistration;
 - control-message routing;
 - per-instance prepare routing;
@@ -32,7 +31,7 @@ ServiceProvider
 `ConsolidatorInstance` владеет только состоянием конкретного external:
 
 - lifecycle state;
-- `InstanceState` and its `InstanceStateStore`;
+- `DspState` and its `InstanceStateStore`;
 - per-instance state registration through `InstanceStateBuilder`;
 - `IInstanceOutput` transport;
 - `IDspStatePublisher` for the native-owned exchange;
@@ -43,8 +42,18 @@ active instances. An instance must receive that history explicitly; production
 constructors do not create a private history. `InstanceStateBuilder` creates
 the instance's `StateValue<T>` registrations and their `IStateBinding<T>`
 projections. A binding may update a simple field, derived state, a graph
-component, or non-DSP application state; it must remain fast and local because
-history applies bindings while holding its control-path lock.
+component, or non-DSP application state; bindings run after the history lock is
+released.
+
+Topology values are registered in the shared history through `TopologyStore`,
+not in `InstanceStateStore`. `TopologyStore` is a Managed DI singleton and
+owns the global topology feature, including per-instance topology history
+values, topology mutations, and topology queries. `InstanceRegistry` is a separate
+Managed DI singleton that owns `InstanceId -> ConsolidatorInstance` references;
+it has no topology or history responsibilities. `TopologyIndex` is a separate
+Managed DI singleton for derived group indexes and graph queries. `Coordinator`
+coordinates registration, unregister lifecycle, history navigation, and public
+operations across these services.
 
 `DspStateCompiler` is a stateless Managed DI singleton. It is shared by the
 Coordinator and instances and only derives runtime snapshots from an
@@ -55,7 +64,7 @@ managed `IDspStatePublisher` abstraction. The pointer-based
 `NativeDspStatePublisher` implementation remains in the Native boundary and
 is created by `NativeApi`.
 
-`InstanceState` is authoritative Managed state. `DspStateCompiler` derives the
+`DspState` is authoritative Managed DSP state. `DspStateCompiler` derives the
 fixed-layout `DspSnapshot` from it, and only that runtime snapshot is published
 to Native. `Prepare(sampleRate, maximumFrameCount)` is the lifecycle-safe place
 to update the DSP compilation context; it must not reset parameter state. The
@@ -74,15 +83,23 @@ prepare-time compilation.
 
 ## Threading
 
-Coordinator synchronizes короткие операции control path через private lock:
+`Coordinator` serializes one logical control operation at a time through a
+private operation lock. This lock covers:
 
 - `RegisterInstance`;
 - `UnregisterInstance`;
 - `ReceiveMessage`;
-- `Prepare`.
+- `Prepare`;
+- topology mutations;
+- `AdvanceHistoryPoint`;
+- `UndoHistory` и `RedoHistory`.
 
-Coordinator не держит общий lock во время output callback. Callback защищается
-только per-instance lifecycle gate.
+History bindings run after the internal `StateHistory` lock is released. The
+Coordinator operation lock keeps the history cursor, stored values, bindings,
+topology indexes, and DSP publication in one logical order, so another control
+operation cannot interleave between the history write and its projection.
+Coordinator does not hold this lock during the audio callback. Output callback
+execution is protected only by the per-instance lifecycle gate.
 
 `ReceiveAudio` не обращается к Coordinator и не входит под этот lock. Audio
 ingestion должен использовать per-instance realtime-safe reference или slot и не

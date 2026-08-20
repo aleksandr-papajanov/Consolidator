@@ -8,7 +8,7 @@ public sealed class InstanceStateBuilder
 {
     public InstanceStateStore Build(
         StateHistory history,
-        InstanceState state)
+        DspState state)
     {
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(state);
@@ -16,8 +16,8 @@ public sealed class InstanceStateBuilder
         var store = new InstanceStateStore();
         store.Add(history.CreateValue(
             StateIds.Gain,
-            state.Gain,
-            new StateBinding<float>(value => state.Gain = value)));
+            state.InputGain.GainDb.Value,
+            new StateBinding<float>(value => state.InputGain.GainDb.SetValue(value))));
         return store;
     }
 }

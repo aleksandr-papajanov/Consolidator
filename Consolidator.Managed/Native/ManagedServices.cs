@@ -3,6 +3,7 @@ using Consolidator.Managed.Core.Abstractions;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Instances;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.Topology;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Consolidator.Managed.Native;
@@ -20,6 +21,8 @@ public static class ManagedServices
             new ConsolidatorLogger(
                 serviceProvider.GetRequiredService<NativeLogSink>()));
         services.AddSingleton<StateHistory>();
+        services.AddSingleton<TopologyStore>();
+        services.AddSingleton<InstanceRegistry>();
         services.AddSingleton<DspStateCompiler>();
         services.AddSingleton<InstanceStateBuilder>();
         services.AddSingleton<Coordinator>();

@@ -45,7 +45,10 @@ public sealed class StateValue<TValue> : IStateValue, IHistoryValue
 
     void IHistoryValue.ApplySlot(int slot)
     {
-        _binding?.Apply(_values[slot]);
+        if (!_disposed)
+        {
+            _binding?.Apply(_values[slot]);
+        }
     }
 
     public void Dispose()
@@ -73,6 +76,15 @@ public sealed class StateValue<TValue> : IStateValue, IHistoryValue
             this);
 
         _values[slot] = value;
+    }
+
+    internal void ApplyValue(TValue value)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
         _binding?.Apply(value);
     }
 }

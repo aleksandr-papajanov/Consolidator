@@ -49,10 +49,10 @@ public sealed class StateHistory
     /// Registers a value in the shared history.
     /// </summary>
     /// <remarks>
-    /// The binding runs while the history lock is held. It must only
-    /// perform fast local Managed projection updates. It must not publish DSP,
-    /// send output, call Coordinator or history operations, perform I/O, or do
-    /// long-running work.
+    /// The initial binding is applied during registration. Bindings for later
+    /// history operations run after the history lock is released. They must
+    /// not start another history operation, perform I/O, or do long-running
+    /// work.
     /// </remarks>
     public StateValue<TValue> CreateValue<TValue>(
         StateId id,
@@ -67,6 +67,17 @@ public sealed class StateHistory
                 initialValue,
                 binding);
             _values.Add(value);
+
+            try
+            {
+                binding?.Apply(initialValue);
+            }
+            catch
+            {
+                _values.Remove(value);
+                throw;
+            }
+
             return value;
         }
     }
@@ -95,6 +106,9 @@ public sealed class StateHistory
 
     public bool Undo()
     {
+        IHistoryValue[] values;
+        int currentSlot;
+
         lock (_lock)
         {
             if (_availableUndoCount == 0)
@@ -105,13 +119,19 @@ public sealed class StateHistory
             _currentSlot = PreviousSlot(_currentSlot);
             _availableUndoCount--;
             _availableRedoCount++;
-            ApplyCurrent();
-            return true;
+            currentSlot = _currentSlot;
+            values = _values.ToArray();
         }
+
+        ApplyCurrent(values, currentSlot);
+        return true;
     }
 
     public bool Redo()
     {
+        IHistoryValue[] values;
+        int currentSlot;
+
         lock (_lock)
         {
             if (_availableRedoCount == 0)
@@ -122,9 +142,12 @@ public sealed class StateHistory
             _currentSlot = NextSlot(_currentSlot);
             _availableUndoCount++;
             _availableRedoCount--;
-            ApplyCurrent();
-            return true;
+            currentSlot = _currentSlot;
+            values = _values.ToArray();
         }
+
+        ApplyCurrent(values, currentSlot);
+        return true;
     }
 
     internal void SetValue<TValue>(
@@ -137,6 +160,8 @@ public sealed class StateHistory
                 _currentSlot,
                 newValue);
         }
+
+        value.ApplyValue(newValue);
     }
 
     internal TValue GetValue<TValue>(StateValue<TValue> value)
@@ -155,11 +180,13 @@ public sealed class StateHistory
         }
     }
 
-    private void ApplyCurrent()
+    private static void ApplyCurrent(
+        IReadOnlyList<IHistoryValue> values,
+        int slot)
     {
-        foreach (var value in _values)
+        foreach (var value in values)
         {
-            value.ApplySlot(_currentSlot);
+            value.ApplySlot(slot);
         }
     }
 

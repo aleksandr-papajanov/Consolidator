@@ -128,8 +128,8 @@ public sealed class StateHistoryTests
         Assert.True(history.Undo());
         Assert.True(history.Redo());
 
-        Assert.Equal(0, firstApplyCount);
-        Assert.Equal(4, secondApplyCount);
+        Assert.Equal(1, firstApplyCount);
+        Assert.Equal(5, secondApplyCount);
         Assert.Equal(30, second.Value);
     }
 }
