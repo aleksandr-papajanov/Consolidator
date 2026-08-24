@@ -1,112 +1,112 @@
-# Managed Coordinator
+# Managed Coordination
 
-## Lifetime
+## Shared services
 
-`Coordinator` регистрируется в Managed DI container как singleton:
+Managed coordination services are DI singletons for the lifetime of the loaded
+Managed DLL:
 
 ```text
-ServiceProvider
-    -> one Coordinator
-        -> many ConsolidatorInstance
+InstanceRegistry
+  -> StateRegistry<InstanceId>
+  -> StateValueFactory
+  -> StateHistory
+  -> StatePeerObserver
+  -> StateTopologyObserver
+      -> TopologyIndex
+      -> AudibilityObserver
+  -> InstanceCommandRouter
+      -> CommandExecutor
 ```
 
-Его lifetime равен lifetime DI container и загруженной
-`Consolidator.Managed.dll`. Все Max externals внутри одного процесса и одной
-загруженной Managed DLL получают доступ к одному `Coordinator`.
+Responsibilities are intentionally narrow:
 
-`ConsolidatorCore` использует `Coordinator`, но не владеет его lifecycle.
-Остановка одного external не останавливает общий Coordinator и не затрагивает
-другие instances.
+- `InstanceRegistry` owns instance IDs, registration, unregistration and
+  `ManagedInstance` lifetime;
+- generic `StateRegistry<InstanceId>` owns only root-node creation, path
+  registration and root removal;
+- `StateValueFactory` owns application edit policy and composes concrete value
+  observers;
+- `StateHistory` owns the shared history cursor and active history-value list;
+- `StatePeerObserver` owns peer buckets, grouped mutations and effective delta
+  ranges;
+- `StateTopologyObserver` reacts to bank-group and instance lifecycle events;
+- `TopologyIndex` stores derived group/focus indexes and serves queries;
+- `AudibilityObserver` observes mute/solo values and projects audibility;
+- `InstanceCommandRouter` validates sources and selects targets;
+- `CommandExecutor` executes commands on already selected instances.
 
-## Ownership
+There is no global coordinator facade, general projection service or state
+resolver layer.
 
-`Coordinator` владеет общим Managed coordination state:
+## Instance lifetime
 
-- instance IDs;
-- registration и unregistration;
-- control-message routing;
-- per-instance prepare routing;
-- cross-instance operations.
+Registration creates a root tree, runtime snapshot, typed state models and
+their observers. `StateTopologyObserver.AddState` indexes the completed
+instance and refreshes peer buckets and audibility before the first DSP
+snapshot is published.
 
-`ConsolidatorInstance` владеет только состоянием конкретного external:
+`ManagedInstance` owns its `ManagedState`, DSP publisher and per-instance
+command gate. The generic registry owns the root tree. The root owns its
+history-backed values.
 
-- lifecycle state;
-- `DspState` and its `InstanceStateStore`;
-- per-instance state registration through `InstanceStateBuilder`;
-- `IInstanceOutput` transport;
-- `IDspStatePublisher` for the native-owned exchange;
-- instance-specific services и context.
+Unregistration runs in this order under the shared operation gate:
 
-`StateHistory` is a Managed DI singleton shared by the Coordinator and all
-active instances. An instance must receive that history explicitly; production
-constructors do not create a private history. `InstanceStateBuilder` creates
-the instance's `StateValue<T>` registrations and their `IStateBinding<T>`
-projections. A binding may update a simple field, derived state, a graph
-component, or non-DSP application state; bindings run after the history lock is
-released.
+```text
+remove ManagedInstance from InstanceRegistry
+  -> remove and dispose generic registry root values
+  -> unregister history and value observers
+  -> remove topology and refresh surviving peers/audibility
+  -> leave shared operation gate
+  -> wait for the instance command gate
+  -> stop DSP publisher
+```
 
-Topology values are registered in the shared history through `TopologyStore`,
-not in `InstanceStateStore`. `TopologyStore` is a Managed DI singleton and
-owns the global topology feature, including per-instance topology history
-values, topology mutations, and topology queries. `InstanceRegistry` is a separate
-Managed DI singleton that owns `InstanceId -> ConsolidatorInstance` references;
-it has no topology or history responsibilities. `TopologyIndex` is a separate
-Managed DI singleton for derived group indexes and graph queries. `Coordinator`
-coordinates registration, unregister lifecycle, history navigation, and public
-operations across these services.
+After `UnregisterInstance` returns, the instance ID is not reused and its native
+callback cannot be invoked. Managed shutdown applies the same removal sequence
+to every remaining instance before releasing audio handles and unloading.
 
-`DspStateCompiler` is a stateless Managed DI singleton. It is shared by the
-Coordinator and instances and only derives runtime snapshots from an
-instance's current Managed state; it does not own per-instance state.
+## State changes
 
-`ConsolidatorInstance`, `Coordinator` и `ConsolidatorCore` depend only on the
-managed `IDspStatePublisher` abstraction. The pointer-based
-`NativeDspStatePublisher` implementation remains in the Native boundary and
-is created by `NativeApi`.
+The state tree is authoritative. Effective changes are propagated by the
+observer chain documented in [StateHistory.md](StateHistory.md). DSP runtime,
+topology, peer constraints, audibility and protocol notifications are derived
+reactions; none is a second source of truth.
 
-`DspState` is authoritative Managed DSP state. `DspStateCompiler` derives the
-fixed-layout `DspSnapshot` from it, and only that runtime snapshot is published
-to Native. `Prepare(sampleRate, maximumFrameCount)` is the lifecycle-safe place
-to update the DSP compilation context; it must not reset parameter state. The
-current gain-only prototype has no sample-rate-dependent values yet, while
-future attack/release coefficients and filter coefficients belong in this
-prepare-time compilation.
+Focused-bank selection is a transient per-instance tree value.
+`StateTopologyObserver` copies focus changes into the derived `TopologyIndex`
+used for routing commands and notifications. Bank group membership is
+history-backed and observed by the same boundary.
 
-После `UnregisterInstance` соответствующий instance ID больше не используется.
-Следующая регистрация получает новый ID.
-
-`UnregisterInstance` сначала удаляет instance из общего registry, затем вызывает
-`ConsolidatorInstance.Stop()`. Lifecycle gate внутри instance синхронизирует
-`Stop()` и `TrySend()`: если output callback уже выполняется, unregister ждёт его
-завершения. После возврата `UnregisterInstance` callback для этого instance больше
-не может быть вызван.
+`WriteStateCommand` routes to the focused instance. The target `StateValue`
+delegates its mutation to `StatePeerObserver`, which prepares all materialized
+peers and commits them in one `StateHistoryTransaction`. The command executor
+does not contain a second broadcast-write implementation.
 
 ## Threading
 
-`Coordinator` serializes one logical control operation at a time through a
-private operation lock. This lock covers:
+The shared `IOperationGate` serializes complete control operations:
 
-- `RegisterInstance`;
-- `UnregisterInstance`;
-- `ReceiveMessage`;
-- `Prepare`;
+- register and unregister;
+- protocol message execution;
+- prepare operations;
 - topology mutations;
-- `AdvanceHistoryPoint`;
-- `UndoHistory` и `RedoHistory`.
+- history advance and cursor jumps.
 
-History bindings run after the internal `StateHistory` lock is released. The
-Coordinator operation lock keeps the history cursor, stored values, bindings,
-topology indexes, and DSP publication in one logical order, so another control
-operation cannot interleave between the history write and its projection.
-Coordinator does not hold this lock during the audio callback. Output callback
-execution is protected only by the per-instance lifecycle gate.
+`StateHistory` also protects its cursor and active-value list with a private
+lock. Observer calls occur after that lock is released. The operation gate keeps
+storage, observer projection, topology, constraints and DSP publication in one
+logical order.
 
-`ReceiveAudio` не обращается к Coordinator и не входит под этот lock. Audio
-ingestion должен использовать per-instance realtime-safe reference или slot и не
-ждать control path.
+Each `ManagedInstance` has its own command gate. The shared operation gate
+prevents another control operation from interleaving while an async routed
+command is suspended.
 
-## Boundary
+The audio callback does not enter coordination services or either control-path
+gate. It uses its per-instance realtime-safe handle and the published native DSP
+snapshot only.
 
-Singleton действует только внутри одного процесса и одной загруженной Managed DLL.
-Для общего state между процессами потребовался бы отдельный IPC или persistence
-механизм; `Coordinator` этого не предоставляет.
+## Process boundary
+
+Singleton state is shared only inside one process and one loaded Managed DLL.
+Sharing state between processes would require an explicit IPC or persistence
+boundary.

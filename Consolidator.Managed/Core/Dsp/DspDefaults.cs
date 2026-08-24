@@ -2,8 +2,11 @@ namespace Consolidator.Managed.Core.Dsp;
 
 public static class DspDefaults
 {
-    public static DspState CreateState()
+    public static DspRuntimeState CreateRuntime()
     {
-        return new DspState();
+        return new DspRuntimeState();
     }
 }
+
+
+

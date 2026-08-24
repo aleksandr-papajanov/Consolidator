@@ -24,3 +24,6 @@ public unsafe struct NativeAtom
     [FieldOffset(8)]
     public byte* Symbol;
 }
+
+
+

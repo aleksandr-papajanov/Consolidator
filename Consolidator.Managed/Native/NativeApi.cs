@@ -1,11 +1,14 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
-using Consolidator.Managed.Core;
-using Consolidator.Managed.Core.Instances;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol;
+using Consolidator.Managed.Protocol.Messages;
+using Consolidator.Managed.Protocol.Transport;
+using Consolidator.Managed.Services;
+using Consolidator.Managed.Core.Services.Abstractions;
 
 namespace Consolidator.Managed.Native;
 
@@ -13,11 +16,52 @@ public static unsafe class NativeApi
 {
     private static readonly NativeLogSink LogSink =
         ManagedServices.Provider.GetRequiredService<NativeLogSink>();
-    private static readonly ConsolidatorCore Core =
-        ManagedServices.Provider.GetRequiredService<ConsolidatorCore>();
+    private static readonly IInstanceLifecycleService LifecycleService =
+        ManagedServices.Provider.GetRequiredService<IInstanceLifecycleService>();
+    private static readonly IProtocolOutputRegistry OutputRegistry =
+        ManagedServices.Provider.GetRequiredService<IProtocolOutputRegistry>();
+    private static readonly ProtocolService ProtocolService =
+        ManagedServices.Provider.GetRequiredService<ProtocolService>();
+    private static readonly IInstancePreparationService PreparationService =
+        ManagedServices.Provider.GetRequiredService<IInstancePreparationService>();
+    private static readonly IInstanceAudioInputService AudioInputService =
+        ManagedServices.Provider.GetRequiredService<IInstanceAudioInputService>();
     private static readonly ConcurrentDictionary<ulong, GCHandle>
         AudioInputHandles = new();
     private static long _audioBoundaryExceptionCount;
+    private static int _shutdownStarted;
+
+    [UnmanagedCallersOnly(
+        EntryPoint = "ConsolidatorShutdown",
+        CallConvs = [typeof(CallConvCdecl)])]
+    public static void Shutdown()
+    {
+        if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            ManagedServices.Provider.Dispose();
+        }
+        catch (Exception exception)
+        {
+            LogBoundaryException(
+                "ConsolidatorShutdown",
+                exception);
+        }
+        finally
+        {
+            foreach (var entry in AudioInputHandles.ToArray())
+            {
+                if (AudioInputHandles.TryRemove(entry.Key, out var handle))
+                {
+                    handle.Free();
+                }
+            }
+        }
+    }
 
     [UnmanagedCallersOnly(
         EntryPoint = "ConsolidatorSetLogCallback",
@@ -52,7 +96,7 @@ public static unsafe class NativeApi
         SharedDspExchange* dspExchange,
         nuint* audioInputHandle)
     {
-        ConsolidatorInstance? instance = null;
+        InstanceId instanceId = default;
         GCHandle handle = default;
 
         try
@@ -74,36 +118,40 @@ public static unsafe class NativeApi
 
             *audioInputHandle = 0;
 
-            var output = new NativeOutput(context, outputCallback);
             var publisher = new NativeDspStatePublisher(dspExchange);
-            instance = Core.RegisterInstance(output, publisher);
+            instanceId = LifecycleService.RegisterInstance(publisher);
+            OutputRegistry.Register(
+                instanceId.Value,
+                new NativeOutput(context, outputCallback));
 
-            var audioInput = new NativeAudioInput(instance);
+            var audioInput = new NativeAudioInput(instanceId, AudioInputService);
             handle = GCHandle.Alloc(audioInput);
 
-            if (!AudioInputHandles.TryAdd(instance.Id, handle))
+            if (!AudioInputHandles.TryAdd(instanceId.Value, handle))
             {
                 handle.Free();
                 handle = default;
-                Core.UnregisterInstance(instance.Id);
+                OutputRegistry.Unregister(instanceId.Value);
+                LifecycleService.UnregisterInstance(instanceId);
                 return 0;
             }
 
             *audioInputHandle = (nuint)GCHandle.ToIntPtr(handle);
             handle = default;
-            return instance.Id;
+            return instanceId.Value;
         }
         catch (Exception exception)
         {
             *audioInputHandle = 0;
 
-            if (instance is not null)
+            if (instanceId.IsValid)
             {
-                Core.UnregisterInstance(instance.Id);
+                OutputRegistry.Unregister(instanceId.Value);
+                LifecycleService.UnregisterInstance(instanceId);
             }
 
-            if (instance is not null &&
-                AudioInputHandles.TryRemove(instance.Id, out var registeredHandle))
+            if (instanceId.IsValid &&
+                AudioInputHandles.TryRemove(instanceId.Value, out var registeredHandle))
             {
                 registeredHandle.Free();
             }
@@ -127,7 +175,8 @@ public static unsafe class NativeApi
         try
         {
             ReportPendingAudioBoundaryExceptions();
-            Core.UnregisterInstance(instanceId);
+            OutputRegistry.Unregister(instanceId);
+            LifecycleService.UnregisterInstance(new InstanceId(instanceId));
 
             if (AudioInputHandles.TryRemove(
                 instanceId,
@@ -141,6 +190,15 @@ public static unsafe class NativeApi
             LogBoundaryException(
                 "ConsolidatorUnregisterInstance",
                 exception);
+        }
+        finally
+        {
+            if (AudioInputHandles.TryRemove(
+                instanceId,
+                out var audioInputHandle))
+            {
+                audioInputHandle.Free();
+            }
         }
     }
 
@@ -174,7 +232,11 @@ public static unsafe class NativeApi
                 $"Managed received: instance={instanceId} "
                 + $"selector={managedSelector} atoms=[{atomText}]");
 
-            Core.ReceiveMessage(instanceId, managedSelector, managedAtoms);
+            ProtocolService.Receive(
+                new ProtocolInput(
+                    instanceId,
+                    managedSelector,
+                    managedAtoms));
         }
         catch (Exception exception)
         {
@@ -207,8 +269,8 @@ public static unsafe class NativeApi
         {
             ReportPendingAudioBoundaryExceptions();
 
-            Core.Prepare(
-                instanceId,
+            PreparationService.Prepare(
+                new InstanceId(instanceId),
                 sampleRate,
                 maximumFrameCount);
         }
@@ -297,3 +359,6 @@ public static unsafe class NativeApi
         }
     }
 }
+
+
+

@@ -402,11 +402,15 @@ InteropSandbox/
 │     └─ AtomCodec.*
 │
 ├─ Consolidator.Managed/
+│  ├─ State/
 │  ├─ Core/
-│  │  ├─ Abstractions/
-│  │  └─ Instances/
+│  │  ├─ Commands/
+│  │  ├─ Services/
+│  │  ├─ State/
+│  │  └─ Topology/
 │  ├─ Native/
-│  └─ Protocol/
+│  ├─ Protocol/
+│  └─ Routing/
 │
 └─ Docs/
 ```
@@ -414,11 +418,22 @@ InteropSandbox/
 `Consolidator.Native/External/` содержит Max/min-api integration и native
 interop bridge для текущего sandbox.
 
+`Consolidator.Managed/State/` содержит независимый state mechanism: generic
+registry, tree, history, values, access contracts и observer interface. Этот
+scope не зависит от `Core`, topology, protocol или DSP.
 `Consolidator.Managed/Core/` содержит application orchestration.
-`Consolidator.Managed/Core/Abstractions/` содержит managed application contracts.
-`Consolidator.Managed/Core/Instances/` содержит per-external lifecycle state.
+`Consolidator.Managed/Core/Commands/` содержит command contracts, handlers и
+execution. `Consolidator.Managed/Core/Services/Instances/` содержит lifecycle
+registry, а `Core/Services/PerInstance/` — per-external runtime ownership.
+`Consolidator.Managed/Core/State/` содержит concrete state models, application
+edit policies и business observers. `Consolidator.Managed/Core/Topology/`
+содержит общий derived topology index для state observers и Routing.
 `Consolidator.Managed/Native/` содержит C# ABI exports, NativeAOT boundary и
 marshaling из native representation в managed protocol types.
+`Consolidator.Managed/Protocol/` содержит wire decoding, typed dispatch, encoding
+и transport contracts. `Consolidator.Managed/Routing/` содержит только выбор
+command/notification targets; derived topology queries принадлежат
+`Core/Topology`.
 
 Будущие DSP-компоненты не должны зависеть от Max и Managed application logic.
 

@@ -107,6 +107,8 @@ private:
             const double*,
             std::size_t);
 
+    using ShutdownFn = void (__cdecl *)();
+
     HMODULE library{};
     RegisterInstanceFn registerInstance{};
     UnregisterInstanceFn unregisterInstance{};
@@ -114,6 +116,7 @@ private:
     SendMessageFn sendMessage{};
     PrepareFn prepare{};
     SendAudioFn sendAudio{};
+    ShutdownFn shutdown{};
 };
 
 ManagedRuntime::ManagedRuntime()
@@ -137,6 +140,8 @@ ManagedRuntime::ManagedRuntime()
         GetProcAddress(library, "ConsolidatorPrepare"));
     sendAudio = reinterpret_cast<SendAudioFn>(
         GetProcAddress(library, "ConsolidatorSendAudio"));
+    shutdown = reinterpret_cast<ShutdownFn>(
+        GetProcAddress(library, "ConsolidatorShutdown"));
 
     if (IsLoaded())
     {
@@ -153,6 +158,11 @@ ManagedRuntime::~ManagedRuntime()
 
     if (setLogCallback)
     {
+        if (shutdown)
+        {
+            shutdown();
+        }
+
         setLogCallback(nullptr, nullptr);
     }
 
@@ -167,7 +177,8 @@ bool ManagedRuntime::IsLoaded() const noexcept
            setLogCallback &&
            sendMessage &&
            prepare &&
-           sendAudio;
+           sendAudio &&
+           shutdown;
 }
 
 ManagedRuntime& GetManagedRuntime()

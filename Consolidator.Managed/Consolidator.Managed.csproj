@@ -15,14 +15,12 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
   </ItemGroup>
 
-  <Target
-    Name="BuildNativeBeforePublish"
-    BeforeTargets="Publish"
-    Condition="'$(BuildNativeBeforePublish)' == 'true'">
-    <MSBuild
-      Projects="$(MSBuildThisFileDirectory)..\Consolidator.Native\Consolidator.Native.vcxproj"
-      Targets="Build"
-      Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  <ItemGroup>
+    <InternalsVisibleTo Include="Consolidator.Managed.Tests" />
+  </ItemGroup>
+
+  <Target Name="BuildNativeBeforePublish" BeforeTargets="Publish" Condition="'$(BuildNativeBeforePublish)' == 'true'">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Consolidator.Native\Consolidator.Native.vcxproj" Targets="Build" Properties="Configuration=$(Configuration);Platform=$(Platform)" />
   </Target>
 
 </Project>

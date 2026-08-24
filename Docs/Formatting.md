@@ -41,3 +41,4 @@
 - JavaScript — project-specific formatter rules.
 
 Formatter не определяет architecture, ownership, threading, lifetime, ABI или naming semantics. Если formatter конфликтует с осмысленным project rule, сначала исправить конфигурацию formatter-а.
+

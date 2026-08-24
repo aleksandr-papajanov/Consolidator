@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Consolidator.Managed.Protocol;
+using Consolidator.Managed.Protocol.Messages;
 
 namespace Consolidator.Managed.Native;
 
@@ -46,3 +46,6 @@ public static unsafe class AtomDecoder
         return result;
     }
 }
+
+
+

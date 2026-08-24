@@ -1,15 +1,19 @@
-using Consolidator.Managed.Core.Instances;
+using Consolidator.Managed.Core.Services.Abstractions;
+using Consolidator.Managed.Core.State;
 
 namespace Consolidator.Managed.Native;
 
 public unsafe sealed class NativeAudioInput
 {
-    private readonly ConsolidatorInstance _instance;
+    private readonly InstanceId _instanceId;
+    private readonly IInstanceAudioInputService _audioInputService;
 
-    public NativeAudioInput(ConsolidatorInstance instance)
+    public NativeAudioInput(
+        InstanceId instanceId,
+        IInstanceAudioInputService audioInputService)
     {
-        ArgumentNullException.ThrowIfNull(instance);
-        _instance = instance;
+        _instanceId = instanceId;
+        _audioInputService = audioInputService;
     }
 
     public void ReceiveAudio(
@@ -19,7 +23,8 @@ public unsafe sealed class NativeAudioInput
         double* referenceRight,
         nuint frameCount)
     {
-        _instance.ReceiveAudio(
+        _audioInputService.ReceiveAudio(
+            _instanceId,
             mainLeft,
             mainRight,
             referenceLeft,
@@ -27,3 +32,7 @@ public unsafe sealed class NativeAudioInput
             frameCount);
     }
 }
+
+
+
+

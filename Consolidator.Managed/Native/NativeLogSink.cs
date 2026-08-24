@@ -29,3 +29,7 @@ public unsafe sealed class NativeLogSink
         }
     }
 }
+
+
+
+

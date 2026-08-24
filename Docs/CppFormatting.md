@@ -89,3 +89,4 @@ ABI, callback, lifetime и realtime contracts являются архитект�
 а не правилами форматирования. Их источник находится в [`Rules.md`](Rules.md),
 а текущая реализация обмена описана в
 [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md).
+

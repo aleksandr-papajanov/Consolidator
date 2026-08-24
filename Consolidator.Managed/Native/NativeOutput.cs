@@ -1,10 +1,10 @@
 using System.Runtime.InteropServices;
-using Consolidator.Managed.Core.Abstractions;
-using Consolidator.Managed.Protocol;
+using Consolidator.Managed.Protocol.Messages;
+using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Native;
 
-public unsafe sealed class NativeOutput : IInstanceOutput
+internal unsafe sealed class NativeOutput : IProtocolOutputCallback
 {
     private readonly void* _context;
     private readonly delegate* unmanaged[Cdecl]<
@@ -32,34 +32,32 @@ public unsafe sealed class NativeOutput : IInstanceOutput
         _callback = callback;
     }
 
-    public void Send(
-        string selector,
-        ReadOnlySpan<Atom> atoms)
+    public void Send(ProtocolOutput message)
     {
-        ArgumentNullException.ThrowIfNull(selector);
+        ArgumentNullException.ThrowIfNull(message);
 
-        var selectorPointer = Marshal.StringToCoTaskMemUTF8(selector);
-        var nativeAtoms = new NativeAtom[atoms.Length];
-        var symbolPointers = new nint[atoms.Length];
+        var selectorPointer = Marshal.StringToCoTaskMemUTF8(message.Selector);
+        var nativeAtoms = new NativeAtom[message.Atoms.Count];
+        var symbolPointers = new nint[message.Atoms.Count];
 
         try
         {
-            for (var index = 0; index < atoms.Length; index++)
+            for (var index = 0; index < message.Atoms.Count; index++)
             {
-                nativeAtoms[index] = atoms[index].Type switch
+                nativeAtoms[index] = message.Atoms[index].Type switch
                 {
                     AtomType.Integer => new NativeAtom
                     {
                         Type = NativeAtomType.Integer,
-                        Integer = atoms[index].Integer
+                        Integer = message.Atoms[index].Integer
                     },
                     AtomType.Float => new NativeAtom
                     {
                         Type = NativeAtomType.Float,
-                        Float = atoms[index].Float
+                        Float = message.Atoms[index].Float
                     },
                     AtomType.Symbol => CreateSymbolAtom(
-                        atoms[index].Symbol,
+                        message.Atoms[index].Symbol,
                         symbolPointers,
                         index),
                     _ => throw new ArgumentOutOfRangeException()
@@ -104,3 +102,6 @@ public unsafe sealed class NativeOutput : IInstanceOutput
         };
     }
 }
+
+
+

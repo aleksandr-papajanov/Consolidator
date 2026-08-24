@@ -1,83 +1,162 @@
-# Managed State History
+# Managed State and Observers
 
-`StateHistory` is a singleton in the Managed DI container. It owns one logical
-cursor for all active `ConsolidatorInstance` objects. Each `StateValue<T>` owns
-`StateHistory.Capacity` values and uses the shared cursor as its index. This
-includes each instance's `InstanceState`: seven bank slots indexed from 0 to 6,
-where every slot may contain a nullable `GroupId`. `InstanceState` also stores
-an optional focused `BankAddress`. The focused bank may belong to another
-instance, so it is a reference rather than an index constrained to the owning
-instance.
+The state tree is the authoritative Managed store. The top-level `State`
+scope contains the reusable mechanism; `Core/State` defines this application's
+concrete values and reactions. `ManagedInstance` owns the corresponding
+`ManagedState`, DSP runtime and native publisher.
 
-State code is organized by responsibility: shared history primitives and
-`InstanceStateStore` live in `Core.State`, with generic bindings in
-`Core.State.Bindings`. Topology is a separate feature under `Core.Topology`.
+The infrastructure boundary is documented separately in
+[StateInfrastructure.md](StateInfrastructure.md).
 
-The managed state address model lives in `Core.State.StatePath`. It exposes
-typed factories for instance fields, bank groups, DSP parameters, and DSP
-markers, plus immutable `WithNode`, `WithParameter`, and `WithMarker` helpers.
-`StatePath.Matches` retains the legacy prefix-query behavior without exposing
-fixed native arrays or optional C++ fields to application code. `StateEntry`
-contains the addressed value and write metadata; `StateMetadata` describes
-which fields are persistent and undoable.
+Application state code is organized by responsibility:
 
-The full DSP tree is represented by the single `DspState` root and the small
-`ParameterState`/`StateMarker` primitives kept beside it in `Core.Dsp`.
-`TopologyState`
-continues to own grouped banks and focused-bank navigation, while
-`InstanceState` owns instance label, selected bank, audibility, and the
-reference to the focused bank. Native interop must use a separate ABI DTO and
-must not depend on these domain types.
+```text
+Core/State/
+├─ Models/      concrete instance and DSP state composition
+├─ Observers/   topology, peer, audibility, projection and UI reactions
+├─ StateValueFactory.cs
+├─ StateNodeIds.cs
+└─ domain value types and edit policies
 
-`TopologyStore` maintains derived group indexes from the history-backed
-topology values. The indexes map each `GroupId` to its bank addresses and to
-the participating instance IDs. They are updated by the topology binding, so
-undo and redo restore both the topology values and the search indexes.
+Core/Topology/
+└─ TopologyIndex.cs  shared derived bank/group indexes and queries
+```
 
-`AdvanceHistoryPoint()` has an explicit pre-operation contract: it opens a new
-history point and must be called before the first write belonging to a logical
-operation. It copies the current slot to the next slot for every registered
-value and clears the redo range. Writing `StateValue<T>.Value` then changes only
-the newly opened slot. Repeated writes to that slot are coalesced. Calling
-`AdvanceHistoryPoint()` after the writes would copy the already modified state
-and therefore cannot make those writes undoable.
+## State values
 
-`Undo()` and `Redo()` move the cursor without copying values and apply each
-value's binding.
+Each history-backed `StateValue<TValue>` owns `StateHistory.Capacity` slots and
+an ordered observer list. Generic
+`StateRegistry<TRootId>` owns roots and registers values with observers supplied
+by its caller. It has no dependency on Core, instances, topology, UI ownership
+or peer policy.
 
-Bindings run after the history lock is released. They are deliberately
-restricted to fast local Managed assignments or small deterministic projection
-updates. A binding must not start another history operation, perform I/O, or
-execute long-running work. Coordinator-level operation serialization keeps
-another logical control operation from interleaving during this projection
-window. For undo and redo, DSP publication is performed once per active
-instance after all projections have completed.
+`Core.State.StateValueFactory` creates the concrete application values. It
+assigns edit scope and notification ownership and appends two common observers:
 
-`InstanceStateStore` owns the values for one instance and disposes them during
-`ConsolidatorInstance.Stop()`. The store does not own history data.
-A `StateValue<T>` uses an `IStateBinding<T>` to apply a logical value to its
-projection. The gain binding updates the existing Managed `InstanceState`,
-while the topology binding updates the Coordinator-owned topology projection.
-Other bindings may update derived state, graph components, or non-DSP
-application state.
+- `StatePeerObserver` materializes peers, intercepts writes and maintains the
+  effective delta range;
+- `StateChangeObserver<TValue>` publishes effective changes through
+  `IStateChangeSink` for protocol/UI delivery.
 
-`TopologyIndex` is an internal implementation detail of `TopologyStore` for
-derived group indexes.
-It maps each `GroupId` to its bank addresses and to the participating instance
-IDs. `TopologyBinding` updates it after the history lock is released, so undo
-and redo restore topology values and then update the search indexes.
+Concrete state models add their specific observers explicitly:
 
-`Coordinator` owns the current topology projection and the topology history
-values for registered instances. Topology updates are control-path operations;
-they do not enter the audio path or DSP snapshot.
+- `StateProjectionObserver<TValue>` projects one value into `DspRuntimeState`;
+- `AudibilityObserver` observes instance mute and solo values;
+- `StateTopologyObserver` observes each bank group value.
 
-`InstanceStateBuilder` owns per-instance value registration and binding setup.
-`ConsolidatorInstance` does not contain one setter method per parameter. DSP
-compilation and native publication remain instance responsibilities.
+Observers receive the initial value through `Attach`. `ValueChanged` is called
+only after an effective direct write, committed transaction or history jump.
+No-op values do not produce observer calls. `Detach` runs when the root is
+removed and unregisters the value from history, peers and derived observers.
 
-History operations are control-path operations serialized by the Coordinator's
-operation lock. `StateHistory` still protects its own cursor and ring buffers,
-but that internal lock does not define the atomicity of a complete logical
-operation. Audio processing never accesses `StateHistory`. After a Coordinator
-undo or redo, each active instance publishes one compiled DSP snapshot after
-all value projections have been applied.
+## Event order
+
+Observers are ordered deliberately:
+
+```text
+effective StateValue change
+  -> value-specific projection/topology/audibility observer
+  -> StatePeerObserver constraint refresh
+  -> StateChangeObserver
+  -> IStateChangeSink
+  -> StateChangeRouter
+  -> focused UI instances
+```
+
+For a bank group change, `StateTopologyObserver` first updates
+`TopologyIndex`. It then asks `StatePeerObserver` to rebuild affected peer
+buckets and effective delta ranges, refreshes audibility, and only afterwards
+does the common state-change observer publish the UI notification.
+
+Bank-owned notifications are addressed only to instances currently focused on
+the changed `BankAddress`. Instance-owned notifications return to the owning
+instance. A grouped write commits every peer value in one transaction; each
+changed bank value then produces its own correctly addressed notification.
+
+The current wire protocol publishes values, not physical/effective ranges.
+Topology changes update cached limits inside Managed immediately, while UI
+receives the bank-group value change. A future UI range display requires an
+explicit range notification contract rather than unchanged value events.
+
+## Peers and constraints
+
+`StatePeerObserver` is the materialized registry of observed values. Local
+values keep themselves as their only peer. Connected bank values are bucketed
+by value type, bank-relative `StatePath` and connected `BankAddress` values, so
+different bank indexes in one topology component still address corresponding
+state. Connected non-bank values use their exact path and the connected
+instance component derived from all grouped banks of the owning instance.
+They do not depend on that instance's current UI focus, and an ungrouped value
+always keeps itself as a writable peer.
+
+`CopyValue` writes the requested value to every peer. `ApplyDelta` writes the
+requested source value and applies the same delta to every peer. Delta mode is
+valid only for `float` values with a physical range.
+
+That physical range is the single numeric-bound policy for a delta value.
+Values are never normalized or clamped: a write outside the effective range is
+rejected before the transaction commits.
+
+Each observed delta value caches the intersection of its peers' remaining
+physical ranges. The cache is rebuilt when topology changes and recalculated
+after a peer value changes. A write validates the delta against that cache
+before preparing the transaction.
+
+## Topology and audibility
+
+`TopologyIndex` lives in the shared `Core/Topology` scope. It is a derived view
+of bank-group and focused-bank state used by both state observers and Routing;
+neither consumer owns the implementation.
+
+`StateTopologyObserver` owns topology lifecycle:
+
+- adding an instance indexes its current bank groups;
+- changing a group moves the bank between group buckets;
+- removing an instance removes its buckets before surviving peers refresh.
+
+The group value is bank-owned for notification routing but has local edit
+scope. Changing membership rebuilds peer buckets; it is not itself propagated
+as a grouped DSP edit.
+
+`AudibilityObserver` stores only the observed mute/solo values and target
+`DspRuntimeState` references. On mute, solo or topology changes it recalculates
+audibility for the affected connectivity graph. The former general
+`StateValueProjection`, `AudibilityResolver` and `ProcessingStateResolver`
+layers no longer exist.
+
+## DSP projection
+
+DSP state constructors attach `StateProjectionObserver<TValue>` directly to
+the values that affect the runtime snapshot. The observer applies the initial
+value and every later effective change. Bypass observers update both the raw
+bypass marker and its derived active flag; detector listen and equalizer
+bank/filter activity are projected by their owning state objects.
+
+These observers run only on the Managed control path. Native audio reads the
+published fixed-layout snapshot and never accesses observers or the state tree.
+
+## History and transactions
+
+`StateHistory` owns one logical cursor and a deterministic registration-order
+list of active `IHistoryValue` objects. The generic registry registers and
+unregisters values directly, so history never discovers values by walking the
+tree.
+
+`AdvanceHistoryPoint` copies the current slot into the next slot before a
+logical edit. `JumpToHistory` moves the shared logical cursor in one operation,
+then notifies observers for values whose effective value changed. Each successful
+advance or jump increments the history revision and emits a snapshot containing
+the revision, cursor, entry count and navigation availability. The protocol
+publisher sends that snapshot to every currently registered instance.
+
+`StateHistoryTransaction` prepares every peer before committing storage. Value
+observers run only after all entries commit and pending state is cleared. If
+preparation or storage commit fails, entries roll back in reverse order and no
+observer event is emitted. Protocol delivery failures are caught by
+`StateChangePublisher` and cannot turn a committed state operation into a
+failed mutation.
+
+Root removal disposes its values while the shared operation gate is still held.
+This unregisters them from `StateHistory` and observer registries before another
+control operation can begin. Managed publisher and command-gate disposal may
+then finish outside the shared gate without leaving stopped values visible.

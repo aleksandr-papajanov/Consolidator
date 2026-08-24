@@ -7,7 +7,7 @@
 | Сущность | Стиль | Пример |
 | --- | --- | --- |
 | Class / struct / record | `PascalCase` | `NativeOutput` |
-| Interface | `IPascalCase` | `IInstanceOutput` |
+| Interface | `IPascalCase` | `IProtocolTransport` |
 | Enum / member | `PascalCase` | `AtomType.Symbol` |
 | Method | `PascalCase` | `RegisterInstance()` |
 | Property | `PascalCase` | `InstanceId` |
@@ -90,13 +90,13 @@ application code не должен зависеть от `NativeAtom`.
 Dependencies передавать через constructor injection:
 
 ```csharp
-public sealed class Coordinator
+public sealed class ManagedService
 {
-    private readonly ILogger<Coordinator> _logger;
+    private readonly ILogger<ManagedService> _logger;
     private readonly StateStore _stateStore;
 
-    public Coordinator(
-        ILogger<Coordinator> logger,
+    public ManagedService(
+        ILogger<ManagedService> logger,
         StateStore stateStore)
     {
         _logger = logger;
@@ -113,13 +113,11 @@ Application code не вызывает native callback напрямую. Исп�
 managed abstraction, например:
 
 ```csharp
-namespace Consolidator.Managed.Core.Abstractions;
+namespace Consolidator.Managed.Protocol.Transport;
 
-public interface IInstanceOutput
+public interface IProtocolTransport
 {
-    void Send(
-        string selector,
-        ReadOnlySpan<Atom> atoms);
+    void Send(ProtocolOutput message);
 }
 ```
 
@@ -156,3 +154,4 @@ Exception не должен пересекать unmanaged boundary. Если `[
 - malformed native input.
 
 Application logic тестировать без NativeAOT boundary, используя обычные managed objects.
+

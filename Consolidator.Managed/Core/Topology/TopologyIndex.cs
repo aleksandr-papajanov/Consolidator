@@ -1,70 +1,185 @@
+using Consolidator.Managed.Core.Settings;
+using Consolidator.Managed.Core.State;
+using Consolidator.Managed.State;
+
 namespace Consolidator.Managed.Core.Topology;
 
 internal sealed class TopologyIndex
 {
-    private readonly Dictionary<ulong, TopologyState> _topologies = new();
+    private readonly Dictionary<InstanceId, BankAddress?> _focusedBanks = new();
     private readonly Dictionary<BankAddress, GroupId> _bankGroups = new();
     private readonly Dictionary<GroupId, HashSet<BankAddress>> _groupBanks = new();
-    private readonly Dictionary<GroupId, HashSet<ulong>> _groupInstances = new();
-    private readonly Dictionary<ulong, HashSet<BankAddress>> _groupedBanks = new();
+    private readonly Dictionary<GroupId, HashSet<InstanceId>> _groupInstances = new();
+    private readonly Dictionary<InstanceId, HashSet<BankAddress>> _groupedBanks = new();
     private readonly object _lock = new();
 
-    public void Set(
-        ulong instanceId,
-        TopologyState topology)
+    public void AddInstance(
+        InstanceId instanceId,
+        BankAddress? focusedBank,
+        IReadOnlyList<GroupId?> bankGroups)
     {
-        ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(bankGroups);
+        if (bankGroups.Count != DspConstants.BankCount)
+        {
+            throw new ArgumentException(
+                $"Topology requires exactly {DspConstants.BankCount} banks.",
+                nameof(bankGroups));
+        }
 
         lock (_lock)
         {
-            if (_topologies.TryGetValue(instanceId, out var previousTopology))
+            _focusedBanks.Add(instanceId, focusedBank);
+            AddIndexes(instanceId, bankGroups);
+        }
+    }
+
+    public void UpdateFocusedBank(
+        InstanceId instanceId,
+        BankAddress? focusedBank)
+    {
+        lock (_lock)
+        {
+            if (!_focusedBanks.ContainsKey(instanceId))
             {
-                RemoveIndexes(instanceId, previousTopology);
+                throw new InvalidOperationException(
+                    $"Topology instance was not found: {instanceId}.");
             }
 
-            _topologies[instanceId] = topology;
-            AddIndexes(instanceId, topology);
+            _focusedBanks[instanceId] = focusedBank;
         }
     }
 
-    public void Remove(ulong instanceId)
+
+    public IReadOnlyList<InstanceId> UpdateBankGroup(
+        BankAddress bank,
+        GroupId? groupId)
     {
         lock (_lock)
         {
-            if (!_topologies.Remove(instanceId, out var topology))
+            if (!_focusedBanks.ContainsKey(bank.InstanceId))
             {
-                return;
+                return Array.Empty<InstanceId>();
             }
 
-            RemoveIndexes(instanceId, topology);
-        }
-    }
+            var affectedInstances = new HashSet<InstanceId> { bank.InstanceId };
 
-    public IReadOnlyList<BankAddress> GetGroupMembers(BankAddress bank)
-    {
-        lock (_lock)
-        {
-            if (!_bankGroups.TryGetValue(bank, out var groupId)
-                || !_groupBanks.TryGetValue(groupId, out var members))
+            if (_bankGroups.TryGetValue(bank, out var previousGroupId))
             {
-                return Array.Empty<BankAddress>();
+                if (_groupInstances.TryGetValue(previousGroupId, out var previousInstances))
+                {
+                    affectedInstances.UnionWith(previousInstances);
+                }
+
+                RemoveFromSet(_groupBanks, previousGroupId, bank);
+                RemoveFromSet(_groupedBanks, bank.InstanceId, bank);
+                if (!_groupBanks.TryGetValue(previousGroupId, out var remainingBanks)
+                    || remainingBanks.All(value => value.InstanceId != bank.InstanceId))
+                {
+                    RemoveFromSet(_groupInstances, previousGroupId, bank.InstanceId);
+                }
+                _bankGroups.Remove(bank);
             }
 
-            return members.ToArray();
+            if (groupId is { } newGroupId)
+            {
+                if (_groupInstances.TryGetValue(newGroupId, out var newInstances))
+                {
+                    affectedInstances.UnionWith(newInstances);
+                }
+
+                _bankGroups[bank] = newGroupId;
+                AddToSet(_groupBanks, newGroupId, bank);
+                AddToSet(_groupInstances, newGroupId, bank.InstanceId);
+                AddToSet(_groupedBanks, bank.InstanceId, bank);
+            }
+
+            return affectedInstances.ToArray();
         }
     }
 
-    public IReadOnlyList<ulong> GetGroupInstanceIds(GroupId groupId)
+    public IReadOnlyList<InstanceId> RemoveInstance(InstanceId instanceId)
     {
         lock (_lock)
         {
-            return _groupInstances.TryGetValue(groupId, out var instances)
-                ? instances.ToArray()
-                : Array.Empty<ulong>();
+            if (!_focusedBanks.Remove(instanceId))
+            {
+                return Array.Empty<InstanceId>();
+            }
+
+            var affectedInstances = new HashSet<InstanceId> { instanceId };
+            foreach (var groupInstances in _groupInstances.Values)
+            {
+                if (groupInstances.Contains(instanceId))
+                {
+                    affectedInstances.UnionWith(groupInstances);
+                }
+            }
+
+            RemoveIndexes(instanceId);
+            return affectedInstances.ToArray();
         }
     }
 
-    public IReadOnlyList<BankAddress> GetGroupedBanks(ulong instanceId)
+    public IReadOnlyList<InstanceId> ResolveFocusedInstanceIds(BankAddress bank)
+    {
+        lock (_lock)
+        {
+            return _focusedBanks
+                .Where(entry => entry.Value == bank)
+                .Select(entry => entry.Key)
+                .ToArray();
+        }
+    }
+
+    public BankAddress? ResolveBankAddress(InstanceId instanceId, StatePath path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        var bankNode = path.Nodes
+            .FirstOrDefault(node => node.Value >= 100 && node.Value < 100 + DspConstants.BankCount);
+        if (bankNode.Value < 100 || bankNode.Value >= 100 + DspConstants.BankCount)
+        {
+            return null;
+        }
+
+        return new BankAddress(instanceId, (int)bankNode.Value - 100);
+    }
+
+    public IReadOnlyList<InstanceId> ResolveConnectedInstanceIds(InstanceId sourceInstanceId)
+    {
+        var focusedBank = GetFocusedBank(sourceInstanceId);
+        if (focusedBank is not { } value)
+        {
+            return Array.Empty<InstanceId>();
+        }
+
+        return GetConnectedGroupBanks([value])
+            .Select(bank => bank.InstanceId)
+            .Distinct()
+            .ToArray();
+    }
+
+    public IReadOnlyList<InstanceId> ResolveStatePeerInstanceIds(InstanceId instanceId)
+    {
+        var groupedBanks = GetGroupedBanks(instanceId);
+        if (groupedBanks.Count == 0)
+        {
+            return [instanceId];
+        }
+
+        return GetConnectedGroupBanks(groupedBanks)
+            .Select(bank => bank.InstanceId)
+            .Append(instanceId)
+            .Distinct()
+            .ToArray();
+    }
+
+    public InstanceId? ResolveFocusedInstanceId(InstanceId sourceInstanceId)
+    {
+        return GetFocusedBank(sourceInstanceId)?.InstanceId;
+    }
+
+    public IReadOnlyList<BankAddress> GetGroupedBanks(InstanceId instanceId)
     {
         lock (_lock)
         {
@@ -115,13 +230,23 @@ internal sealed class TopologyIndex
         }
     }
 
-    private void AddIndexes(
-        ulong instanceId,
-        TopologyState topology)
+    private BankAddress? GetFocusedBank(InstanceId instanceId)
     {
-        for (var bankIndex = 0; bankIndex < TopologyState.BankCount; bankIndex++)
+        lock (_lock)
         {
-            var groupId = topology.GetGroupId(bankIndex);
+            return _focusedBanks.TryGetValue(instanceId, out var focusedBank)
+                ? focusedBank
+                : null;
+        }
+    }
+
+    private void AddIndexes(
+        InstanceId instanceId,
+        IReadOnlyList<GroupId?> bankGroups)
+    {
+        for (var bankIndex = 0; bankIndex < DspConstants.BankCount; bankIndex++)
+        {
+            var groupId = bankGroups[bankIndex];
             if (groupId is null)
             {
                 continue;
@@ -135,30 +260,26 @@ internal sealed class TopologyIndex
         }
     }
 
-    private void RemoveIndexes(
-        ulong instanceId,
-        TopologyState topology)
+    private void RemoveIndexes(InstanceId instanceId)
     {
-        for (var bankIndex = 0; bankIndex < TopologyState.BankCount; bankIndex++)
+        for (var bankIndex = 0; bankIndex < DspConstants.BankCount; bankIndex++)
         {
-            var groupId = topology.GetGroupId(bankIndex);
-            if (groupId is null)
+            var bank = new BankAddress(instanceId, bankIndex);
+            if (!_bankGroups.Remove(bank, out var groupId))
             {
                 continue;
             }
 
-            var bank = new BankAddress(instanceId, bankIndex);
-            _bankGroups.Remove(bank);
-            RemoveFromSet(_groupBanks, groupId.Value, bank);
+            RemoveFromSet(_groupBanks, groupId, bank);
             RemoveFromSet(_groupedBanks, instanceId, bank);
 
-            if (_groupBanks.TryGetValue(groupId.Value, out var remainingBanks)
+            if (_groupBanks.TryGetValue(groupId, out var remainingBanks)
                 && remainingBanks.Any(value => value.InstanceId == instanceId))
             {
                 continue;
             }
 
-            RemoveFromSet(_groupInstances, groupId.Value, instanceId);
+            RemoveFromSet(_groupInstances, groupId, instanceId);
         }
     }
 
@@ -195,3 +316,7 @@ internal sealed class TopologyIndex
         }
     }
 }
+
+
+
+

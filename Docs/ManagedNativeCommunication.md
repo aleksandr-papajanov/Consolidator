@@ -11,7 +11,7 @@ Max external
     v
 Consolidator.Managed.dll
     |
-    | NativeApi / ConsolidatorCore
+    | NativeApi / Managed boundary interfaces
     v
 Managed instance registry
 ```
@@ -26,8 +26,8 @@ The publisher serializes this read-select-write-publish sequence with a
 Managed control-side lock, so one publisher has a single writer even when
 control events arrive on multiple Managed threads. The lock is never used by
 the native audio thread.
-The publisher also has a lifecycle gate. `ConsolidatorInstance.Stop()` waits
-for an active publish, marks the publisher stopped, and clears its exchange
+The publisher also has a lifecycle gate. `InstanceRegistry.UnregisterInstance`
+waits for an active publish, marks the publisher stopped, and clears its exchange
 pointer before `UnregisterInstance` returns. Later publishes are ignored, so
 the native external can destroy its exchange after the unregister barrier.
 The native audio callback reads the published index with acquire ordering,
@@ -39,10 +39,13 @@ If `publishedIndex` equals the native local reading index, there is no new
 snapshot. The exchange remains a POD layout; C++ applies `std::atomic_ref` to
 its two publication fields.
 
-The prototype snapshot contains only `gain`. It is a derived runtime
-representation, not authoritative application state. Managed `InstanceState`
-holds the source values and `DspStateCompiler` derives the fixed-layout
-snapshot; future compressor and filter coefficients belong in that snapshot.
+`DspSnapshot` contains the current scalar runtime controls for input/output
+gain, saturator, compressor, and equalizer state. The per-instance `StateTree`
+is authoritative; its value observers maintain the small `DspRuntimeState` projection
+from which the fixed-layout snapshot is published. Boolean markers use
+`uint32` values in the ABI (`0` or `1`) so the
+C# and C++ layouts remain explicit and blittable. Filter-bank values and
+compiled coefficients are a separate future extension of this snapshot.
 Snapshot structs have no domain defaults. The initial `gain = 1.0` state is
 created by Managed `DspDefaults` and compiled before the first publish.
 `Prepare(sampleRate, maximumFrameCount)` is reserved for updating the DSP
@@ -112,9 +115,12 @@ loads `Consolidator.Managed.dll` and resolves its exported functions once per
 native module. It owns the process-wide Managed log callback registration and
 clears that callback before releasing the DLL in its destructor. Destroying one
 external therefore cannot unload the ManagedAOT module while other externals
-or the shared Managed Coordinator are still active.
+or the shared Managed services are still active.
 
-The managed registry stores a `ConsolidatorInstance`. Its `NativeOutput` is private and can only be used through the instance lifecycle gate.
+The managed registry stores per-instance `ManagedInstance` records. Each
+`ManagedInstance` owns its `ManagedState`, DSP publisher and command gate.
+Output remains globally routed by `NativeOutputService`, exposed as
+`IProtocolTransport` to Protocol and `IProtocolOutputRegistry` to Native API.
 
 ## Native to Managed: Incoming Messages
 
@@ -128,28 +134,70 @@ Max control inlet
     -> ConsolidatorSendMessage
     -> NativeApi.SendMessage
     -> AtomDecoder.Decode
-    -> ConsolidatorCore.ReceiveMessage
+    -> ProtocolService.Receive
+    -> IProtocolTransport.Send
 ```
 
 The native side owns the encoded input atoms only for the duration of the unmanaged call. `SendMessage` immediately converts the selector and atoms into managed values before returning.
 
-`ReceiveMessage` currently only establishes the managed control-message routing
-boundary. Domain handling and output routing will be added by the Coordinator
-handler/router; incoming messages are not echoed back to native.
+`Receive` is the Managed control-message entry point exposed through
+`ProtocolService`. It decodes the incoming frame through `CommandDecoder`,
+creates a typed command, executes it through `CommandEndpointRegistry` and
+`InstanceCommandRouter`, and sends the result through the source instance output
+registry. The registry fans out by `TargetInstanceIds` to native callback
+bindings. Instance preparation is exposed through `IInstancePreparationService`; lifecycle
+registration is exposed through `IInstanceLifecycleService`. The Managed
+protocol architecture is defined in
+[`ManagedProtocol.md`](ManagedProtocol.md): command types, handler registrations,
+relative path/value decoder boundaries, and response encoder boundaries are
+owned by Managed. Unsupported future command handlers return an execution
+error until their domain behavior is implemented.
+
+## Managed Instance Commands
+
+The first managed command contract is intentionally separate from atom decoding
+and command construction. An external caller creates a `ReadStateCommand` or a
+`WriteStateCommand` and submits it through the registered command execution
+endpoint, which routes and executes it through `CommandExecutor`.
+with the source instance ID. A read and `WriteStateCommand` resolve exactly the
+instance addressed by the source instance's focused `BankAddress`. The write
+is then propagated by the target StateValue's materialized peer registration
+when its scope requires it.
+
+The command is data-only and implements `IInstanceCommand<TResult>`. The
+executor resolves a DI-registered
+`ICommandHandler` by command type and invokes it with an
+`InstanceCommandContext` containing the target instance ID and state. The router returns
+`ValueTask<CommandExecutionResult<TResult>>`. A read returns one typed value.
+A write returns one aggregate result with `TargetCount`, `AppliedCount`, and an
+optional error. There is no public incoming or outgoing command queue.
+
+The shared operation gate covers one complete logical operation. Synchronous
+topology/history operations and async command batches use the same gate, so a
+command cannot interleave with a history jump or a topology mutation while it
+is suspended. `WriteStateCommand` does not broadcast through the command
+router: the focused target's `StateValue` and its peer observer perform the
+grouped history transaction. There is no second broadcast-write path in the
+command executor. Each target instance has
+its own async execution gate for non-broadcast commands. Cancellation
+propagates through the command and is not converted into a regular execution
+error. The protocol decoding and result formatting boundaries are defined by
+`ManagedProtocol.md`.
 
 ## Managed to Native: Output Callback
 
 Managed code sends output through `NativeOutput.Send`:
 
 ```text
-ConsolidatorCore
-    -> ConsolidatorInstance.TrySend
+IProtocolTransport
     -> NativeOutput.Send
     -> ManagedOutputCallback
     -> ConsolidatorExternal::ReceiveManagedOutput
 ```
 
-`NativeOutput.Send` accepts `ReadOnlySpan<Atom>`. It temporarily allocates UTF-8 memory for the selector and symbol atoms, invokes the callback, and frees that memory in `finally` after the callback returns.
+`NativeOutput.Send` accepts a `ProtocolOutput`. It temporarily allocates UTF-8
+memory for the selector and symbol atoms, invokes the callback, and frees that
+memory in `finally` after the callback returns.
 
 The native callback must copy all borrowed data synchronously. `ReceiveManagedOutput` copies:
 
@@ -199,11 +247,15 @@ UnregisterInstance(id)
     -> remove instance from registry
     -> reject new producers for that instance
     -> wait for an active TrySend callback
+    -> wait for an active command operation
     -> mark instance inactive
+    -> dispose state and command gate
     -> return with callbacks impossible
 ```
 
-`ConsolidatorInstance.TrySend` holds its per-instance lifecycle lock for the callback. `Stop` takes the same lock, so it cannot complete until a callback already in progress has returned. Producers that look up the instance after registry removal cannot obtain it.
+`IProtocolOutputRegistry` removes the instance callback binding before unregister returns.
+The native callback binding remains responsible for serializing an active
+callback with its own native lifetime.
 
 The native destructor calls `UnregisterInstance` before destroying the external, then clears `instanceId_` and unsets the qelem. This makes the native `this` context valid until the managed callback barrier has completed.
 `UnregisterInstance` takes only the `InstanceId`; Managed uses its instance-to-audio-handle ownership to release the audio handle after the instance has stopped.
@@ -215,6 +267,11 @@ external lifecycle must therefore serialize audio callback start with
 destruction; catching an invalid `GCHandle` in Managed is not a lifetime
 mechanism.
 
+Before unloading `Consolidator.Managed.dll`, the native bridge calls
+`ConsolidatorShutdown`. Managed disposes the DI provider, which stops and
+disposes all remaining instances. Any remaining audio-input handles are then
+released, the log callback is cleared, and only then is the library unloaded.
+
 ## Audio Calls
 
 Audio setup and audio input currently use direct managed entry points:
@@ -222,17 +279,19 @@ Audio setup and audio input currently use direct managed entry points:
 ```text
 ConsolidatorExternal::Prepare
     -> ConsolidatorPrepare
-    -> ConsolidatorCore.Prepare
+    -> IInstancePreparationService.Prepare
 
 `ConsolidatorExternal::operator()`
     -> ConsolidatorSendAudio(audioInputHandle)
     -> NativeAudioInput.ReceiveAudio
-    -> ConsolidatorInstance.ReceiveAudio
+    -> IInstanceAudioInputService.ReceiveAudio
 ```
 
 `SendAudio` resolves the opaque `GCHandle` directly to the per-instance
-`NativeAudioInput`; it does not query the Coordinator dictionary or take the
-Coordinator lock. Unregistration stops the managed instance before releasing
-the audio handle. `ReceiveAudio` is currently a placeholder. Audio callbacks
-must remain real-time safe when processing is added: no Max outlet calls,
-blocking locks, or unbounded allocation on the audio thread.
+`NativeAudioInput`; it does not query the instance registry or take the
+shared operation lock. The adapter forwards to all DI-registered
+`IInstanceAudioInputHandler` implementations. Unregistration releases the
+audio handle after removing the instance ID. Audio handlers must remain
+real-time safe: no Max outlet calls, blocking locks, or unbounded allocation
+on the audio thread.
+

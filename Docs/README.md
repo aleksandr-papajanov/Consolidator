@@ -10,8 +10,10 @@
 | [`CSharpFormatting.md`](CSharpFormatting.md) | Форматирование, naming, using directives, managed dependencies и NativeAOT interop conventions для C#. |
 | [`JavaScriptFormatting.md`](JavaScriptFormatting.md) | ES5-compatible Max runtime style, include order, callbacks, lifecycle, protocol и UI layer conventions для JavaScript. |
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
-| [`Coordinator.md`](Coordinator.md) | Lifetime и ownership общего Managed Coordinator, per-instance state и границы control/audio paths. |
-| [`StateHistory.md`](StateHistory.md) | Глобальный Managed cursor истории, per-value ring buffers и lifecycle state values. |
+| [`ManagedProtocol.md`](ManagedProtocol.md) | Граница Managed protocol: atom decoding, command types, relative paths, routing scopes и response encoding. |
+| [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
+| [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
+| [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |
 
 ## Правила работы с документацией
 
@@ -21,3 +23,4 @@
 - Не раздувать существующие документы: новый самостоятельный scope оформлять отдельным небольшим файлом.
 - Новый файл документации сразу добавлять в эту таблицу.
 - Перед коммитом проверить, что документация соответствует изменённому коду.
+
