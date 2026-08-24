@@ -14,6 +14,7 @@
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
 | [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
 | [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |
+| [`Testing.md`](Testing.md) | Философия тестов, уровни, сквозные use cases, структура suites и команды запуска. |
 
 ## Правила работы с документацией
 

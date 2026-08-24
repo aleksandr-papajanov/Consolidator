@@ -8,6 +8,7 @@ using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Tree;
+using Consolidator.Managed.Protocol.Notifications;
 
 namespace Consolidator.Managed.Core.Services.Instances;
 
@@ -22,6 +23,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private readonly AudibilityObserver _audibilityObserver;
     private readonly IOperationGate _operationGate;
     private ulong _nextInstanceId;
+    private readonly RegistryChangePublisher _registryChanges;
 
     internal InstanceRegistry(
         IManagedLogger logger,
@@ -29,7 +31,8 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         StateValueFactory stateValueFactory,
         StateTopologyObserver topologyObserver,
         AudibilityObserver audibilityObserver,
-        IOperationGate operationGate)
+        IOperationGate operationGate,
+        RegistryChangePublisher registryChanges)
     {
         _logger = logger;
         _stateRegistry = stateRegistry;
@@ -37,6 +40,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         _topologyObserver = topologyObserver;
         _audibilityObserver = audibilityObserver;
         _operationGate = operationGate;
+        _registryChanges = registryChanges;
     }
 
     public InstanceId RegisterInstance(
@@ -56,6 +60,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
 
             instance.PublishDspState();
             _logger.Info($"Registered instance {instanceId}");
+            _registryChanges.Publish();
             return instanceId;
         }
     }
@@ -80,6 +85,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
 
         instance.Dispose();
         _logger.Info($"Unregistered instance {instanceId}");
+        _registryChanges.Publish();
     }
 
     internal ManagedInstance? FindInstance(InstanceId instanceId)
@@ -132,19 +138,32 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 .ToArray();
         }
 
-        return new RegistrySnapshotResult(
-            instances.Select(instance => new RegistryInstanceSnapshot(
+        var snapshots = instances.Select(instance => new RegistryInstanceSnapshot(
                 instance.InstanceId.Value,
                 instance.State.Instance.Label.Value,
-                instance.State.Instance.FocusedBank is { } focused
-                    ? (ulong)focused.BankIndex
-                    : null,
                 instance.State.Instance.Banks
                     .Select(bank => new RegistryBankSnapshot(
                         (int)bank.Id,
                         bank.Group.Value?.Value))
                     .ToArray()))
-            .ToArray());
+            .ToArray();
+        var groups = snapshots
+            .SelectMany(instance => instance.Banks
+                .Where(bank => bank.GroupId is not null)
+                .Select(bank => new
+                {
+                    GroupId = bank.GroupId!.Value,
+                    Member = new RegistryGroupMemberSnapshot(
+                        instance.InstanceId,
+                        bank.BankId)
+                }))
+            .GroupBy(entry => entry.GroupId)
+            .OrderBy(group => group.Key)
+            .Select(group => new RegistryGroupSnapshot(
+                group.Key,
+                group.Select(entry => entry.Member).ToArray()))
+            .ToArray();
+        return new RegistrySnapshotResult(_registryChanges.Revision, snapshots, groups);
     }
 
     public void Dispose()

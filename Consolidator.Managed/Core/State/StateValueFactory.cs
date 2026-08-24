@@ -9,15 +9,18 @@ public sealed class StateValueFactory
 {
     private readonly StateRegistry<InstanceId> _registry;
     private readonly StatePeerObserver _peerObserver;
+    private readonly StateValueMetadataRegistry _metadata;
     private readonly IStateChangeSink _stateChangeSink;
 
     internal StateValueFactory(
         StateRegistry<InstanceId> registry,
         StatePeerObserver peerObserver,
+        StateValueMetadataRegistry metadata,
         IStateChangeSink stateChangeSink)
     {
         _registry = registry;
         _peerObserver = peerObserver;
+        _metadata = metadata;
         _stateChangeSink = stateChangeSink;
     }
 
@@ -88,13 +91,19 @@ public sealed class StateValueFactory
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(observers);
 
-        var valueObservers = observers
-            .Append(_peerObserver.Create<TValue>(
+        var peerObserver = _peerObserver.Create<TValue>(
                 instanceId,
                 path,
                 scope,
                 editMode,
-                physicalRange))
+                physicalRange);
+        var valueObservers = observers
+            .Append(peerObserver)
+            .Append(_metadata.Observe<TValue>(
+                instanceId,
+                path,
+                physicalRange,
+                peerObserver.GetEffectiveRange))
             .Append(new StateChangeObserver<TValue>(
                 instanceId,
                 path,

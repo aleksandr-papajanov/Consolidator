@@ -36,7 +36,7 @@ internal sealed class CommandEndpoint<TCommand, TResult>
 
     public Type MessageType => typeof(TCommand);
 
-    public async ValueTask<ProtocolOutput> ExecuteAsync(
+    public async ValueTask<IReadOnlyList<ProtocolOutput>> ExecuteAsync(
         ulong sourceInstanceId,
         object command,
         ulong requestId,
@@ -53,11 +53,11 @@ internal sealed class CommandEndpoint<TCommand, TResult>
             new InstanceId(sourceInstanceId),
             typedCommand,
             cancellationToken);
-        var atoms = _responseEncoder.Encode(
+        return _responseEncoder.Encode(
+            _responseSelector,
             routed.Execution,
             sourceInstanceId,
             requestId);
-        return new ProtocolOutput([sourceInstanceId], _responseSelector, atoms);
     }
 }
 

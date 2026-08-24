@@ -4,8 +4,14 @@ namespace Consolidator.Managed.Native;
 
 public unsafe sealed class NativeLogSink
 {
+    public static NativeLogSink Shared { get; } = new();
+
     private delegate* unmanaged[Cdecl]<void*, byte*, void> _callback;
     private void* _context;
+
+    private NativeLogSink()
+    {
+    }
 
     public void Configure(
         void* context,

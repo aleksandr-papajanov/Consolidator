@@ -44,6 +44,11 @@ Concrete state models add their specific observers explicitly:
 - `AudibilityObserver` observes instance mute and solo values;
 - `StateTopologyObserver` observes each bank group value.
 
+Every instance starts with user-facing bank 7 in group 0, the first editable
+group. All other banks start ungrouped. This is an authoritative initial state
+value, so topology indexing, registry snapshots and UI presentation observe the
+membership through the ordinary state path.
+
 Observers receive the initial value through `Attach`. `ValueChanged` is called
 only after an effective direct write, committed transaction or history jump.
 No-op values do not produce observer calls. `Detach` runs when the root is

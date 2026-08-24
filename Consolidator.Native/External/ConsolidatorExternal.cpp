@@ -1,7 +1,6 @@
 #include "ConsolidatorExternal.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
@@ -267,22 +266,10 @@ void ConsolidatorExternal::operator()(
 
 void ConsolidatorExternal::ConsumeDspState() noexcept
 {
-    const auto publishedIndex =
-        std::atomic_ref{ dspExchange_.publishedIndex }
-            .load(std::memory_order_acquire);
-
-    if (publishedIndex > 2 ||
-        publishedIndex == consumerDspIndex_)
-    {
-        return;
-    }
-
-    std::atomic_ref{ dspExchange_.consumerIndex }
-        .store(
-            publishedIndex,
-            std::memory_order_release);
-    dspState_ = dspExchange_.snapshots[publishedIndex];
-    consumerDspIndex_ = publishedIndex;
+    static_cast<void>(ConsumePublishedDspState(
+        dspExchange_,
+        consumerDspIndex_,
+        dspState_));
 }
 
 } // namespace consolidator::max

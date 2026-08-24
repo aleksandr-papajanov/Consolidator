@@ -25,7 +25,7 @@ internal sealed class TransactionInputCodec : IInputCodec
         }
 
         var historyId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
-        var command = _begin
+        object command = _begin
             ? new BeginHistoryCommand(historyId)
             : new EndHistoryCommand(historyId);
         return CommandCodecSupport.Success(header, command);

@@ -19,7 +19,10 @@ internal sealed class StateChangeRouter
 
         if (change.Ownership is StateValueOwnership.InstanceOwned)
         {
-            return [change.InstanceId.Value];
+            return _topologyIndex
+                .ResolveFocusedInstanceIds(change.InstanceId)
+                .Select(instanceId => instanceId.Value)
+                .ToArray();
         }
 
         var bank = _topologyIndex.ResolveBankAddress(change.InstanceId, change.Path);

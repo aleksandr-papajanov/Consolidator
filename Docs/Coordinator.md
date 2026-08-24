@@ -72,15 +72,20 @@ observer chain documented in [StateHistory.md](StateHistory.md). DSP runtime,
 topology, peer constraints, audibility and protocol notifications are derived
 reactions; none is a second source of truth.
 
-Focused-bank selection is a transient per-instance tree value.
-`StateTopologyObserver` copies focus changes into the derived `TopologyIndex`
-used for routing commands and notifications. Bank group membership is
+The currently observed bank is transient routing metadata on each external's
+instance model; it is not a tree value and is never persisted or exposed as a
+`selected_bank` parameter. `observe_target` copies the view into the derived
+`TopologyIndex` used for routing notifications. Bank group membership is
 history-backed and observed by the same boundary.
 
-`WriteStateCommand` routes to the focused instance. The target `StateValue`
+UI `WriteStateCommand` carries an explicit instance target. Other relative
+commands may route to the currently observed instance. The target `StateValue`
 delegates its mutation to `StatePeerObserver`, which prepares all materialized
 peers and commits them in one `StateHistoryTransaction`. The command executor
-does not contain a second broadcast-write implementation.
+does not contain a second broadcast-write implementation. After a successful
+write or reset, the executor publishes DSP snapshots for all instances because
+peer and audibility observers may have changed runtime projections outside the
+explicit command target.
 
 ## Threading
 

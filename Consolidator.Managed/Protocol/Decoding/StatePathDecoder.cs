@@ -22,7 +22,7 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         var first = ReadSymbol(atoms, ref position);
         var path = new StatePath([StateNodeIds.Instance]);
 
-        if (first is "label" or "mute" or "solo" or "selected_bank")
+        if (first is "label" or "mute" or "solo")
         {
             return path.Append(ToNode(first));
         }
@@ -84,7 +84,12 @@ internal sealed class StatePathDecoder : IStatePathDecoder
                 continue;
             }
 
-            path = path.Append(ToNode(segment));
+            var leaf = segment == "gain" &&
+                (path.Nodes[1] == StateNodeIds.Saturator ||
+                 path.Nodes[1] == StateNodeIds.Compressor)
+                ? StateNodeIds.Output
+                : ToNode(segment);
+            path = path.Append(leaf);
             if (position != atoms.Length)
             {
                 throw new FormatException("Unexpected state path segment.");
@@ -147,7 +152,6 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "label" => StateNodeIds.Label,
         "mute" => StateNodeIds.Mute,
         "solo" => StateNodeIds.Solo,
-        "selected_bank" => StateNodeIds.FocusedBank,
         "gain" => StateNodeIds.Gain,
         "drive" => StateNodeIds.Drive,
         "output" => StateNodeIds.Output,
@@ -167,12 +171,10 @@ internal sealed class StatePathDecoder : IStatePathDecoder
     private static NodeId ToDeviceNode(string value) => value switch
     {
         "input_gain" => StateNodeIds.InputGain,
-        "main_input_gain" => StateNodeIds.InputGain,
         "saturator" => StateNodeIds.Saturator,
         "compressor" => StateNodeIds.Compressor,
         "equalizer" => StateNodeIds.Equalizer,
         "output_gain" => StateNodeIds.OutputGain,
-        "main_output_gain" => StateNodeIds.OutputGain,
         _ => throw new FormatException($"Unknown DSP path segment: {value}.")
     };
 }

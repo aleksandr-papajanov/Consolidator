@@ -31,7 +31,7 @@ internal sealed class CommandEndpointRegistry
         _endpoints = endpointMap;
     }
 
-    public ValueTask<ProtocolOutput> ExecuteAsync(
+    public ValueTask<IReadOnlyList<ProtocolOutput>> ExecuteAsync(
         DecodedCommand decoded,
         CancellationToken cancellationToken = default)
     {

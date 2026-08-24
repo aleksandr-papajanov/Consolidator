@@ -46,7 +46,7 @@ ProtocolInput
   -> CommandDecoder
   -> CommandEndpointRegistry
   -> CommandEndpoint<TCommand, TResult>
-  -> ProtocolOutput
+  -> one or more ProtocolOutput frames
   -> IProtocolTransport
 ```
 
@@ -64,9 +64,9 @@ selectors fail during service construction.
 `WriteInputCodec` additionally decodes and validates the value for the target
 path. Decoders do not select targets or mutate state.
 
-The source instance ID is carried by `ProtocolInput`, separately from the
-relative command path. A path never embeds a target instance or broadcast
-decision.
+The source external ID is carried by `ProtocolInput`. UI writes also carry one
+explicit target instance ID outside their relative state paths, so editing a
+remote row does not change the observed view merely to address a command.
 
 ## Dispatch and responses
 
@@ -74,12 +74,13 @@ decision.
 that selectors are unique. A `CommandEndpoint<TCommand, TResult>` passes its
 typed command to `InstanceCommandRouter`, encodes the aggregate
 `CommandExecutionResult<TResult>` with `CommandResponseEncoder`, and addresses
-the resulting `ProtocolOutput` to the source instance.
+the resulting frame or multipart frame sequence to the source external.
 
 All protocol command types implement `IInstanceCommand<TResult>`. Command
 definitions and results live in Core; they do not depend on Protocol.
-`CommandScope` determines whether routing resolves the focused bank, connected
-instances or a coordinator-wide operation. Coordinator-scoped commands execute
+`CommandScope` determines whether routing resolves the observed target,
+connected instances or a coordinator-wide operation. An explicit UI target
+takes precedence over derived target routing. Coordinator-scoped commands execute
 once through the source instance command gate, while their state operation is
 shared globally by the injected coordinator service.
 
@@ -90,8 +91,8 @@ Committed state changes leave Core through `IStateChangeSink`.
 the change with `StateChangeEncoder`, and sends the result through
 `IProtocolTransport`.
 
-Instance-owned changes return to their owning instance. Bank-owned changes are
-sent to instances whose focused bank is the changed bank. Routing derives the
+Instance-owned changes are sent to every external observing that instance.
+Bank-owned changes are sent to externals observing the changed bank. Routing derives the
 bank address from `(InstanceId, StatePath)`; state-change events do not carry a
 second bank address.
 
@@ -119,20 +120,25 @@ targets. Neither responsibility belongs to Routing.
 `InstanceCommandRouter` is the single command-routing boundary. It validates
 the source instance, resolves targets through `TopologyIndex`, serializes the
 complete routed operation with `IOperationGate`, and delegates execution to
-`CommandExecutor`. The executor never chooses targets.
+`CommandExecutor`. Command handlers and the services they invoke execute inside
+that gate and must not enter it again. The executor never chooses targets.
 
 ## Output boundary
 
 `ProtocolOutput` carries `TargetInstanceIds`, a selector and atoms.
 `NativeOutputService` implements both `IProtocolTransport` and
 `IProtocolOutputRegistry`: transport sends outputs, while the registry exposes
-only callback registration and removal to the Native boundary. The service owns
+callback registration, removal and a snapshot of registered delivery IDs. The service owns
 the `instanceId -> IProtocolOutputCallback` map and fans out to deduplicated
 targets. Protocol components do not invoke callbacks directly or retain callback
 data.
 
 The command surface contains state read/write, state reset, history framing,
-history jumps and registry snapshots. Reset writes the target
+history jumps, UI initialization, target observation and registry snapshots.
+`initialize` returns the external's managed instance ID. `observe_target`
+selects an `(InstanceId, BankId)` view and returns a multipart target snapshot.
+There is no UI session, epoch or selected-bank state. Later changes use
+`state_changed` with the same semantic paths and range metadata. Reset writes the target
 state subtree's initial values through the normal setters, so peer propagation
 and observers remain authoritative. State changes are published by the existing
 observer chain and addressed by `StateChangeRouter` using topology and focus.

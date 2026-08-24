@@ -159,6 +159,17 @@ internal sealed class TopologyIndex
             .ToArray();
     }
 
+    public IReadOnlyList<InstanceId> ResolveFocusedInstanceIds(InstanceId targetInstanceId)
+    {
+        lock (_lock)
+        {
+            return _focusedBanks
+                .Where(entry => entry.Value?.InstanceId == targetInstanceId)
+                .Select(entry => entry.Key)
+                .ToArray();
+        }
+    }
+
     public IReadOnlyList<InstanceId> ResolveStatePeerInstanceIds(InstanceId instanceId)
     {
         var groupedBanks = GetGroupedBanks(instanceId);

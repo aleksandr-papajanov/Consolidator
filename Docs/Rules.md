@@ -591,17 +591,19 @@ Exceptions не пересекают C ABI.
 
 ## 23. Тесты
 
-Тестировать прежде всего границы.
+Тестировать прежде всего границы и полные пользовательские
+сценарии. Детальная философия, матрица уровней и workflow описаны в
+[`Testing.md`](Testing.md).
 
 Тестовые проекты разделены по уровням:
 
 - `Tests/Managed/Consolidator.Managed.Tests.csproj` — component tests для C# protocol, atom decoding, state и managed lifecycle;
-- `Tests/Native/Consolidator.Native.Tests.vcxproj` — component tests для C++ ABI structs, atom conversion и native ownership/lifetime helpers;
+- `Tests/Native/Consolidator.Native.Tests.vcxproj` — standalone component tests для C++ ABI structs и native realtime/ownership helpers;
 - `Tests/Integration/Consolidator.Integration.Tests.csproj` — integration tests для опубликованной Managed NativeAOT library, exports и Managed/Native contract.
 
 Не переносить component assertions в integration project. Integration tests
-могут требовать предварительной публикации Managed и должны проверять реальную
-границу, а не private implementation details.
+требуют предварительной публикации Managed и вызывают реальные NativeAOT exports;
+проверка только наличия символа не считается проверкой boundary.
 
 Минимальные integration tests:
 

@@ -22,7 +22,7 @@ internal sealed class StatePeerObserver
         _topology = topology;
     }
 
-    public IStateValueObserver<TValue> Create<TValue>(
+    public IStatePeerValueObserver<TValue> Create<TValue>(
         InstanceId instanceId,
         StatePath path,
         StateValueEditScope scope,
@@ -30,7 +30,7 @@ internal sealed class StatePeerObserver
         FloatRange? physicalRange)
     {
         Validate<TValue>(editMode, physicalRange);
-        return new ObservedValue<TValue>(
+        return new StatePeerValueObserver<TValue>(
             this,
             instanceId,
             path,
@@ -196,9 +196,9 @@ internal sealed class StatePeerObserver
         void UpdateEffectiveRange();
     }
 
-    private sealed class ObservedValue<TValue> :
+    private sealed class StatePeerValueObserver<TValue> :
         IObservedValue,
-        IStateValueObserver<TValue>
+        IStatePeerValueObserver<TValue>
     {
         private readonly StatePeerObserver _owner;
         private readonly StateValueEditMode _editMode;
@@ -207,7 +207,7 @@ internal sealed class StatePeerObserver
         private IObservedValue[] _peers = Array.Empty<IObservedValue>();
         private FloatRange _effectiveDeltaRange = new(1.0F, 0.0F);
 
-        public ObservedValue(
+        public StatePeerValueObserver(
             StatePeerObserver owner,
             InstanceId instanceId,
             StatePath path,
@@ -239,6 +239,21 @@ internal sealed class StatePeerObserver
         public Type ValueType => typeof(TValue);
 
         public StateValueEditScope Scope { get; }
+
+        public FloatRange? GetEffectiveRange()
+        {
+            if (_editMode is not StateValueEditMode.ApplyDelta ||
+                _value is null ||
+                !_effectiveDeltaRange.IsValid)
+            {
+                return null;
+            }
+
+            var currentValue = (float)(object)_value.Value!;
+            return new FloatRange(
+                currentValue + _effectiveDeltaRange.Minimum,
+                currentValue + _effectiveDeltaRange.Maximum);
+        }
 
         public bool ContainsPeer(InstanceId instanceId) =>
             _peers.Any(peer => peer.InstanceId == instanceId);
@@ -280,7 +295,7 @@ internal sealed class StatePeerObserver
 
             var minimum = float.NegativeInfinity;
             var maximum = float.PositiveInfinity;
-            foreach (var peer in _peers.Cast<ObservedValue<TValue>>())
+            foreach (var peer in _peers.Cast<StatePeerValueObserver<TValue>>())
             {
                 if (peer._physicalRange is not { } range || peer._value is null)
                 {
@@ -331,7 +346,7 @@ internal sealed class StatePeerObserver
                     $"The requested delta is outside the effective range for path {Path}.");
             }
 
-            foreach (var peer in _peers.Cast<ObservedValue<TValue>>())
+            foreach (var peer in _peers.Cast<StatePeerValueObserver<TValue>>())
             {
                 if (peer._value is null)
                 {
@@ -374,4 +389,9 @@ internal sealed class StatePeerObserver
             node.Value >= 100 &&
             node.Value < 100 + DspConstants.BankCount;
     }
+}
+
+internal interface IStatePeerValueObserver<TValue> : IStateValueObserver<TValue>
+{
+    FloatRange? GetEffectiveRange();
 }

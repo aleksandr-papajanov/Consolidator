@@ -47,9 +47,12 @@ public sealed class InstanceCommandRouter
                         $"Source instance was not found: {sourceInstanceId}."));
             }
 
-            var targetInstanceIds = command.Scope is CommandScope.Coordinator
-                ? [sourceInstanceId]
-                : ResolveTargets(sourceInstanceId, command.Scope);
+            var targetInstanceIds = command is ITargetedInstanceCommand
+                { TargetInstanceId: { } explicitTarget }
+                ? [explicitTarget]
+                : command.Scope is CommandScope.Coordinator
+                    ? [sourceInstanceId]
+                    : ResolveTargets(sourceInstanceId, command.Scope);
             var result = await _executor.ExecuteAsync(
                 targetInstanceIds,
                 command,

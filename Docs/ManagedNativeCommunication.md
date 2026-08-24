@@ -88,6 +88,16 @@ increments an atomic counter, which a later control-path entrypoint drains and
 reports. The boundary logger also absorbs its own failures, so no managed
 exception can cross the C ABI.
 
+The process-wide native log sink exists independently of the application service
+provider and is registered into that provider as the logging singleton. The log
+callback is therefore configured before the provider is built or any application
+service is resolved. Managed API services are resolved inside their corresponding
+entrypoints, so a dependency-injection failure during instance registration is
+reported to the Max console instead of failing during static initialization
+before logging is available. Provider construction is lazy and publishes the
+provider only after a successful build; a failed build therefore does not poison
+the Managed services type or disable diagnostics for later registration calls.
+
 ## Instance Registration
 
 The native external registers an instance with a callback and context:
@@ -118,7 +128,9 @@ external therefore cannot unload the ManagedAOT module while other externals
 or the shared Managed services are still active.
 
 The managed registry stores per-instance `ManagedInstance` records. Each
-`ManagedInstance` owns its `ManagedState`, DSP publisher and command gate.
+`ManagedInstance` owns its `ManagedState`, DSP publisher and command gate. The
+same instance ID is the delivery identity for that external's control output;
+there is no separate UI session.
 Output remains globally routed by `NativeOutputService`, exposed as
 `IProtocolTransport` to Protocol and `IProtocolOutputRegistry` to Native API.
 
@@ -149,9 +161,12 @@ bindings. Instance preparation is exposed through `IInstancePreparationService`;
 registration is exposed through `IInstanceLifecycleService`. The Managed
 protocol architecture is defined in
 [`ManagedProtocol.md`](ManagedProtocol.md): command types, handler registrations,
-relative path/value decoder boundaries, and response encoder boundaries are
-owned by Managed. Unsupported future command handlers return an execution
-error until their domain behavior is implemented.
+relative path/value decoder boundaries, multipart target/registry snapshots,
+and response encoder boundaries are owned by Managed. `initialize` identifies
+the calling external. `observe_target(instance, bank)` records its view and
+returns a complete UI projection. Subsequent notifications are routed to
+observers of that instance or exact bank. The protocol has no session, epoch or
+selected-bank field.
 
 ## Managed Instance Commands
 
@@ -160,7 +175,8 @@ and command construction. An external caller creates a `ReadStateCommand` or a
 `WriteStateCommand` and submits it through the registered command execution
 endpoint, which routes and executes it through `CommandExecutor`.
 with the source instance ID. A read and `WriteStateCommand` resolve exactly the
-instance addressed by the source instance's focused `BankAddress`. The write
+instance explicitly addressed by the UI frame, or the source external's
+currently observed `BankAddress` for relative internal commands. The write
 is then propagated by the target StateValue's materialized peer registration
 when its scope requires it.
 

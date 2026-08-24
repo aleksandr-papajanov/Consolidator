@@ -15,17 +15,31 @@ public sealed class WriteStateCommandHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var node = context.State.Root.Find(command.Path);
-        if (node is null || node.IsContainer)
+        if (command.Entries.Count == 0)
         {
             return ValueTask.FromResult(StateWriteStatus.NotHandled);
         }
 
-        var writer = new WriteValueVisitor(
-            command.Value,
-            command.ValueType);
-        node.Accept(writer);
-        return ValueTask.FromResult(writer.Status);
+        var status = StateWriteStatus.NotHandled;
+        foreach (var entry in command.Entries)
+        {
+            var node = context.State.Root.Find(entry.Path);
+            if (node is null || node.IsContainer)
+            {
+                return ValueTask.FromResult(StateWriteStatus.NotHandled);
+            }
+
+            var writer = new WriteValueVisitor(entry.Value, entry.ValueType);
+            node.Accept(writer);
+            if (writer.Status is StateWriteStatus.NotHandled or StateWriteStatus.Rejected)
+            {
+                return ValueTask.FromResult(writer.Status);
+            }
+
+            status = writer.Status;
+        }
+
+        return ValueTask.FromResult(status);
     }
 
     private sealed class WriteValueVisitor : IStateNodeVisitor

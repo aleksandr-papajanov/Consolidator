@@ -8,7 +8,7 @@ internal interface ICommandEndpoint
 
     Type MessageType { get; }
 
-    ValueTask<ProtocolOutput> ExecuteAsync(
+    ValueTask<IReadOnlyList<ProtocolOutput>> ExecuteAsync(
         ulong sourceInstanceId,
         object message,
         ulong requestId,

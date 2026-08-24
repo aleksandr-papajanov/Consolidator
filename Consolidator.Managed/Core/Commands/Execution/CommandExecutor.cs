@@ -1,9 +1,11 @@
 using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
+using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Commands.Execution;
 
@@ -48,10 +50,19 @@ public sealed class CommandExecutor
                 "One or more command targets were stopped.");
         }
 
-        return await ExecuteOnTargets(
+        var result = await ExecuteOnTargets(
             instances.Select(instance => instance!).ToArray(),
             command,
             cancellationToken);
+        var stateChanged = command is ResetStateCommand ||
+            command is WriteStateCommand &&
+            result.Value is StateWriteStatus.Applied;
+        if (result.Succeeded && stateChanged)
+        {
+            _instanceRegistry.PublishDspStates();
+        }
+
+        return result;
     }
 
     private async ValueTask<CommandExecutionResult<TResult>> ExecuteOnTargets<TResult>(

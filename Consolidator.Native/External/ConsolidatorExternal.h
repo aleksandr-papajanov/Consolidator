@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "AtomCodec.h"
+#include "DspStateConsumer.h"
 #include "ManagedBridge.h"
 #include "SharedDspState.h"
 #include "c74_min_api.h"
@@ -150,6 +151,36 @@ public:
         MIN_FUNCTION
         {
             ForwardMessage("observe_target", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> beginHistory{
+        this,
+        "begin_history",
+        MIN_FUNCTION
+        {
+            ForwardMessage("begin_history", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> endHistory{
+        this,
+        "end_history",
+        MIN_FUNCTION
+        {
+            ForwardMessage("end_history", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> jumpHistory{
+        this,
+        "jump_history",
+        MIN_FUNCTION
+        {
+            ForwardMessage("jump_history", args);
             return {};
         }
     };

@@ -34,15 +34,26 @@ internal sealed class ProtocolService
         try
         {
             var decoded = _decoder.Decode(message);
-            var response = _endpoints
+            var responses = _endpoints
                 .ExecuteAsync(decoded, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult();
-            _transport.Send(response);
+            foreach (var response in responses)
+            {
+                _transport.Send(response);
+            }
         }
         catch (Exception exception)
         {
-            _transport.Send(ProtocolErrorEncoder.Encode(message.SourceInstanceId, exception));
+            var requestId = message.Atoms.Count > 2 &&
+                message.Atoms[2].Type is AtomType.Symbol &&
+                ulong.TryParse(message.Atoms[2].Symbol, out var parsedRequestId)
+                ? parsedRequestId
+                : 0;
+            _transport.Send(ProtocolErrorEncoder.Encode(
+                message.SourceInstanceId,
+                requestId,
+                exception));
         }
     }
 

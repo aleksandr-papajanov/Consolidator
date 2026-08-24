@@ -15,6 +15,11 @@ public interface IInstanceCommand<TResult>
     CommandScope Scope { get; }
 }
 
+public interface ITargetedInstanceCommand
+{
+    InstanceId? TargetInstanceId { get; }
+}
+
 public sealed class InstanceCommandContext
 {
     public InstanceCommandContext(

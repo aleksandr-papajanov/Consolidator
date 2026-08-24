@@ -44,11 +44,7 @@ public sealed class InstanceState
             false,
             StateValueEditMode.CopyValue,
             observers: [audibilityObserver.ObserveSolo(instanceId, runtime)]);
-        values.CreateTransient(
-            instanceId,
-            instancePath.Append(StateNodeIds.FocusedBank),
-            () => FocusedBank,
-            value => FocusedBank = value);
+        _focusedBank = new BankAddress(instanceId, 0);
         Banks = Enumerable.Range(0, DspConstants.BankCount)
             .Select(index => new BankState(
                 instanceId,

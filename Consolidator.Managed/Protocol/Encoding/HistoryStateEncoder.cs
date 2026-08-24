@@ -15,6 +15,7 @@ internal static class HistoryStateEncoder
             targetInstanceIds,
             "history_state",
             [
+                new Atom(AtomType.Integer, 1, 0, null),
                 new Atom(AtomType.Integer, (long)snapshot.Revision, 0, null),
                 new Atom(AtomType.Integer, snapshot.Cursor, 0, null),
                 new Atom(AtomType.Integer, snapshot.EntryCount, 0, null),

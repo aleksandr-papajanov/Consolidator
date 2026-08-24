@@ -44,11 +44,15 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\Consolidator.Native\External;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;MAXAPI_USE_MSCRT;WIN_VERSION;_USE_MATH_DEFINES;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)..\..\Consolidator.Native\External;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="NativeAbiTests.cpp" />
+    <ClCompile Include="TestMain.cpp" />
+    <ClCompile Include="Contracts\AbiContractTests.cpp" />
+    <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\DspStateConsumer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

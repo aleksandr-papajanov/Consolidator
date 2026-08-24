@@ -30,13 +30,31 @@ namespace Consolidator.Managed.Services;
 
 public static class ManagedServices
 {
-    public static ServiceProvider Provider { get; } = BuildProvider();
+    private static readonly object ProviderLock = new();
+    private static ServiceProvider? _provider;
 
-    private static ServiceProvider BuildProvider()
+    public static ServiceProvider Provider
+    {
+        get
+        {
+            var provider = Volatile.Read(ref _provider);
+            if (provider is not null)
+            {
+                return provider;
+            }
+
+            lock (ProviderLock)
+            {
+                return _provider ??= CreateProvider();
+            }
+        }
+    }
+
+    internal static ServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<NativeLogSink>();
+        services.AddSingleton(NativeLogSink.Shared);
         services.AddSingleton<NativeOutputService>();
         services.AddSingleton<IProtocolTransport>(serviceProvider =>
             serviceProvider.GetRequiredService<NativeOutputService>());
@@ -51,16 +69,20 @@ public static class ManagedServices
         services.AddSingleton<StateChangeRouter>();
         services.AddSingleton<StateChangePublisher>();
         services.AddSingleton<HistoryStatePublisher>();
+        services.AddSingleton<RegistryChangePublisher>();
         services.AddSingleton<IStateChangeSink>(serviceProvider =>
             serviceProvider.GetRequiredService<StateChangePublisher>());
         services.AddSingleton<StatePeerObserver>();
         services.AddSingleton<AudibilityObserver>();
         services.AddSingleton<StateTopologyObserver>();
         services.AddSingleton<StateRegistry<InstanceId>>();
+        services.AddSingleton<StateValueMetadataRegistry>();
+        services.AddSingleton<TargetStateProjector>();
         services.AddSingleton(serviceProvider =>
             new StateValueFactory(
                 serviceProvider.GetRequiredService<StateRegistry<InstanceId>>(),
                 serviceProvider.GetRequiredService<StatePeerObserver>(),
+                serviceProvider.GetRequiredService<StateValueMetadataRegistry>(),
                 serviceProvider.GetRequiredService<IStateChangeSink>()));
         services.AddSingleton(serviceProvider =>
             new InstanceRegistry(
@@ -69,7 +91,8 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StateValueFactory>(),
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
                 serviceProvider.GetRequiredService<AudibilityObserver>(),
-                serviceProvider.GetRequiredService<IOperationGate>()));
+                serviceProvider.GetRequiredService<IOperationGate>(),
+                serviceProvider.GetRequiredService<RegistryChangePublisher>()));
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
         services.AddSingleton<ICommandHandler, WriteStateCommandHandler>();
         services.AddSingleton<ICommandHandler, ResetStateCommandHandler>();
@@ -77,6 +100,8 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, EndHistoryCommandHandler>();
         services.AddSingleton<ICommandHandler, JumpToHistoryCommandHandler>();
         services.AddSingleton<ICommandHandler, ReadRegistryCommandHandler>();
+        services.AddSingleton<ICommandHandler, InitializeUiCommandHandler>();
+        services.AddSingleton<ICommandHandler, ObserveTargetCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -86,6 +111,8 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec>(new TransactionInputCodec(false));
         services.AddSingleton<IInputCodec, HistoryInputCodec>();
         services.AddSingleton<IInputCodec, RegistryInputCodec>();
+        services.AddSingleton<IInputCodec, InitializeInputCodec>();
+        services.AddSingleton<IInputCodec, ObserveTargetInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -94,9 +121,19 @@ public static class ManagedServices
         services.AddCommandEndpoint<EndHistoryCommand, CommandAcknowledgement>("end_history", "action_done");
         services.AddCommandEndpoint<JumpToHistoryCommand, CommandAcknowledgement>("jump_history", "action_done");
         services.AddCommandEndpoint<ReadRegistryCommand, RegistrySnapshotResult>("registry", "registry_done");
+        services.AddCommandEndpoint<InitializeUiCommand, UiInitializationResult>("initialize", "initialized");
+        services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_done");
         services.AddSingleton<CommandEndpointRegistry>();
-        services.AddSingleton<CommandExecutor>();
-        services.AddSingleton<InstanceCommandRouter>();
+        services.AddSingleton(serviceProvider =>
+            new CommandExecutor(
+                serviceProvider.GetRequiredService<InstanceRegistry>(),
+                serviceProvider.GetRequiredService<ICommandDispatcher>()));
+        services.AddSingleton(serviceProvider =>
+            new InstanceCommandRouter(
+                serviceProvider.GetRequiredService<InstanceRegistry>(),
+                serviceProvider.GetRequiredService<TopologyIndex>(),
+                serviceProvider.GetRequiredService<CommandExecutor>(),
+                serviceProvider.GetRequiredService<IOperationGate>()));
         services.AddSingleton<CommandDecoder>();
         services.AddSingleton<ProtocolService>(serviceProvider =>
             new ProtocolService(
@@ -107,7 +144,11 @@ public static class ManagedServices
             serviceProvider.GetRequiredService<InstanceRegistry>());
         services.AddSingleton<IInstancePreparationService, InstancePreparationService>();
         services.AddSingleton<IInstanceAudioInputService, InstanceAudioInputService>();
-        services.AddSingleton<IHistoryNavigation, HistoryNavigation>();
+        services.AddSingleton<IHistoryNavigation>(serviceProvider =>
+            new HistoryNavigation(
+                serviceProvider.GetRequiredService<StateHistory>(),
+                serviceProvider.GetRequiredService<InstanceRegistry>(),
+                serviceProvider.GetRequiredService<HistoryStatePublisher>()));
 
         return services.BuildServiceProvider(
             new ServiceProviderOptions
@@ -117,7 +158,3 @@ public static class ManagedServices
             });
     }
 }
-
-
-
-

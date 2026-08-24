@@ -26,27 +26,32 @@ internal sealed class WriteInputCodec : IInputCodec
             throw new FormatException("Invalid write frame.");
         }
 
-        var epoch = CommandCodecSupport.ReadWireId(atoms[header.Position]);
+        var targetInstanceId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
         var transactionId = CommandCodecSupport.ReadWireId(atoms[header.Position + 1]);
         var count = CommandCodecSupport.ReadCount(atoms[header.Position + 2]);
         var position = header.Position + 3;
-        if (count != 1 || position >= atoms.Length ||
-            !CommandCodecSupport.IsSymbol(atoms[position], "entry"))
+        var entries = new List<StateWriteEntry>(count);
+        for (var index = 0; index < count; index++)
         {
-            throw new FormatException("Only one write entry is supported.");
+            if (position >= atoms.Length ||
+                !CommandCodecSupport.IsSymbol(atoms[position++], "entry"))
+            {
+                throw new FormatException("Write entry marker is missing.");
+            }
+
+            var valuePosition = FindValueMarker(atoms, position);
+            var path = _pathDecoder.Decode(atoms[position..valuePosition]);
+            position = valuePosition + 1;
+            if (position >= atoms.Length)
+            {
+                throw new FormatException("Write entry has no value.");
+            }
+
+            var value = DecodeValue(atoms[position++], path);
+            entries.Add(new StateWriteEntry(path, value.Value, value.ValueType));
         }
 
-        position++;
-        var valuePosition = FindValueMarker(atoms, position);
-        var path = _pathDecoder.Decode(atoms[position..valuePosition]);
-        var valuePositionAfterMarker = valuePosition + 1;
-        if (valuePositionAfterMarker >= atoms.Length)
-        {
-            throw new FormatException("Write entry has no value.");
-        }
-
-        var value = DecodeValue(atoms[valuePositionAfterMarker], path);
-        if (valuePositionAfterMarker + 1 != atoms.Length)
+        if (position != atoms.Length)
         {
             throw new FormatException("Write frame contains extra atoms.");
         }
@@ -54,10 +59,8 @@ internal sealed class WriteInputCodec : IInputCodec
         return CommandCodecSupport.Success(
             header,
             new WriteStateCommand(
-                path,
-                value.Value,
-                value.ValueType,
-                epoch,
+                entries,
+                new InstanceId(targetInstanceId),
                 transactionId));
     }
 
@@ -101,12 +104,6 @@ internal sealed class WriteInputCodec : IInputCodec
             return new DecodedValue(ReadGroup(atom), typeof(GroupId?));
         }
 
-        if (node == StateNodeIds.FocusedBank)
-        {
-            throw new FormatException(
-                "Focused bank values require source instance context.");
-        }
-
         return new DecodedValue(ReadFloat(atom), typeof(float));
     }
 
@@ -137,7 +134,9 @@ internal sealed class WriteInputCodec : IInputCodec
             return null;
         }
 
-        if (atom.Type != AtomType.Integer || atom.Integer < 0)
+        if (atom.Type != AtomType.Integer ||
+            atom.Integer < 0 ||
+            atom.Integer > uint.MaxValue)
         {
             throw new FormatException("Expected a group id state value.");
         }

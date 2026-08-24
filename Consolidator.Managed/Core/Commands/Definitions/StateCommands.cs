@@ -1,21 +1,25 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Results;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Commands.Definitions;
 
 public sealed record ReadStateCommand(
-    StatePath Path) : IInstanceCommand<object?>
+    StatePath Path,
+    InstanceId? TargetInstanceId = null) :
+    IInstanceCommand<object?>,
+    ITargetedInstanceCommand
 {
     public CommandScope Scope => CommandScope.FocusedBank;
 }
 
 public sealed record WriteStateCommand(
-    StatePath Path,
-    object? Value,
-    Type ValueType,
-    ulong Epoch = 0,
-    ulong TransactionId = 0) : IInstanceCommand<StateWriteStatus>
+    IReadOnlyList<StateWriteEntry> Entries,
+    InstanceId? TargetInstanceId = null,
+    ulong TransactionId = 0) :
+    IInstanceCommand<StateWriteStatus>,
+    ITargetedInstanceCommand
 {
     public CommandScope Scope => CommandScope.FocusedBank;
 
@@ -24,16 +28,34 @@ public sealed record WriteStateCommand(
         TValue value)
     {
         return new WriteStateCommand(
-            path,
-            value,
-            typeof(TValue));
+            [new StateWriteEntry(path, value, typeof(TValue))]);
     }
 }
 
+public sealed record StateWriteEntry(
+    StatePath Path,
+    object? Value,
+    Type ValueType);
+
 public sealed record ResetStateCommand(
     StatePath Target,
-    ulong Epoch,
-    ulong TransactionId) : IInstanceCommand<CommandAcknowledgement>
+    InstanceId? TargetInstanceId,
+    ulong TransactionId) :
+    IInstanceCommand<CommandAcknowledgement>,
+    ITargetedInstanceCommand
 {
     public CommandScope Scope => CommandScope.FocusedBank;
+}
+
+public sealed record InitializeUiCommand()
+    : IInstanceCommand<UiInitializationResult>
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}
+
+public sealed record ObserveTargetCommand(
+    InstanceId TargetInstanceId,
+    BankId BankId) : IInstanceCommand<TargetStateSnapshotResult>
+{
+    public CommandScope Scope => CommandScope.Coordinator;
 }

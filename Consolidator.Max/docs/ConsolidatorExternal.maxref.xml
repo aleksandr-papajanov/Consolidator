@@ -34,6 +34,11 @@
 			<description></description>
 		</method>
 
+		<method name='begin_history'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='read'>
 			<digest></digest>
 			<description></description>
@@ -54,7 +59,17 @@
 			<description></description>
 		</method>
 
+		<method name='end_history'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='observe_target'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='jump_history'>
 			<digest></digest>
 			<description></description>
 		</method>

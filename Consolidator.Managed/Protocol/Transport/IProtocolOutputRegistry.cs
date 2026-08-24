@@ -7,4 +7,6 @@ internal interface IProtocolOutputRegistry
         IProtocolOutputCallback callback);
 
     void Unregister(ulong instanceId);
+
+    IReadOnlyList<ulong> GetRegisteredInstanceIds();
 }

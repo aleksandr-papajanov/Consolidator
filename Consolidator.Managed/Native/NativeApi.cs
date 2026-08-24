@@ -14,17 +14,21 @@ namespace Consolidator.Managed.Native;
 
 public static unsafe class NativeApi
 {
-    private static readonly NativeLogSink LogSink =
-        ManagedServices.Provider.GetRequiredService<NativeLogSink>();
-    private static readonly IInstanceLifecycleService LifecycleService =
+    private static readonly NativeLogSink LogSink = NativeLogSink.Shared;
+
+    private static IInstanceLifecycleService LifecycleService =>
         ManagedServices.Provider.GetRequiredService<IInstanceLifecycleService>();
-    private static readonly IProtocolOutputRegistry OutputRegistry =
+
+    private static IProtocolOutputRegistry OutputRegistry =>
         ManagedServices.Provider.GetRequiredService<IProtocolOutputRegistry>();
-    private static readonly ProtocolService ProtocolService =
+
+    private static ProtocolService ProtocolService =>
         ManagedServices.Provider.GetRequiredService<ProtocolService>();
-    private static readonly IInstancePreparationService PreparationService =
+
+    private static IInstancePreparationService PreparationService =>
         ManagedServices.Provider.GetRequiredService<IInstancePreparationService>();
-    private static readonly IInstanceAudioInputService AudioInputService =
+
+    private static IInstanceAudioInputService AudioInputService =>
         ManagedServices.Provider.GetRequiredService<IInstanceAudioInputService>();
     private static readonly ConcurrentDictionary<ulong, GCHandle>
         AudioInputHandles = new();
@@ -103,16 +107,22 @@ public static unsafe class NativeApi
         {
             if (outputCallback == null)
             {
+                LogSink.Write(
+                    "ConsolidatorRegisterInstance rejected a null output callback.");
                 return 0;
             }
 
             if (dspExchange == null)
             {
+                LogSink.Write(
+                    "ConsolidatorRegisterInstance rejected a null DSP exchange.");
                 return 0;
             }
 
             if (audioInputHandle == null)
             {
+                LogSink.Write(
+                    "ConsolidatorRegisterInstance rejected a null audio input handle.");
                 return 0;
             }
 
@@ -129,6 +139,9 @@ public static unsafe class NativeApi
 
             if (!AudioInputHandles.TryAdd(instanceId.Value, handle))
             {
+                LogSink.Write(
+                    "ConsolidatorRegisterInstance could not register "
+                    + $"the audio input handle for instance {instanceId.Value}.");
                 handle.Free();
                 handle = default;
                 OutputRegistry.Unregister(instanceId.Value);
@@ -142,27 +155,42 @@ public static unsafe class NativeApi
         }
         catch (Exception exception)
         {
-            *audioInputHandle = 0;
-
-            if (instanceId.IsValid)
+            if (audioInputHandle != null)
             {
-                OutputRegistry.Unregister(instanceId.Value);
-                LifecycleService.UnregisterInstance(instanceId);
-            }
-
-            if (instanceId.IsValid &&
-                AudioInputHandles.TryRemove(instanceId.Value, out var registeredHandle))
-            {
-                registeredHandle.Free();
-            }
-            else if (handle.IsAllocated)
-            {
-                handle.Free();
+                *audioInputHandle = 0;
             }
 
             LogBoundaryException(
                 "ConsolidatorRegisterInstance",
                 exception);
+
+            try
+            {
+                if (instanceId.IsValid)
+                {
+                    OutputRegistry.Unregister(instanceId.Value);
+                    LifecycleService.UnregisterInstance(instanceId);
+                }
+
+                if (instanceId.IsValid &&
+                    AudioInputHandles.TryRemove(
+                        instanceId.Value,
+                        out var registeredHandle))
+                {
+                    registeredHandle.Free();
+                }
+                else if (handle.IsAllocated)
+                {
+                    handle.Free();
+                }
+            }
+            catch (Exception cleanupException)
+            {
+                LogBoundaryException(
+                    "ConsolidatorRegisterInstance cleanup",
+                    cleanupException);
+            }
+
             return 0;
         }
     }

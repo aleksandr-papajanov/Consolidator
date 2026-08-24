@@ -26,6 +26,9 @@ internal sealed class NativeOutputService : IProtocolTransport, IProtocolOutputR
         _callbacks.TryRemove(instanceId, out _);
     }
 
+    public IReadOnlyList<ulong> GetRegisteredInstanceIds() =>
+        _callbacks.Keys.OrderBy(value => value).ToArray();
+
     public void Send(
         ProtocolOutput message)
     {

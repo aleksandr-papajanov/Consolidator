@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core.Commands.Definitions;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Dispatch;
 using Consolidator.Managed.Protocol.Messages;
 
@@ -24,13 +25,16 @@ internal sealed class ResetInputCodec : IInputCodec
             throw new FormatException("Invalid reset frame.");
         }
 
-        var epoch = CommandCodecSupport.ReadWireId(atoms[header.Position]);
+        var targetInstanceId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
         var transactionId = CommandCodecSupport.ReadWireId(atoms[header.Position + 1]);
         var path = _pathDecoder.Decode(
             atoms[(header.Position + 2)..],
             allowContainer: true);
         return CommandCodecSupport.Success(
             header,
-            new ResetStateCommand(path, epoch, transactionId));
+            new ResetStateCommand(
+                path,
+                new InstanceId(targetInstanceId),
+                transactionId));
     }
 }

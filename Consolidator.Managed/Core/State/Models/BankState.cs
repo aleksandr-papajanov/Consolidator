@@ -18,10 +18,13 @@ public sealed class BankState
         ArgumentNullException.ThrowIfNull(groupObserver);
 
         Id = id;
+        var initialGroup = id == BankId.Bank6
+            ? new GroupId(0)
+            : (GroupId?)null;
         Group = values.CreateBankValue(
             instanceId,
             path.Append(StateNodeIds.Group),
-            (GroupId?)null,
+            initialGroup,
             StateValueEditMode.CopyValue,
             scope: StateValueEditScope.Local,
             observers: [groupObserver]);

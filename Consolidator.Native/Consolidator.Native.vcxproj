@@ -103,6 +103,7 @@
   <ItemGroup>
     <ClCompile Include="External\ConsolidatorExternal.cpp" />
     <ClCompile Include="External\AtomCodec.cpp" />
+    <ClCompile Include="External\DspStateConsumer.cpp" />
     <ClCompile Include="External\ManagedBridge.cpp" />
     <ClCompile Include="External\MinApiImplementation.cpp" />
   </ItemGroup>
@@ -110,6 +111,7 @@
   <ItemGroup>
     <ClInclude Include="External\ConsolidatorExternal.h" />
     <ClInclude Include="External\AtomCodec.h" />
+    <ClInclude Include="External\DspStateConsumer.h" />
     <ClInclude Include="External\ManagedBridge.h" />
     <ClInclude Include="External\ManagedInterop.h" />
     <ClInclude Include="External\SharedDspState.h" />

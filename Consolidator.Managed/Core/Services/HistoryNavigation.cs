@@ -9,39 +9,30 @@ public sealed class HistoryNavigation : IHistoryNavigation
 {
     private readonly StateHistory _history;
     private readonly InstanceRegistry _instanceRegistry;
-    private readonly IOperationGate _operationGate;
 
     internal HistoryNavigation(
         StateHistory history,
         InstanceRegistry instanceRegistry,
-        IOperationGate operationGate,
         HistoryStatePublisher historyStatePublisher)
     {
         _history = history;
         _instanceRegistry = instanceRegistry;
-        _operationGate = operationGate;
     }
 
     public void AdvanceHistoryPoint()
     {
-        using (_operationGate.Enter())
-        {
-            _history.AdvanceHistoryPoint();
-        }
+        _history.AdvanceHistoryPoint();
     }
 
     public bool JumpToHistory(int cursor)
     {
-        using (_operationGate.Enter())
+        if (!_history.JumpToHistory(cursor))
         {
-            if (!_history.JumpToHistory(cursor))
-            {
-                return false;
-            }
-
-            PublishDspStates();
-            return true;
+            return false;
         }
+
+        PublishDspStates();
+        return true;
     }
 
     private void PublishDspStates()
