@@ -44,7 +44,9 @@ BankManagerController.prototype.selectBank = function (
         this.toggleBankSelection(instanceId, bankId, extendSelection);
         return;
     }
-    this.context.viewModel.setFocusedBank(instanceId, bankId);
+    if (this.context.viewModel.setFocusedBank(instanceId, bankId) === false) {
+        return;
+    }
     this.context.uiTarget.show(instanceId, bankId);
 };
 

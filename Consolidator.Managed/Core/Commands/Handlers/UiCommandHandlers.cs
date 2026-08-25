@@ -4,6 +4,7 @@ using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Analyzer;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
@@ -55,5 +56,26 @@ internal sealed class ObserveTargetCommandHandler
             (int)command.BankId);
         return ValueTask.FromResult(
             _projector.Project(target.State, command.BankId));
+    }
+}
+
+internal sealed class SetInstanceActiveCommandHandler
+    : CommandHandler<SetInstanceActiveCommand, CommandAcknowledgement>
+{
+    private readonly FftAnalyzer _analyzer;
+
+    public SetInstanceActiveCommandHandler(FftAnalyzer analyzer)
+    {
+        _analyzer = analyzer;
+    }
+
+    public override ValueTask<CommandAcknowledgement> HandleAsync(
+        SetInstanceActiveCommand command,
+        InstanceCommandContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _analyzer.SetInstanceActive(context.InstanceId, command.Active);
+        return ValueTask.FromResult(new CommandAcknowledgement());
     }
 }

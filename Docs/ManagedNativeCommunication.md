@@ -55,6 +55,21 @@ must use a separate native-owned channel.
 
 Each Max external owns one managed instance. The instance ID addresses all control and audio calls for that external.
 
+Observed target and instance activity are separate pieces of state. The
+`observe_target` command changes only the instance/bank shown by the UI.
+`set_instance_active 1|0` reports whether the source external is Live's single
+selected device; activating one external replaces the previous active viewer.
+The capture buffer belongs to the source selected by that viewer, which may be
+a different instance. Without an active viewer, the audio entrypoint returns
+before capture lookup or audio copying. The analyzer worker processes at most
+one FFT window per 33 ms. Equalizer curve invalidation remains a control-side
+update; publication is limited to the active viewer and has its own budget.
+
+The Max client applies `target_state_begin/entry/done` as one presentation
+batch. Entry values update their view models silently while the snapshot is
+being assembled; the final ready-status transition publishes the complete new
+target once, without intermediate per-entry control renders.
+
 ## ABI Types
 
 The shared ABI is declared in `Consolidator.Native/External/ManagedInterop.h` and mirrored by the C# unmanaged types.
@@ -126,6 +141,10 @@ native module. It owns the process-wide Managed log callback registration and
 clears that callback before releasing the DLL in its destructor. Destroying one
 external therefore cannot unload the ManagedAOT module while other externals
 or the shared Managed services are still active.
+The native bridge counts live external objects and explicitly calls the shared
+`ConsolidatorShutdown` export when the last external is destroyed. This stops
+Managed worker services before the ManagedAOT module is released; the runtime
+destructor remains an idempotent final safety net.
 
 The managed registry stores per-instance `ManagedInstance` records. Each
 `ManagedInstance` owns its `ManagedState`, DSP publisher and command gate. The
@@ -133,6 +152,14 @@ same instance ID is the delivery identity for that external's control output;
 there is no separate UI session.
 Output remains globally routed by `NativeOutputService`, exposed as
 `IProtocolTransport` to Protocol and `IProtocolOutputRegistry` to Native API.
+Presentation publishers provide explicit recipient sets for each operation.
+Targeted state writes and resets publish DSP snapshots only to their affected
+instance IDs. Registry deltas and history notifications are sent only to
+instances that have requested a registry snapshot and are therefore registered
+as registry observers. State notifications use topology-resolved focused
+observers; equalizer curves use observers of the exact `(instance, bank)`; FFT
+frames return the selected source to the active viewer. A singleton
+service does not imply broadcast delivery.
 
 ## Native to Managed: Incoming Messages
 
@@ -147,17 +174,23 @@ Max control inlet
     -> NativeApi.SendMessage
     -> AtomDecoder.Decode
     -> ProtocolService.Receive
+    -> bounded control queue
+    -> single Managed control worker
     -> IProtocolTransport.Send
 ```
 
 The native side owns the encoded input atoms only for the duration of the unmanaged call. `SendMessage` immediately converts the selector and atoms into managed values before returning.
 
 `Receive` is the Managed control-message entry point exposed through
-`ProtocolService`. It decodes the incoming frame through `CommandDecoder`,
-creates a typed command, executes it through `CommandEndpointRegistry` and
-`InstanceCommandRouter`, and sends the result through the source instance output
-registry. The registry fans out by `TargetInstanceIds` to native callback
-bindings. Instance preparation is exposed through `IInstancePreparationService`; lifecycle
+`ProtocolService`. It decodes and copies the incoming frame through
+`CommandDecoder`, then performs a non-blocking bounded enqueue and returns to
+Native. A single Managed control worker consumes the FIFO queue, executes each
+command through `CommandEndpointRegistry` and `InstanceCommandRouter`, and
+sends the result through the source instance output registry. This keeps
+`OperationGate` waits off the Max message thread. When the queue is full, the
+caller receives an `error overloaded` response. Unregister marks the source as
+cancelled so queued commands for that instance are discarded before execution.
+Instance preparation is exposed through `IInstancePreparationService`; lifecycle
 registration is exposed through `IInstanceLifecycleService`. The Managed
 protocol architecture is defined in
 [`ManagedProtocol.md`](ManagedProtocol.md): command types, handler registrations,
@@ -192,9 +225,12 @@ The shared operation gate covers one complete logical operation. Synchronous
 topology/history operations and async command batches use the same gate, so a
 command cannot interleave with a history jump or a topology mutation while it
 is suspended. `WriteStateCommand` does not broadcast through the command
-router: the focused target's `StateValue` and its peer observer perform the
-grouped history transaction. There is no second broadcast-write path in the
-command executor. Each target instance has
+router. The router keeps the source external's focused `BankAddress` active for
+the complete operation, and the target `StateValue` peer observer uses that
+context to prepare the grouped history transaction. Bank-owned peers remain
+materialized by bank address; instance-owned peers are resolved from an
+address index for the selected bank's group. There is no second broadcast-write
+path in the command executor. Each target instance has
 its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
@@ -225,26 +261,54 @@ After the callback returns, native code must not retain any pointer received fro
 
 ## Native Queue and Max Thread
 
-`ReceiveManagedOutput` never calls a Max outlet directly. It pushes the owned `OutputFrame` into `pendingOutput_` and schedules one `c74::min::queue<>`:
+`ReceiveManagedOutput` never calls a Max outlet directly. Control frames are
+stored in a FIFO so control responses are not lost. Analysis frames use
+latest-only slots: one pending `fft` frame and one pending curve frame per
+analyzer selector and native external. A newer frame for the same selector
+replaces the older one before the Max queue is drained.
+
+One `c74::min::queue<>` is scheduled for both paths:
 
 ```text
 C# callback thread
     -> copy OutputFrame
-    -> lock only for pendingOutput_.push_back
+    -> lock only for control enqueue or analysis slot replacement
     -> outputQueue_.set()
 
 Max low-priority thread
     -> DrainManagedOutput
-    -> swap pendingOutput_
+    -> drain a bounded control batch
+    -> send the latest analysis frames
     -> convert OutputFrame to Max atoms
-    -> controlOutput.send
+    -> controlOutput.send or analysisOutput.send
 ```
 
-Repeated `queue.set()` calls coalesce while the qelem is pending. Frames are not coalesced or dropped; only the wake-up request is coalesced.
+Analysis frames use the dedicated `analysisOutput` outlet. The native drain
+routes `fft`, `equalizer_curves`, `compressor_detector_curves`, and
+`saturator_detector_curves` there; other Managed protocol frames use
+`controlOutput`. The Max bridge connects that analysis outlet to the UI host's
+protocol input separately from control output.
+
+Each drain processes at most 32 control frames and 4096 control atoms, then
+processes the latest available analysis frames. Control frames are never
+dropped. Analysis frames are intentionally coalesced because only the newest
+spectrum and curve data is useful to the UI. If any queue or slot still has
+work, the qelem is scheduled again. Repeated `queue.set()` calls coalesce while
+the qelem is pending.
 
 The mutex is held only while pushing or swapping the queue. String conversion and Max atom construction happen outside the producer-side lock.
 
 The native callback handler is `noexcept` and catches exceptions around `ReceiveManagedOutput`. No C++ exception may cross the C ABI boundary.
+
+## Runtime Metrics
+
+Sending the `metrics` control message requests a diagnostic snapshot. Managed
+reports control-operation time, FFT and curve rates per instance, equalizer
+calculation time, registry snapshot/delta counts, dropped audio blocks and
+process Managed allocation totals through the control-path log sink. Native
+reports current control FIFO depth, replaced and skipped FFT frames, and the
+most recent Max queue drain duration. Audio-path metric updates use atomic
+counters only; they do not log or allocate.
 
 ## Lifecycle Contract
 
@@ -305,9 +369,35 @@ ConsolidatorExternal::Prepare
 
 `SendAudio` resolves the opaque `GCHandle` directly to the per-instance
 `NativeAudioInput`; it does not query the instance registry or take the
-shared operation lock. The adapter forwards to all DI-registered
-`IInstanceAudioInputHandler` implementations. Unregistration releases the
-audio handle after removing the instance ID. Audio handlers must remain
-real-time safe: no Max outlet calls, blocking locks, or unbounded allocation
-on the audio thread.
+shared operation lock. The adapter forwards to the singleton
+`FftAnalyzer`. Unregistration releases the audio handle after removing the
+instance ID. Audio handlers must remain real-time safe: no Max outlet calls,
+blocking locks, or unbounded allocation on the audio thread.
+
+The singleton `FftAnalyzer` is the audio input implementation. It writes the
+four input channels into a preallocated bounded SPSC sample ring on the
+callback and performs FFT on a managed worker. The ring accepts arbitrary audio
+vector sizes, drops newest samples on overflow, and counts dropped samples
+atomically. The worker reads complete 1024-sample windows with a 512-sample
+hop and applies a Hann window before FFT, so vector boundaries do not discard
+the remainder of an input block. It publishes `fft` output only to the active
+viewer of the selected source instance; the output contains protocol version,
+source instance ID, FFT size, main spectrum bins and reference spectrum bins.
+
+Analyzer EQ caches are lazy. Instance registration creates the state and native
+DSP runtime immediately, while bank curves and all-bank presentation are built
+only for the active instance viewer. Instance activity gates both spectrum
+capture and curve delivery; activation publishes the latest presentation, and
+dirty curves are coalesced to the UI cadence before crossing the callback. The
+worker publishes at most two oldest dirty curve addresses with active focused
+recipients per interval. Dirty addresses without recipients are discarded from
+the notification queue without consuming that budget; their latest immutable
+inputs remain available for a later focus presentation. The callback rate is
+therefore bounded without allowing invisible grouped peers to delay the visible
+curve.
+
+Equalizer curve frames are routed to the active viewer when it observes the
+exact source instance and bank. Compressor and saturator detector curve frames
+are routed to that viewer when it observes the source instance, independent of
+its selected EQ bank; detector caches use a single instance-level bank slot.
 

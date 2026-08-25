@@ -85,14 +85,16 @@ function testRegistrySnapshotRoundTrip() {
   assert.strictEqual(client.registry.get().instances[0].banks[1].groupId, 0);
   assert.strictEqual(snapshots.length, 1);
 }
-function testRegistryChangedDuringFetchIsRetained() {
+function testRegistryDeltaDuringFetchIsRetained() {
   var sent = [];
   var client = new ConsolidatorClient("ui.main", function (frame) {
     sent.push(frame);
   });
 
   client.registry.fetch();
-  client.handleControl("registry_changed", [1, "21"]);
+  client.handleControl("registry_instance_added", [
+    1, 20, 21, "7", "Kick", 0,
+  ]);
   client.handleControl("registry_begin", [1, "ui.main", "1", "20", 0, 0]);
   client.handleControl("registry_done", [1, "ui.main", "1"]);
   assert.strictEqual(sent.length, 2);
@@ -102,13 +104,40 @@ function testRegistryChangedDuringFetchIsRetained() {
   client.handleControl("registry_done", [1, "ui.main", "2"]);
   assert.strictEqual(client.registry.get().revision, 21);
 }
-function testRegistryChangedFetchesWhenIdle() {
+function testRegistryDoesNotPublishStaleSnapshotOverLabelDelta() {
   var sent = [];
   var client = new ConsolidatorClient("ui.main", function (frame) {
     sent.push(frame);
   });
 
-  client.handleControl("registry_changed", [1, "5"]);
+  client.registry.snapshot = {
+    revision: 10,
+    instances: [{ instanceId: "7", label: "Old", banks: [] }],
+    groups: [],
+  };
+  client.registry.requiredRevision = 12;
+  client.registry.fetch();
+  client.handleControl("registry_begin", [1, "ui.main", "1", "11", 0, 0]);
+  client.handleControl("registry_done", [1, "ui.main", "1"]);
+
+  assert.strictEqual(client.registry.get().instances[0].label, "Old");
+  assert.strictEqual(sent.length, 2);
+
+  client.handleControl("registry_begin", [1, "ui.main", "2", "12", 1, 1]);
+  client.handleControl("registry_instance", [1, "ui.main", "2", "7", "Renamed"]);
+  client.handleControl("registry_done", [1, "ui.main", "2"]);
+
+  assert.strictEqual(client.registry.get().instances[0].label, "Renamed");
+}
+function testRegistryDeltaFetchesWhenIdle() {
+  var sent = [];
+  var client = new ConsolidatorClient("ui.main", function (frame) {
+    sent.push(frame);
+  });
+
+  client.handleControl("registry_instance_added", [
+    1, 4, 5, "7", "Kick", 0,
+  ]);
   assert.deepStrictEqual(sent[0], ["registry", 1, "ui.main", "1"]);
 }
 function testRegistrySameRevisionDoesNotNotifyAgain() {
@@ -128,6 +157,30 @@ function testRegistrySameRevisionDoesNotNotifyAgain() {
   assert.strictEqual(notifications, 1);
   assert.strictEqual(client.registry.get().revision, 20);
 }
+
+function testRegistryDeltaUpdatesOnlyTheAffectedRow() {
+  var protocol = new NativeProtocolClient("ui.main", function () {});
+  var registry = new RegistryClient(protocol);
+  registry.snapshot = {
+    revision: 3,
+    instances: [
+      { instanceId: "1", label: "One", banks: [{ bankId: 1, groupId: null }] },
+      { instanceId: "2", label: "Two", banks: [{ bankId: 1, groupId: null }] },
+    ],
+    groups: [],
+  };
+  var viewModel = new BankManagerViewModel(registry, "1");
+  var firstRow = viewModel.rows[0];
+  var secondRow = viewModel.rows[1];
+
+  registry.handleDelta("registry_label_changed", [1, 3, 4, "2", "Renamed"]);
+
+  assert.strictEqual(viewModel.rows[0], firstRow);
+  assert.strictEqual(viewModel.rows[1], secondRow);
+  assert.strictEqual(viewModel.rows[1].label, "Renamed");
+  assert.strictEqual(viewModel.rows[0].label, "One");
+  viewModel.destroy();
+}
 function testRegistryUsesNativeDeliveryIdentity() {
   var client = new ConsolidatorClient("ui.main", function () {});
 
@@ -142,7 +195,9 @@ function testRegistryBroadcastRequiresProtocolVersion() {
   var client = new ConsolidatorClient("ui.main", function (frame) {
     sent.push(frame);
   });
-  client.handleControl("registry_changed", [2, "99"]);
+  client.handleControl("registry_instance_added", [
+    2, 98, 99, "7", "Kick", 0,
+  ]);
   assert.strictEqual(sent.length, 0);
   assert.strictEqual(client.registry.requiredRevision, 0);
 }
@@ -168,7 +223,9 @@ function testRegistryErrorClearsFetchState() {
   assert.strictEqual(response.snapshot, undefined);
   assert.strictEqual(response.result.error, "malformed");
 
-  client.handleControl("registry_changed", [1, "2"]);
+  client.handleControl("registry_instance_added", [
+    1, 1, 2, "7", "Kick", 0,
+  ]);
   assert.deepStrictEqual(sent[1], ["registry", 1, "ui.main", "2"]);
 }
 function testStateClientAddressesRemoteTopologyWrites() {
@@ -407,9 +464,11 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
   controller.destroy();
 }
 testRegistrySnapshotRoundTrip();
-testRegistryChangedDuringFetchIsRetained();
-testRegistryChangedFetchesWhenIdle();
+testRegistryDeltaDuringFetchIsRetained();
+testRegistryDoesNotPublishStaleSnapshotOverLabelDelta();
+testRegistryDeltaFetchesWhenIdle();
 testRegistrySameRevisionDoesNotNotifyAgain();
+testRegistryDeltaUpdatesOnlyTheAffectedRow();
 testRegistryUsesNativeDeliveryIdentity();
 testRegistryBroadcastRequiresProtocolVersion();
 testRegistryErrorClearsFetchState();

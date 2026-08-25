@@ -9,11 +9,13 @@ Managed DLL:
 InstanceRegistry
   -> StateRegistry<InstanceId>
   -> StateValueFactory
+  -> AnalyzerRegistry
   -> StateHistory
   -> StatePeerObserver
   -> StateTopologyObserver
       -> TopologyIndex
       -> AudibilityObserver
+  -> FftAnalyzer
   -> InstanceCommandRouter
       -> CommandExecutor
 ```
@@ -26,14 +28,23 @@ Responsibilities are intentionally narrow:
   registration and root removal;
 - `StateValueFactory` owns application edit policy and composes concrete value
   observers;
+- `AnalyzerRegistry` owns per-instance audio capture and derived DSP objects,
+  captures and coalesces dirty filter inputs at control-operation boundaries,
+  then materializes curves only for focused recipients;
 - `StateHistory` owns the shared history cursor and active history-value list;
 - `StatePeerObserver` owns peer buckets, grouped mutations and effective delta
   ranges;
 - `StateTopologyObserver` reacts to bank-group and instance lifecycle events;
 - `TopologyIndex` stores derived group/focus indexes and serves queries;
 - `AudibilityObserver` observes mute/solo values and projects audibility;
+- `FftAnalyzer` owns bounded per-instance audio capture, worker-side FFT and
+  focused-bank spectrum publication;
 - `InstanceCommandRouter` validates sources and selects targets;
 - `CommandExecutor` executes commands on already selected instances.
+
+Pure DSP coefficient calculations live in the managed `Consolidator.Managed.Dsp`
+namespace. `BiquadCalculator` provides the shared bell, shelf and gain biquad
+design used by DSP and analysis code without owning state or audio buffers.
 
 There is no global coordinator facade, general projection service or state
 resolver layer.
@@ -109,6 +120,14 @@ command is suspended.
 The audio callback does not enter coordination services or either control-path
 gate. It uses its per-instance realtime-safe handle and the published native DSP
 snapshot only.
+
+`FftAnalyzer` is the managed audio-input singleton. One external is the active
+viewer at a time. Its audio callback only writes the selected source instance
+into a preallocated bounded capture block; a worker performs the FFT and sends
+the source spectrum back to that viewer. The viewer and source may be different
+instances. Full capture blocks are dropped when the bounded queue is full.
+Spectrum output uses the `fft` protocol selector and is consumed by the existing
+analyzer controls.
 
 ## Process boundary
 

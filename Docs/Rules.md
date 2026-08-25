@@ -543,7 +543,7 @@ Raw pointers не используются для неявного владен�
 В `Consolidator.Managed/Properties/PublishProfiles/` доступны два профиля:
 
 - `FolderProfile` — публикует только Managed NativeAOT library;
-- `NativeAndManaged` — запускается через Visual Studio `MSBuild.exe`, сначала собирает `Consolidator.Native.vcxproj` в конфигурации `Release|x64`, затем публикует Managed и копирует `ConsolidatorExternal.mxe64` и `Consolidator.Managed.dll` в `Consolidator.Max/externals`. Обычный `dotnet publish` не может выполнить этот профиль, потому что не предоставляет C++ targets.
+- `NativeAndManaged` — запускается из Visual Studio или через Visual Studio `MSBuild.exe`, сначала собирает `Consolidator.Native.vcxproj` в конфигурации `Release|x64`, затем публикует Managed и копирует `ConsolidatorExternal.mxe64` и `Consolidator.Managed.dll` в `Consolidator.Max/externals`. Проект подключает `Microsoft.NET.Sdk.Publish`, потому что Visual Studio запускает профиль через `Build` с `DeployOnBuild=true`. Native build выполняется перед SDK target `PrepareForPublish` и явно использует `Release|x64`, независимо от Managed platform, которую Visual Studio передаёт как `AnyCPU`. Обычный `dotnet publish` не может выполнить этот профиль, потому что не предоставляет C++ targets.
 
 ---
 

@@ -7,7 +7,7 @@ tests/
 │  ├─ UiProtocolTests.js             JS → wire frame → JS response
 │  ├─ UiBindingTests.js              UI intent and presentation use cases
 │  ├─ RegistryAndBankManagerTests.js registry and topology workflows
-│  ├─ LiveTrackIdentityHostTests.js  Live identity lifecycle
+│  ├─ LiveInstanceHostTests.js       Live identity/activity lifecycle
 │  ├─ RuntimePathTests.js             complete Max package contract
 │  └─ ClientSuite.js                 exhaustive suite registry
 └─ ClientTests.js                         stable test entrypoint

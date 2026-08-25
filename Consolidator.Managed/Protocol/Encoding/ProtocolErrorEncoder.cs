@@ -1,4 +1,5 @@
 using Consolidator.Managed.Protocol.Messages;
+using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Protocol.Encoding;
 
@@ -13,6 +14,7 @@ internal static class ProtocolErrorEncoder
 
         var code = exception switch
         {
+            ProtocolOverloadedException => "overloaded",
             FormatException => "malformed",
             KeyNotFoundException => "unknown_selector",
             _ => "execution_failed"
@@ -29,4 +31,5 @@ internal static class ProtocolErrorEncoder
                 new Atom(AtomType.Symbol, 0, 0, exception.Message)
             ]);
     }
+
 }

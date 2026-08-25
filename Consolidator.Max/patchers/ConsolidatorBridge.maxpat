@@ -1,14 +1,6 @@
 {
 	"patcher" : 	{
-		"fileversion" : 1,
-		"appversion" : 		{
-			"major" : 9,
-			"minor" : 0,
-			"revision" : 9,
-			"architecture" : "x64",
-			"modernui" : 1
-		}
-,
+		"modernui" : 1,
 		"classnamespace" : "box",
 		"rect" : [ 134.0, 134.0, 1180.0, 760.0 ],
 		"openinpresentation" : 1,
@@ -23,6 +15,19 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 30.0, 30.0, 30.0, 30.0 ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"comment" : "Native analysis outlet",
+					"id" : "analysis-in",
+					"index" : 2,
+					"maxclass" : "inlet",
+					"numinlets" : 0,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 70.0, 30.0, 30.0, 30.0 ]
 				}
 
 			}
@@ -69,17 +74,17 @@
 			}
 , 			{
 				"box" : 				{
-					"id" : "live-track-host",
+					"id" : "live-instance-host",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 560.0, 30.0, 250.0, 22.0 ],
 					"saved_object_attributes" : 					{
-						"filename" : "Project:/js/LiveTrackIdentityHost.js",
+						"filename" : "Project:/js/LiveInstanceHost.js",
 						"parameter_enable" : 0
 					},
-					"text" : "js Project:/js/LiveTrackIdentityHost.js"
+					"text" : "js Project:/js/LiveInstanceHost.js"
 				}
 
 			}
@@ -324,7 +329,7 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "live-track-host", 0 ],
+					"destination" : [ "live-instance-host", 0 ],
 					"source" : [ "live-ready", 0 ]
 				}
 
@@ -332,7 +337,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "host", 0 ],
-					"source" : [ "live-track-host", 0 ]
+					"source" : [ "live-instance-host", 0 ]
 				}
 
 			}
@@ -347,6 +352,13 @@
 				"patchline" : 				{
 					"destination" : [ "host", 0 ],
 					"source" : [ "native-control-in", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "host", 0 ],
+					"source" : [ "analysis-in", 0 ]
 				}
 
 			}

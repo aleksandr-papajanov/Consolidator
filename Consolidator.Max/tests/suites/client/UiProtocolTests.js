@@ -14,6 +14,19 @@ function testInitializationUsesExternalIdentityFromManaged() {
   assert.strictEqual(String(result.instanceId), "17");
 }
 
+function testInstanceActivityUsesTheInstanceCommand() {
+  var frames = [];
+  var client = new ConsolidatorClient("ui", function (frame) {
+    frames.push(frame);
+  });
+
+  client.setInstanceActive(true);
+
+  assert.deepStrictEqual(frames[0], [
+    "set_instance_active", 1, "ui", "1", 1,
+  ]);
+}
+
 function testTargetSnapshotAndPushUpdateUseSemanticPaths() {
   var frames = [];
   var client = new ConsolidatorClient("ui", function (frame) {
@@ -51,7 +64,67 @@ function testObservedEqualizerPathsAreExpandedForWrites() {
   ]);
 }
 
+function testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch() {
+  var client = new ConsolidatorClient("ui", function () {});
+  var value = new StateValueViewModel(
+    client.targetState,
+    "compressor.threshold",
+  );
+  var notifications = 0;
+  value.subscribe(function () { notifications += 1; });
+  client.uiTarget.show("4", 2);
+  notifications = 0;
+
+  client.handleControl("target_state_begin", [1, "9", "1", "4", 2, 1]);
+  client.handleControl("target_state_entry", [
+    1, "9", "1", 0, "compressor.threshold", -24, "ready",
+    -60, 0, -60, 0,
+  ]);
+  assert.strictEqual(notifications, 0);
+  client.handleControl("target_state_done", [1, "9", "1", "4", 2, 1]);
+
+  assert.strictEqual(notifications, 1);
+  assert.strictEqual(value.value, -24);
+  value.destroy();
+  client.destroy();
+}
+
+function testCallbacklessGestureWritesDoNotAccumulatePendingRequests() {
+  var protocol = new NativeProtocolClient("ui", function () {});
+  var state = new StateClient(protocol);
+  for (var index = 0; index < 100; index += 1) {
+    state.setManyFor("8", [
+      { path: "compressor.detector.filter.1.frequency", value: 1000 + index },
+      { path: "compressor.detector.filter.1.gain", value: index * 0.01 },
+    ], undefined, 42);
+  }
+
+  assert.deepStrictEqual(Object.keys(protocol.pending), []);
+}
+
+function testWriteWithCallbackIsNotEligibleForGestureCoalescing() {
+  var frames = [];
+  var protocol = new NativeProtocolClient("ui", function (frame) {
+    frames.push(frame);
+  });
+  var state = new StateClient(protocol);
+  var response;
+  state.setFor("8", "compressor.threshold", -18, function (value) {
+    response = value;
+  }, 42);
+
+  assert.strictEqual(frames[0][5], "0");
+  assert.deepStrictEqual(Object.keys(protocol.pending), ["1"]);
+  protocol.handleControl("action_done", [1, "ui", "1", 1]);
+  assert.strictEqual(response.status, "accepted");
+  assert.deepStrictEqual(Object.keys(protocol.pending), []);
+}
+
 testInitializationUsesExternalIdentityFromManaged();
+testInstanceActivityUsesTheInstanceCommand();
 testTargetSnapshotAndPushUpdateUseSemanticPaths();
 testObservedEqualizerPathsAreExpandedForWrites();
+testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch();
+testCallbacklessGestureWritesDoNotAccumulatePendingRequests();
+testWriteWithCallbackIsNotEligibleForGestureCoalescing();
 console.log("UiProtocolTests passed");

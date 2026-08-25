@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk;Microsoft.NET.Sdk.Publish">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -13,14 +13,15 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Consolidator.Managed.Tests" />
   </ItemGroup>
 
-  <Target Name="BuildNativeBeforePublish" BeforeTargets="Publish" Condition="'$(BuildNativeBeforePublish)' == 'true'">
-    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Consolidator.Native\Consolidator.Native.vcxproj" Targets="Build" Properties="Configuration=$(Configuration);Platform=$(Platform)" />
+  <Target Name="BuildNativeBeforePublish" BeforeTargets="PrepareForPublish" Condition="'$(BuildNativeBeforePublish)' == 'true'">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Consolidator.Native\Consolidator.Native.vcxproj" Targets="Build" Properties="Configuration=Release;Platform=x64" />
   </Target>
 
 </Project>

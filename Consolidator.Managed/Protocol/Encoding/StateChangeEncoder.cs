@@ -10,6 +10,7 @@ internal static class StateChangeEncoder
         StateValueChanged change,
         IReadOnlyList<ulong> targetInstanceIds,
         StateValueMetadata metadata,
+        FloatRange? effectiveRange,
         int? bankId)
     {
         ArgumentNullException.ThrowIfNull(change);
@@ -25,8 +26,8 @@ internal static class StateChangeEncoder
                 new Atom(AtomType.Symbol, 0, 0, "ready"),
                 Optional(metadata.PhysicalRange?.Minimum),
                 Optional(metadata.PhysicalRange?.Maximum),
-                Optional(metadata.EffectiveRange?.Minimum),
-                Optional(metadata.EffectiveRange?.Maximum)
+                Optional(effectiveRange?.Minimum),
+                Optional(effectiveRange?.Maximum)
             ]);
     }
 

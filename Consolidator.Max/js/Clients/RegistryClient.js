@@ -12,7 +12,10 @@ function RegistryClient(protocol) {
     protocol.on("registry_group", this.handleGroup.bind(this));
     protocol.on("registry_member", this.handleMember.bind(this));
     protocol.on("registry_done", this.handleDone.bind(this));
-    protocol.on("registry_changed", this.handleChanged.bind(this));
+    protocol.on("registry_instance_added", this.handleDelta.bind(this, "registry_instance_added"));
+    protocol.on("registry_instance_removed", this.handleDelta.bind(this, "registry_instance_removed"));
+    protocol.on("registry_label_changed", this.handleDelta.bind(this, "registry_label_changed"));
+    protocol.on("registry_bank_group_changed", this.handleDelta.bind(this, "registry_bank_group_changed"));
     protocol.on("error", this.handleError.bind(this));
 }
 
@@ -34,16 +37,89 @@ RegistryClient.prototype.fetch = function (callback) {
     });
 };
 
-RegistryClient.prototype.handleChanged = function (args) {
-    var revision = Number(args[1]);
-    if (!isFinite(revision)) {
+RegistryClient.prototype.handleDelta = function (selector, args) {
+    var previousRevision = Number(args[1]);
+    var revision = Number(args[2]);
+    if (!isFinite(previousRevision) || !isFinite(revision)) {
         return;
     }
-    this.requiredRevision = Math.max(this.requiredRevision, revision);
-    if (!this.fetchPending &&
-        (!this.snapshot || this.snapshot.revision < this.requiredRevision)) {
-        this.fetch();
+    if (!this.snapshot || this.snapshot.revision !== previousRevision) {
+        this.requiredRevision = Math.max(this.requiredRevision, revision);
+        if (!this.fetchPending) {
+            this.fetch();
+        }
+        return;
     }
+
+    if (selector === "registry_instance_added") {
+        this.applyInstanceAdded(args);
+    } else if (selector === "registry_instance_removed") {
+        this.applyInstanceRemoved(args);
+    } else if (selector === "registry_label_changed") {
+        this.applyLabelChanged(args);
+    } else if (selector === "registry_bank_group_changed") {
+        this.applyBankGroupChanged(args);
+    } else {
+        return;
+    }
+    this.snapshot.revision = revision;
+    this.notify(this.snapshot, { selector: selector, args: args });
+};
+
+RegistryClient.prototype.applyInstanceAdded = function (args) {
+    var instanceId = args[3];
+    var instance = { instanceId: instanceId, label: String(args[4]), banks: [] };
+    var count = Number(args[5]);
+    for (var index = 0; index < count; index += 1) {
+        var position = 6 + index * 2;
+        instance.banks.push({
+            bankId: args[position],
+            groupId: args[position + 1] === "none" ? null : args[position + 1]
+        });
+    }
+    this.snapshot.instances.push(instance);
+    this.rebuildGroups();
+};
+
+RegistryClient.prototype.applyInstanceRemoved = function (args) {
+    var instanceId = String(args[3]);
+    this.snapshot.instances = this.snapshot.instances.filter(function (instance) {
+        return String(instance.instanceId) !== instanceId;
+    });
+    this.rebuildGroups();
+};
+
+RegistryClient.prototype.applyLabelChanged = function (args) {
+    var instanceId = String(args[3]);
+    this.snapshot.instances.forEach(function (instance) {
+        if (String(instance.instanceId) === instanceId) instance.label = String(args[4]);
+    });
+};
+
+RegistryClient.prototype.applyBankGroupChanged = function (args) {
+    var instanceId = String(args[3]);
+    var bankId = Number(args[4]);
+    var groupId = args[5] === "none" ? null : args[5];
+    this.snapshot.instances.forEach(function (instance) {
+        if (String(instance.instanceId) !== instanceId) return;
+        instance.banks.forEach(function (bank) {
+            if (Number(bank.bankId) === bankId) bank.groupId = groupId;
+        });
+    });
+    this.rebuildGroups();
+};
+
+RegistryClient.prototype.rebuildGroups = function () {
+    var groups = {};
+    this.snapshot.instances.forEach(function (instance) {
+        instance.banks.forEach(function (bank) {
+            if (bank.groupId === null || bank.groupId === undefined) return;
+            var key = String(bank.groupId);
+            if (!groups[key]) groups[key] = { groupId: bank.groupId, members: [] };
+            groups[key].members.push({ instanceId: instance.instanceId, bankId: bank.bankId });
+        });
+    });
+    this.snapshot.groups = Object.keys(groups).map(function (key) { return groups[key]; });
 };
 
 RegistryClient.prototype.subscribe = function (callback, immediate) {
@@ -113,6 +189,11 @@ RegistryClient.prototype.handleDone = function (args) {
     if (!response) return;
     delete this.responses[requestId];
 
+    if (response.revision < this.requiredRevision) {
+        this.protocol.complete(requestId, { snapshot: this.snapshot });
+        return;
+    }
+
     if (this.snapshot && response.revision <= this.snapshot.revision) {
         this.protocol.complete(requestId, { snapshot: this.snapshot });
         return;
@@ -122,6 +203,7 @@ RegistryClient.prototype.handleDone = function (args) {
         instances: response.instances,
         groups: response.groups
     };
+    this.requiredRevision = 0;
     this.notify(this.snapshot);
     this.protocol.complete(requestId, { snapshot: this.snapshot });
 };
@@ -131,10 +213,10 @@ RegistryClient.prototype.handleError = function (args) {
     delete this.responses[requestId];
 };
 
-RegistryClient.prototype.notify = function (snapshot) {
+RegistryClient.prototype.notify = function (snapshot, delta) {
     var listeners = this.subscribers.slice();
     for (var index = 0; index < listeners.length; index += 1) {
-        listeners[index](snapshot);
+        listeners[index](snapshot, delta);
     }
 };
 

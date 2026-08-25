@@ -44,11 +44,14 @@ starts a new grouping selection, while Shift-click extends that selection
 across banks and instances. Selected banks remain visibly active until a group
 is applied or edit mode is closed.
 
-Spectrum drawing and analysis transport are intentionally outside the current
-control-layer scope. `AnalyzerPresenter` still owns the complete analyzer
-presentation and renders its filter handles from the completed target-state
-snapshot; its spectrum and curve fields remain empty until analysis is
-implemented. Handle gestures use the ordinary state/history command path and do
-not create analysis lifecycle, scheduler, epoch or session concepts. Dragging
-updates the local preview immediately and sends the latest position through the
-ordinary state path at a bounded live rate.
+The first bank-manager snapshot uses a complete presentation. Later registry
+additions, removals, label changes and bank-group changes use row, bank and
+group patch messages followed by one redraw. A delta therefore does not replay
+every existing row through every loaded Max UI.
+Focus changes patch only the previously selected and newly selected bank cells;
+they do not rebuild or resend the registry table.
+
+`AnalyzerPresenter` owns analyzer handles, calculated filter curves and streamed
+spectrum data. Handle gestures use the ordinary state/history command path.
+Dragging updates the local preview immediately and sends the latest position at
+a bounded live rate; spectrum and curve redraws are independently coalesced.

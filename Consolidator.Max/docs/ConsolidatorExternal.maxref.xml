@@ -59,17 +59,27 @@
 			<description></description>
 		</method>
 
-		<method name='end_history'>
-			<digest></digest>
-			<description></description>
-		</method>
-
 		<method name='observe_target'>
 			<digest></digest>
 			<description></description>
 		</method>
 
+		<method name='set_instance_active'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='end_history'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='jump_history'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='metrics'>
 			<digest></digest>
 			<description></description>
 		</method>

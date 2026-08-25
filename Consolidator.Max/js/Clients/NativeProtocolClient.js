@@ -22,7 +22,9 @@ NativeProtocolClient.prototype.off = function (selector, handler) {
 
 NativeProtocolClient.prototype.request = function (selector, body, callback) {
     var requestId = String(this.nextRequestId++);
-    this.pending[requestId] = callback || function () {};
+    if (typeof callback === "function") {
+        this.pending[requestId] = callback;
+    }
     this.send([selector, PROTOCOL_VERSION, this.source, requestId]
         .concat(body || []));
     return requestId;

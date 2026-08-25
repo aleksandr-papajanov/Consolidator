@@ -5,7 +5,9 @@ public sealed class StateHistory
     public const int Capacity = 16;
 
     private readonly object _lock = new();
-    private readonly List<IHistoryValue> _values = new();
+    private readonly LinkedList<IHistoryValue> _values = new();
+    private readonly Dictionary<IHistoryValue, LinkedListNode<IHistoryValue>>
+        _valueNodes = new();
     private int _currentSlot;
     private int _availableUndoCount;
     private int _availableRedoCount;
@@ -19,9 +21,11 @@ public sealed class StateHistory
 
         lock (_lock)
         {
-            if (!_values.Contains(value))
+            if (!_valueNodes.ContainsKey(value))
             {
-                _values.Add(value);
+                var node = _values.AddLast(value);
+                _valueNodes.Add(value, node);
+                value.SetCurrentSlot(_currentSlot);
             }
         }
     }
@@ -32,7 +36,10 @@ public sealed class StateHistory
 
         lock (_lock)
         {
-            _values.Remove(value);
+            if (_valueNodes.Remove(value, out var node))
+            {
+                _values.Remove(node);
+            }
         }
     }
 

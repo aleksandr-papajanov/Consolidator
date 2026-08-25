@@ -16,8 +16,8 @@ BankManagerPresenter.prototype.constructor = BankManagerPresenter;
 BankManagerPresenter.prototype.subscribeViewModel = function () {
     var self = this;
     if (this.viewModel && typeof this.viewModel.subscribe === "function") {
-        this.unsubscribers.push(this.viewModel.subscribe(function () {
-            self.rebuild();
+        this.unsubscribers.push(this.viewModel.subscribe(function (_, delta) {
+            self.rebuild(delta);
         }, false));
     }
 };
@@ -26,7 +26,7 @@ BankManagerPresenter.prototype.read = function (value, fallback) {
     return presentationBindingValue(value, fallback);
 };
 
-BankManagerPresenter.prototype.rebuild = function () {
+BankManagerPresenter.prototype.rebuild = function (delta) {
     var viewModel = this.viewModel || {};
     var presentation = new BankManagerPresentation();
     presentation.enabled = Boolean(this.read(viewModel.enabled, true));
@@ -79,6 +79,7 @@ BankManagerPresenter.prototype.rebuild = function () {
         enabled: false,
         armed: false
     });
+    presentation.delta = delta || null;
     this.publish(presentation);
 };
 

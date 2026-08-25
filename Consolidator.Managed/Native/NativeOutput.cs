@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
@@ -37,8 +38,23 @@ internal unsafe sealed class NativeOutput : IProtocolOutputCallback
         ArgumentNullException.ThrowIfNull(message);
 
         var selectorPointer = Marshal.StringToCoTaskMemUTF8(message.Selector);
-        var nativeAtoms = new NativeAtom[message.Atoms.Count];
-        var symbolPointers = new nint[message.Atoms.Count];
+        var nativeAtoms = ArrayPool<NativeAtom>.Shared.Rent(message.Atoms.Count);
+        var hasSymbols = false;
+        for (var index = 0; index < message.Atoms.Count; index++)
+        {
+            if (message.Atoms[index].Type == AtomType.Symbol)
+            {
+                hasSymbols = true;
+                break;
+            }
+        }
+        var symbolPointers = hasSymbols
+            ? ArrayPool<nint>.Shared.Rent(message.Atoms.Count)
+            : null;
+        if (symbolPointers is not null)
+        {
+            Array.Clear(symbolPointers, 0, message.Atoms.Count);
+        }
 
         try
         {
@@ -58,7 +74,7 @@ internal unsafe sealed class NativeOutput : IProtocolOutputCallback
                     },
                     AtomType.Symbol => CreateSymbolAtom(
                         message.Atoms[index].Symbol,
-                        symbolPointers,
+                        symbolPointers!,
                         index),
                     _ => throw new ArgumentOutOfRangeException()
                 };
@@ -70,20 +86,25 @@ internal unsafe sealed class NativeOutput : IProtocolOutputCallback
                     _context,
                     (byte*)selectorPointer,
                     atomPointer,
-                    (nuint)nativeAtoms.Length);
+                    (nuint)message.Atoms.Count);
             }
         }
         finally
         {
             Marshal.FreeCoTaskMem(selectorPointer);
 
-            foreach (var symbolPointer in symbolPointers)
+            if (symbolPointers is not null)
             {
-                if (symbolPointer != 0)
+                for (var index = 0; index < message.Atoms.Count; index++)
                 {
-                    Marshal.FreeCoTaskMem(symbolPointer);
+                    if (symbolPointers[index] != 0)
+                    {
+                        Marshal.FreeCoTaskMem(symbolPointers[index]);
+                    }
                 }
+                ArrayPool<nint>.Shared.Return(symbolPointers);
             }
+            ArrayPool<NativeAtom>.Shared.Return(nativeAtoms);
         }
     }
 

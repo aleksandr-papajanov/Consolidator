@@ -81,6 +81,33 @@ JS suite и NativeAOT suite используют один wire contract с дв�
 - JS control gesture и transaction lifecycle;
 - Max package dependency resolution.
 
+### Performance and lifecycle regression matrix
+
+Managed suites must cover coalesced parameter and grouped-bank edits, stale
+analyzer revision suppression, exclusive instance activity targeting, bounded
+control queue
+overload, and unregister cancellation. Registry tests must cover typed deltas,
+revision-gap recovery, and the fact that adding an instance does not require a
+full snapshot for existing clients.
+
+Native suites must cover bounded analysis queue replacement, lossless control
+frames and control priority, bounded drain batches, repeated queue scheduling,
+teardown with pending work, and the allocation-free audio ring including wrap
+and overflow behavior.
+
+JavaScript suites must cover analyzer-only FFT presentation, Equalizer-only
+curve delivery, one redraw per FFT update, instance activity changes with Live
+selection
+or inactive, targeted registry row deltas, single revision-gap resync, latest
+gesture value preservation, and subscription/demand cleanup on destroy.
+
+The Max/Ableton stress pass uses 1, 8, 16, and 32 instances. For each size it
+loads the project, opens and closes the UI, performs sustained EQ drags, bank
+switches, grouped edits, undo/redo, device add/remove, and 10-15 minutes of
+continuous playback. Record queue depth, control latency, analyzer activity,
+and Managed/native metrics before and after playback; queue depth and latency
+must remain stable.
+
 Один факт не дублируется на всех уровнях. Например, Managed test проверяет routing
 и state semantics, а NativeAOT integration — marshaling той же команды через реальную DLL.
 

@@ -7,5 +7,6 @@ public sealed record StateValueChanged(
     StatePath Path,
     StateValueOwnership Ownership,
     object? PreviousValue,
-    object? CurrentValue);
+    object? CurrentValue,
+    bool IsValueChange = true);
 

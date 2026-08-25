@@ -26,7 +26,13 @@ StateClient.prototype.setManyFor = function (instanceId, entries, callback, tran
     if (entries.length > MAX_BATCH_SIZE) {
         throw new Error("State batch cannot exceed 16 entries.");
     }
-    var body = [String(instanceId), String(transactionId || 0), entries.length];
+    var coalescingTransactionId = typeof callback === "function"
+        ? 0 : transactionId || 0;
+    var body = [
+        String(instanceId),
+        String(coalescingTransactionId),
+        entries.length
+    ];
     entries.forEach(function (entry) {
         body.push("entry");
         body = body.concat(this.encodePath(entry.path));

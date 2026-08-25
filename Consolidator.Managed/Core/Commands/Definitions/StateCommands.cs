@@ -59,3 +59,9 @@ public sealed record ObserveTargetCommand(
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }
+
+public sealed record SetInstanceActiveCommand(
+    bool Active) : IInstanceCommand<CommandAcknowledgement>
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}

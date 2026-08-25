@@ -1,3 +1,4 @@
+using Consolidator.Managed.Analyzer;
 using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
@@ -50,6 +51,18 @@ public static class ManagedServices
         }
     }
 
+    internal static void Dispose()
+    {
+        ServiceProvider? provider;
+        lock (ProviderLock)
+        {
+            provider = _provider;
+            _provider = null;
+        }
+
+        provider?.Dispose();
+    }
+
     internal static ServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();
@@ -65,6 +78,7 @@ public static class ManagedServices
             new NativeLogService(
                 serviceProvider.GetRequiredService<NativeLogSink>()));
         services.AddSingleton<StateHistory>();
+        services.AddSingleton<DspStateChangeTracker>();
         services.AddSingleton<TopologyIndex>();
         services.AddSingleton<StateChangeRouter>();
         services.AddSingleton<StateChangePublisher>();
@@ -75,6 +89,7 @@ public static class ManagedServices
         services.AddSingleton<StatePeerObserver>();
         services.AddSingleton<AudibilityObserver>();
         services.AddSingleton<StateTopologyObserver>();
+        services.AddSingleton<AnalyzerRegistry>();
         services.AddSingleton<StateRegistry<InstanceId>>();
         services.AddSingleton<StateValueMetadataRegistry>();
         services.AddSingleton<TargetStateProjector>();
@@ -83,7 +98,9 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StateRegistry<InstanceId>>(),
                 serviceProvider.GetRequiredService<StatePeerObserver>(),
                 serviceProvider.GetRequiredService<StateValueMetadataRegistry>(),
-                serviceProvider.GetRequiredService<IStateChangeSink>()));
+                serviceProvider.GetRequiredService<IStateChangeSink>(),
+                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
+                serviceProvider.GetRequiredService<DspStateChangeTracker>()));
         services.AddSingleton(serviceProvider =>
             new InstanceRegistry(
                 serviceProvider.GetRequiredService<IManagedLogger>(),
@@ -91,8 +108,11 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StateValueFactory>(),
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
                 serviceProvider.GetRequiredService<AudibilityObserver>(),
+                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
+                serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<IOperationGate>(),
-                serviceProvider.GetRequiredService<RegistryChangePublisher>()));
+                serviceProvider.GetRequiredService<RegistryChangePublisher>(),
+                serviceProvider.GetRequiredService<FftAnalyzer>()));
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
         services.AddSingleton<ICommandHandler, WriteStateCommandHandler>();
         services.AddSingleton<ICommandHandler, ResetStateCommandHandler>();
@@ -102,6 +122,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, ReadRegistryCommandHandler>();
         services.AddSingleton<ICommandHandler, InitializeUiCommandHandler>();
         services.AddSingleton<ICommandHandler, ObserveTargetCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetInstanceActiveCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -113,6 +134,7 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, RegistryInputCodec>();
         services.AddSingleton<IInputCodec, InitializeInputCodec>();
         services.AddSingleton<IInputCodec, ObserveTargetInputCodec>();
+        services.AddSingleton<IInputCodec, SetInstanceActiveInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -123,17 +145,21 @@ public static class ManagedServices
         services.AddCommandEndpoint<ReadRegistryCommand, RegistrySnapshotResult>("registry", "registry_done");
         services.AddCommandEndpoint<InitializeUiCommand, UiInitializationResult>("initialize", "initialized");
         services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_done");
+        services.AddCommandEndpoint<SetInstanceActiveCommand, CommandAcknowledgement>("set_instance_active", "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>
             new CommandExecutor(
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
-                serviceProvider.GetRequiredService<ICommandDispatcher>()));
+                serviceProvider.GetRequiredService<ICommandDispatcher>(),
+                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
+                serviceProvider.GetRequiredService<DspStateChangeTracker>()));
         services.AddSingleton(serviceProvider =>
             new InstanceCommandRouter(
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
                 serviceProvider.GetRequiredService<TopologyIndex>(),
                 serviceProvider.GetRequiredService<CommandExecutor>(),
-                serviceProvider.GetRequiredService<IOperationGate>()));
+                serviceProvider.GetRequiredService<IOperationGate>(),
+                serviceProvider.GetRequiredService<StatePeerObserver>()));
         services.AddSingleton<CommandDecoder>();
         services.AddSingleton<ProtocolService>(serviceProvider =>
             new ProtocolService(
@@ -143,11 +169,21 @@ public static class ManagedServices
         services.AddSingleton<IInstanceLifecycleService>(serviceProvider =>
             serviceProvider.GetRequiredService<InstanceRegistry>());
         services.AddSingleton<IInstancePreparationService, InstancePreparationService>();
-        services.AddSingleton<IInstanceAudioInputService, InstanceAudioInputService>();
+        services.AddSingleton<FftAnalyzer>(serviceProvider =>
+            new FftAnalyzer(
+                serviceProvider.GetRequiredService<StateTopologyObserver>(),
+                serviceProvider.GetRequiredService<IProtocolTransport>(),
+                serviceProvider.GetRequiredService<AnalyzerRegistry>()));
+        services.AddSingleton<IInstanceAudioInputService>(serviceProvider =>
+            serviceProvider.GetRequiredService<FftAnalyzer>());
+        services.AddSingleton<IInstancePreparationHandler>(serviceProvider =>
+            serviceProvider.GetRequiredService<FftAnalyzer>());
         services.AddSingleton<IHistoryNavigation>(serviceProvider =>
             new HistoryNavigation(
                 serviceProvider.GetRequiredService<StateHistory>(),
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
+                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
+                serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<HistoryStatePublisher>()));
 
         return services.BuildServiceProvider(

@@ -1,6 +1,7 @@
 #include "ConsolidatorExternal.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
@@ -13,6 +14,22 @@ namespace consolidator::max
 {
 
 using namespace c74::min;
+
+namespace
+{
+
+constexpr std::size_t kMaxControlFramesPerDrain = 32;
+constexpr std::size_t kMaxControlAtomsPerDrain = 4096;
+
+bool IsAnalysisSelector(const std::string& selector)
+{
+    return selector == "fft" ||
+        selector == "equalizer_curves" ||
+        selector == "compressor_detector_curves" ||
+        selector == "saturator_detector_curves";
+}
+
+}
 
 ConsolidatorExternal::ConsolidatorExternal()
     : managed_()
@@ -140,7 +157,42 @@ void ConsolidatorExternal::ReceiveManagedOutput(
 
     {
         std::lock_guard lock{ outputMutex_ };
-        pendingOutput_.push_back(std::move(frame));
+
+        if (frame.selector == "fft")
+        {
+            if (frame.atoms.size() > 1)
+            {
+                if (const auto source = std::get_if<std::int64_t>(
+                    &frame.atoms[1]))
+                {
+                    if (pendingFftBySource_.contains(*source))
+                    {
+                        replacedFftFrames_.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    pendingFftBySource_[*source] = std::move(frame);
+                }
+                else
+                {
+                    skippedFftFrames_.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+            else
+            {
+                skippedFftFrames_.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+        else if (frame.selector == "equalizer_curves" ||
+            frame.selector == "compressor_detector_curves" ||
+            frame.selector == "saturator_detector_curves")
+        {
+            const auto selector = frame.selector;
+            pendingCurveFrames_[selector] = std::move(frame);
+        }
+        else
+        {
+            pendingControl_.push_back(std::move(frame));
+            controlQueueDepth_.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     outputQueue_.set();
@@ -148,14 +200,37 @@ void ConsolidatorExternal::ReceiveManagedOutput(
 
 void ConsolidatorExternal::DrainManagedOutput()
 {
-    std::deque<OutputFrame> frames;
+    const auto drainStarted = std::chrono::steady_clock::now();
+    std::deque<OutputFrame> controlFrames;
+    std::unordered_map<std::int64_t, OutputFrame> fftFrames;
+    std::unordered_map<std::string, OutputFrame> curveFrames;
+    std::size_t controlAtomCount = 0;
 
     {
         std::lock_guard lock{ outputMutex_ };
-        frames.swap(pendingOutput_);
+
+        while (!pendingControl_.empty() &&
+            controlFrames.size() < kMaxControlFramesPerDrain)
+        {
+            const auto& frame = pendingControl_.front();
+            if (!controlFrames.empty() &&
+                controlAtomCount + frame.atoms.size() >
+                    kMaxControlAtomsPerDrain)
+            {
+                break;
+            }
+
+            controlAtomCount += frame.atoms.size();
+            controlFrames.push_back(std::move(pendingControl_.front()));
+            pendingControl_.pop_front();
+            controlQueueDepth_.fetch_sub(1, std::memory_order_relaxed);
+        }
+
+        fftFrames.swap(pendingFftBySource_);
+        curveFrames.swap(pendingCurveFrames_);
     }
 
-    for (auto& frame : frames)
+    const auto sendFrame = [this](OutputFrame& frame)
     {
         atoms output;
         output.reserve(frame.atoms.size() + 1);
@@ -185,8 +260,66 @@ void ConsolidatorExternal::DrainManagedOutput()
                 value);
         }
 
-        controlOutput.send(output);
+        if (IsAnalysisSelector(frame.selector) ||
+            frame.selector == "combined" ||
+            frame.selector == "all_banks")
+        {
+            analysisOutput.send(output);
+        }
+        else
+        {
+            controlOutput.send(output);
+        }
+    };
+
+    for (auto& frame : controlFrames)
+    {
+        sendFrame(frame);
     }
+
+    for (auto& entry : fftFrames)
+    {
+        sendFrame(entry.second);
+    }
+
+    for (auto& entry : curveFrames)
+    {
+        sendFrame(entry.second);
+    }
+
+    bool hasPendingWork = false;
+    {
+        std::lock_guard lock{ outputMutex_ };
+        hasPendingWork = !pendingControl_.empty() ||
+            !pendingFftBySource_.empty() ||
+            !pendingCurveFrames_.empty();
+    }
+
+    if (hasPendingWork)
+    {
+        outputQueue_.set();
+    }
+
+    lastDrainMicroseconds_.store(
+        static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - drainStarted)
+                .count()),
+        std::memory_order_relaxed);
+}
+
+void ConsolidatorExternal::ReportMetrics() const
+{
+    c74::max::post(
+        "Consolidator metrics: instance=%llu control_depth=%zu replaced_fft=%llu skipped_fft=%llu drain_us=%llu",
+        static_cast<unsigned long long>(instanceId_),
+        controlQueueDepth_.load(std::memory_order_relaxed),
+        static_cast<unsigned long long>(
+            replacedFftFrames_.load(std::memory_order_relaxed)),
+        static_cast<unsigned long long>(
+            skippedFftFrames_.load(std::memory_order_relaxed)),
+        static_cast<unsigned long long>(
+            lastDrainMicroseconds_.load(std::memory_order_relaxed)));
 }
 
 void ConsolidatorExternal::Prepare(

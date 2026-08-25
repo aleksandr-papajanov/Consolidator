@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Services.Abstractions;
-using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Protocol.Encoding;
 using Consolidator.Managed.Protocol.Transport;
 using Consolidator.Managed.State.History;
@@ -9,23 +8,22 @@ namespace Consolidator.Managed.Protocol.Notifications;
 internal sealed class HistoryStatePublisher
 {
     private readonly IProtocolTransport _transport;
-    private readonly InstanceRegistry _instanceRegistry;
     private readonly IManagedLogger _logger;
+    private readonly IProtocolOutputRegistry _outputs;
 
     public HistoryStatePublisher(
         StateHistory history,
         IProtocolTransport transport,
-        InstanceRegistry instanceRegistry,
-        IManagedLogger logger)
+        IManagedLogger logger,
+        IProtocolOutputRegistry outputs)
     {
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(transport);
-        ArgumentNullException.ThrowIfNull(instanceRegistry);
         ArgumentNullException.ThrowIfNull(logger);
 
         _transport = transport;
-        _instanceRegistry = instanceRegistry;
         _logger = logger;
+        _outputs = outputs;
         history.Changed += Publish;
     }
 
@@ -35,7 +33,7 @@ internal sealed class HistoryStatePublisher
         {
             _transport.Send(HistoryStateEncoder.Encode(
                 snapshot,
-                _instanceRegistry.GetInstanceIds()));
+                _outputs.GetRegisteredInstanceIds()));
         }
         catch (Exception exception)
         {

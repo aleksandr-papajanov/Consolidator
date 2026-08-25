@@ -3,6 +3,7 @@
 #include <Windows.h>
 #undef SendMessage
 
+#include <atomic>
 #include <cstring>
 
 #include "c74_min_api.h"
@@ -68,6 +69,8 @@ public:
     ManagedRuntime& operator=(const ManagedRuntime&) = delete;
 
     [[nodiscard]] bool IsLoaded() const noexcept;
+    bool Load() noexcept;
+    void Shutdown() noexcept;
 
 private:
     friend class ManagedBridge;
@@ -121,11 +124,26 @@ private:
 
 ManagedRuntime::ManagedRuntime()
 {
+    Load();
+}
+
+bool ManagedRuntime::Load() noexcept
+{
+    if (IsLoaded())
+    {
+        return true;
+    }
+
+    if (library)
+    {
+        Shutdown();
+    }
+
     library = LoadManagedLibrary();
 
     if (!library)
     {
-        return;
+        return false;
     }
 
     registerInstance = reinterpret_cast<RegisterInstanceFn>(
@@ -146,10 +164,19 @@ ManagedRuntime::ManagedRuntime()
     if (IsLoaded())
     {
         setLogCallback(nullptr, ManagedLogCallbackHandler);
+        return true;
     }
+
+    Shutdown();
+    return false;
 }
 
 ManagedRuntime::~ManagedRuntime()
+{
+    Shutdown();
+}
+
+void ManagedRuntime::Shutdown() noexcept
 {
     if (!library)
     {
@@ -167,6 +194,14 @@ ManagedRuntime::~ManagedRuntime()
     }
 
     FreeLibrary(library);
+    library = nullptr;
+    registerInstance = nullptr;
+    unregisterInstance = nullptr;
+    setLogCallback = nullptr;
+    sendMessage = nullptr;
+    prepare = nullptr;
+    sendAudio = nullptr;
+    shutdown = nullptr;
 }
 
 bool ManagedRuntime::IsLoaded() const noexcept
@@ -187,6 +222,8 @@ ManagedRuntime& GetManagedRuntime()
     return runtime;
 }
 
+std::atomic_uint32_t activeExternalCount{};
+
 }
 
 struct ManagedBridge::Implementation
@@ -198,9 +235,17 @@ ManagedBridge::ManagedBridge()
     : implementation_(new Implementation{})
 {
     implementation_->runtime = &GetManagedRuntime();
+    implementation_->runtime->Load();
+    activeExternalCount.fetch_add(1, std::memory_order_relaxed);
 }
 
-ManagedBridge::~ManagedBridge() = default;
+ManagedBridge::~ManagedBridge()
+{
+    if (activeExternalCount.fetch_sub(1, std::memory_order_acq_rel) == 1)
+    {
+        implementation_->runtime->Shutdown();
+    }
+}
 
 bool ManagedBridge::IsLoaded() const noexcept
 {

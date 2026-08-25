@@ -8,6 +8,7 @@ function TargetStateClient(protocol, state) {
     this.statusSubscribers = [];
     this.snapshots = {};
     this.error = null;
+    this.applyingSnapshot = false;
     protocol.on("target_state_begin", this.handleBegin.bind(this));
     protocol.on("target_state_entry", this.handleEntry.bind(this));
     protocol.on("target_state_done", this.handleDone.bind(this));
@@ -129,10 +130,15 @@ TargetStateClient.prototype.handleDone = function (args) {
     this.pendingTarget = null;
     this.error = null;
     this.cache = {};
-    snapshot.entries.forEach(function (entry) {
-        this.cache[entry.path] = entry;
-        this.notify(entry);
-    }, this);
+    this.applyingSnapshot = true;
+    try {
+        snapshot.entries.forEach(function (entry) {
+            this.cache[entry.path] = entry;
+            this.notify(entry);
+        }, this);
+    } finally {
+        this.applyingSnapshot = false;
+    }
     this.notifyStatus();
     this.protocol.complete(requestId, { entries: snapshot.entries, error: null });
 };
@@ -160,6 +166,7 @@ TargetStateClient.prototype.notify = function (entry) {
 };
 
 TargetStateClient.prototype.destroy = function () {
+    this.applyingSnapshot = false;
     this.cache = {};
     this.subscribers = {};
     this.statusSubscribers = [];

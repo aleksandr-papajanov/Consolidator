@@ -44,6 +44,9 @@ StateValueViewModel.prototype.applyEntry = function (entry) {
     this.physicalMaximum = entry.physicalMax;
     this.status = entry.status;
     this.instanceId = entry.instanceId;
+    if (this.state.applyingSnapshot) {
+        return;
+    }
     this.notify();
 };
 

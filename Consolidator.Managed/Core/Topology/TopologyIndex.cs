@@ -172,14 +172,14 @@ internal sealed class TopologyIndex
 
     public IReadOnlyList<InstanceId> ResolveStatePeerInstanceIds(InstanceId instanceId)
     {
-        var groupedBanks = GetGroupedBanks(instanceId);
-        if (groupedBanks.Count == 0)
+        var focusedBank = GetFocusedBank(instanceId);
+        if (focusedBank is not { } bank)
         {
             return [instanceId];
         }
 
-        return GetConnectedGroupBanks(groupedBanks)
-            .Select(bank => bank.InstanceId)
+        return GetConnectedBankPeers(bank)
+            .Select(peer => peer.InstanceId)
             .Append(instanceId)
             .Distinct()
             .ToArray();
@@ -188,6 +188,11 @@ internal sealed class TopologyIndex
     public InstanceId? ResolveFocusedInstanceId(InstanceId sourceInstanceId)
     {
         return GetFocusedBank(sourceInstanceId)?.InstanceId;
+    }
+
+    public BankAddress? ResolveFocusedBank(InstanceId sourceInstanceId)
+    {
+        return GetFocusedBank(sourceInstanceId);
     }
 
     public IReadOnlyList<BankAddress> GetGroupedBanks(InstanceId instanceId)
@@ -238,6 +243,20 @@ internal sealed class TopologyIndex
             }
 
             return connected.ToArray();
+        }
+    }
+
+    public IReadOnlyList<BankAddress> GetConnectedBankPeers(BankAddress bank)
+    {
+        lock (_lock)
+        {
+            if (!_bankGroups.TryGetValue(bank, out var groupId)
+                || !_groupBanks.TryGetValue(groupId, out var members))
+            {
+                return [bank];
+            }
+
+            return members.ToArray();
         }
     }
 

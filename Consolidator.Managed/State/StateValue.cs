@@ -13,6 +13,7 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
     private TValue _previousValue = default!;
     private StateHistoryTransaction? _pendingTransaction;
     private Action<TValue>? _mutationHandler;
+    private Action<TValue, StateHistoryTransaction>? _mutationPreparationHandler;
     private TValue _previousSlotValue = default!;
     private bool _disposed;
     private int _currentSlot;
@@ -67,15 +68,16 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
         }
     }
 
-    internal bool ResetToInitial()
+    internal bool PrepareReset(StateHistoryTransaction transaction)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(transaction);
         if (EqualityComparer<TValue>.Default.Equals(Value, _initialValue))
         {
             return false;
         }
 
-        Value = _initialValue;
+        PrepareMutation(_initialValue, transaction);
         return true;
     }
 
@@ -132,6 +134,11 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
             throw new InvalidOperationException(
                 "The state value already belongs to another transaction.");
         }
+        if (ReferenceEquals(_pendingTransaction, transaction))
+        {
+            throw new InvalidOperationException(
+                "The state value was prepared more than once in one transaction.");
+        }
 
         var previousValue = Value;
         var pendingValue = value;
@@ -148,10 +155,29 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
         transaction.Add(new StateValueTransactionEntry(this));
     }
 
-    internal void SetMutationHandler(Action<TValue> mutationHandler)
+    internal void PrepareMutation(
+        TValue value,
+        StateHistoryTransaction transaction)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (_mutationPreparationHandler is not null)
+        {
+            _mutationPreparationHandler(value, transaction);
+            return;
+        }
+
+        Prepare(value, transaction);
+    }
+
+    internal void SetMutationHandler(
+        Action<TValue> mutationHandler,
+        Action<TValue, StateHistoryTransaction> mutationPreparationHandler)
     {
         ArgumentNullException.ThrowIfNull(mutationHandler);
+        ArgumentNullException.ThrowIfNull(mutationPreparationHandler);
         _mutationHandler = mutationHandler;
+        _mutationPreparationHandler = mutationPreparationHandler;
     }
 
     private void SetDirect(TValue value, bool notify = true)

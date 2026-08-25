@@ -49,3 +49,25 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
                 (BankId)(atoms[header.Position + 1].Integer - 1)));
     }
 }
+
+internal sealed class SetInstanceActiveInputCodec : IInputCodec
+{
+    public string Selector => "set_instance_active";
+
+    public DecodedCommand Decode(
+        ReadOnlySpan<Atom> atoms,
+        CommandFrameHeader header)
+    {
+        if (atoms.Length != header.Position + 1 ||
+            atoms[header.Position].Type != AtomType.Integer ||
+            atoms[header.Position].Integer is < 0 or > 1)
+        {
+            throw new FormatException("Invalid set_instance_active frame.");
+        }
+
+        return CommandCodecSupport.Success(
+            header,
+            new SetInstanceActiveCommand(
+                atoms[header.Position].Integer == 1));
+    }
+}

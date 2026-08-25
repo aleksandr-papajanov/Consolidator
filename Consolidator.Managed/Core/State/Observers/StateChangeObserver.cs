@@ -40,6 +40,17 @@ internal sealed class StateChangeObserver<TValue> : IStateValueObserver<TValue>
             currentValue));
     }
 
+    public void EffectiveRangeChanged(TValue currentValue)
+    {
+        _sink.Publish(new StateValueChanged(
+            _instanceId,
+            _path,
+            _ownership,
+            currentValue,
+            currentValue,
+            false));
+    }
+
     public void Detach(StateValue<TValue> value)
     {
     }

@@ -75,6 +75,10 @@ public sealed class InstanceState
         {
             lock (_selectionLock)
             {
+                if (_focusedBank == value)
+                {
+                    return;
+                }
                 _focusedBank = value;
             }
 

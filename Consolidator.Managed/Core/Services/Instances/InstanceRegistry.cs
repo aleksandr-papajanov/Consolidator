@@ -1,3 +1,5 @@
+using Consolidator.Managed.Analyzer;
+using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
@@ -5,10 +7,9 @@ using Consolidator.Managed.Core.Services.PerInstance;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
-using Consolidator.Managed.Core.Commands.Results;
+using Consolidator.Managed.Protocol.Notifications;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Tree;
-using Consolidator.Managed.Protocol.Notifications;
 
 namespace Consolidator.Managed.Core.Services.Instances;
 
@@ -21,9 +22,12 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private readonly StateValueFactory _stateValueFactory;
     private readonly StateTopologyObserver _topologyObserver;
     private readonly AudibilityObserver _audibilityObserver;
+    private readonly AnalyzerRegistry _analyzerRegistry;
+    private readonly DspStateChangeTracker _dspChanges;
     private readonly IOperationGate _operationGate;
     private ulong _nextInstanceId;
     private readonly RegistryChangePublisher _registryChanges;
+    private readonly FftAnalyzer _fftAnalyzer;
 
     internal InstanceRegistry(
         IManagedLogger logger,
@@ -31,16 +35,22 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         StateValueFactory stateValueFactory,
         StateTopologyObserver topologyObserver,
         AudibilityObserver audibilityObserver,
+        AnalyzerRegistry analyzerRegistry,
+        DspStateChangeTracker dspChanges,
         IOperationGate operationGate,
-        RegistryChangePublisher registryChanges)
+        RegistryChangePublisher registryChanges,
+        FftAnalyzer fftAnalyzer)
     {
         _logger = logger;
         _stateRegistry = stateRegistry;
         _stateValueFactory = stateValueFactory;
         _topologyObserver = topologyObserver;
         _audibilityObserver = audibilityObserver;
+        _analyzerRegistry = analyzerRegistry;
+        _dspChanges = dspChanges;
         _operationGate = operationGate;
         _registryChanges = registryChanges;
+        _fftAnalyzer = fftAnalyzer;
     }
 
     public InstanceId RegisterInstance(
@@ -52,15 +62,26 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         {
             var instanceId = new InstanceId(++_nextInstanceId);
             var state = CreateState(instanceId);
-            var instance = new ManagedInstance(instanceId, state, dspPublisher);
+            var instance = new ManagedInstance(
+                instanceId,
+                state,
+                dspPublisher);
             lock (_lock)
             {
                 _instances.Add(instanceId, instance);
             }
 
             instance.PublishDspState();
+            PublishDspStates(_dspChanges.Drain()
+                .Where(changedInstanceId => changedInstanceId != instanceId)
+                .ToArray());
             _logger.Info($"Registered instance {instanceId}");
-            _registryChanges.Publish();
+            _registryChanges.InstanceAdded(
+                instanceId.Value,
+                state.Instance.Label.Value,
+                state.Instance.Banks
+                    .Select(bank => ((int)bank.Id, bank.Group.Value?.Value))
+                    .ToArray());
             return instanceId;
         }
     }
@@ -78,14 +99,17 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 }
 
                 _stateRegistry.RemoveRoot(instanceId);
+                _analyzerRegistry.Unregister(instanceId);
             }
 
             _topologyObserver.RemoveState(instanceId);
+            PublishDspStates(_dspChanges.Drain());
         }
 
         instance.Dispose();
         _logger.Info($"Unregistered instance {instanceId}");
-        _registryChanges.Publish();
+        _registryChanges.UnregisterObserver(instanceId.Value);
+        _registryChanges.InstanceRemoved(instanceId.Value);
     }
 
     internal ManagedInstance? FindInstance(InstanceId instanceId)
@@ -117,19 +141,23 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         }
     }
 
-    internal void PublishDspStates()
+    internal void PublishDspStates(IReadOnlyList<InstanceId> affectedInstanceIds)
     {
         lock (_lock)
         {
-            foreach (var instance in _instances.Values)
+            foreach (var instanceId in affectedInstanceIds.Distinct())
             {
-                instance.PublishDspState();
+                if (_instances.TryGetValue(instanceId, out var instance))
+                {
+                    instance.PublishDspState();
+                }
             }
         }
     }
 
     internal RegistrySnapshotResult CreateSnapshot()
     {
+        RuntimeMetrics.Shared.RecordRegistrySnapshot();
         ManagedInstance[] instances;
         lock (_lock)
         {
@@ -181,6 +209,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             foreach (var instance in instances)
             {
                 _stateRegistry.RemoveRoot(instance.InstanceId);
+                _analyzerRegistry.Unregister(instance.InstanceId);
                 _topologyObserver.RemoveState(instance.InstanceId);
             }
         }
@@ -222,11 +251,13 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             var dsp = new DspState(instanceId, _stateValueFactory, runtime);
             var root = _stateRegistry.GetRoot(instanceId);
             var state = new ManagedState(instance, dsp, runtime, root);
+            _analyzerRegistry.Register(instanceId, dsp);
             _topologyObserver.AddState(state.Instance);
             return state;
         }
         catch
         {
+            _analyzerRegistry.Unregister(instanceId);
             _stateRegistry.RemoveRoot(instanceId);
             throw;
         }

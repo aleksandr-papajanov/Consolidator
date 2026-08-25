@@ -19,7 +19,7 @@ public sealed class CommandRoundTripTests
     public void NativeAtomsDriveManagedWriteReadAndNativeCallbackResponses()
     {
         using var instance = _library.Register();
-        instance.Frames.Clear();
+        instance.ClearFrames();
 
         _library.Send(
             instance,
@@ -35,6 +35,7 @@ public sealed class CommandRoundTripTests
             Symbol("gain"),
             Symbol("value"),
             Float(5.5));
+        instance.WaitForResponse("101");
 
         Assert.Equal(5.5F, instance.PublishedGain);
         Assert.Equal(1, instance.Single("action_done").Atoms[^1].IntegerValue);
@@ -42,7 +43,7 @@ public sealed class CommandRoundTripTests
         Assert.Equal("input_gain.gain", change.Atoms[1].SymbolValue);
         Assert.Equal(5.5, change.Atoms[2].FloatValue);
 
-        instance.Frames.Clear();
+        instance.ClearFrames();
         _library.Send(
             instance,
             "read",
@@ -53,6 +54,7 @@ public sealed class CommandRoundTripTests
             Symbol("query"),
             Symbol("input_gain"),
             Symbol("gain"));
+        instance.WaitForResponse("102");
 
         var response = instance.Single("state_done");
         Assert.Equal("102", response.Atoms[2].SymbolValue);
@@ -63,7 +65,7 @@ public sealed class CommandRoundTripTests
     public void UnregisterIsABarrierForLaterManagedOutput()
     {
         var instance = _library.Register();
-        instance.Frames.Clear();
+        instance.ClearFrames();
         var instanceId = instance.InstanceId;
         instance.Dispose();
 

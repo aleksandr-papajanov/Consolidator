@@ -1,3 +1,5 @@
+using Consolidator.Managed.State.History;
+
 namespace Consolidator.Managed.State.Tree;
 
 public abstract class StateNode : IStateNode
@@ -53,9 +55,12 @@ public abstract class StateNode : IStateNode
         }
     }
 
-    internal virtual int ResetToInitialRecursive()
+    internal virtual int PrepareResetRecursive(
+        StateHistoryTransaction transaction)
     {
-        return 0;
+        ArgumentNullException.ThrowIfNull(transaction);
+        return Children.Values.Sum(child =>
+            child.PrepareResetRecursive(transaction));
     }
 
 }
@@ -80,11 +85,6 @@ internal sealed class StateContainerNode : StateNode
     {
         ArgumentNullException.ThrowIfNull(visitor);
         visitor.VisitContainer(this);
-    }
-
-    internal override int ResetToInitialRecursive()
-    {
-        return Children.Values.Sum(child => child.ResetToInitialRecursive());
     }
 
 }
@@ -139,9 +139,29 @@ internal sealed class StateNode<TValue> : StateNode, IStateNode<TValue>
         return StateWriteStatus.Applied;
     }
 
-    internal override int ResetToInitialRecursive()
+    internal StateWriteStatus PrepareWrite(
+        TValue value,
+        StateHistoryTransaction transaction)
     {
-        return _historyValue?.ResetToInitial() is true ? 1 : 0;
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (_historyValue is null)
+        {
+            return StateWriteStatus.Rejected;
+        }
+        if (EqualityComparer<TValue>.Default.Equals(Value, value))
+        {
+            return StateWriteStatus.Unchanged;
+        }
+
+        _historyValue.PrepareMutation(value, transaction);
+        return StateWriteStatus.Applied;
+    }
+
+    internal override int PrepareResetRecursive(
+        StateHistoryTransaction transaction)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        return _historyValue?.PrepareReset(transaction) is true ? 1 : 0;
     }
 
     internal override void DisposeValues()

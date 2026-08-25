@@ -32,6 +32,14 @@ function ConsolidatorUiHost(source, sendNative, sendUi) {
     this.equalizer = new EqualizerController(this.viewModel);
     this.compressor = new CompressorController(this.viewModel);
     this.saturator = new SaturatorController(this.viewModel);
+    this.equalizer.analyzer.presenter.connectSpectrum(this.client.protocol);
+    this.equalizer.analyzer.presenter.connectCurves(this.client.protocol);
+    this.compressor.analyzer.presenter.connectSpectrum(this.client.protocol);
+    this.saturator.analyzer.presenter.connectSpectrum(this.client.protocol);
+    this.compressor.analyzer.presenter.connectCurves(
+        this.client.protocol, "compressor_detector_curves");
+    this.saturator.analyzer.presenter.connectCurves(
+        this.client.protocol, "saturator_detector_curves");
     this.inputGain = new GainController(this.viewModel.inputGain);
     this.outputGain = new GainController(this.viewModel.outputGain);
     this.bankManagerViewModel = new BankManagerViewModel(
@@ -52,6 +60,8 @@ function ConsolidatorUiHost(source, sendNative, sendUi) {
     this.bindings = new ControlBindings();
     this.registryInitialized = false;
     this.lifecycle = "created";
+    this.instanceActive = false;
+    this.publishedInstanceActive = null;
 }
 
 var ConsolidatorControlMapping = {
@@ -88,7 +98,23 @@ ConsolidatorUiHost.prototype.sendControlMessage = function (
 };
 
 ConsolidatorUiHost.prototype.handleControl = function (selector, args) {
+    if (selector === "instance_active") {
+        if (args && args.length > 0) {
+            this.setInstanceActive(Number(args[0]) !== 0);
+        }
+        return;
+    }
     this.client.handleControl(selector, args);
+};
+
+ConsolidatorUiHost.prototype.setInstanceActive = function (active) {
+    this.instanceActive = Boolean(active);
+    if (this.instanceId === undefined ||
+            this.publishedInstanceActive === this.instanceActive) {
+        return;
+    }
+    this.publishedInstanceActive = this.instanceActive;
+    this.client.setInstanceActive(this.instanceActive);
 };
 
 ConsolidatorUiHost.prototype.setTrackName = function (args) {
@@ -199,6 +225,7 @@ ConsolidatorUiHost.prototype.initialize = function (mapping, callback) {
         self.viewModel.instanceId = self.instanceId;
         self.bankManager.context.instanceId = self.instanceId;
         self.bankManagerViewModel.setLocalInstanceId(self.instanceId);
+        self.bankManagerViewModel.setFocusedBank(self.instanceId, 1);
         if (self.trackName !== null) {
             self.client.state.setFor(
                 self.instanceId,
@@ -217,8 +244,8 @@ ConsolidatorUiHost.prototype.initialize = function (mapping, callback) {
                 return String(item.instanceId) === String(self.instanceId);
             })[0];
             if (local) {
-                self.bankManagerViewModel.setFocusedBank(self.instanceId, 1);
                 self.viewModel.show(self.instanceId, 1);
+                self.setInstanceActive(self.instanceActive);
             }
             self.registryInitialized = true;
             self.lifecycle = "initialized";
@@ -247,6 +274,9 @@ ConsolidatorUiHost.prototype.destroy = function () {
         return;
     }
     this.lifecycle = "destroyed";
+    if (this.instanceId !== undefined && this.publishedInstanceActive) {
+        this.client.setInstanceActive(false);
+    }
     this.bindings.destroy();
     this.equalizer.destroy();
     this.compressor.destroy();

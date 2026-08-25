@@ -1,7 +1,9 @@
+using Consolidator.Managed.Analyzer;
 using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
+using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
 using Consolidator.Managed.Core.State;
@@ -13,13 +15,19 @@ public sealed class CommandExecutor
 {
     private readonly InstanceRegistry _instanceRegistry;
     private readonly ICommandDispatcher _commandDispatcher;
+    private readonly AnalyzerRegistry _analyzerRegistry;
+    private readonly DspStateChangeTracker _dspChanges;
 
     internal CommandExecutor(
         InstanceRegistry instanceRegistry,
-        ICommandDispatcher commandDispatcher)
+        ICommandDispatcher commandDispatcher,
+        AnalyzerRegistry analyzerRegistry,
+        DspStateChangeTracker dspChanges)
     {
         _instanceRegistry = instanceRegistry;
         _commandDispatcher = commandDispatcher;
+        _analyzerRegistry = analyzerRegistry;
+        _dspChanges = dspChanges;
     }
 
     public async ValueTask<CommandExecutionResult<TResult>> ExecuteAsync<TResult>(
@@ -59,7 +67,8 @@ public sealed class CommandExecutor
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {
-            _instanceRegistry.PublishDspStates();
+            _analyzerRegistry.CapturePendingInputs();
+            _instanceRegistry.PublishDspStates(_dspChanges.Drain());
         }
 
         return result;

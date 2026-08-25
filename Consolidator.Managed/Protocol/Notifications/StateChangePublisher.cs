@@ -44,15 +44,35 @@ internal sealed class StateChangePublisher : IStateChangeSink
         {
             var targets = _router.ResolveTargets(change);
             var bank = _topology.ResolveBankAddress(change.InstanceId, change.Path);
-            _transport.Send(StateChangeEncoder.Encode(
-                change,
-                targets,
-                _metadata.Get(change.InstanceId, change.Path),
-                bank?.BankIndex));
-            if (change.Path.Nodes.Contains(StateNodeIds.Label) ||
-                change.Path.Nodes.Contains(StateNodeIds.Group))
+            var metadata = _metadata.Get(change.InstanceId, change.Path);
+            foreach (var targetGroup in targets.GroupBy(targetId =>
+                metadata.GetEffectiveRange(
+                    _topology.ResolveFocusedBank(new InstanceId(targetId)))))
             {
-                _registryChanges.Publish();
+                _transport.Send(StateChangeEncoder.Encode(
+                    change,
+                    targetGroup.ToArray(),
+                    metadata,
+                    targetGroup.Key,
+                    bank?.BankIndex));
+            }
+            if (change.IsValueChange &&
+                change.Path.Nodes.Contains(StateNodeIds.Label))
+            {
+                _registryChanges.LabelChanged(
+                    change.InstanceId.Value,
+                    (string)change.CurrentValue!);
+            }
+            else if (change.IsValueChange &&
+                change.Path.Nodes.Contains(StateNodeIds.Group) &&
+                bank is { } bankAddress)
+            {
+                _registryChanges.BankGroupChanged(
+                    change.InstanceId.Value,
+                    bankAddress.BankIndex + 1,
+                    change.CurrentValue is GroupId groupId
+                        ? groupId.Value
+                        : null);
             }
         }
         catch (Exception exception)

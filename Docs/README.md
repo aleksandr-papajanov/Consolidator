@@ -12,6 +12,7 @@
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
 | [`ManagedProtocol.md`](ManagedProtocol.md) | Граница Managed protocol: atom decoding, command types, relative paths, routing scopes и response encoding. |
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
+| [`DspStatePipeline.md`](DspStatePipeline.md) | Derived DSP objects, dirty propagation, coalesced recalculation и analyzer updates. |
 | [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
 | [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |
 | [`Testing.md`](Testing.md) | Философия тестов, уровни, сквозные use cases, структура suites и команды запуска. |

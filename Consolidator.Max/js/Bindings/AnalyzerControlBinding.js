@@ -9,6 +9,27 @@ function AnalyzerControlBinding(controller, presenter, sendMessage, transactions
     this.pendingMove = null;
     this.pendingEnd = false;
     this.connectPresentation();
+    if (presenter && typeof presenter.subscribeSpectrum === "function") {
+        var self = this;
+        this.unsubscribers.push(presenter.subscribeSpectrum(function (
+            spectrum, referenceSpectrum
+        ) {
+            self.sendCurve("spectrum", spectrum);
+            self.sendCurve("reference_spectrum", referenceSpectrum);
+        }, true));
+    }
+    if (presenter && typeof presenter.subscribeCurves === "function") {
+        var curveSelf = this;
+        this.unsubscribers.push(presenter.subscribeCurves(function (
+            curves, combinedCurve, allBanksCurve
+        ) {
+            (curves || []).forEach(function (curve) {
+                curveSelf.sendCurve("curve", curve, curve.id);
+            });
+            curveSelf.sendCurve("combined", combinedCurve);
+            curveSelf.sendCurve("all_banks", allBanksCurve);
+        }, true));
+    }
 }
 
 AnalyzerControlBinding.prototype = Object.create(ControlBinding.prototype);
@@ -21,14 +42,6 @@ AnalyzerControlBinding.prototype.applyPresentation = function (presentation) {
         presentation.parameterRevision || 0,
         presentation.viewKey || ""
     ]);
-    this.sendCurve("spectrum", presentation.spectrum);
-    this.sendCurve("reference_spectrum", presentation.referenceSpectrum);
-    this.sendCurve("difference_spectrum", presentation.differenceSpectrum);
-    (presentation.curves || []).forEach(function (curve) {
-        this.sendCurve("curve", curve, curve.id);
-    }, this);
-    this.sendCurve("combined", presentation.combinedCurve);
-    this.sendCurve("all_banks", presentation.allBanksCurve);
     (presentation.handles || []).forEach(function (handle) {
         var capabilities = handle.capabilities || {};
         this.send("handle", [
@@ -39,7 +52,11 @@ AnalyzerControlBinding.prototype.applyPresentation = function (presentation) {
             capabilities.frequency ? 1 : 0,
             capabilities.gain ? 1 : 0,
             capabilities.q ? 1 : 0,
-            handle.selected ? 1 : 0
+            handle.selected ? 1 : 0,
+            handle.xMinimum,
+            handle.xMaximum,
+            handle.yMinimum,
+            handle.yMaximum
         ]);
     }, this);
     this.send("presentation_end");

@@ -8,12 +8,16 @@ namespace Consolidator.Managed.Core.State.Observers;
 internal sealed class AudibilityObserver
 {
     private readonly TopologyIndex _topology;
+    private readonly DspStateChangeTracker _dspChanges;
     private readonly Dictionary<InstanceId, InstanceEntry> _instances = new();
     private readonly object _lock = new();
 
-    public AudibilityObserver(TopologyIndex topology)
+    public AudibilityObserver(
+        TopologyIndex topology,
+        DspStateChangeTracker dspChanges)
     {
         _topology = topology;
+        _dspChanges = dspChanges;
     }
 
     public IStateValueObserver<bool> ObserveMute(
@@ -54,8 +58,13 @@ internal sealed class AudibilityObserver
                     .Distinct()
                     .ToArray();
             var hasSolo = connectedInstanceIds.Any(soloInstances.Contains);
-            instance.Runtime.Audible = !instance.Mute &&
+            var audible = !instance.Mute &&
                 (!hasSolo || instance.Solo);
+            if (instance.Runtime.Audible != audible)
+            {
+                instance.Runtime.Audible = audible;
+                _dspChanges.MarkChanged(instance.InstanceId);
+            }
         }
     }
 

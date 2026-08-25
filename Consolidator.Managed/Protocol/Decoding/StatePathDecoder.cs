@@ -85,6 +85,7 @@ internal sealed class StatePathDecoder : IStatePathDecoder
             }
 
             var leaf = segment == "gain" &&
+                !path.Nodes.Contains(StateNodeIds.Filter) &&
                 (path.Nodes[1] == StateNodeIds.Saturator ||
                  path.Nodes[1] == StateNodeIds.Compressor)
                 ? StateNodeIds.Output

@@ -62,7 +62,9 @@ internal sealed class TargetStateProjector
                 childPath,
                 reader.Value,
                 metadata.PhysicalRange,
-                metadata.EffectiveRange));
+                metadata.GetEffectiveRange(new BankAddress(
+                    instanceId,
+                    (int)bankId))));
         }
     }
 

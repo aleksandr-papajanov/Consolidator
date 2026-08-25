@@ -11,6 +11,13 @@ ConsolidatorClient.prototype.initialize = function (callback) {
     return this.protocol.initialize(callback);
 };
 
+ConsolidatorClient.prototype.setInstanceActive = function (active, callback) {
+    return this.protocol.request(
+        "set_instance_active",
+        [active ? 1 : 0],
+        callback);
+};
+
 ConsolidatorClient.prototype.handleControl = function (selector, args) {
     this.protocol.handleControl(selector, args);
 };

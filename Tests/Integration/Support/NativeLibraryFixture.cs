@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Xunit;
 
 namespace Consolidator.Integration.Tests.Support;
@@ -165,7 +167,7 @@ public sealed class NativeLibraryFixture : IDisposable
             };
         }
 
-        instance.Frames.Add(new OutputFrame(
+        instance.AddFrame(new OutputFrame(
             Marshal.PtrToStringUTF8(selector) ?? string.Empty,
             values));
     }
@@ -203,6 +205,8 @@ public sealed class NativeInstance : IDisposable
     private readonly NativeLibraryFixture _library;
     private GCHandle _context;
     private nint _exchange;
+    private readonly List<OutputFrame> _frames = new();
+    private readonly object _frameLock = new();
     private bool _disposed;
 
     internal NativeInstance(NativeLibraryFixture library)
@@ -214,7 +218,16 @@ public sealed class NativeInstance : IDisposable
 
     public nuint AudioInputHandle { get; private set; }
 
-    public List<OutputFrame> Frames { get; } = new();
+    public IReadOnlyList<OutputFrame> Frames
+    {
+        get
+        {
+            lock (_frameLock)
+            {
+                return _frames.ToArray();
+            }
+        }
+    }
 
     public int PublishedSnapshotIndex => Marshal.ReadInt32(_exchange, 1056);
 
@@ -233,8 +246,50 @@ public sealed class NativeInstance : IDisposable
         _exchange = exchange;
     }
 
-    public OutputFrame Single(string selector) =>
-        Assert.Single(Frames, frame => frame.Selector == selector);
+    public OutputFrame Single(string selector)
+    {
+        lock (_frameLock)
+        {
+            return Assert.Single(
+                _frames,
+                frame => frame.Selector == selector);
+        }
+    }
+
+    public void ClearFrames()
+    {
+        lock (_frameLock)
+        {
+            _frames.Clear();
+        }
+    }
+
+    public void WaitForResponse(string requestId)
+    {
+        Assert.True(SpinWait.SpinUntil(
+            () => HasResponse(requestId),
+            TimeSpan.FromSeconds(5)),
+            $"No terminal callback was received for request {requestId}.");
+    }
+
+    internal void AddFrame(OutputFrame frame)
+    {
+        lock (_frameLock)
+        {
+            _frames.Add(frame);
+        }
+    }
+
+    private bool HasResponse(string requestId)
+    {
+        lock (_frameLock)
+        {
+            return _frames.Any(frame =>
+                (frame.Selector is "action_done" or "error" or "state_done") &&
+                frame.Atoms.Count > 2 &&
+                frame.Atoms[2].SymbolValue == requestId);
+        }
+    }
 
     public void Dispose()
     {

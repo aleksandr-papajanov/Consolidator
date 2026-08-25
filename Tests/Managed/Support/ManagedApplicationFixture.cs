@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
@@ -55,6 +57,7 @@ internal sealed class ManagedApplicationFixture : IDisposable
             source.InstanceId.Value,
             selector,
             atoms));
+        source.Output.WaitForResponse(requestId);
         return requestId;
     }
 
@@ -62,6 +65,12 @@ internal sealed class ManagedApplicationFixture : IDisposable
     {
         _outputs.Unregister(instance.InstanceId.Value);
         _lifecycle.UnregisterInstance(instance.InstanceId);
+    }
+
+    public TService GetRequiredService<TService>()
+        where TService : notnull
+    {
+        return _provider.GetRequiredService<TService>();
     }
 
     public void Dispose()
@@ -105,19 +114,74 @@ internal sealed class ManagedApplicationFixture : IDisposable
 
     internal sealed class RecordingOutputCallback : IProtocolOutputCallback
     {
-        public List<ProtocolOutput> Messages { get; } = new();
+        private static readonly HashSet<string> TerminalSelectors =
+        [
+            "action_done",
+            "error",
+            "initialized",
+            "registry_done",
+            "state_done",
+            "target_state_done"
+        ];
+        private readonly List<ProtocolOutput> _messages = new();
+        private readonly object _lock = new();
+
+        public IReadOnlyList<ProtocolOutput> Messages
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _messages.ToArray();
+                }
+            }
+        }
 
         public void Send(ProtocolOutput message)
         {
-            Messages.Add(message);
+            lock (_lock)
+            {
+                _messages.Add(message);
+            }
         }
 
         public void Clear()
         {
-            Messages.Clear();
+            lock (_lock)
+            {
+                _messages.Clear();
+            }
         }
 
-        public ProtocolOutput Single(string selector) =>
-            Assert.Single(Messages, message => message.Selector == selector);
+        public ProtocolOutput Single(string selector)
+        {
+            lock (_lock)
+            {
+                return Assert.Single(
+                    _messages,
+                    message => message.Selector == selector);
+            }
+        }
+
+        public void WaitForResponse(ulong requestId)
+        {
+            Assert.True(SpinWait.SpinUntil(
+                () => HasResponse(requestId),
+                TimeSpan.FromSeconds(5)),
+                $"No terminal response was received for request {requestId}.");
+        }
+
+        private bool HasResponse(ulong requestId)
+        {
+            var expectedRequestId = requestId.ToString();
+            lock (_lock)
+            {
+                return _messages.Any(message =>
+                    TerminalSelectors.Contains(message.Selector) &&
+                    message.Atoms.Count > 2 &&
+                    message.Atoms[2].Type is AtomType.Symbol &&
+                    message.Atoms[2].Symbol == expectedRequestId);
+            }
+        }
     }
 }

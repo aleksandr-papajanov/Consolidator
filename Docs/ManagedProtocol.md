@@ -38,18 +38,30 @@ Protocol/
 └─ ProtocolService.cs
 ```
 
-`ProtocolService` is the Native-facing entry point. Its flow is deliberately
-direct:
+`ProtocolService` is the Native-facing entry point. It decodes on the calling
+thread, then enqueues a bounded command for one managed control worker:
 
 ```text
 ProtocolInput
   -> CommandDecoder
-  -> CommandEndpointRegistry
+  -> bounded FIFO control queue
+  -> CommandEndpointRegistry (single worker)
   -> CommandEndpoint<TCommand, TResult>
   -> one or more ProtocolOutput frames
   -> IProtocolTransport
 ```
 
+There is no synchronous execution path from the Native ABI entrypoint. Pending
+writes with the same source, target, ordered path shape, and transaction are
+coalesced at their existing FIFO position, preserving the final gesture values
+for both single-value and multi-value controls.
+Max registers pending request callbacks only for commands that supplied a real
+callback; fire-and-forget gesture writes cannot accumulate pending entries when
+their intermediate commands are coalesced. A write with a real callback is sent
+without a coalescing transaction ID so its request always receives a response.
+Registry lifecycle and label/group updates use revisioned typed delta messages.
+The Max client applies a delta only when its previous revision matches the
+current snapshot; a gap triggers one full snapshot resynchronization.
 There is no general message hierarchy or combined codec registry. The protocol
 has one concrete input envelope, one concrete output envelope, typed input
 codecs and explicit encoders for each output kind.
@@ -99,6 +111,25 @@ second bank address.
 Notification delivery failures do not turn an already committed state mutation
 into a failed operation.
 
+Analyzer curve updates use the dedicated analysis output. For a focused bank,
+Managed sends one curve frame for each analyzer view: `equalizer_curves`,
+`compressor_detector_curves`, and `saturator_detector_curves`. All frames use
+the same versioned payload containing the active flag, filter count, 256
+normalized values for each filter, the combined curve, and the all-bank curve.
+The response calculation and cache are shared by equalizer and detector
+filters; Max only decodes and renders the frames. Filter values are individual
+dB deltas around the unity line. Combined values sum the active filters in the
+focused bank; all-bank values use the average signed dB deviation of active
+parallel banks with a non-neutral response at each frequency, so neutral banks
+do not reduce the visible gain and parallel banks are not counted as repeated
+serial gain. Native routes each complete frame atomically to `analysisOutput`.
+The only analyzer target is the Live-selected external. Equalizer delivery
+additionally requires its focused `(InstanceId, BankIndex)` to match the dirty
+bank; compressor and saturator detector delivery requires the focused source
+`InstanceId` to match. Filter observers publish the affected view after
+recalculating it; changing the active viewer's focus publishes the required
+cached analyzer views immediately.
+
 ## Routing and Core ownership
 
 `Consolidator.Managed/Routing` contains only target selection:
@@ -134,13 +165,15 @@ targets. Protocol components do not invoke callbacks directly or retain callback
 data.
 
 The command surface contains state read/write, state reset, history framing,
-history jumps, UI initialization, target observation and registry snapshots.
+history jumps, UI initialization, target observation, instance activity and
+registry snapshots.
 `initialize` returns the external's managed instance ID. `observe_target`
 selects an `(InstanceId, BankId)` view and returns a multipart target snapshot.
 There is no UI session, epoch or selected-bank state. Later changes use
 `state_changed` with the same semantic paths and range metadata. Reset writes the target
-state subtree's initial values through the normal setters, so peer propagation
-and observers remain authoritative. State changes are published by the existing
+state subtree's initial values through one prepared transaction, so peer
+propagation remains authoritative and observers see only the complete reset.
+State changes are published by the existing
 observer chain and addressed by `StateChangeRouter` using topology and focus.
 `begin_history` and `end_history` frame a global history action. `jump_history`
 moves the shared `StateHistory` cursor to a logical history

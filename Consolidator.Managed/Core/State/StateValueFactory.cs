@@ -1,3 +1,5 @@
+using Consolidator.Managed.Analyzer;
+using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.State;
@@ -11,17 +13,23 @@ public sealed class StateValueFactory
     private readonly StatePeerObserver _peerObserver;
     private readonly StateValueMetadataRegistry _metadata;
     private readonly IStateChangeSink _stateChangeSink;
+    private readonly AnalyzerRegistry _analyzerRegistry;
+    private readonly DspStateChangeTracker _dspChanges;
 
     internal StateValueFactory(
         StateRegistry<InstanceId> registry,
         StatePeerObserver peerObserver,
         StateValueMetadataRegistry metadata,
-        IStateChangeSink stateChangeSink)
+        IStateChangeSink stateChangeSink,
+        AnalyzerRegistry analyzerRegistry,
+        DspStateChangeTracker dspChanges)
     {
         _registry = registry;
         _peerObserver = peerObserver;
         _metadata = metadata;
         _stateChangeSink = stateChangeSink;
+        _analyzerRegistry = analyzerRegistry;
+        _dspChanges = dspChanges;
     }
 
     public StateValue<TValue> CreateValue<TValue>(
@@ -91,12 +99,18 @@ public sealed class StateValueFactory
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(observers);
 
+        var stateChangeObserver = new StateChangeObserver<TValue>(
+            instanceId,
+            path,
+            ownership,
+            _stateChangeSink);
         var peerObserver = _peerObserver.Create<TValue>(
-                instanceId,
-                path,
-                scope,
-                editMode,
-                physicalRange);
+            instanceId,
+            path,
+            scope,
+            editMode,
+            physicalRange,
+            stateChangeObserver.EffectiveRangeChanged);
         var valueObservers = observers
             .Append(peerObserver)
             .Append(_metadata.Observe<TValue>(
@@ -104,11 +118,12 @@ public sealed class StateValueFactory
                 path,
                 physicalRange,
                 peerObserver.GetEffectiveRange))
-            .Append(new StateChangeObserver<TValue>(
+            .Append(stateChangeObserver)
+            .Append(new DspStateObserver<TValue>(
+                _analyzerRegistry,
+                _dspChanges,
                 instanceId,
-                path,
-                ownership,
-                _stateChangeSink))
+                path))
             .ToArray();
         return _registry.CreateValue(
             instanceId,

@@ -612,6 +612,106 @@ BankManagerControl.prototype.endPresentation = function () {
     this.pendingPresentation = null;
 };
 
+BankManagerControl.prototype.beginPresentationPatch = function (
+    enabled,
+    linkEditing
+) {
+    this.presentation.enabled = Number(enabled) !== 0;
+    this.presentation.linkEditing = Number(linkEditing) !== 0;
+};
+
+BankManagerControl.prototype.patchRow = function (
+    index,
+    instanceId,
+    label,
+    local
+) {
+    var rowIndex = Number(index);
+    var row = this.presentation.rows[rowIndex];
+    if (!row) {
+        row = { banks: [] };
+        this.presentation.rows[rowIndex] = row;
+    }
+    row.instanceId = instanceId;
+    row.label = String(label);
+    row.local = Number(local) !== 0;
+};
+
+BankManagerControl.prototype.removeRow = function (index) {
+    var rowIndex = Number(index);
+    if (rowIndex >= 0 && rowIndex < this.presentation.rows.length) {
+        this.presentation.rows.splice(rowIndex, 1);
+    }
+};
+
+BankManagerControl.prototype.patchBank = function () {
+    var args = arrayfromargs(arguments);
+    var rowIndex = Number(args[0]);
+    var bankId = Number(args[1]);
+    var row = this.presentation.rows[rowIndex];
+    if (!row) return;
+
+    var bank = {
+        bankId: args[1],
+        label: String(args[2]),
+        system: Number(args[3]) !== 0,
+        visible: Number(args[4]) !== 0,
+        enabled: Number(args[5]) !== 0,
+        active: Number(args[6]) !== 0,
+        opacity: Number(args[7]),
+        color: this.colorFromArguments.apply(this, args.slice(8, 13)),
+        textColor: this.colorFromArguments.apply(this, args.slice(13, 18))
+    };
+    for (var index = 0; index < row.banks.length; index += 1) {
+        if (Number(row.banks[index].bankId) === bankId) {
+            row.banks[index] = bank;
+            return;
+        }
+    }
+    row.banks.push(bank);
+};
+
+BankManagerControl.prototype.patchLinkGroup = function () {
+    var args = arrayfromargs(arguments);
+    var linkId = Number(args[0]);
+    var group = {
+        linkId: args[0],
+        label: String(args[1]),
+        active: Number(args[2]) !== 0,
+        used: Number(args[3]) !== 0,
+        enabled: Number(args[4]) !== 0,
+        color: this.colorFromArguments.apply(this, args.slice(5, 10))
+    };
+    for (var index = 0;
+            index < this.presentation.linkGroups.length;
+            index += 1) {
+        if (Number(this.presentation.linkGroups[index].linkId) === linkId) {
+            this.presentation.linkGroups[index] = group;
+            return;
+        }
+    }
+    this.presentation.linkGroups.push(group);
+};
+
+BankManagerControl.prototype.patchEditAction = function (enabled, active) {
+    this.presentation.editAction = {
+        enabled: Number(enabled) !== 0,
+        active: Number(active) !== 0
+    };
+};
+
+BankManagerControl.prototype.patchClearAction = function (enabled, armed) {
+    this.presentation.clearAction = {
+        enabled: Number(enabled) !== 0,
+        armed: Number(armed) !== 0
+    };
+};
+
+BankManagerControl.prototype.endPresentationPatch = function () {
+    this.scrollOffset();
+    mgraphics.redraw();
+};
+
 function presentation_begin(enabled, linkEditing) {
     bankManagerControl.beginPresentation(enabled, linkEditing);
 }
@@ -638,6 +738,38 @@ function clear_action(enabled, armed) {
 
 function presentation_end() {
     bankManagerControl.endPresentation();
+}
+
+function presentation_patch_begin(enabled, linkEditing) {
+    bankManagerControl.beginPresentationPatch(enabled, linkEditing);
+}
+
+function row_patch(index, instanceId, label, local) {
+    bankManagerControl.patchRow(index, instanceId, label, local);
+}
+
+function row_remove(index) {
+    bankManagerControl.removeRow(index);
+}
+
+function bank_patch() {
+    bankManagerControl.patchBank.apply(bankManagerControl, arguments);
+}
+
+function link_group_patch() {
+    bankManagerControl.patchLinkGroup.apply(bankManagerControl, arguments);
+}
+
+function edit_action_patch(enabled, active) {
+    bankManagerControl.patchEditAction(enabled, active);
+}
+
+function clear_action_patch(enabled, armed) {
+    bankManagerControl.patchClearAction(enabled, armed);
+}
+
+function presentation_patch_end() {
+    bankManagerControl.endPresentationPatch();
 }
 
 function paint() {

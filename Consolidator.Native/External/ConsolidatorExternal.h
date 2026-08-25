@@ -1,8 +1,11 @@
 #pragma once
 
 #include <deque>
+#include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -64,6 +67,11 @@ public:
     c74::min::outlet<> controlOutput{
         this,
         "Control output."
+    };
+
+    c74::min::outlet<> analysisOutput{
+        this,
+        "Analysis output."
     };
 
     c74::min::outlet<> mainOutputLeft{
@@ -155,6 +163,16 @@ public:
         }
     };
 
+    c74::min::message<> setInstanceActive{
+        this,
+        "set_instance_active",
+        MIN_FUNCTION
+        {
+            ForwardMessage("set_instance_active", args);
+            return {};
+        }
+    };
+
     c74::min::message<> beginHistory{
         this,
         "begin_history",
@@ -181,6 +199,17 @@ public:
         MIN_FUNCTION
         {
             ForwardMessage("jump_history", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> metrics{
+        this,
+        "metrics",
+        MIN_FUNCTION
+        {
+            ReportMetrics();
+            ForwardMessage("metrics", args);
             return {};
         }
     };
@@ -233,6 +262,8 @@ private:
 
     void ConsumeDspState() noexcept;
 
+    void ReportMetrics() const;
+
     ManagedBridge managed_;
     InstanceId instanceId_{};
     AudioInputHandle audioInputHandle_{};
@@ -250,7 +281,13 @@ private:
     };
 
     std::mutex outputMutex_;
-    std::deque<OutputFrame> pendingOutput_;
+    std::deque<OutputFrame> pendingControl_;
+    std::unordered_map<std::int64_t, OutputFrame> pendingFftBySource_;
+    std::unordered_map<std::string, OutputFrame> pendingCurveFrames_;
+    std::atomic_size_t controlQueueDepth_{};
+    std::atomic_uint64_t replacedFftFrames_{};
+    std::atomic_uint64_t skippedFftFrames_{};
+    std::atomic_uint64_t lastDrainMicroseconds_{};
 };
 
 } // namespace consolidator::max

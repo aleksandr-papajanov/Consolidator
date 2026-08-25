@@ -16,6 +16,7 @@ function AnalyzerControl() {
     this.renderer = new AnalyzerRenderer();
     this.parameterRevision = 0;
     this.viewKey = "";
+    this.spectrumRedrawTimer = null;
 }
 
 AnalyzerControl.prototype.resetInteractionState = function () {
@@ -47,23 +48,24 @@ AnalyzerControl.prototype.applyPresentation = function (presentation) {
             delete self.state.preview[handle.id];
         }
     });
-    mgraphics.redraw();
+    this.requestSpectrumRedraw();
 };
 
 AnalyzerControl.prototype.beginPresentation = function (
     mode, enabled, parameterRevision, viewKey
 ) {
+    var current = this.presentation || {};
     this.pendingPresentation = {
         mode: String(mode),
         enabled: Number(enabled) !== 0,
         parameterRevision: Number(parameterRevision),
         viewKey: viewKey === undefined ? "" : String(viewKey),
-        spectrum: null,
-        referenceSpectrum: null,
-        differenceSpectrum: null,
-        curves: [],
-        combinedCurve: null,
-        allBanksCurve: null,
+        spectrum: current.spectrum || null,
+        referenceSpectrum: current.referenceSpectrum || null,
+        differenceSpectrum: current.differenceSpectrum || null,
+        curves: (current.curves || []).slice(0),
+        combinedCurve: current.combinedCurve || null,
+        allBanksCurve: current.allBanksCurve || null,
         handles: []
     };
 };
@@ -91,6 +93,53 @@ AnalyzerControl.prototype.addCurve = function (name, args, id) {
     });
 };
 
+AnalyzerControl.prototype.updateCurve = function (name, args, id) {
+    if (!this.presentation) return;
+    var curve = {
+        active: Number(args[0]) !== 0,
+        values: args.slice(1)
+    };
+    if (name === "spectrum") this.presentation.spectrum = curve;
+    else if (name === "reference_spectrum") {
+        this.presentation.referenceSpectrum = curve;
+    }
+    else if (name === "difference_spectrum") {
+        this.presentation.differenceSpectrum = curve;
+    }
+    else if (name === "combined") this.presentation.combinedCurve = curve;
+    else if (name === "all_banks") this.presentation.allBanksCurve = curve;
+    else if (name === "curve") {
+        for (var index = 0; index < this.presentation.curves.length; index += 1) {
+            if (this.presentation.curves[index].id === Number(id)) {
+                this.presentation.curves[index] = {
+                    id: Number(id),
+                    active: curve.active,
+                    values: curve.values
+                };
+                this.requestSpectrumRedraw();
+                return;
+            }
+        }
+        this.presentation.curves.push({
+            id: Number(id),
+            active: curve.active,
+            values: curve.values
+        });
+    }
+    else return;
+    this.requestSpectrumRedraw();
+};
+
+AnalyzerControl.prototype.requestSpectrumRedraw = function () {
+    if (this.spectrumRedrawTimer !== null) return;
+    var self = this;
+    this.spectrumRedrawTimer = new Task(function () {
+        self.spectrumRedrawTimer = null;
+        mgraphics.redraw();
+    }, this);
+    this.spectrumRedrawTimer.schedule(33);
+};
+
 AnalyzerControl.prototype.addHandle = function (args) {
     if (!this.pendingPresentation) return;
     var presentation = this.pendingPresentation;
@@ -104,7 +153,11 @@ AnalyzerControl.prototype.addHandle = function (args) {
             gain: Number(args[5]) !== 0,
             q: Number(args[6]) !== 0
         },
-        selected: Number(args[7]) !== 0
+        selected: Number(args[7]) !== 0,
+        xMinimum: isFinite(Number(args[8])) ? Number(args[8]) : 0,
+        xMaximum: isFinite(Number(args[9])) ? Number(args[9]) : 1,
+        yMinimum: isFinite(Number(args[10])) ? Number(args[10]) : 0,
+        yMaximum: isFinite(Number(args[11])) ? Number(args[11]) : 1
     };
     for (var index = 0; index < presentation.handles.length; index += 1) {
         if (presentation.handles[index].id === handle.id) {
@@ -194,8 +247,20 @@ function ondrag(x, y, button) {
     if (!analyzerControl.state.dragging) return;
     if (!analyzerControl.canMove(analyzerControl.state.selectedId)) return;
     var layout = new AnalyzerLayout(mgraphics.size[0], mgraphics.size[1]);
-    var nextX = (x - layout.left) / layout.width;
-    var nextY = (y - layout.top) / layout.height;
+    var handle = analyzerControl.handleById(
+        analyzerControl.state.selectedId);
+    var xMinimum = isFinite(Number(handle.xMinimum))
+        ? Number(handle.xMinimum) : 0;
+    var xMaximum = isFinite(Number(handle.xMaximum))
+        ? Number(handle.xMaximum) : 1;
+    var yMinimum = isFinite(Number(handle.yMinimum))
+        ? Number(handle.yMinimum) : 0;
+    var yMaximum = isFinite(Number(handle.yMaximum))
+        ? Number(handle.yMaximum) : 1;
+    var nextX = Math.max(xMinimum, Math.min(
+        xMaximum, (x - layout.left) / layout.width));
+    var nextY = Math.max(yMinimum, Math.min(
+        yMaximum, (y - layout.top) / layout.height));
     analyzerControl.state.preview[analyzerControl.state.selectedId] = {
         x: nextX,
         y: nextY
@@ -205,7 +270,7 @@ function ondrag(x, y, button) {
         nextX,
         nextY
     );
-    mgraphics.redraw();
+    analyzerControl.requestSpectrumRedraw();
 }
 
 function onwheel(x, y, delta, mod1, shift, caps, opt, mod2) {
@@ -221,29 +286,58 @@ function presentation_begin(mode, enabled, parameterRevision, viewKey) {
 }
 
 function spectrum() {
-    analyzerControl.addCurve("spectrum", arrayfromargs(arguments));
+    var args = arrayfromargs(arguments);
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("spectrum", args);
+    } else {
+        analyzerControl.updateCurve("spectrum", args);
+    }
 }
 
 function reference_spectrum() {
-    analyzerControl.addCurve("reference_spectrum", arrayfromargs(arguments));
+    var args = arrayfromargs(arguments);
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("reference_spectrum", args);
+    } else {
+        analyzerControl.updateCurve("reference_spectrum", args);
+    }
 }
 
 function difference_spectrum() {
-    analyzerControl.addCurve("difference_spectrum", arrayfromargs(arguments));
+    var args = arrayfromargs(arguments);
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("difference_spectrum", args);
+    } else {
+        analyzerControl.updateCurve("difference_spectrum", args);
+    }
 }
 
 function curve() {
     var args = arrayfromargs(arguments);
     var id = args.shift();
-    analyzerControl.addCurve("curve", args, id);
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("curve", args, id);
+    } else {
+        analyzerControl.updateCurve("curve", args, id);
+    }
 }
 
 function combined() {
-    analyzerControl.addCurve("combined", arrayfromargs(arguments));
+    var args = arrayfromargs(arguments);
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("combined", args);
+    } else {
+        analyzerControl.updateCurve("combined", args);
+    }
 }
 
 function all_banks() {
-    analyzerControl.addCurve("all_banks", arrayfromargs(arguments));
+    var args = arrayfromargs(arguments);
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("all_banks", args);
+    } else {
+        analyzerControl.updateCurve("all_banks", args);
+    }
 }
 
 function handle() {
@@ -273,6 +367,10 @@ AnalyzerControl.prototype.endGesture = function () {
 };
 
 AnalyzerControl.prototype.destroy = function () {
+    if (this.spectrumRedrawTimer !== null) {
+        this.spectrumRedrawTimer.cancel();
+        this.spectrumRedrawTimer = null;
+    }
     if (this.state.moveTimer !== null) {
         this.state.moveTimer.cancel();
         this.state.moveTimer = null;

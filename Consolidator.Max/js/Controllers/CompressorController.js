@@ -21,7 +21,7 @@ function CompressorController(viewModel) {
     this.analyzer = new AnalyzerController(new AnalyzerPresenter({
         mode: "detector",
         frequencyRange: { minimum: 20, maximum: 20000 },
-        gainRange: { minimum: -12, maximum: 12 },
+        gainRange: { minimum: -24, maximum: 24 },
         statusSource: viewModel.targetState,
         parameters: viewModel.compressor.detectorFilters
     }));

@@ -35,18 +35,28 @@ AnalyzerRenderer.prototype.paint = function (presentation, layout, state) {
         }
         mgraphics.stroke();
     };
-    var combined = presentation.combinedCurve;
-    drawCurve(combined && combined.values,
-        combined && combined.active === false
-            ? [0.35, 0.35, 0.4, 0.6] : [0.2, 0.8, 1, 1]);
     var allBanks = presentation.allBanksCurve;
     drawCurve(allBanks && allBanks.values,
         allBanks && allBanks.active === false
             ? [0.35, 0.25, 0.45, 0.6] : [0.8, 0.35, 1, 0.9]);
     (presentation.curves || []).forEach(function (curve) {
+        var filterColors = [
+            [0.95, 0.4, 0.35, 0.8],
+            [0.95, 0.65, 0.25, 0.8],
+            [0.75, 0.85, 0.3, 0.8],
+            [0.3, 0.8, 0.55, 0.8],
+            [0.3, 0.7, 0.95, 0.8],
+            [0.5, 0.45, 0.95, 0.8],
+            [0.85, 0.4, 0.8, 0.8]
+        ];
+        var color = filterColors[(Number(curve.id) - 1) % filterColors.length];
         drawCurve(curve.values, curve.active === false
-            ? [0.3, 0.3, 0.35, 0.5] : [0.45, 0.45, 0.5, 0.65]);
+            ? [0.3, 0.3, 0.35, 0.5] : color);
     });
+    var combined = presentation.combinedCurve;
+    drawCurve(combined && combined.values,
+        combined && combined.active === false
+            ? [0.35, 0.35, 0.4, 0.6] : [0.2, 0.8, 1, 1]);
     (presentation.handles || []).forEach(function (handle) {
         if (!handle.enabled) return;
         var preview = state && state.preview[handle.id];
