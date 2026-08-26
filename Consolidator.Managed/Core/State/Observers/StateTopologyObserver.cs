@@ -63,6 +63,7 @@ internal sealed class StateTopologyObserver
         BankAddress? focusedBank)
     {
         _topology.UpdateFocusedBank(instanceId, focusedBank);
+        _peers.RefreshFocused(instanceId);
         FocusedBankChangedEvent?.Invoke(instanceId, focusedBank);
     }
 

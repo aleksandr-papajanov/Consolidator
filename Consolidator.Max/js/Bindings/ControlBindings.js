@@ -20,6 +20,18 @@ ControlBindings.prototype.add = function (name, binding) {
     return binding;
 };
 
+ControlBindings.prototype.suspend = function () {
+    Object.keys(this.items).forEach(function (name) {
+        this.items[name].suspend();
+    }, this);
+};
+
+ControlBindings.prototype.resumeLatest = function () {
+    Object.keys(this.items).forEach(function (name) {
+        this.items[name].resumeLatest();
+    }, this);
+};
+
 ControlBindings.prototype.setPresentationActive = function (active) {
     this.presentationActive = Boolean(active);
     Object.keys(this.items).forEach(function (name) {

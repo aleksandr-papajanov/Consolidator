@@ -163,6 +163,10 @@ that gate and must not enter it again. The executor never chooses targets.
 ## Output boundary
 
 `ProtocolOutput` carries `TargetInstanceIds`, a selector and atoms.
+It also carries explicit delivery semantics: `Lossless` for responses, errors,
+lifecycle and history command outputs; `CoalescedPresentation` for state
+notifications; and `LatestAnalysis` for FFT and curve frames. Transport behavior
+is selected by this contract, never by selector string.
 `NativeOutputService` implements both `IProtocolTransport` and
 `IProtocolOutputRegistry`: transport sends outputs, while the registry exposes
 callback registration, removal and a snapshot of registered delivery IDs. The service owns
@@ -170,15 +174,37 @@ the `instanceId -> IProtocolOutputCallback` map and fans out to deduplicated
 targets. Protocol components do not invoke callbacks directly or retain callback
 data.
 
+Protocol responses use `IProtocolTransport` directly. Presentation publishers use
+`IPresentationTransport`, implemented by `PresentationOutputGate`, which tracks
+active state, observed target and pending latest entries per registered instance.
+Active instances receive presentation entries immediately. Only
+`CoalescedPresentation` entries for inactive instances are retained, keyed by
+recipient instance and delivery key (for state notifications, the observed
+path). On activation, those entries are emitted as one ordered
+`state_batch_begin` / `state_batch_entry` / `state_batch_done` sequence. The
+batch contains each path once and is sorted by encoded path. Inactive
+`LatestAnalysis` entries currently pass through unchanged;
+their classification reserves a later managed coalescing policy.
+
 The command surface contains state read/write, state reset, history framing,
 history jumps, UI initialization, target observation, instance activity and
 registry snapshots.
 `initialize` returns the external's managed instance ID. `observe_target`
-selects an `(InstanceId, BankId)` view and returns a multipart target snapshot.
+selects an `(InstanceId, BankId)` view and returns one `target_state_snapshot`
+frame containing the target identity, bank, entry count, and each relative path
+with its value and physical/effective ranges. A successful frame implies
+`ready` for every entry; an error applies to the complete frame.
 There is no UI session, epoch or selected-bank state. Later changes use
 `state_changed` with the same semantic paths and range metadata. Reset writes the target
 state subtree's initial values through one prepared transaction, so peer
 propagation remains authoritative and observers see only the complete reset.
+Activation state batches are staged by `TargetStateClient`: entries update its
+cache and ViewModels while publication is suspended. At `state_batch_done`,
+dirty ViewModels publish once through the batch-completion callback, and
+`ControlBindings.resumeLatest()` applies the latest presentation for each
+binding once. Target selection suspends bindings before sending
+`observe_target`, then replaces the target cache and resumes after the complete
+snapshot. Instance activity itself does not suspend bindings.
 State changes are published by the existing
 observer chain and addressed by `StateChangeRouter` using topology and focus.
 `begin_history` and `end_history` frame a global history action. `jump_history`

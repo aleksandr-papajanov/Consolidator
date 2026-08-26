@@ -65,6 +65,7 @@ function testDialBindingUsesMessageTransportAndIntents() {
   });
 
   assert.deepStrictEqual(messages, [
+    ["presentation_begin", []],
     ["enabled", [1]],
     ["active", [1]],
     ["activeIndex", [0]],
@@ -72,6 +73,7 @@ function testDialBindingUsesMessageTransportAndIntents() {
     ["ringCount", [1]],
     ["limits", [0, 0, 1]],
     ["set", [0, 0.5]],
+    ["presentation_end", []],
   ]);
   binding.handleIntent("valueChanged", [0, 0.75]);
   binding.handleIntent("reset", [0]);
@@ -1155,6 +1157,9 @@ function testUiHostPublishesOnlyChangedInstanceActivity() {
     },
     bindings: {
       setPresentationActive: function () {},
+    },
+    bankManagerViewModel: {
+      setRegistryActive: function () {},
     },
     instanceActive: false,
     publishedInstanceActive: null,

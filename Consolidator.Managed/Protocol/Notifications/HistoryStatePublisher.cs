@@ -7,13 +7,13 @@ namespace Consolidator.Managed.Protocol.Notifications;
 
 internal sealed class HistoryStatePublisher
 {
-    private readonly IProtocolTransport _transport;
+    private readonly IPresentationTransport _transport;
     private readonly IManagedLogger _logger;
     private readonly IProtocolOutputRegistry _outputs;
 
     public HistoryStatePublisher(
         StateHistory history,
-        IProtocolTransport transport,
+        IPresentationTransport transport,
         IManagedLogger logger,
         IProtocolOutputRegistry outputs)
     {

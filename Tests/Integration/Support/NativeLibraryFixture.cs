@@ -285,7 +285,8 @@ public sealed class NativeInstance : IDisposable
         lock (_frameLock)
         {
             return _frames.Any(frame =>
-                (frame.Selector is "action_done" or "error" or "state_done") &&
+                (frame.Selector is "action_done" or "error" or "state_done" or
+                    "target_state_snapshot") &&
                 frame.Atoms.Count > 2 &&
                 frame.Atoms[2].SymbolValue == requestId);
         }

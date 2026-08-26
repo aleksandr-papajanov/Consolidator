@@ -11,6 +11,7 @@ function StateValueViewModel(state, path) {
     this.loaded = false;
     this.enabled = true;
     this.loading = true;
+    this.batchDirty = false;
     this.listeners = [];
 
     var self = this;
@@ -20,12 +21,23 @@ function StateValueViewModel(state, path) {
     this.unsubscribeStatus = state.subscribeStatus
         ? state.subscribeStatus(function (status) {
             var enabled = Boolean(status.ready);
-            var loading = Boolean(status.loading);
-            if (self.enabled === enabled && self.loading === loading) return;
+            if (self.enabled === enabled) return;
             self.enabled = enabled;
-            self.loading = loading;
+            if (self.state.applyingSnapshot) {
+                self.batchDirty = true;
+                return;
+            }
             self.notify();
         }, true)
+        : null;
+    this.unsubscribeBatch = state.onTargetSnapshotCompleted
+        ? state.onTargetSnapshotCompleted(function () {
+            self.completeBatch();
+        })
+        : state.onBatchCompleted
+        ? state.onBatchCompleted(function () {
+            self.completeBatch();
+        })
         : null;
 }
 
@@ -37,6 +49,7 @@ StateValueViewModel.prototype.applyEntry = function (entry) {
         return;
     }
     this.loaded = true;
+    this.loading = false;
     this.value = entry.value;
     this.minimum = entry.min;
     this.maximum = entry.max;
@@ -45,8 +58,17 @@ StateValueViewModel.prototype.applyEntry = function (entry) {
     this.status = entry.status;
     this.instanceId = entry.instanceId;
     if (this.state.applyingSnapshot) {
+        this.batchDirty = true;
         return;
     }
+    this.notify();
+};
+
+StateValueViewModel.prototype.completeBatch = function () {
+    if (!this.batchDirty) {
+        return;
+    }
+    this.batchDirty = false;
     this.notify();
 };
 
@@ -101,6 +123,10 @@ StateValueViewModel.prototype.destroy = function () {
     if (this.unsubscribeStatus) {
         this.unsubscribeStatus();
         this.unsubscribeStatus = null;
+    }
+    if (this.unsubscribeBatch) {
+        this.unsubscribeBatch();
+        this.unsubscribeBatch = null;
     }
     this.listeners = [];
 };

@@ -130,7 +130,7 @@ internal sealed class ManagedApplicationFixture : IDisposable
             "initialized",
             "registry_done",
             "state_done",
-            "target_state_done"
+            "target_state_snapshot"
         ];
         private readonly List<ProtocolOutput> _messages = new();
         private readonly object _lock = new();

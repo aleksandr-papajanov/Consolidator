@@ -37,17 +37,46 @@ function testTargetSnapshotAndPushUpdateUseSemanticPaths() {
     values.push(entry.value);
   });
   client.uiTarget.show("4", 2);
-  assert.deepStrictEqual(frames[0], ["observe_target", 1, "ui", "1", "4", 2]);
-  client.handleControl("target_state_begin", [1, "9", "1", "4", 2, 1]);
-  client.handleControl("target_state_entry", [
-    1, "9", "1", 0, "compressor.threshold", -24, "ready",
+  assert.deepStrictEqual(frames[0], ["observe_target", 1, "ui", "1", "4", 3]);
+  client.handleControl("target_state_snapshot", [
+    1, "9", "1", "4", 3, 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
-  client.handleControl("target_state_done", [1, "9", "1", "4", 2, 1]);
   client.handleControl("state_changed", [
     1, "compressor.threshold", -18, "ready", -60, 0, -60, 0,
   ]);
   assert.deepStrictEqual(values, [-24, -18]);
+}
+
+function testStateBatchAppliesEntriesOnlyAfterDone() {
+  var client = new ConsolidatorClient("ui", function () {});
+  var value = new StateValueViewModel(
+    client.targetState,
+    "compressor.threshold",
+  );
+  var values = [];
+  client.targetState.target = { instanceId: "4", bankId: 2 };
+  value.subscribe(function (entry) {
+    values.push([entry.path, entry.value]);
+  });
+
+  client.handleControl("state_batch_begin", [1, 7, 2]);
+  client.handleControl("state_batch_entry", [
+    1, 7, "compressor.attack", 15, "ready", -100, 100, -100, 100,
+  ]);
+  client.handleControl("state_batch_entry", [
+    1, 7, "compressor.threshold", -18, "ready", -60, 0, -60, 0,
+  ]);
+  assert.deepStrictEqual(values, []);
+
+  client.handleControl("state_batch_done", [1, 7]);
+  assert.deepStrictEqual(values, [["compressor.threshold", -18]]);
+  assert.strictEqual(
+    client.targetState.cache["compressor.threshold"].value,
+    -18,
+  );
+  value.destroy();
+  client.destroy();
 }
 
 function testObservedEqualizerPathsAreExpandedForWrites() {
@@ -57,11 +86,11 @@ function testObservedEqualizerPathsAreExpandedForWrites() {
   });
   var target = new TargetStateClient(protocol, new StateClient(protocol));
   target.target = { instanceId: "8", bankId: 3 };
-  target.set("equalizer.filter.2.gain", 4.5);
-  assert.deepStrictEqual(frames[0], [
-    "write", 1, "ui", "1", "8", "0", 1,
-    "entry", "equalizer", "bank", 3, "filter", 2, "gain", "value", 4.5,
-  ]);
+    target.set("equalizer.filter.2.gain", 4.5);
+    assert.deepStrictEqual(frames[0], [
+      "write", 1, "ui", "1", "8", "0", 1,
+      "entry", "equalizer", "bank", 4, "filter", 2, "gain", "value", 4.5,
+    ]);
 }
 
 function testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch() {
@@ -75,17 +104,43 @@ function testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch() {
   client.uiTarget.show("4", 2);
   notifications = 0;
 
-  client.handleControl("target_state_begin", [1, "9", "1", "4", 2, 1]);
-  client.handleControl("target_state_entry", [
-    1, "9", "1", 0, "compressor.threshold", -24, "ready",
+  client.handleControl("target_state_snapshot", [
+    1, "9", "1", "4", 3, 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
-  assert.strictEqual(notifications, 0);
-  client.handleControl("target_state_done", [1, "9", "1", "4", 2, 1]);
-
   assert.strictEqual(notifications, 1);
   assert.strictEqual(value.value, -24);
   value.destroy();
+  client.destroy();
+}
+
+function testStaleTargetSnapshotDoesNotResumeLatestTransition() {
+  var client = new ConsolidatorClient("ui", function () {});
+  var transitions = [];
+  client.targetState.onTargetTransitionBegin(function () {
+    transitions.push("begin");
+  });
+  client.targetState.onTargetTransitionDone(function () {
+    transitions.push("done");
+  });
+
+  client.uiTarget.show("4", 2);
+  client.uiTarget.show("4", 3);
+  client.handleControl("target_state_snapshot", [
+    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
+    -60, 0, -60, 0,
+  ]);
+  assert.deepStrictEqual(transitions, ["begin", "begin"]);
+  assert.strictEqual(client.targetState.target, null);
+  assert.strictEqual(client.targetState.pendingTarget.bankId, 3);
+
+  client.handleControl("target_state_snapshot", [
+    1, "9", "2", "4", 3, 1, "compressor.threshold", -18,
+    -60, 0, -60, 0,
+  ]);
+  assert.deepStrictEqual(transitions, ["begin", "begin", "done"]);
+  assert.strictEqual(client.targetState.target.bankId, 2);
+  assert.strictEqual(client.targetState.cache["compressor.threshold"].value, -18);
   client.destroy();
 }
 
@@ -125,6 +180,7 @@ testInstanceActivityUsesTheInstanceCommand();
 testTargetSnapshotAndPushUpdateUseSemanticPaths();
 testObservedEqualizerPathsAreExpandedForWrites();
 testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch();
+testStaleTargetSnapshotDoesNotResumeLatestTransition();
 testCallbacklessGestureWritesDoNotAccumulatePendingRequests();
 testWriteWithCallbackIsNotEligibleForGestureCoalescing();
 console.log("UiProtocolTests passed");

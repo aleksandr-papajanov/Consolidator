@@ -29,7 +29,8 @@ internal static class ProtocolErrorEncoder
                 new Atom(AtomType.Symbol, 0, 0, requestId.ToString()),
                 new Atom(AtomType.Symbol, 0, 0, code),
                 new Atom(AtomType.Symbol, 0, 0, exception.Message)
-            ]);
+            ],
+            DeliverySemantics.Lossless);
     }
 
 }

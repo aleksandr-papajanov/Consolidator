@@ -9,7 +9,7 @@ namespace Consolidator.Managed.Protocol.Notifications;
 
 internal sealed class StateChangePublisher : IStateChangeSink
 {
-    private readonly IProtocolTransport _transport;
+    private readonly IPresentationTransport _transport;
     private readonly StateChangeRouter _router;
     private readonly IManagedLogger _logger;
     private readonly StateValueMetadataRegistry _metadata;
@@ -17,7 +17,7 @@ internal sealed class StateChangePublisher : IStateChangeSink
     private readonly RegistryChangePublisher _registryChanges;
 
     public StateChangePublisher(
-        IProtocolTransport transport,
+        IPresentationTransport transport,
         StateChangeRouter router,
         IManagedLogger logger,
         StateValueMetadataRegistry metadata,
@@ -69,7 +69,7 @@ internal sealed class StateChangePublisher : IStateChangeSink
             {
                 _registryChanges.BankGroupChanged(
                     change.InstanceId.Value,
-                    bankAddress.BankIndex + 1,
+                    bankAddress.BankIndex,
                     change.CurrentValue is GroupId groupId
                         ? groupId.Value
                         : null);

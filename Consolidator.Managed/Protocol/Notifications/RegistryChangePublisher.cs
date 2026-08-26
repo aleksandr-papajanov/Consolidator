@@ -6,13 +6,13 @@ namespace Consolidator.Managed.Protocol.Notifications;
 
 internal sealed class RegistryChangePublisher
 {
-    private readonly IProtocolTransport _transport;
+    private readonly IPresentationTransport _transport;
     private readonly IProtocolOutputRegistry _outputs;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, byte> _observers = new();
     private long _revision;
 
     public RegistryChangePublisher(
-        IProtocolTransport transport,
+        IPresentationTransport transport,
         IProtocolOutputRegistry outputs)
     {
         _transport = transport;
@@ -81,7 +81,8 @@ internal sealed class RegistryChangePublisher
                 .Where(instanceId => _observers.ContainsKey(instanceId))
                 .ToArray(),
             selector,
-            atoms));
+            atoms,
+            DeliverySemantics.Lossless));
     }
 
     private static Atom Integer(long value) => new(AtomType.Integer, value, 0, null);

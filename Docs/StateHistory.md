@@ -122,10 +122,12 @@ therefore resolve only the members of each peer set; they never rescan every
 state value for every control. A separate per-instance value index limits a
 topology refresh to affected state trees, so loading another instance does not
 walk unrelated values owned by instances that are already running.
-Focus changes do not rebuild peer sets. Bank-owned peer sets are materialized
-only when instances or bank-group membership change. Instance-owned controls
-resolve their operation peers from the editing UI's selected bank at edit time,
-and target snapshots calculate ranges from the requested bank directly.
+Bank-owned peer sets are materialized only when instances or bank-group
+membership change. Instance-owned presentation peer sets are materialized for
+every bank context of affected instances and reused by both snapshots and
+writes. Focus changes rebuild only the affected instance's contexts. Value
+changes use a reverse index to recalculate every containing context once after
+commit.
 State-change delivery likewise groups recipients by their selected-bank context
 and encodes the corresponding effective range for each group; there is no single
 focus-dependent range cache shared by different UIs.
@@ -146,6 +148,12 @@ changes and recalculated once after committed values change. A target snapshot
 also resolves the selected-bank intersection directly, and a write validates
 against that same contextual peer set before preparing the transaction.
 Topology refresh publishes only effective ranges that actually changed.
+
+The Max dial binding sends a full presentation when structure, range, active
+state, or visualization metadata changes. Ordinary value changes use a single
+`set` delta. Dial controls apply full presentation batches with redraw
+suppressed until the final batch message, so one presentation update produces
+one `mgraphics.redraw()` call.
 
 ## Topology and audibility
 

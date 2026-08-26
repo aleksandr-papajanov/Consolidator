@@ -21,6 +21,7 @@ internal static class HistoryStateEncoder
                 new Atom(AtomType.Integer, snapshot.EntryCount, 0, null),
                 new Atom(AtomType.Integer, snapshot.CanUndo ? 1 : 0, 0, null),
                 new Atom(AtomType.Integer, snapshot.CanRedo ? 1 : 0, 0, null)
-            ]);
+            ],
+            DeliverySemantics.Lossless);
     }
 }

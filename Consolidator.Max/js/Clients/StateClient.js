@@ -50,15 +50,17 @@ StateClient.prototype.resetFor = function (instanceId, path, callback, transacti
 };
 
 StateClient.prototype.encodePath = function (path) {
-    var encoded = Array.isArray(path) ? path : path.split(".").map(function (part) {
-        return /^\d+$/.test(part) ? parseInt(part, 10) : part;
+    var parts = Array.isArray(path) ? path : path.split(".");
+    return parts.map(function (part, index) {
+        if (!/^\d+$/.test(String(part))) return part;
+        var value = parseInt(part, 10);
+        return index > 0 && parts[index - 1] === "bank" ? value + 1 : value;
     });
-    return encoded;
 };
 
 StateClient.prototype.encodeValue = function (path, value) {
     var text = Array.isArray(path) ? path.join(".") : path;
-    if (/(^|\.)bank\.[1-7]\.group$/.test(text) && value === null) {
+    if (/(^|\.)bank\.[0-6]\.group$/.test(text) && value === null) {
         return "none";
     }
     return value;

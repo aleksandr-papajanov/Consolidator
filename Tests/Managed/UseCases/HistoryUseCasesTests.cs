@@ -48,6 +48,18 @@ public sealed class HistoryUseCasesTests
         using var application = new ManagedApplicationFixture();
         var editor = application.RegisterInstance();
         var observer = application.RegisterInstance();
+        application.Send(
+            observer,
+            "observe_target",
+            Symbol(editor.InstanceId.Value.ToString()),
+            Integer(1));
+        application.Send(
+            editor,
+            "observe_target",
+            Symbol(editor.InstanceId.Value.ToString()),
+            Integer(0));
+        application.Send(editor, "set_instance_active", Integer(1));
+        application.Send(observer, "set_instance_active", Integer(1));
         editor.Output.Clear();
         observer.Output.Clear();
 
@@ -85,8 +97,8 @@ public sealed class HistoryUseCasesTests
             observer.Output.Messages,
             message => message.Selector == "history_state" &&
                 message.Atoms[2].Integer == 0 &&
-                message.Atoms[4].Integer == 0 &&
-            message.Atoms[5].Integer == 1);
+                message.Atoms[4].Integer == 1 &&
+            message.Atoms[5].Integer == 0);
     }
 
     private sealed class NonComparableHistoryValue : IHistoryValue

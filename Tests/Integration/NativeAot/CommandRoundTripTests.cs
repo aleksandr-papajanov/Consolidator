@@ -23,6 +23,26 @@ public sealed class CommandRoundTripTests
 
         _library.Send(
             instance,
+            "observe_target",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("100"),
+            Symbol(instance.InstanceId.ToString()),
+            Integer(1));
+        instance.WaitForResponse("100");
+        instance.ClearFrames();
+        _library.Send(
+            instance,
+            "set_instance_active",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("99"),
+            Integer(1));
+        instance.WaitForResponse("99");
+        instance.ClearFrames();
+
+        _library.Send(
+            instance,
             "write",
             Integer(1),
             Symbol("ui"),
@@ -39,7 +59,10 @@ public sealed class CommandRoundTripTests
 
         Assert.Equal(5.5F, instance.PublishedGain);
         Assert.Equal(1, instance.Single("action_done").Atoms[^1].IntegerValue);
-        var change = instance.Single("state_changed");
+        var change = Assert.Single(
+            instance.Frames,
+            frame => frame.Selector == "state_changed" &&
+                frame.Atoms[1].SymbolValue == "input_gain.gain");
         Assert.Equal("input_gain.gain", change.Atoms[1].SymbolValue);
         Assert.Equal(5.5, change.Atoms[2].FloatValue);
 

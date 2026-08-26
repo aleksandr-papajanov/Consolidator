@@ -15,6 +15,8 @@ internal sealed class StatePeerObserver
     private readonly Dictionary<InstanceId, List<IObservedValue>> _valuesByInstance = new();
     private readonly Dictionary<ObservedValueAddress, IObservedValue> _valuesByAddress = new();
     private readonly Dictionary<BankValueAddress, IObservedValue> _bankValuesByAddress = new();
+    private readonly Dictionary<PresentationPeerSetKey, PeerSet> _presentationPeerSets = new();
+    private readonly Dictionary<IObservedValue, HashSet<PeerSet>> _peerSetsByValue = new();
     private BankAddress? _editingBank;
     private bool _isEditing;
 
@@ -117,6 +119,13 @@ internal sealed class StatePeerObserver
             }
             peerSet.UpdateEffectiveRanges(value, true);
         }
+
+        RefreshPresentationPeerSets(affectedInstanceIds);
+    }
+
+    public void RefreshFocused(InstanceId instanceId)
+    {
+        RefreshPresentationPeerSets([instanceId]);
     }
 
     public void BeginEdit(BankAddress? focusedBank)
@@ -161,6 +170,8 @@ internal sealed class StatePeerObserver
                         value.ValueType),
                     value);
             }
+
+            _peerSetsByValue.TryAdd(value, new HashSet<PeerSet>());
         }
     }
 
@@ -188,6 +199,14 @@ internal sealed class StatePeerObserver
                         value.PeerPath,
                         value.ValueType));
             }
+
+                if (_peerSetsByValue.Remove(value, out var peerSets))
+                {
+                    foreach (var peerSet in peerSets.ToArray())
+                    {
+                        RemovePresentationPeerSet(peerSet.Key);
+                    }
+                }
         }
     }
 
@@ -199,6 +218,14 @@ internal sealed class StatePeerObserver
         }
 
         changedValue.Peers.UpdateEffectiveRanges(changedValue, false);
+
+        if (_peerSetsByValue.TryGetValue(changedValue, out var peerSets))
+        {
+            foreach (var peerSet in peerSets)
+            {
+                peerSet.UpdateEffectiveRanges(peerSet.Source, true);
+            }
+        }
     }
 
     private IReadOnlyList<IObservedValue> ResolvePeers(IObservedValue value)
@@ -243,9 +270,7 @@ internal sealed class StatePeerObserver
             return value.Peers;
         }
 
-        return new PeerSet(
-            ResolveFocusedPeers(value, _editingBank),
-            false);
+        return GetPresentationPeerSet(value, _editingBank);
     }
 
     private PeerSet ResolvePresentationPeers(
@@ -259,9 +284,89 @@ internal sealed class StatePeerObserver
             return value.Peers;
         }
 
-        return new PeerSet(
-            ResolveFocusedPeers(value, focusedBank),
-            false);
+        return GetPresentationPeerSet(value, focusedBank);
+    }
+
+    private PeerSet GetPresentationPeerSet(
+        IObservedValue value,
+        BankAddress? focusedBank)
+    {
+        var key = new PresentationPeerSetKey(
+            value.InstanceId,
+            value.Path,
+            value.ValueType,
+            focusedBank);
+        lock (_lock)
+        {
+            if (_presentationPeerSets.TryGetValue(key, out var existing))
+            {
+                return existing;
+            }
+
+            var peerSet = new PeerSet(
+                key,
+                value,
+                ResolveFocusedPeers(value, focusedBank),
+                false);
+            _presentationPeerSets.Add(key, peerSet);
+            foreach (var peer in peerSet.Values)
+            {
+                _peerSetsByValue.TryAdd(peer, new HashSet<PeerSet>());
+                _peerSetsByValue[peer].Add(peerSet);
+            }
+            peerSet.UpdateEffectiveRanges(value, false);
+            return peerSet;
+        }
+    }
+
+    private void RefreshPresentationPeerSets(
+        IEnumerable<InstanceId> affectedInstanceIds)
+    {
+        var affected = affectedInstanceIds.ToHashSet();
+        lock (_lock)
+        {
+            foreach (var key in _presentationPeerSets.Keys
+                .Where(key => affected.Contains(key.InstanceId))
+                .ToArray())
+            {
+                RemovePresentationPeerSet(key);
+            }
+
+            foreach (var value in _valuesByInstance
+                .Where(entry => affected.Contains(entry.Key))
+                .SelectMany(entry => entry.Value)
+                .Where(value => value.Scope is not StateValueEditScope.Local &&
+                    value.Bank is null)
+                .ToArray())
+            {
+                foreach (var bankIndex in Enumerable.Range(0, DspConstants.BankCount))
+                {
+                    GetPresentationPeerSet(
+                        value,
+                        new BankAddress(value.InstanceId, bankIndex));
+                }
+            }
+        }
+    }
+
+    private void RemovePresentationPeerSet(PresentationPeerSetKey key)
+    {
+        if (!_presentationPeerSets.Remove(key, out var peerSet))
+        {
+            return;
+        }
+
+        foreach (var value in peerSet.Values)
+        {
+            if (_peerSetsByValue.TryGetValue(value, out var peerSets))
+            {
+                peerSets.Remove(peerSet);
+                if (peerSets.Count == 0)
+                {
+                    _peerSetsByValue.Remove(value);
+                }
+            }
+        }
     }
 
     private IReadOnlyList<IObservedValue> ResolveFocusedPeers(
@@ -413,8 +518,7 @@ internal sealed class StatePeerObserver
 
             var deltaRange = focusedBank is null
                 ? _effectiveDeltaRange
-                : CalculateEffectiveDeltaRange(
-                    _owner.ResolvePresentationPeers(this, focusedBank).Values);
+                : _owner.ResolvePresentationPeers(this, focusedBank).EffectiveDeltaRange;
             if (!deltaRange.IsValid)
             {
                 return null;
@@ -596,6 +700,12 @@ internal sealed class StatePeerObserver
         StatePath PeerPath,
         Type ValueType);
 
+    private readonly record struct PresentationPeerSetKey(
+        InstanceId InstanceId,
+        StatePath Path,
+        Type ValueType,
+        BankAddress? FocusedBank);
+
     private sealed class PeerSet
     {
         private object?[]? _effectiveRangeValues;
@@ -606,8 +716,19 @@ internal sealed class StatePeerObserver
         public PeerSet(
             IReadOnlyList<IObservedValue> values,
             bool sharesEffectiveRange)
+            : this(default, null!, values, sharesEffectiveRange)
+        {
+        }
+
+        public PeerSet(
+            PresentationPeerSetKey key,
+            IObservedValue source,
+            IReadOnlyList<IObservedValue> values,
+            bool sharesEffectiveRange)
         {
             ArgumentNullException.ThrowIfNull(values);
+            Key = key;
+            Source = source;
             Values = values;
             _sharesEffectiveRange = sharesEffectiveRange;
             _tracksEffectiveRange = values.Any(value =>
@@ -615,9 +736,15 @@ internal sealed class StatePeerObserver
         }
 
         public static PeerSet Empty { get; } =
-            new(Array.Empty<IObservedValue>(), true);
+            new(default, null!, Array.Empty<IObservedValue>(), true);
+
+        public PresentationPeerSetKey Key { get; }
+
+        public IObservedValue Source { get; }
 
         public IReadOnlyList<IObservedValue> Values { get; }
+
+        public FloatRange EffectiveDeltaRange { get; private set; } = new(1.0F, 0.0F);
 
         public bool HasPendingEffectiveRangeRefresh =>
             _pendingEffectiveRangeRefresh is { IsCompleted: false };
@@ -673,6 +800,7 @@ internal sealed class StatePeerObserver
                 .Select(value => value.GetCurrentValue())
                 .ToArray();
             var effectiveRange = source.CalculateEffectiveDeltaRange();
+            EffectiveDeltaRange = effectiveRange;
             IReadOnlyList<IObservedValue> targets = _sharesEffectiveRange
                 ? Values
                 : [source];

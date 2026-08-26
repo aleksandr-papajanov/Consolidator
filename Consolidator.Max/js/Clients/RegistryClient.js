@@ -45,9 +45,7 @@ RegistryClient.prototype.handleDelta = function (selector, args) {
     }
     if (!this.snapshot || this.snapshot.revision !== previousRevision) {
         this.requiredRevision = Math.max(this.requiredRevision, revision);
-        if (!this.fetchPending) {
-            this.fetch();
-        }
+        if (!this.fetchPending) this.fetch();
         return;
     }
 
@@ -78,7 +76,7 @@ RegistryClient.prototype.applyInstanceAdded = function (args) {
         });
     }
     this.snapshot.instances.push(instance);
-    this.rebuildGroups();
+    this.updateGroupsForInstance(instanceId, this.snapshot.instances);
 };
 
 RegistryClient.prototype.applyInstanceRemoved = function (args) {
@@ -86,7 +84,7 @@ RegistryClient.prototype.applyInstanceRemoved = function (args) {
     this.snapshot.instances = this.snapshot.instances.filter(function (instance) {
         return String(instance.instanceId) !== instanceId;
     });
-    this.rebuildGroups();
+    this.updateGroupsForInstance(instanceId, this.snapshot.instances);
 };
 
 RegistryClient.prototype.applyLabelChanged = function (args) {
@@ -106,20 +104,35 @@ RegistryClient.prototype.applyBankGroupChanged = function (args) {
             if (Number(bank.bankId) === bankId) bank.groupId = groupId;
         });
     });
-    this.rebuildGroups();
+    this.updateGroupsForInstance(instanceId, this.snapshot.instances);
 };
 
-RegistryClient.prototype.rebuildGroups = function () {
-    var groups = {};
-    this.snapshot.instances.forEach(function (instance) {
-        instance.banks.forEach(function (bank) {
-            if (bank.groupId === null || bank.groupId === undefined) return;
-            var key = String(bank.groupId);
-            if (!groups[key]) groups[key] = { groupId: bank.groupId, members: [] };
-            groups[key].members.push({ instanceId: instance.instanceId, bankId: bank.bankId });
+RegistryClient.prototype.updateGroupsForInstance = function (instanceId, instances) {
+    var groups = this.snapshot.groups || [];
+    groups.forEach(function (group) {
+        group.members = group.members.filter(function (member) {
+            return String(member.instanceId) !== String(instanceId);
         });
     });
-    this.snapshot.groups = Object.keys(groups).map(function (key) { return groups[key]; });
+    var instance = instances.filter(function (candidate) {
+        return String(candidate.instanceId) === String(instanceId);
+    })[0];
+    if (instance) {
+        instance.banks.forEach(function (bank) {
+            if (bank.groupId === null || bank.groupId === undefined) return;
+            var group = groups.filter(function (candidate) {
+                return String(candidate.groupId) === String(bank.groupId);
+            })[0];
+            if (!group) {
+                group = { groupId: bank.groupId, members: [] };
+                groups.push(group);
+            }
+            group.members.push({ instanceId: instance.instanceId, bankId: bank.bankId });
+        });
+    }
+    this.snapshot.groups = groups.filter(function (group) {
+        return group.members.length > 0;
+    });
 };
 
 RegistryClient.prototype.subscribe = function (callback, immediate) {

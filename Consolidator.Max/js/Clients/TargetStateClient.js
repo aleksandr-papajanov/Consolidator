@@ -6,32 +6,118 @@ function TargetStateClient(protocol, state) {
     this.cache = {};
     this.subscribers = {};
     this.statusSubscribers = [];
-    this.snapshots = {};
     this.error = null;
     this.applyingSnapshot = false;
-    protocol.on("target_state_begin", this.handleBegin.bind(this));
-    protocol.on("target_state_entry", this.handleEntry.bind(this));
-    protocol.on("target_state_done", this.handleDone.bind(this));
+    this.pendingBatch = null;
+    this.generation = 0;
+    this.targetTransitionBeginListeners = [];
+    this.targetTransitionDoneListeners = [];
+    this.targetSnapshotCompletedListeners = [];
+    this.batchBeginListeners = [];
+    this.batchCompletedListeners = [];
+    protocol.on("target_state_snapshot", this.handleSnapshot.bind(this));
+    protocol.on("state_batch_begin", this.handleBatchBegin.bind(this));
+    protocol.on("state_batch_entry", this.handleBatchEntry.bind(this));
+    protocol.on("state_batch_done", this.handleBatchDone.bind(this));
     protocol.on("state_changed", this.handleChanged.bind(this));
 }
 
 TargetStateClient.prototype.selectTarget = function (instanceId, bankId, callback) {
     var self = this;
-    this.pendingTarget = { instanceId: String(instanceId), bankId: Number(bankId) };
+    var generation = this.generation + 1;
+    this.generation = generation;
+    this.beginTargetTransition();
+    this.pendingTarget = {
+        instanceId: String(instanceId),
+        bankId: Number(bankId),
+        generation: generation,
+        requestId: null
+    };
     this.error = null;
     this.notifyStatus();
-    return this.protocol.request(
+    var requestId = this.protocol.request(
         "observe_target",
-        [String(instanceId), Number(bankId)],
+        [String(instanceId), Number(bankId) + 1],
         function (response) {
+            var current = self.pendingTarget &&
+                self.pendingTarget.generation === generation;
             if (response && response.error) {
-                self.pendingTarget = null;
-                self.error = response.error;
-                self.notifyStatus();
+                if (current) {
+                    self.pendingTarget = null;
+                    self.error = response.error;
+                    self.notifyStatus();
+                    self.completeTargetTransition(generation);
+                }
             }
             if (callback) callback(response);
         }
     );
+    if (this.pendingTarget && this.pendingTarget.generation === generation) {
+        this.pendingTarget.requestId = requestId;
+    }
+    return requestId;
+};
+
+TargetStateClient.prototype.beginTargetTransition = function () {
+    this.targetTransitionBeginListeners.slice().forEach(function (listener) {
+        listener();
+    });
+};
+
+TargetStateClient.prototype.completeTargetTransition = function (generation) {
+    if (generation !== this.generation) {
+        return;
+    }
+    this.targetTransitionDoneListeners.slice().forEach(function (listener) {
+        listener();
+    });
+};
+
+TargetStateClient.prototype.onTargetTransitionBegin = function (callback) {
+    this.targetTransitionBeginListeners.push(callback);
+    var self = this;
+    return function () {
+        self.targetTransitionBeginListeners = self.targetTransitionBeginListeners.filter(
+            function (listener) { return listener !== callback; });
+    };
+};
+
+TargetStateClient.prototype.onTargetTransitionDone = function (callback) {
+    this.targetTransitionDoneListeners.push(callback);
+    var self = this;
+    return function () {
+        self.targetTransitionDoneListeners = self.targetTransitionDoneListeners.filter(
+            function (listener) { return listener !== callback; });
+    };
+};
+
+TargetStateClient.prototype.onTargetSnapshotCompleted = function (callback) {
+    this.targetSnapshotCompletedListeners.push(callback);
+    var self = this;
+    return function () {
+        self.targetSnapshotCompletedListeners = self.targetSnapshotCompletedListeners.filter(
+            function (listener) { return listener !== callback; });
+    };
+};
+
+TargetStateClient.prototype.onBatchBegin = function (callback) {
+    this.batchBeginListeners.push(callback);
+    var self = this;
+    return function () {
+        self.batchBeginListeners = self.batchBeginListeners.filter(function (listener) {
+            return listener !== callback;
+        });
+    };
+};
+
+TargetStateClient.prototype.onBatchCompleted = function (callback) {
+    this.batchCompletedListeners.push(callback);
+    var self = this;
+    return function () {
+        self.batchCompletedListeners = self.batchCompletedListeners.filter(function (listener) {
+            return listener !== callback;
+        });
+    };
 };
 
 TargetStateClient.prototype.set = function (path, value, callback, transactionId) {
@@ -88,8 +174,9 @@ TargetStateClient.prototype.subscribeStatus = function (callback, immediate) {
 };
 
 TargetStateClient.prototype.status = function () {
-    return { ready: Boolean(this.target) && !this.pendingTarget,
-        loading: Boolean(this.pendingTarget), target: this.target,
+    return { ready: Boolean(this.target),
+        loading: Boolean(this.pendingTarget),
+        targetTransitionPending: Boolean(this.pendingTarget), target: this.target,
         error: this.error };
 };
 
@@ -98,27 +185,35 @@ TargetStateClient.prototype.notifyStatus = function () {
     this.statusSubscribers.slice().forEach(function (listener) { listener(status); });
 };
 
-TargetStateClient.prototype.handleBegin = function (args) {
-    this.snapshots[String(args[2])] = {
-        instanceId: String(args[3]), bankId: Number(args[4]),
-        expected: Number(args[5]), entries: [], invalid: false
-    };
-};
-
-TargetStateClient.prototype.handleEntry = function (args) {
-    var snapshot = this.snapshots[String(args[2])];
-    if (!snapshot || Number(args[3]) !== snapshot.entries.length) return;
-    snapshot.entries.push(this.decodeEntry(args[4], args.slice(5), snapshot.instanceId));
-};
-
-TargetStateClient.prototype.handleDone = function (args) {
+TargetStateClient.prototype.handleSnapshot = function (args) {
     var requestId = String(args[2]);
-    var snapshot = this.snapshots[requestId];
-    delete this.snapshots[requestId];
+    var entryCount = Number(args[5]);
+    var entrySize = 6;
+    var snapshot = {
+        instanceId: String(args[3]), bankId: Number(args[4]) - 1,
+        expected: entryCount, entries: []
+    };
+    if (!isFinite(entryCount) || entryCount < 0 ||
+            args.length !== 6 + entryCount * entrySize) {
+        snapshot.invalid = true;
+    }
+    for (var index = 0; !snapshot.invalid && index < entryCount; index += 1) {
+        var offset = 6 + index * entrySize;
+        snapshot.entries.push(this.decodeEntry(
+            args[offset],
+            [args[offset + 1], "ready"].concat(args.slice(offset + 2, offset + entrySize)),
+            snapshot.instanceId));
+    }
     var current = snapshot && this.pendingTarget &&
-        snapshot.instanceId === this.pendingTarget.instanceId &&
-        snapshot.bankId === this.pendingTarget.bankId;
-    if (!snapshot || snapshot.entries.length !== snapshot.expected) {
+        this.pendingTarget.requestId === requestId &&
+        this.pendingTarget.generation === this.generation;
+    if (snapshot.invalid || snapshot.entries.length !== snapshot.expected) {
+        if (current) {
+            this.pendingTarget = null;
+            this.error = "malformed_target_state";
+            this.notifyStatus();
+            this.completeTargetTransition(this.generation);
+        }
         this.protocol.complete(requestId, { error: "malformed_target_state" });
         return;
     }
@@ -129,17 +224,24 @@ TargetStateClient.prototype.handleDone = function (args) {
     this.target = { instanceId: snapshot.instanceId, bankId: snapshot.bankId };
     this.pendingTarget = null;
     this.error = null;
-    this.cache = {};
+    var nextCache = {};
     this.applyingSnapshot = true;
     try {
         snapshot.entries.forEach(function (entry) {
-            this.cache[entry.path] = entry;
+            nextCache[entry.path] = entry;
+        }, this);
+        this.cache = nextCache;
+        snapshot.entries.forEach(function (entry) {
             this.notify(entry);
         }, this);
+        this.notifyStatus();
     } finally {
         this.applyingSnapshot = false;
     }
-    this.notifyStatus();
+    this.targetSnapshotCompletedListeners.slice().forEach(function (listener) {
+        listener();
+    });
+    this.completeTargetTransition(this.generation);
     this.protocol.complete(requestId, { entries: snapshot.entries, error: null });
 };
 
@@ -148,6 +250,58 @@ TargetStateClient.prototype.handleChanged = function (args) {
     var entry = this.decodeEntry(args[1], args.slice(2), this.target.instanceId);
     this.cache[entry.path] = entry;
     this.notify(entry);
+};
+
+TargetStateClient.prototype.handleBatchBegin = function (args) {
+    if (!args || args.length < 3) {
+        this.pendingBatch = null;
+        return;
+    }
+    this.pendingBatch = {
+        revision: String(args[1]),
+        expected: Number(args[2]),
+        entries: [],
+        invalid: false
+    };
+    this.batchBeginListeners.slice().forEach(function (listener) {
+        listener();
+    });
+};
+
+TargetStateClient.prototype.handleBatchEntry = function (args) {
+    var batch = this.pendingBatch;
+    if (!batch || args.length < 4 || String(args[1]) !== batch.revision ||
+            batch.entries.length >= batch.expected) {
+        if (batch) batch.invalid = true;
+        return;
+    }
+    batch.entries.push(this.decodeEntry(args[2], args.slice(3),
+        this.target && this.target.instanceId));
+};
+
+TargetStateClient.prototype.handleBatchDone = function (args) {
+    var batch = this.pendingBatch;
+    this.pendingBatch = null;
+    if (!batch || !args || args.length < 2 ||
+            String(args[1]) !== batch.revision ||
+            batch.entries.length !== batch.expected || batch.invalid) {
+        this.batchCompletedListeners.slice().forEach(function (listener) {
+            listener();
+        });
+        return;
+    }
+    this.applyingSnapshot = true;
+    try {
+        batch.entries.forEach(function (entry) {
+            this.cache[entry.path] = entry;
+            this.notify(entry);
+        }, this);
+    } finally {
+        this.applyingSnapshot = false;
+    }
+    this.batchCompletedListeners.slice().forEach(function (listener) {
+        listener();
+    });
 };
 
 TargetStateClient.prototype.decodeEntry = function (path, values, instanceId) {
@@ -170,5 +324,10 @@ TargetStateClient.prototype.destroy = function () {
     this.cache = {};
     this.subscribers = {};
     this.statusSubscribers = [];
-    this.snapshots = {};
+    this.pendingBatch = null;
+    this.targetTransitionBeginListeners = [];
+    this.targetTransitionDoneListeners = [];
+    this.targetSnapshotCompletedListeners = [];
+    this.batchBeginListeners = [];
+    this.batchCompletedListeners = [];
 };

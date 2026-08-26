@@ -43,31 +43,22 @@ internal sealed class CommandResponseEncoder
         ulong requestId,
         TargetStateSnapshotResult snapshot)
     {
-        var outputs = new List<ProtocolOutput>
-        {
-            Output(target, "target_state_begin", Header(target, requestId)
-                .Concat([Symbol(snapshot.InstanceId.ToString()), Integer(snapshot.BankId + 1), Integer(snapshot.Values.Count)])
-                .ToArray())
-        };
+        var atoms = new List<Atom>(6 + snapshot.Values.Count * 6);
+        atoms.AddRange(Header(target, requestId));
+        atoms.Add(Symbol(snapshot.InstanceId.ToString()));
+        atoms.Add(Integer(snapshot.BankId + 1));
+        atoms.Add(Integer(snapshot.Values.Count));
         for (var index = 0; index < snapshot.Values.Count; index++)
         {
             var value = snapshot.Values[index];
-            outputs.Add(Output(target, "target_state_entry", Header(target, requestId)
-                .Concat([
-                    Integer(index),
-                    Symbol(StatePathEncoder.Encode(value.Path, snapshot.BankId)),
-                    ProtocolAtomEncoder.EncodeValue(value.Value),
-                    Symbol("ready"),
-                    Optional(value.PhysicalRange?.Minimum),
-                    Optional(value.PhysicalRange?.Maximum),
-                    Optional(value.EffectiveRange?.Minimum),
-                    Optional(value.EffectiveRange?.Maximum)
-                ]).ToArray()));
+            atoms.Add(Symbol(StatePathEncoder.Encode(value.Path, snapshot.BankId)));
+            atoms.Add(ProtocolAtomEncoder.EncodeValue(value.Value));
+            atoms.Add(Optional(value.PhysicalRange?.Minimum));
+            atoms.Add(Optional(value.PhysicalRange?.Maximum));
+            atoms.Add(Optional(value.EffectiveRange?.Minimum));
+            atoms.Add(Optional(value.EffectiveRange?.Maximum));
         }
-        outputs.Add(Output(target, "target_state_done", Header(target, requestId)
-            .Concat([Symbol(snapshot.InstanceId.ToString()), Integer(snapshot.BankId + 1), Integer(snapshot.Values.Count)])
-            .ToArray()));
-        return outputs;
+        return [Output(target, "target_state_snapshot", atoms)];
     }
 
     private static IReadOnlyList<ProtocolOutput> EncodeRegistry(
@@ -88,7 +79,7 @@ internal sealed class CommandResponseEncoder
             foreach (var bank in instance.Banks)
             {
                 outputs.Add(Output(target, "registry_bank", Header(target, requestId)
-                    .Concat([Symbol(instance.InstanceId.ToString()), Integer(bank.BankId + 1),
+                    .Concat([Symbol(instance.InstanceId.ToString()), Integer(bank.BankId),
                         bank.GroupId is { } group ? Integer(group) : Symbol("none")]).ToArray()));
             }
         }
@@ -99,7 +90,7 @@ internal sealed class CommandResponseEncoder
             foreach (var member in group.Members)
             {
                 outputs.Add(Output(target, "registry_member", Header(target, requestId)
-                    .Concat([Integer(group.GroupId), Symbol(member.InstanceId.ToString()), Integer(member.BankId + 1)])
+                    .Concat([Integer(group.GroupId), Symbol(member.InstanceId.ToString()), Integer(member.BankId)])
                     .ToArray()));
             }
         }
@@ -112,7 +103,7 @@ internal sealed class CommandResponseEncoder
         [Integer(1), Symbol(source.ToString()), Symbol(requestId.ToString())];
 
     private static ProtocolOutput Output(ulong target, string selector, IReadOnlyList<Atom> atoms) =>
-        new([target], selector, atoms);
+        new([target], selector, atoms, DeliverySemantics.Lossless);
 
     private static Atom Optional(float? value) => value is { } number
         ? new Atom(AtomType.Float, 0, number, null)

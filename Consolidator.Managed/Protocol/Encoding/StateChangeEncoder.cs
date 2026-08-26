@@ -16,19 +16,22 @@ internal static class StateChangeEncoder
         ArgumentNullException.ThrowIfNull(change);
         ArgumentNullException.ThrowIfNull(targetInstanceIds);
 
+        var path = StatePathEncoder.Encode(change.Path, bankId);
         return new ProtocolOutput(
             targetInstanceIds,
             "state_changed",
             [
                 new Atom(AtomType.Integer, 1, 0, null),
-                new Atom(AtomType.Symbol, 0, 0, StatePathEncoder.Encode(change.Path, bankId)),
+                new Atom(AtomType.Symbol, 0, 0, path),
                 ProtocolAtomEncoder.EncodeValue(change.CurrentValue),
                 new Atom(AtomType.Symbol, 0, 0, "ready"),
                 Optional(metadata.PhysicalRange?.Minimum),
                 Optional(metadata.PhysicalRange?.Maximum),
                 Optional(effectiveRange?.Minimum),
                 Optional(effectiveRange?.Maximum)
-            ]);
+            ],
+            DeliverySemantics.CoalescedPresentation,
+            path);
     }
 
     private static Atom Optional(float? value) => value is { } number

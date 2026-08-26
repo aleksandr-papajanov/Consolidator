@@ -36,6 +36,9 @@ public static unsafe class NativeApi
 
     private static FftAnalyzer FftAnalyzer =>
         ManagedServices.Provider.GetRequiredService<FftAnalyzer>();
+
+    private static InstanceActivityCoordinator ActivityCoordinator =>
+        ManagedServices.Provider.GetRequiredService<InstanceActivityCoordinator>();
     private static readonly ConcurrentDictionary<ulong, GCHandle>
         AudioInputHandles = new();
     private static long _audioBoundaryExceptionCount;
@@ -152,6 +155,7 @@ public static unsafe class NativeApi
                     + $"the audio input handle for instance {instanceId.Value}.");
                 handle.Free();
                 handle = default;
+                ActivityCoordinator.Unregister(instanceId.Value);
                 OutputRegistry.Unregister(instanceId.Value);
                 LifecycleService.UnregisterInstance(instanceId);
                 return 0;
@@ -176,6 +180,7 @@ public static unsafe class NativeApi
             {
                 if (instanceId.IsValid)
                 {
+                    ActivityCoordinator.Unregister(instanceId.Value);
                     OutputRegistry.Unregister(instanceId.Value);
                     LifecycleService.UnregisterInstance(instanceId);
                 }
@@ -212,6 +217,7 @@ public static unsafe class NativeApi
         {
             ReportPendingAudioBoundaryExceptions();
             ProtocolService.CancelInstance(instanceId);
+            ActivityCoordinator.Unregister(instanceId);
             OutputRegistry.Unregister(instanceId);
             LifecycleService.UnregisterInstance(new InstanceId(instanceId));
 

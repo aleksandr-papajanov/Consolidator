@@ -23,11 +23,12 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
 
     private readonly AnalyzerRegistry _registry;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<InstanceId, BankAddress?> _focusedBanks = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<InstanceId, BankAddress> _pendingCurveBanks = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<InstanceId, Preparation> _preparations = new();
     private ulong _activeViewerId;
     private ulong _activeSourceId;
     private readonly StateTopologyObserver _topologyObserver;
-    private readonly IProtocolTransport _transport;
+    private readonly IPresentationTransport _transport;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _worker;
     private readonly double[] _window = CreateWindow();
@@ -35,7 +36,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
 
     internal FftAnalyzer(
         StateTopologyObserver topology,
-        IProtocolTransport transport,
+        IPresentationTransport transport,
         AnalyzerRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(topology);
@@ -78,7 +79,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         var focusedBank = GetFocusedBank(Volatile.Read(ref _activeViewerId));
         if (focusedBank is { } bank && bank.InstanceId == instanceId)
         {
-            PublishAllCurvePresentations(bank.InstanceId, bank.BankIndex);
+            RequestCurvePresentation(bank);
         }
     }
 
@@ -88,7 +89,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
             _focusedBanks.TryGetValue(instanceId, out var focusedBank) &&
             focusedBank is { } bank)
         {
-            PublishAllCurvePresentations(bank.InstanceId, bank.BankIndex);
+            RequestCurvePresentation(bank);
         }
     }
 
@@ -113,9 +114,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
             if (focusedBank is { } bank)
             {
                 PrepareCapture(bank.InstanceId);
-                PublishAllCurvePresentations(
-                    bank.InstanceId,
-                    bank.BankIndex);
+                RequestCurvePresentation(bank);
             }
             return;
         }
@@ -196,6 +195,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
                 StopCapture(previousFocusedBank, null);
             }
             _preparations.TryRemove(instanceId, out _);
+            _pendingCurveBanks.TryRemove(instanceId, out _);
             return;
         }
 
@@ -207,19 +207,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
                 focusedBank.Value.InstanceId.Value);
             StopCapture(previousFocusedBank, focusedBank);
             PrepareCapture(focusedBank.Value.InstanceId);
-            if (previousFocusedBank?.InstanceId == focusedBank.Value.InstanceId)
-            {
-                PublishCurvePresentation(
-                    focusedBank.Value.InstanceId,
-                    focusedBank.Value.BankIndex,
-                    AnalyzerRegistry.CurveKind.Equalizer);
-            }
-            else
-            {
-                PublishAllCurvePresentations(
-                    focusedBank.Value.InstanceId,
-                    focusedBank.Value.BankIndex);
-            }
+            RequestCurvePresentation(focusedBank.Value);
         }
     }
 
@@ -228,7 +216,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         int bankIndex,
         AnalyzerRegistry.CurveKind kind)
     {
-        PublishCurvePresentation(instanceId, bankIndex, kind);
+        RequestCurvePresentation(new BankAddress(instanceId, bankIndex));
     }
 
     private void PublishAllCurvePresentations(InstanceId instanceId, int bankIndex)
@@ -253,7 +241,8 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         _transport.Send(new ProtocolOutput(
             [targetId],
             GetCurveSelector(kind),
-            CreateEqualizerCurveAtoms(curves)));
+            CreateEqualizerCurveAtoms(curves),
+            DeliverySemantics.LatestAnalysis));
         RuntimeMetrics.Shared.ForInstance(sourceInstanceId.Value)
             .RecordCurveFrame();
     }
@@ -319,6 +308,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
                 _registry.ProcessDirtyBanks(
                     CurveUpdatesPerInterval,
                     HasCurveRecipient);
+                ProcessPendingCurvePresentations();
                 lastCurveProcessing = timestamp;
             }
 
@@ -331,6 +321,38 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
             }
 
             await Task.Delay(15, _cancellation.Token);
+        }
+    }
+
+    private void RequestCurvePresentation(BankAddress bank)
+    {
+        if (GetCurveRecipient(
+                bank.InstanceId,
+                bank.BankIndex,
+                AnalyzerRegistry.CurveKind.Equalizer) == 0 &&
+            GetCurveRecipient(
+                bank.InstanceId,
+                bank.BankIndex,
+                AnalyzerRegistry.CurveKind.CompressorDetector) == 0 &&
+            GetCurveRecipient(
+                bank.InstanceId,
+                bank.BankIndex,
+                AnalyzerRegistry.CurveKind.SaturatorDetector) == 0)
+        {
+            return;
+        }
+        _pendingCurveBanks[bank.InstanceId] = bank;
+    }
+
+    private void ProcessPendingCurvePresentations()
+    {
+        foreach (var pair in _pendingCurveBanks.ToArray())
+        {
+            if (!_pendingCurveBanks.TryRemove(pair.Key, out var bank))
+            {
+                continue;
+            }
+            PublishAllCurvePresentations(bank.InstanceId, bank.BankIndex);
         }
     }
 
@@ -433,7 +455,11 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
             atoms.Add(new Atom(AtomType.Float, 0, referenceSpectrum[index], null));
         }
 
-        _transport.Send(new ProtocolOutput([targetId], "fft", atoms));
+        _transport.Send(new ProtocolOutput(
+            [targetId],
+            "fft",
+            atoms,
+            DeliverySemantics.LatestAnalysis));
         RuntimeMetrics.Shared.ForInstance(sourceInstanceId.Value)
             .RecordFftFrame();
     }

@@ -5,6 +5,8 @@ function ControlBinding(presenter, sendMessage) {
     this.destroyed = false;
     this.presentationActive = true;
     this.pendingPresentation = null;
+    this.batchSuspended = false;
+    this.hasPresentation = false;
 }
 
 ControlBinding.prototype.connectPresentation = function () {
@@ -17,12 +19,29 @@ ControlBinding.prototype.connectPresentation = function () {
     }, true));
 };
 
+ControlBinding.prototype.suspend = function () {
+    if (!this.destroyed) {
+        this.batchSuspended = true;
+    }
+};
+
+ControlBinding.prototype.resumeLatest = function () {
+    if (this.destroyed) {
+        return;
+    }
+    this.batchSuspended = false;
+    if (this.presentationActive) {
+        this.refreshPresentation();
+    }
+};
+
 ControlBinding.prototype.receivePresentation = function (presentation) {
-    if (!this.presentationActive) {
+    if (!this.presentationActive || this.batchSuspended) {
         this.pendingPresentation = presentation;
         return;
     }
     this.applyPresentation(presentation);
+    this.hasPresentation = true;
 };
 
 ControlBinding.prototype.setPresentationActive = function (active) {
@@ -40,6 +59,7 @@ ControlBinding.prototype.refreshPresentation = function () {
     var presentation = this.pendingPresentation ||
         (this.presenter && this.presenter.presentation);
     this.pendingPresentation = null;
+    this.hasPresentation = false;
     if (presentation) {
         this.applyPresentation(presentation);
     }

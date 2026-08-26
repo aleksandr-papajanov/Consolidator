@@ -71,6 +71,10 @@ public static class ManagedServices
         services.AddSingleton<NativeOutputService>();
         services.AddSingleton<IProtocolTransport>(serviceProvider =>
             serviceProvider.GetRequiredService<NativeOutputService>());
+        services.AddSingleton<PresentationOutputGate>();
+        services.AddSingleton<IPresentationTransport>(serviceProvider =>
+            serviceProvider.GetRequiredService<PresentationOutputGate>());
+        services.AddSingleton<InstanceActivityCoordinator>();
         services.AddSingleton<IProtocolOutputRegistry>(serviceProvider =>
             serviceProvider.GetRequiredService<NativeOutputService>());
         services.AddSingleton<IOperationGate, OperationGate>();
@@ -144,7 +148,7 @@ public static class ManagedServices
         services.AddCommandEndpoint<JumpToHistoryCommand, CommandAcknowledgement>("jump_history", "action_done");
         services.AddCommandEndpoint<ReadRegistryCommand, RegistrySnapshotResult>("registry", "registry_done");
         services.AddCommandEndpoint<InitializeUiCommand, UiInitializationResult>("initialize", "initialized");
-        services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_done");
+        services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_snapshot");
         services.AddCommandEndpoint<SetInstanceActiveCommand, CommandAcknowledgement>("set_instance_active", "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>
@@ -172,7 +176,7 @@ public static class ManagedServices
         services.AddSingleton<FftAnalyzer>(serviceProvider =>
             new FftAnalyzer(
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
-                serviceProvider.GetRequiredService<IProtocolTransport>(),
+                serviceProvider.GetRequiredService<IPresentationTransport>(),
                 serviceProvider.GetRequiredService<AnalyzerRegistry>()));
         services.AddSingleton<IInstanceAudioInputService>(serviceProvider =>
             serviceProvider.GetRequiredService<FftAnalyzer>());

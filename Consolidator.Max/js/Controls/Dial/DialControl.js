@@ -29,6 +29,7 @@ function DialControl() {
     this.dragging = false;
     this.dragIndex = 0;
     this.lastY = 0;
+    this.presentationBatch = false;
 }
 
 DialControl.prototype.applyPresentation = function (presentation) {
@@ -46,7 +47,21 @@ DialControl.prototype.applyPresentation = function (presentation) {
         this.dragging = false;
         this.previewValues = [];
     }
+    this.requestRedraw();
+};
+
+DialControl.prototype.beginPresentation = function () {
+    this.presentationBatch = true;
+};
+
+DialControl.prototype.endPresentation = function () {
+    if (!this.presentationBatch) return;
+    this.presentationBatch = false;
     mgraphics.redraw();
+};
+
+DialControl.prototype.requestRedraw = function () {
+    if (!this.presentationBatch) mgraphics.redraw();
 };
 
 DialControl.prototype.setPresentationValue = function (index, value) {
@@ -56,7 +71,7 @@ DialControl.prototype.setPresentationValue = function (index, value) {
     if (!this.dragging || this.dragIndex !== index) {
         delete this.previewValues[index];
     }
-    mgraphics.redraw();
+    this.requestRedraw();
 };
 
 DialControl.prototype.setRingCount = function (count) {
@@ -76,7 +91,7 @@ DialControl.prototype.setRingCount = function (count) {
     }
     this.presentation.rings.length = count;
     this.previewValues.length = count;
-    mgraphics.redraw();
+    this.requestRedraw();
 };
 
 DialControl.prototype.setPresentationLimits = function (index, minimum, maximum) {
@@ -84,7 +99,7 @@ DialControl.prototype.setPresentationLimits = function (index, minimum, maximum)
     if (!ring) return;
     ring.minimum = Number(minimum);
     ring.maximum = Number(maximum);
-    mgraphics.redraw();
+    this.requestRedraw();
 };
 
 DialControl.prototype.clamp = function (value, minimum, maximum) {
@@ -106,7 +121,7 @@ DialControl.prototype.setValue = function (index, value, output) {
         ? ring.value : this.previewValues[index];
     if (Math.abs(next - currentValue) < 0.0000001) return;
     this.previewValues[index] = next;
-    mgraphics.redraw();
+    this.requestRedraw();
     if (output) this.emit("valueChanged", [index, next]);
 };
 
@@ -237,7 +252,7 @@ DialControl.prototype.endGesture = function () {
 DialControl.prototype.rejectTransaction = function () {
     this.dragging = false;
     this.previewValues = [];
-    mgraphics.redraw();
+    this.requestRedraw();
 };
 
 function applyPresentation(presentation) {
@@ -246,6 +261,14 @@ function applyPresentation(presentation) {
 
 function presentation(presentation) {
     applyPresentation(presentation);
+}
+
+function presentation_begin() {
+    dialControl.beginPresentation();
+}
+
+function presentation_end() {
+    dialControl.endPresentation();
 }
 
 function paint() {
@@ -290,22 +313,22 @@ function limits(index, minimum, maximum) {
 
 function enabled(value) {
     dialControl.presentation.enabled = Number(value) !== 0;
-    mgraphics.redraw();
+    dialControl.requestRedraw();
 }
 
 function active(value) {
     dialControl.presentation.active = Number(value) !== 0;
-    mgraphics.redraw();
+    dialControl.requestRedraw();
 }
 
 function activeIndex(value) {
     dialControl.presentation.activeIndex = Number(value);
-    mgraphics.redraw();
+    dialControl.requestRedraw();
 }
 
 function displayIndex(value) {
     dialControl.presentation.displayIndex = Number(value);
-    mgraphics.redraw();
+    dialControl.requestRedraw();
 }
 
 function ringCount(value) {

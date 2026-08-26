@@ -170,10 +170,14 @@ function testRegistryDeltaUpdatesOnlyTheAffectedRow() {
     groups: [],
   };
   var viewModel = new BankManagerViewModel(registry, "1");
+  viewModel.applyRegistrySnapshot(registry.snapshot);
   var firstRow = viewModel.rows[0];
   var secondRow = viewModel.rows[1];
 
-  registry.handleDelta("registry_label_changed", [1, 3, 4, "2", "Renamed"]);
+  viewModel.applyRegistryUpdate(registry.snapshot, {
+    selector: "registry_label_changed",
+    args: [1, 3, 4, "2", "Renamed"],
+  });
 
   assert.strictEqual(viewModel.rows[0], firstRow);
   assert.strictEqual(viewModel.rows[1], secondRow);
@@ -247,10 +251,23 @@ function testStateClientAddressesRemoteTopologyWrites() {
     1,
     "entry",
     "bank",
-    3,
+    4,
     "group",
     "value",
     5,
+  ]);
+}
+function testStateClientEncodesZeroBasedBankPath() {
+  var sent = [];
+  var protocol = new NativeProtocolClient("ui.main", function (frame) {
+    sent.push(frame);
+  });
+  var state = new StateClient(protocol);
+
+  state.setFor("7", "bank.0.group", 5);
+
+  assert.deepStrictEqual(sent[0].slice(7, 12), [
+    "entry", "bank", 1, "group", "value",
   ]);
 }
 function testBankManagerUsesRegistryAndLocalInstance() {
@@ -473,6 +490,7 @@ testRegistryUsesNativeDeliveryIdentity();
 testRegistryBroadcastRequiresProtocolVersion();
 testRegistryErrorClearsFetchState();
 testStateClientAddressesRemoteTopologyWrites();
+testStateClientEncodesZeroBasedBankPath();
 testBankManagerUsesRegistryAndLocalInstance();
 testBankManagerOffersEmptyEditableGroups();
 testBankManagerKeepsOneFocusedBankAcrossInstances();

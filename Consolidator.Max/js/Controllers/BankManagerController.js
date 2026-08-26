@@ -105,7 +105,7 @@ BankManagerController.prototype.clearLocalGroups = function () {
     }
     this.disarmClearConfirmation();
     var entries = [];
-    for (var bankId = 1; bankId <= 7; bankId += 1) {
+    for (var bankId = 0; bankId < 7; bankId += 1) {
         entries.push({ path: "bank." + bankId + ".group", value: null });
     }
     this.context.state.setManyFor(this.context.instanceId, entries);

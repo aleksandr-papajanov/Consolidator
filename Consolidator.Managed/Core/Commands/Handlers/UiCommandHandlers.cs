@@ -4,7 +4,7 @@ using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Analyzer;
+using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
@@ -27,13 +27,16 @@ internal sealed class ObserveTargetCommandHandler
 {
     private readonly InstanceRegistry _registry;
     private readonly TargetStateProjector _projector;
+    private readonly IPresentationTransport _presentation;
 
     public ObserveTargetCommandHandler(
         InstanceRegistry registry,
-        TargetStateProjector projector)
+        TargetStateProjector projector,
+        IPresentationTransport presentation)
     {
         _registry = registry;
         _projector = projector;
+        _presentation = presentation;
     }
 
     public override ValueTask<TargetStateSnapshotResult> HandleAsync(
@@ -54,6 +57,10 @@ internal sealed class ObserveTargetCommandHandler
         context.State.Instance.FocusedBank = new BankAddress(
             command.TargetInstanceId,
             (int)command.BankId);
+        _presentation.SetObservedTarget(
+            context.InstanceId.Value,
+            command.TargetInstanceId.Value,
+            (int)command.BankId);
         return ValueTask.FromResult(
             _projector.Project(target.State, command.BankId));
     }
@@ -62,11 +69,11 @@ internal sealed class ObserveTargetCommandHandler
 internal sealed class SetInstanceActiveCommandHandler
     : CommandHandler<SetInstanceActiveCommand, CommandAcknowledgement>
 {
-    private readonly FftAnalyzer _analyzer;
+    private readonly InstanceActivityCoordinator _activity;
 
-    public SetInstanceActiveCommandHandler(FftAnalyzer analyzer)
+    public SetInstanceActiveCommandHandler(InstanceActivityCoordinator activity)
     {
-        _analyzer = analyzer;
+        _activity = activity;
     }
 
     public override ValueTask<CommandAcknowledgement> HandleAsync(
@@ -75,7 +82,7 @@ internal sealed class SetInstanceActiveCommandHandler
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _analyzer.SetInstanceActive(context.InstanceId, command.Active);
+        _activity.SetInstanceActive(context.InstanceId, command.Active);
         return ValueTask.FromResult(new CommandAcknowledgement());
     }
 }

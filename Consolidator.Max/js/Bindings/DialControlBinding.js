@@ -14,6 +14,19 @@ DialControlBinding.prototype = Object.create(ControlBinding.prototype);
 DialControlBinding.prototype.constructor = DialControlBinding;
 
 DialControlBinding.prototype.applyPresentation = function (presentation) {
+    if (this.hasPresentation && !this.requiresFullPresentation(presentation)) {
+        this.send("presentation_begin");
+        (presentation.rings || []).forEach(function (ring, index) {
+            var previous = this.presentation.rings[index];
+            if (previous.value !== ring.value) {
+                this.send("set", [index, ring.value]);
+            }
+        }, this);
+        this.send("presentation_end");
+        this.presentation = presentation;
+        return;
+    }
+    this.send("presentation_begin");
     this.send("enabled", [presentation.enabled ? 1 : 0]);
     this.send("active", [presentation.active ? 1 : 0]);
     this.send("activeIndex", [presentation.activeIndex || 0]);
@@ -23,6 +36,35 @@ DialControlBinding.prototype.applyPresentation = function (presentation) {
         this.send("limits", [index, ring.minimum, ring.maximum]);
         this.send("set", [index, ring.value]);
     }, this);
+    this.send("presentation_end");
+    this.presentation = presentation;
+    this.hasPresentation = true;
+};
+
+DialControlBinding.prototype.requiresFullPresentation = function (presentation) {
+    var previous = this.presentation || {};
+    if (Boolean(previous.enabled) !== Boolean(presentation.enabled) ||
+            Boolean(previous.active) !== Boolean(presentation.active) ||
+            Number(previous.activeIndex) !== Number(presentation.activeIndex) ||
+            Number(previous.displayIndex) !== Number(presentation.displayIndex)) {
+        return true;
+    }
+    var previousRings = previous.rings || [];
+    var rings = presentation.rings || [];
+    if (previousRings.length !== rings.length) return true;
+    for (var index = 0; index < rings.length; index += 1) {
+        if (previousRings[index].minimum !== rings[index].minimum ||
+                previousRings[index].maximum !== rings[index].maximum ||
+                JSON.stringify(previousRings[index].visualization) !==
+                    JSON.stringify(rings[index].visualization) ||
+                JSON.stringify(previousRings[index].color) !==
+                    JSON.stringify(rings[index].color) ||
+                JSON.stringify(previousRings[index].display) !==
+                    JSON.stringify(rings[index].display)) {
+            return true;
+        }
+    }
+    return false;
 };
 
 DialControlBinding.prototype.handleIntent = function (name, values) {

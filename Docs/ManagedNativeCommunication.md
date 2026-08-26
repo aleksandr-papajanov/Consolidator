@@ -65,10 +65,27 @@ before capture lookup or audio copying. The analyzer worker processes at most
 one FFT window per 33 ms. Equalizer curve invalidation remains a control-side
 update; publication is limited to the active viewer and has its own budget.
 
-The Max client applies `target_state_begin/entry/done` as one presentation
-batch. Entry values update their view models silently while the snapshot is
-being assembled; the final ready-status transition publishes the complete new
-target once, without intermediate per-entry control renders.
+The Max client treats each `target_state_snapshot` as one target transition.
+Bindings are suspended before `observe_target` is sent. The client assembles
+the complete frame outside its presentation cache, replaces that cache once,
+and then resumes bindings with the latest presentation. State value view models
+keep the previous target while the request is pending, so loading is exposed as
+one target-level transition rather than repeated per-value state changes.
+Responses are correlated by generation/request ID; a stale response cannot
+resume bindings or replace the current target. A successful snapshot implies
+`ready` for all entries, and an error applies to the snapshot as a whole.
+
+The snapshot frame is:
+
+```text
+target_state_snapshot 1 source requestId instanceId bankId entryCount
+    path value physicalMin physicalMax effectiveMin effectiveMax × entryCount
+```
+
+Curve presentation refreshes are queued as latest-only analyzer work. Changing
+the focused bank updates the active source and capture demand, then returns;
+curve calculation and publication happen on the analyzer worker and never delay
+the target snapshot.
 During a local dial gesture, the control renders its local preview until the
 gesture ends. Authoritative `state_changed` presentations continue updating the
 stored value but do not replace the value currently under the pointer.
@@ -153,16 +170,39 @@ The managed registry stores per-instance `ManagedInstance` records. Each
 `ManagedInstance` owns its `ManagedState`, DSP publisher and command gate. The
 same instance ID is the delivery identity for that external's control output;
 there is no separate UI session.
-Output remains globally routed by `NativeOutputService`, exposed as
-`IProtocolTransport` to Protocol and `IProtocolOutputRegistry` to Native API.
+`NativeOutputService` remains the direct output transport for protocol responses
+and the callback registry. Presentation publishers use a separate
+`PresentationOutputGate`: it keeps per-instance active state, observed target,
+and pending coalesced presentation entries. Active instances receive entries
+immediately; inactive instances retain only the latest
+`CoalescedPresentation` entry for each recipient and delivery key. Lossless
+outputs and `LatestAnalysis` outputs continue directly through the gate.
+Activation flushes pending state entries through `NativeOutputService`.
+The flush uses `state_batch_begin`, `state_batch_entry` and `state_batch_done`
+with one entry per coalesced path, sorted by encoded path, so the receiver can
+apply the activation projection as one batch rather than a redraw series.
+Unregistration removes the gate state before the native callback is removed.
 Presentation publishers provide explicit recipient sets for each operation.
 Targeted state writes and resets publish DSP snapshots only to their affected
 instance IDs. Registry deltas and history notifications are sent only to
 instances that have requested a registry snapshot and are therefore registered
-as registry observers. State notifications use topology-resolved focused
+as registry observers. The Max registry client requests a snapshot and keeps a
+registry observer only while its UI instance is active; deactivation removes
+that demand, so inactive UIs neither fetch nor accumulate registry deltas.
+Activation performs one current snapshot fetch before resuming delta delivery.
+State notifications use topology-resolved focused
 observers; equalizer curves use observers of the exact `(instance, bank)`; FFT
 frames return the selected source to the active viewer. A singleton
 service does not imply broadcast delivery.
+
+Runtime metrics expose `presentation_coalesced`, current
+`presentation_pending_paths`, `presentation_flush_batches`,
+`presentation_flush_entries`, `presentation_active_deliveries`, and
+`presentation_max_pending_paths`. `native_control_frames` reports the number
+of Managed native input frames and is the before/after comparison point for
+grouped edits. With fourteen devices and one active recipient, a grouped drag
+should produce one active `state_changed` delivery while the other paths remain
+coalesced in Managed pending maps.
 
 ## Native to Managed: Incoming Messages
 

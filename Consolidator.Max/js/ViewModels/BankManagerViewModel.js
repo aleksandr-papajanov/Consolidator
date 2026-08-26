@@ -62,9 +62,32 @@ function BankManagerViewModel(registryClient, localInstanceId) {
     this.editAction = { enabled: false, active: false };
     this.clearAction = { enabled: false, armed: false };
     this.listeners = [];
-    this.unsubscribeRegistry = registryClient.subscribe(
-        this.applyRegistryUpdate.bind(this), true);
+    this.unsubscribeRegistry = null;
+    this.registryActive = false;
 }
+
+BankManagerViewModel.prototype.setRegistryActive = function (active, callback) {
+    var next = Boolean(active);
+    if (this.registryActive === next) {
+        if (next && callback) callback(this.registryClient.get(), { error: null });
+        return;
+    }
+    this.registryActive = next;
+    if (this.unsubscribeRegistry) {
+        this.unsubscribeRegistry();
+        this.unsubscribeRegistry = null;
+    }
+    if (!next) {
+        if (callback) callback(null, { error: null });
+        return;
+    }
+    var self = this;
+    this.unsubscribeRegistry = this.registryClient.subscribe(
+        function (snapshot, delta) {
+            self.applyRegistryUpdate(snapshot, delta);
+        }, true);
+    this.registryClient.fetch(callback);
+};
 
 BankManagerViewModel.prototype.applyRegistryUpdate = function (snapshot, delta) {
     if (delta && this.applyRegistryDelta(snapshot, delta)) return;

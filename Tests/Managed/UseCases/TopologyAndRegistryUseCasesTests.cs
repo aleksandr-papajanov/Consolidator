@@ -74,19 +74,14 @@ public sealed class TopologyAndRegistryUseCasesTests
             Symbol(target.InstanceId.Value.ToString()),
             Integer(3));
 
-        var begin = source.Output.Single("target_state_begin");
-        var done = source.Output.Single("target_state_done");
-        var entries = source.Output.Messages
-            .Where(message => message.Selector == "target_state_entry")
-            .ToArray();
-        Assert.Equal(target.InstanceId.Value.ToString(), begin.Atoms[3].Symbol);
-        Assert.Equal(3, begin.Atoms[4].Integer);
-        Assert.NotEmpty(entries);
-        Assert.Equal(begin.Atoms[5].Integer, entries.Length);
-        Assert.Equal(begin.Atoms[5].Integer, done.Atoms[5].Integer);
+        var snapshot = source.Output.Single("target_state_snapshot");
+        var entryCount = snapshot.Atoms[5].Integer;
+        Assert.Equal(target.InstanceId.Value.ToString(), snapshot.Atoms[3].Symbol);
+        Assert.Equal(3, snapshot.Atoms[4].Integer);
+        Assert.True(entryCount > 0);
         Assert.Contains(
-            entries,
-            entry => entry.Atoms[4].Symbol == "equalizer.filter.1.gain");
+            Enumerable.Range(0, (int)entryCount),
+            index => snapshot.Atoms[6 + index * 6].Symbol == "equalizer.filter.1.gain");
     }
 
     private static void WriteGroup(

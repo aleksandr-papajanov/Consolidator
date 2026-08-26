@@ -27,6 +27,12 @@ public sealed class StateEditingUseCasesTests
     {
         using var application = new ManagedApplicationFixture();
         var instance = application.RegisterInstance();
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0));
+        application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
         var initialPublishCount = instance.Dsp.PublishCount;
 
@@ -45,7 +51,9 @@ public sealed class StateEditingUseCasesTests
         Assert.Equal(6.0F, instance.Dsp.Latest.Gain);
         Assert.True(instance.Dsp.PublishCount > initialPublishCount);
         Assert.Equal(1, instance.Output.Single("action_done").Atoms[^1].Integer);
-        var change = instance.Output.Single("state_changed");
+        var change = instance.Output.Messages
+            .Last(message => message.Selector == "state_changed" &&
+                message.Atoms[1].Symbol == "input_gain.gain");
         Assert.Equal("input_gain.gain", change.Atoms[1].Symbol);
         Assert.Equal(6.0, change.Atoms[2].Float);
 
@@ -82,6 +90,12 @@ public sealed class StateEditingUseCasesTests
     {
         using var application = new ManagedApplicationFixture();
         var instance = application.RegisterInstance();
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0));
+        application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
         var initial = instance.Dsp.Latest.Gain;
         var publishCount = instance.Dsp.PublishCount;
@@ -132,6 +146,12 @@ public sealed class StateEditingUseCasesTests
     {
         using var application = new ManagedApplicationFixture();
         var instance = application.RegisterInstance();
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0));
+        application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
 
         application.Send(
@@ -154,7 +174,7 @@ public sealed class StateEditingUseCasesTests
             TimeSpan.FromSeconds(1)));
         var messages = instance.Output.Messages.ToArray();
         Assert.Contains(messages, message => message.Selector == "action_done");
-        var change = Assert.Single(messages, message => message.Selector == "state_changed");
+        var change = messages.Last(message => message.Selector == "state_changed");
         Assert.Equal("compressor.detector.filter.1.gain", change.Atoms[1].Symbol);
         Assert.Equal(6.0, change.Atoms[2].Float);
     }
@@ -238,10 +258,11 @@ public sealed class StateEditingUseCasesTests
             Integer(7));
         var threshold = Assert.Single(
             second.Output.Messages,
-            message => message.Selector == "target_state_entry" &&
-                message.Atoms[4].Symbol == "compressor.threshold");
-        Assert.Equal(-97.0, threshold.Atoms[9].Float);
-        Assert.Equal(0.0, threshold.Atoms[10].Float);
+            message => message.Selector == "target_state_snapshot");
+        var thresholdIndex = Enumerable.Range(0, (int)threshold.Atoms[5].Integer)
+            .Single(index => threshold.Atoms[6 + index * 6].Symbol == "compressor.threshold");
+        Assert.Equal(-97.0, threshold.Atoms[10 + thresholdIndex * 6].Float);
+        Assert.Equal(0.0, threshold.Atoms[11 + thresholdIndex * 6].Float);
     }
 
     [Fact]
@@ -257,6 +278,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(source.InstanceId.Value.ToString()),
             Integer(1));
+        application.Send(source, "set_instance_active", Integer(1));
         application.Send(
             source,
             "write",
@@ -281,10 +303,11 @@ public sealed class StateEditingUseCasesTests
             message => message.Selector == "state_changed");
         Assert.Contains(
             source.Output.Messages,
-            message => message.Selector == "target_state_entry" &&
-                message.Atoms[4].Symbol == "compressor.threshold" &&
-                message.Atoms[9].Float == -97.0 &&
-                message.Atoms[10].Float == 0.0);
+            message => message.Selector == "target_state_snapshot" &&
+                Enumerable.Range(0, (int)message.Atoms[5].Integer).Any(index =>
+                    message.Atoms[6 + index * 6].Symbol == "compressor.threshold" &&
+                    message.Atoms[10 + index * 6].Float == -97.0 &&
+                    message.Atoms[11 + index * 6].Float == 0.0));
     }
 
     [Fact]
@@ -299,11 +322,13 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
             Integer(7));
+        application.Send(target, "set_instance_active", Integer(1));
         application.Send(
             localObserver,
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
             Integer(1));
+        application.Send(localObserver, "set_instance_active", Integer(1));
         target.Output.Clear();
         groupedPeer.Output.Clear();
         localObserver.Output.Clear();
@@ -448,6 +473,85 @@ public sealed class StateEditingUseCasesTests
             () => instance.Output.Messages.Any(message =>
                 message.Selector == "equalizer_curves" &&
                 message.Atoms[1].Integer == 0),
+            TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
+    public void MovingEqualizerMarkerPublishesAnUpdatedCurve()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(1));
+        application.Send(
+            instance,
+            "write",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(1),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("bypass"),
+            Symbol("value"),
+            Integer(0));
+        application.Send(
+            instance,
+            "write",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(1),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(6.0));
+        instance.Output.Clear();
+        application.Send(instance, "set_instance_active", Integer(1));
+
+        Assert.True(SpinWait.SpinUntil(
+            () => instance.Output.Messages.Any(message =>
+                message.Selector == "equalizer_curves"),
+            TimeSpan.FromSeconds(1)));
+        var initialCurve = instance.Output.Messages
+            .Last(message => message.Selector == "equalizer_curves")
+            .Atoms
+            .Select(atom => atom.Float)
+            .ToArray();
+        instance.Output.Clear();
+
+        application.Send(
+            instance,
+            "write",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(1),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("frequency"),
+            Symbol("value"),
+            Float(3000.0));
+
+        Assert.True(SpinWait.SpinUntil(
+            () => instance.Output.Messages
+                .Where(message => message.Selector == "equalizer_curves")
+                .Select(message => message.Atoms.Select(atom => atom.Float).ToArray())
+                .Any(curve => !curve.SequenceEqual(initialCurve)),
             TimeSpan.FromSeconds(1)));
     }
 

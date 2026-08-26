@@ -59,7 +59,19 @@ function ConsolidatorUiHost(source, sendNative, sendUi) {
         )
     );
     this.bindings = new ControlBindings();
-    this.bindings.setPresentationActive(false);
+    var self = this;
+    this.client.targetState.onTargetTransitionBegin(function () {
+        self.bindings.suspend();
+    });
+    this.client.targetState.onTargetTransitionDone(function () {
+        self.bindings.resumeLatest();
+    });
+    this.client.targetState.onBatchBegin(function () {
+        self.bindings.suspend();
+    });
+    this.client.targetState.onBatchCompleted(function () {
+        self.bindings.resumeLatest();
+    });
     this.registryInitialized = false;
     this.lifecycle = "created";
     this.instanceActive = false;
@@ -97,9 +109,6 @@ ConsolidatorUiHost.prototype.sendControlMessage = function (
     selector,
     args
 ) {
-    if (!this.instanceActive) {
-        return;
-    }
     this.sendUi([controlName, selector].concat(args || []));
 };
 
@@ -115,6 +124,7 @@ ConsolidatorUiHost.prototype.handleControl = function (selector, args) {
 
 ConsolidatorUiHost.prototype.setInstanceActive = function (active) {
     this.instanceActive = Boolean(active);
+    this.bankManagerViewModel.setRegistryActive(this.instanceActive);
     this.bindings.setPresentationActive(this.instanceActive);
     if (this.instanceId === undefined ||
             this.publishedInstanceActive === this.instanceActive) {
@@ -255,24 +265,27 @@ ConsolidatorUiHost.prototype.initialize = function (mapping, callback) {
                 self.trackName
             );
         }
-        self.client.registry.fetch(function (snapshot, response) {
-            if (response && response.error) {
-                self.registryInitialized = false;
-                self.lifecycle = "initialized";
-                if (callback) callback(response.error);
-                return;
-            }
-            var local = (snapshot.instances || []).filter(function (item) {
-                return String(item.instanceId) === String(self.instanceId);
-            })[0];
-            if (local) {
-                self.viewModel.show(self.instanceId, 1);
-                self.setInstanceActive(self.instanceActive);
-            }
+        var finishInitialization = function () {
+            self.viewModel.show(self.instanceId, 1);
+            self.setInstanceActive(self.instanceActive);
             self.registryInitialized = true;
             self.lifecycle = "initialized";
             if (callback) callback(null);
-        });
+        };
+        if (self.instanceActive) {
+            self.bankManagerViewModel.setRegistryActive(true, function (snapshot, response) {
+                if (response && response.error) {
+                    self.registryInitialized = false;
+                    self.lifecycle = "initialized";
+                    if (callback) callback(response.error);
+                    return;
+                }
+                finishInitialization();
+            });
+        }
+        else {
+            finishInitialization();
+        }
         self.viewModel.initialize(function (error) {
             if (error && callback) callback(error);
         });
