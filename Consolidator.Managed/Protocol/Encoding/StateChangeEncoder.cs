@@ -30,8 +30,7 @@ internal static class StateChangeEncoder
                 Optional(effectiveRange?.Minimum),
                 Optional(effectiveRange?.Maximum)
             ],
-            DeliverySemantics.CoalescedPresentation,
-            path);
+            DeliverySemantics.ActivePresentation);
     }
 
     private static Atom Optional(float? value) => value is { } number

@@ -45,7 +45,10 @@ NativeProtocolClient.prototype.handleControl = function (selector, args) {
     if (!args.length || Number(args[0]) !== PROTOCOL_VERSION) return;
     this.dispatch(selector, args);
     if (selector === "initialized") {
-        this.complete(String(args[2]), { instanceId: args[3], error: null });
+        this.complete(String(args[2]), {
+            instanceId: args[3],
+            error: null
+        });
     } else if (selector === "action_done") {
         this.complete(String(args[2]), {
             status: Number(args[3]) === 1 ? "accepted" : "rejected",

@@ -16,12 +16,8 @@ public sealed class RuntimeMetrics
     private long _controlOperationTicks;
     private long _registrySnapshots;
     private long _registryDeltas;
-    private long _presentationCoalesced;
-    private long _presentationPendingPaths;
-    private long _presentationFlushBatches;
-    private long _presentationFlushEntries;
     private long _presentationActiveDeliveries;
-    private long _presentationMaximumPendingPaths;
+    private long _presentationDiscarded;
 
     public void RecordNativeInput(long elapsedTicks)
     {
@@ -29,23 +25,11 @@ public sealed class RuntimeMetrics
         Interlocked.Add(ref _nativeInputTicks, elapsedTicks);
     }
 
-    public void RecordPresentationCoalesced() =>
-        Interlocked.Increment(ref _presentationCoalesced);
-
     public void RecordPresentationActiveDelivery() =>
         Interlocked.Increment(ref _presentationActiveDeliveries);
 
-    public void RecordPresentationFlush(int entryCount)
-    {
-        Interlocked.Increment(ref _presentationFlushBatches);
-        Interlocked.Add(ref _presentationFlushEntries, entryCount);
-    }
-
-    public void AddPresentationPendingPaths(long delta, long currentMapSize)
-    {
-        Interlocked.Add(ref _presentationPendingPaths, delta);
-        UpdateMaximum(ref _presentationMaximumPendingPaths, currentMapSize);
-    }
+    public void RecordPresentationDiscarded() =>
+        Interlocked.Increment(ref _presentationDiscarded);
 
     public void RecordControlOperation(long elapsedTicks)
     {
@@ -86,12 +70,8 @@ public sealed class RuntimeMetrics
             .Append(" registry_snapshots=").Append(Interlocked.Read(ref _registrySnapshots))
             .Append(" registry_deltas=").Append(Interlocked.Read(ref _registryDeltas))
             .Append(" native_control_frames=").Append(nativeInputCalls)
-            .Append(" presentation_coalesced=").Append(Interlocked.Read(ref _presentationCoalesced))
-            .Append(" presentation_pending_paths=").Append(Interlocked.Read(ref _presentationPendingPaths))
-            .Append(" presentation_flush_batches=").Append(Interlocked.Read(ref _presentationFlushBatches))
-            .Append(" presentation_flush_entries=").Append(Interlocked.Read(ref _presentationFlushEntries))
             .Append(" presentation_active_deliveries=").Append(Interlocked.Read(ref _presentationActiveDeliveries))
-            .Append(" presentation_max_pending_paths=").Append(Interlocked.Read(ref _presentationMaximumPendingPaths))
+            .Append(" presentation_discarded=").Append(Interlocked.Read(ref _presentationDiscarded))
             .Append(" managed_allocated_bytes=").Append(GC.GetTotalAllocatedBytes(false));
 
         foreach (var entry in _instances.OrderBy(entry => entry.Key))
@@ -106,18 +86,6 @@ public sealed class RuntimeMetrics
         }
 
         return builder.ToString();
-    }
-
-    private static void UpdateMaximum(ref long location, long value)
-    {
-        while (true)
-        {
-            var current = Interlocked.Read(ref location);
-            if (current >= value || Interlocked.CompareExchange(ref location, value, current) == current)
-            {
-                return;
-            }
-        }
     }
 
     public sealed class InstanceMetrics

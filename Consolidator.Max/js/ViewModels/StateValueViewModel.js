@@ -11,7 +11,7 @@ function StateValueViewModel(state, path) {
     this.loaded = false;
     this.enabled = true;
     this.loading = true;
-    this.batchDirty = false;
+    this.snapshotDirty = false;
     this.listeners = [];
 
     var self = this;
@@ -24,19 +24,15 @@ function StateValueViewModel(state, path) {
             if (self.enabled === enabled) return;
             self.enabled = enabled;
             if (self.state.applyingSnapshot) {
-                self.batchDirty = true;
+                self.snapshotDirty = true;
                 return;
             }
             self.notify();
         }, true)
         : null;
-    this.unsubscribeBatch = state.onTargetSnapshotCompleted
+    this.unsubscribeSnapshotCompleted = state.onTargetSnapshotCompleted
         ? state.onTargetSnapshotCompleted(function () {
-            self.completeBatch();
-        })
-        : state.onBatchCompleted
-        ? state.onBatchCompleted(function () {
-            self.completeBatch();
+            self.completeSnapshot();
         })
         : null;
 }
@@ -58,17 +54,17 @@ StateValueViewModel.prototype.applyEntry = function (entry) {
     this.status = entry.status;
     this.instanceId = entry.instanceId;
     if (this.state.applyingSnapshot) {
-        this.batchDirty = true;
+        this.snapshotDirty = true;
         return;
     }
     this.notify();
 };
 
-StateValueViewModel.prototype.completeBatch = function () {
-    if (!this.batchDirty) {
+StateValueViewModel.prototype.completeSnapshot = function () {
+    if (!this.snapshotDirty) {
         return;
     }
-    this.batchDirty = false;
+    this.snapshotDirty = false;
     this.notify();
 };
 
@@ -124,9 +120,9 @@ StateValueViewModel.prototype.destroy = function () {
         this.unsubscribeStatus();
         this.unsubscribeStatus = null;
     }
-    if (this.unsubscribeBatch) {
-        this.unsubscribeBatch();
-        this.unsubscribeBatch = null;
+    if (this.unsubscribeSnapshotCompleted) {
+        this.unsubscribeSnapshotCompleted();
+        this.unsubscribeSnapshotCompleted = null;
     }
     this.listeners = [];
 };

@@ -30,6 +30,7 @@ public sealed class TopologyAndRegistryUseCasesTests
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
             Integer(2));
+        application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
         second.Output.Clear();
 
@@ -38,9 +39,21 @@ public sealed class TopologyAndRegistryUseCasesTests
         Assert.Contains(
             first.Output.Messages,
             message => IsFilterGainChange(message, 4.5));
-        Assert.Contains(
+        Assert.DoesNotContain(
             second.Output.Messages,
             message => IsFilterGainChange(message, 4.5));
+        application.Send(
+            second,
+            "read",
+            Integer(1),
+            Symbol("query"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(2),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"));
+        Assert.Equal(4.5, second.Output.Single("state_done").Atoms[^1].Float);
 
         first.Output.Clear();
         application.Send(first, "registry");
@@ -48,16 +61,16 @@ public sealed class TopologyAndRegistryUseCasesTests
         Assert.Equal(2, messages.Count(message => message.Selector == "registry_instance"));
         Assert.Contains(
             messages,
-            message => message.Selector == "registry_member" &&
+                message => message.Selector == "registry_member" &&
                 message.Atoms[3].Integer == 7 &&
                 message.Atoms[4].Symbol == first.InstanceId.Value.ToString() &&
-                message.Atoms[5].Integer == 1);
+                message.Atoms[5].Integer == 0);
         Assert.Contains(
             messages,
-            message => message.Selector == "registry_member" &&
+                message => message.Selector == "registry_member" &&
                 message.Atoms[3].Integer == 7 &&
                 message.Atoms[4].Symbol == second.InstanceId.Value.ToString() &&
-                message.Atoms[5].Integer == 2);
+                message.Atoms[5].Integer == 1);
     }
 
     [Fact]

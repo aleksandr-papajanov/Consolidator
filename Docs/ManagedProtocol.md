@@ -164,7 +164,7 @@ that gate and must not enter it again. The executor never chooses targets.
 
 `ProtocolOutput` carries `TargetInstanceIds`, a selector and atoms.
 It also carries explicit delivery semantics: `Lossless` for responses, errors,
-lifecycle and history command outputs; `CoalescedPresentation` for state
+lifecycle and history command outputs; `ActivePresentation` for state
 notifications; and `LatestAnalysis` for FFT and curve frames. Transport behavior
 is selected by this contract, never by selector string.
 `NativeOutputService` implements both `IProtocolTransport` and
@@ -176,13 +176,11 @@ data.
 
 Protocol responses use `IProtocolTransport` directly. Presentation publishers use
 `IPresentationTransport`, implemented by `PresentationOutputGate`, which tracks
-active state, observed target and pending latest entries per registered instance.
-Active instances receive presentation entries immediately. Only
-`CoalescedPresentation` entries for inactive instances are retained, keyed by
-recipient instance and delivery key (for state notifications, the observed
-path). On activation, those entries are emitted as one ordered
-`state_batch_begin` / `state_batch_entry` / `state_batch_done` sequence. The
-batch contains each path once and is sorted by encoded path. Inactive
+active state per registered instance. Active instances receive presentation
+entries immediately; inactive `ActivePresentation` entries are discarded and
+never occupy an outgoing backlog. After Managed confirms activation, the Max
+client requests one current target snapshot and resumes control bindings only
+after that snapshot is complete. Inactive
 `LatestAnalysis` entries currently pass through unchanged;
 their classification reserves a later managed coalescing policy.
 
@@ -198,13 +196,10 @@ There is no UI session, epoch or selected-bank state. Later changes use
 `state_changed` with the same semantic paths and range metadata. Reset writes the target
 state subtree's initial values through one prepared transaction, so peer
 propagation remains authoritative and observers see only the complete reset.
-Activation state batches are staged by `TargetStateClient`: entries update its
-cache and ViewModels while publication is suspended. At `state_batch_done`,
-dirty ViewModels publish once through the batch-completion callback, and
-`ControlBindings.resumeLatest()` applies the latest presentation for each
-binding once. Target selection suspends bindings before sending
+Target selection suspends bindings before sending
 `observe_target`, then replaces the target cache and resumes after the complete
-snapshot. Instance activity itself does not suspend bindings.
+snapshot. Instance activation keeps bindings inactive until this same target
+transition completes.
 State changes are published by the existing
 observer chain and addressed by `StateChangeRouter` using topology and focus.
 `begin_history` and `end_history` frame a global history action. `jump_history`

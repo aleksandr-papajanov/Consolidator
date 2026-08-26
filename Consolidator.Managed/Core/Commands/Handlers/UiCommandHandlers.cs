@@ -4,11 +4,10 @@ using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
-public sealed class InitializeUiCommandHandler
+internal sealed class InitializeUiCommandHandler
     : CommandHandler<InitializeUiCommand, UiInitializationResult>
 {
     public override ValueTask<UiInitializationResult> HandleAsync(
@@ -27,16 +26,13 @@ internal sealed class ObserveTargetCommandHandler
 {
     private readonly InstanceRegistry _registry;
     private readonly TargetStateProjector _projector;
-    private readonly IPresentationTransport _presentation;
 
     public ObserveTargetCommandHandler(
         InstanceRegistry registry,
-        TargetStateProjector projector,
-        IPresentationTransport presentation)
+        TargetStateProjector projector)
     {
         _registry = registry;
         _projector = projector;
-        _presentation = presentation;
     }
 
     public override ValueTask<TargetStateSnapshotResult> HandleAsync(
@@ -56,10 +52,6 @@ internal sealed class ObserveTargetCommandHandler
 
         context.State.Instance.FocusedBank = new BankAddress(
             command.TargetInstanceId,
-            (int)command.BankId);
-        _presentation.SetObservedTarget(
-            context.InstanceId.Value,
-            command.TargetInstanceId.Value,
             (int)command.BankId);
         return ValueTask.FromResult(
             _projector.Project(target.State, command.BankId));

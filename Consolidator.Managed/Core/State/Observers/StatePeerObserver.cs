@@ -108,7 +108,7 @@ internal sealed class StatePeerObserver
             if (!sharesPeerSet)
             {
                 value.SetPeers(peerSet);
-                peerSet.UpdateEffectiveRanges(value, true);
+                peerSet.UpdateEffectiveRanges(value, false);
                 continue;
             }
 
@@ -200,13 +200,13 @@ internal sealed class StatePeerObserver
                         value.ValueType));
             }
 
-                if (_peerSetsByValue.Remove(value, out var peerSets))
+            if (_peerSetsByValue.Remove(value, out var peerSets))
+            {
+                foreach (var peerSet in peerSets.ToArray())
                 {
-                    foreach (var peerSet in peerSets.ToArray())
-                    {
-                        RemovePresentationPeerSet(peerSet.Key);
-                    }
+                    RemovePresentationPeerSet(peerSet.Key);
                 }
+            }
         }
     }
 
@@ -219,12 +219,21 @@ internal sealed class StatePeerObserver
 
         changedValue.Peers.UpdateEffectiveRanges(changedValue, false);
 
+        var changedSources = new HashSet<IObservedValue>();
         if (_peerSetsByValue.TryGetValue(changedValue, out var peerSets))
         {
             foreach (var peerSet in peerSets)
             {
-                peerSet.UpdateEffectiveRanges(peerSet.Source, true);
+                if (peerSet.UpdateEffectiveRanges(peerSet.Source!, false) &&
+                    !ReferenceEquals(peerSet.Source, changedValue))
+                {
+                    changedSources.Add(peerSet.Source!);
+                }
             }
+        }
+        foreach (var source in changedSources)
+        {
+            source.NotifyEffectiveRangeChanged();
         }
     }
 
@@ -323,11 +332,15 @@ internal sealed class StatePeerObserver
         IEnumerable<InstanceId> affectedInstanceIds)
     {
         var affected = affectedInstanceIds.ToHashSet();
+        var changedSources = new HashSet<IObservedValue>();
         lock (_lock)
         {
-            foreach (var key in _presentationPeerSets.Keys
-                .Where(key => affected.Contains(key.InstanceId))
-                .ToArray())
+            var previousRanges = _presentationPeerSets
+                .Where(entry => affected.Contains(entry.Key.InstanceId))
+                .ToDictionary(
+                    entry => entry.Key,
+                    entry => entry.Value.EffectiveDeltaRange);
+            foreach (var key in previousRanges.Keys)
             {
                 RemovePresentationPeerSet(key);
             }
@@ -341,11 +354,22 @@ internal sealed class StatePeerObserver
             {
                 foreach (var bankIndex in Enumerable.Range(0, DspConstants.BankCount))
                 {
-                    GetPresentationPeerSet(
+                    var peerSet = GetPresentationPeerSet(
                         value,
                         new BankAddress(value.InstanceId, bankIndex));
+                    if (previousRanges.TryGetValue(
+                            peerSet.Key,
+                            out var previousRange) &&
+                        previousRange != peerSet.EffectiveDeltaRange)
+                    {
+                        changedSources.Add(value);
+                    }
                 }
             }
+        }
+        foreach (var source in changedSources)
+        {
+            source.NotifyEffectiveRangeChanged();
         }
     }
 
@@ -453,7 +477,12 @@ internal sealed class StatePeerObserver
 
         FloatRange CalculateEffectiveDeltaRange();
 
+        FloatRange CalculateEffectiveDeltaRange(
+            IReadOnlyList<IObservedValue> peers);
+
         void SetEffectiveDeltaRange(FloatRange range, bool notify);
+
+        void NotifyEffectiveRangeChanged();
     }
 
     private sealed class StatePeerValueObserver<TValue> :
@@ -566,7 +595,7 @@ internal sealed class StatePeerObserver
         public FloatRange CalculateEffectiveDeltaRange() =>
             CalculateEffectiveDeltaRange(_peers.Values);
 
-        private FloatRange CalculateEffectiveDeltaRange(
+        public FloatRange CalculateEffectiveDeltaRange(
             IReadOnlyList<IObservedValue> peers)
         {
             if (_editMode is not StateValueEditMode.ApplyDelta)
@@ -599,6 +628,14 @@ internal sealed class StatePeerObserver
             var changed = _effectiveDeltaRange != range;
             _effectiveDeltaRange = range;
             if (changed && notify && _value is not null)
+            {
+                _effectiveRangeChanged(_value.Value);
+            }
+        }
+
+        public void NotifyEffectiveRangeChanged()
+        {
+            if (_value is not null)
             {
                 _effectiveRangeChanged(_value.Value);
             }
@@ -645,7 +682,7 @@ internal sealed class StatePeerObserver
                     $"The requested delta is outside the effective range for path {Path}.");
             }
 
-                    peers.ScheduleEffectiveRangeRefresh(transaction, this);
+            peers.ScheduleEffectiveRangeRefresh(transaction, this);
 
             foreach (var peer in peers.Values.Cast<StatePeerValueObserver<TValue>>())
             {
@@ -740,7 +777,7 @@ internal sealed class StatePeerObserver
 
         public PresentationPeerSetKey Key { get; }
 
-        public IObservedValue Source { get; }
+        public IObservedValue? Source { get; }
 
         public IReadOnlyList<IObservedValue> Values { get; }
 
@@ -767,13 +804,13 @@ internal sealed class StatePeerObserver
             });
         }
 
-        public void UpdateEffectiveRanges(
+        public bool UpdateEffectiveRanges(
             IObservedValue source,
             bool notify)
         {
             if (!_tracksEffectiveRange)
             {
-                return;
+                return false;
             }
 
             if (_effectiveRangeValues is not null &&
@@ -792,15 +829,20 @@ internal sealed class StatePeerObserver
                 }
                 if (unchanged)
                 {
-                    return;
+                    return false;
                 }
             }
 
             _effectiveRangeValues = Values
                 .Select(value => value.GetCurrentValue())
                 .ToArray();
-            var effectiveRange = source.CalculateEffectiveDeltaRange();
+            var effectiveRange = source.CalculateEffectiveDeltaRange(Values);
+            var changed = EffectiveDeltaRange != effectiveRange;
             EffectiveDeltaRange = effectiveRange;
+            if (Source is not null)
+            {
+                return changed;
+            }
             IReadOnlyList<IObservedValue> targets = _sharesEffectiveRange
                 ? Values
                 : [source];
@@ -808,6 +850,7 @@ internal sealed class StatePeerObserver
             {
                 value.SetEffectiveDeltaRange(effectiveRange, notify);
             }
+            return changed;
         }
     }
 }

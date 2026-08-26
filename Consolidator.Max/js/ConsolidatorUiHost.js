@@ -66,12 +66,6 @@ function ConsolidatorUiHost(source, sendNative, sendUi) {
     this.client.targetState.onTargetTransitionDone(function () {
         self.bindings.resumeLatest();
     });
-    this.client.targetState.onBatchBegin(function () {
-        self.bindings.suspend();
-    });
-    this.client.targetState.onBatchCompleted(function () {
-        self.bindings.resumeLatest();
-    });
     this.registryInitialized = false;
     this.lifecycle = "created";
     this.instanceActive = false;
@@ -124,14 +118,40 @@ ConsolidatorUiHost.prototype.handleControl = function (selector, args) {
 
 ConsolidatorUiHost.prototype.setInstanceActive = function (active) {
     this.instanceActive = Boolean(active);
-    this.bankManagerViewModel.setRegistryActive(this.instanceActive);
-    this.bindings.setPresentationActive(this.instanceActive);
-    if (this.instanceId === undefined ||
+    if (this.instanceId !== undefined &&
             this.publishedInstanceActive === this.instanceActive) {
         return;
     }
+    this.bankManagerViewModel.setRegistryActive(this.instanceActive);
+    this.bindings.setPresentationActive(false);
+    if (this.instanceId === undefined) {
+        return;
+    }
     this.publishedInstanceActive = this.instanceActive;
-    this.client.setInstanceActive(this.instanceActive);
+    var self = this;
+    this.client.setInstanceActive(this.instanceActive, function (response) {
+        if (!response || response.error) {
+            self.publishedInstanceActive = null;
+            return;
+        }
+        if (!self.instanceActive) {
+            return;
+        }
+        var target = self.client.targetState.target || {
+            instanceId: self.instanceId,
+            bankId: 1
+        };
+        self.client.uiTarget.show(
+            target.instanceId,
+            target.bankId,
+            function (snapshotResponse) {
+                if (self.instanceActive && snapshotResponse &&
+                        !snapshotResponse.error) {
+                    self.bindings.setPresentationActive(true);
+                }
+            }
+        );
+    });
 };
 
 ConsolidatorUiHost.prototype.setTrackName = function (args) {

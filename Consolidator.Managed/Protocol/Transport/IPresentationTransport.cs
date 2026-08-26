@@ -8,7 +8,5 @@ internal interface IPresentationTransport
 
     void SetActive(ulong instanceId, bool active);
 
-    void SetObservedTarget(ulong instanceId, ulong targetInstanceId, int bankId);
-
     void Unregister(ulong instanceId);
 }

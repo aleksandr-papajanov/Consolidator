@@ -23,6 +23,22 @@ public sealed class StateEditingUseCasesTests
     }
 
     [Fact]
+    public void InitializeReturnsOnlyTheInstanceIdentity()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+        instance.Output.Clear();
+
+        application.Send(instance, "initialize");
+
+        var initialized = instance.Output.Single("initialized");
+        Assert.Equal(4, initialized.Atoms.Count);
+        Assert.Equal(
+            instance.InstanceId.Value.ToString(),
+            initialized.Atoms[3].Symbol);
+    }
+
+    [Fact]
     public void WriteReadAndResetFlowUpdatesStateNotificationsAndDspProjection()
     {
         using var application = new ManagedApplicationFixture();
@@ -190,6 +206,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(7));
+        application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
         second.Output.Clear();
         var firstPublishCount = first.Dsp.PublishCount;
@@ -225,6 +242,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(7));
+        application.Send(first, "set_instance_active", Integer(1));
 
         application.Send(
             first,
@@ -311,7 +329,7 @@ public sealed class StateEditingUseCasesTests
     }
 
     [Fact]
-    public void StateChangeRangesUseEachObserversSelectedBankContext()
+    public void ActiveDeltaAndReactivationSnapshotUseEachSelectedBankContext()
     {
         using var application = new ManagedApplicationFixture();
         var target = application.RegisterInstance();
@@ -345,12 +363,26 @@ public sealed class StateEditingUseCasesTests
             Symbol("value"),
             Float(-1.0));
 
-        var groupedChange = target.Output.Single("state_changed");
         var localChange = localObserver.Output.Single("state_changed");
-        Assert.Equal(-97.0, groupedChange.Atoms[6].Float);
+        Assert.DoesNotContain(
+            target.Output.Messages,
+            message => message.Selector == "state_changed");
         Assert.Equal(-120.0, localChange.Atoms[6].Float);
-        Assert.Equal(0.0, groupedChange.Atoms[7].Float);
         Assert.Equal(0.0, localChange.Atoms[7].Float);
+
+        application.Send(target, "set_instance_active", Integer(1));
+        target.Output.Clear();
+        application.Send(
+            target,
+            "observe_target",
+            Symbol(target.InstanceId.Value.ToString()),
+            Integer(7));
+        var snapshot = target.Output.Single("target_state_snapshot");
+        var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[5].Integer)
+            .Single(index => snapshot.Atoms[6 + index * 6].Symbol ==
+                "compressor.threshold");
+        Assert.Equal(-97.0, snapshot.Atoms[10 + thresholdIndex * 6].Float);
+        Assert.Equal(0.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
     }
 
     [Fact]
@@ -622,6 +654,10 @@ public sealed class StateEditingUseCasesTests
                 instance,
                 "set_instance_active",
                 Integer(1));
+            Assert.True(SpinWait.SpinUntil(
+                () => instance.Output.Messages.Any(message =>
+                    message.Selector == "equalizer_curves"),
+                TimeSpan.FromSeconds(1)));
             instance.Output.Clear();
         }
 

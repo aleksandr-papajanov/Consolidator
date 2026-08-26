@@ -8,17 +8,11 @@ function TargetStateClient(protocol, state) {
     this.statusSubscribers = [];
     this.error = null;
     this.applyingSnapshot = false;
-    this.pendingBatch = null;
     this.generation = 0;
     this.targetTransitionBeginListeners = [];
     this.targetTransitionDoneListeners = [];
     this.targetSnapshotCompletedListeners = [];
-    this.batchBeginListeners = [];
-    this.batchCompletedListeners = [];
     protocol.on("target_state_snapshot", this.handleSnapshot.bind(this));
-    protocol.on("state_batch_begin", this.handleBatchBegin.bind(this));
-    protocol.on("state_batch_entry", this.handleBatchEntry.bind(this));
-    protocol.on("state_batch_done", this.handleBatchDone.bind(this));
     protocol.on("state_changed", this.handleChanged.bind(this));
 }
 
@@ -97,26 +91,6 @@ TargetStateClient.prototype.onTargetSnapshotCompleted = function (callback) {
     return function () {
         self.targetSnapshotCompletedListeners = self.targetSnapshotCompletedListeners.filter(
             function (listener) { return listener !== callback; });
-    };
-};
-
-TargetStateClient.prototype.onBatchBegin = function (callback) {
-    this.batchBeginListeners.push(callback);
-    var self = this;
-    return function () {
-        self.batchBeginListeners = self.batchBeginListeners.filter(function (listener) {
-            return listener !== callback;
-        });
-    };
-};
-
-TargetStateClient.prototype.onBatchCompleted = function (callback) {
-    this.batchCompletedListeners.push(callback);
-    var self = this;
-    return function () {
-        self.batchCompletedListeners = self.batchCompletedListeners.filter(function (listener) {
-            return listener !== callback;
-        });
     };
 };
 
@@ -252,58 +226,6 @@ TargetStateClient.prototype.handleChanged = function (args) {
     this.notify(entry);
 };
 
-TargetStateClient.prototype.handleBatchBegin = function (args) {
-    if (!args || args.length < 3) {
-        this.pendingBatch = null;
-        return;
-    }
-    this.pendingBatch = {
-        revision: String(args[1]),
-        expected: Number(args[2]),
-        entries: [],
-        invalid: false
-    };
-    this.batchBeginListeners.slice().forEach(function (listener) {
-        listener();
-    });
-};
-
-TargetStateClient.prototype.handleBatchEntry = function (args) {
-    var batch = this.pendingBatch;
-    if (!batch || args.length < 4 || String(args[1]) !== batch.revision ||
-            batch.entries.length >= batch.expected) {
-        if (batch) batch.invalid = true;
-        return;
-    }
-    batch.entries.push(this.decodeEntry(args[2], args.slice(3),
-        this.target && this.target.instanceId));
-};
-
-TargetStateClient.prototype.handleBatchDone = function (args) {
-    var batch = this.pendingBatch;
-    this.pendingBatch = null;
-    if (!batch || !args || args.length < 2 ||
-            String(args[1]) !== batch.revision ||
-            batch.entries.length !== batch.expected || batch.invalid) {
-        this.batchCompletedListeners.slice().forEach(function (listener) {
-            listener();
-        });
-        return;
-    }
-    this.applyingSnapshot = true;
-    try {
-        batch.entries.forEach(function (entry) {
-            this.cache[entry.path] = entry;
-            this.notify(entry);
-        }, this);
-    } finally {
-        this.applyingSnapshot = false;
-    }
-    this.batchCompletedListeners.slice().forEach(function (listener) {
-        listener();
-    });
-};
-
 TargetStateClient.prototype.decodeEntry = function (path, values, instanceId) {
     return { path: String(path), value: values[0], status: values[1],
         physicalMin: values[2] === "none" ? undefined : values[2],
@@ -324,10 +246,7 @@ TargetStateClient.prototype.destroy = function () {
     this.cache = {};
     this.subscribers = {};
     this.statusSubscribers = [];
-    this.pendingBatch = null;
     this.targetTransitionBeginListeners = [];
     this.targetTransitionDoneListeners = [];
     this.targetSnapshotCompletedListeners = [];
-    this.batchBeginListeners = [];
-    this.batchCompletedListeners = [];
 };

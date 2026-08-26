@@ -48,37 +48,6 @@ function testTargetSnapshotAndPushUpdateUseSemanticPaths() {
   assert.deepStrictEqual(values, [-24, -18]);
 }
 
-function testStateBatchAppliesEntriesOnlyAfterDone() {
-  var client = new ConsolidatorClient("ui", function () {});
-  var value = new StateValueViewModel(
-    client.targetState,
-    "compressor.threshold",
-  );
-  var values = [];
-  client.targetState.target = { instanceId: "4", bankId: 2 };
-  value.subscribe(function (entry) {
-    values.push([entry.path, entry.value]);
-  });
-
-  client.handleControl("state_batch_begin", [1, 7, 2]);
-  client.handleControl("state_batch_entry", [
-    1, 7, "compressor.attack", 15, "ready", -100, 100, -100, 100,
-  ]);
-  client.handleControl("state_batch_entry", [
-    1, 7, "compressor.threshold", -18, "ready", -60, 0, -60, 0,
-  ]);
-  assert.deepStrictEqual(values, []);
-
-  client.handleControl("state_batch_done", [1, 7]);
-  assert.deepStrictEqual(values, [["compressor.threshold", -18]]);
-  assert.strictEqual(
-    client.targetState.cache["compressor.threshold"].value,
-    -18,
-  );
-  value.destroy();
-  client.destroy();
-}
-
 function testObservedEqualizerPathsAreExpandedForWrites() {
   var frames = [];
   var protocol = new NativeProtocolClient("ui", function (frame) {
@@ -93,7 +62,7 @@ function testObservedEqualizerPathsAreExpandedForWrites() {
     ]);
 }
 
-function testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch() {
+function testTargetSnapshotNotifiesStateValueOnceAfterCompletion() {
   var client = new ConsolidatorClient("ui", function () {});
   var value = new StateValueViewModel(
     client.targetState,
@@ -179,7 +148,7 @@ testInitializationUsesExternalIdentityFromManaged();
 testInstanceActivityUsesTheInstanceCommand();
 testTargetSnapshotAndPushUpdateUseSemanticPaths();
 testObservedEqualizerPathsAreExpandedForWrites();
-testTargetSnapshotNotifiesStateValueOnceAfterCompleteBatch();
+testTargetSnapshotNotifiesStateValueOnceAfterCompletion();
 testStaleTargetSnapshotDoesNotResumeLatestTransition();
 testCallbacklessGestureWritesDoNotAccumulatePendingRequests();
 testWriteWithCallbackIsNotEligibleForGestureCoalescing();

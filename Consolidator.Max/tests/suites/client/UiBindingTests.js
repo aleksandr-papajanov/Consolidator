@@ -1174,27 +1174,48 @@ function testUiHostPublishesOnlyChangedInstanceActivity() {
 
   assert.deepStrictEqual(values, [true, false]);
 }
-function testUiHostKeepsRemoteStateCurrentWhileInactive() {
-  var selectors = [];
+function testUiHostRefreshesSnapshotBeforePresentingActivatedInstance() {
+  var events = [];
   var host = {
     client: {
-      handleControl: function (selector) { selectors.push(selector); },
+      targetState: {
+        target: { instanceId: "9", bankId: 3 },
+      },
+      setInstanceActive: function (active, callback) {
+        events.push(["managed", active]);
+        callback({ status: "accepted", error: null });
+      },
+      uiTarget: {
+        show: function (instanceId, bankId, callback) {
+          events.push(["snapshot", instanceId, bankId]);
+          callback({ entries: [], error: null });
+        },
+      },
     },
+    bindings: {
+      setPresentationActive: function (active) {
+        events.push(["bindings", active]);
+      },
+    },
+    bankManagerViewModel: {
+      setRegistryActive: function (active) {
+        events.push(["registry", active]);
+      },
+    },
+    instanceId: "7",
     instanceActive: false,
+    publishedInstanceActive: null,
   };
 
-  ConsolidatorUiHost.prototype.handleControl.call(
-    host, "state_changed", [1]);
-  ConsolidatorUiHost.prototype.handleControl.call(
-    host, "history_state", [1]);
-  host.instanceActive = true;
-  ConsolidatorUiHost.prototype.handleControl.call(
-    host, "state_changed", [1]);
+  ConsolidatorUiHost.prototype.setInstanceActive.call(host, true);
+  ConsolidatorUiHost.prototype.setInstanceActive.call(host, true);
 
-  assert.deepStrictEqual(selectors, [
-    "state_changed",
-    "history_state",
-    "state_changed",
+  assert.deepStrictEqual(events, [
+    ["registry", true],
+    ["bindings", false],
+    ["managed", true],
+    ["snapshot", "9", 3],
+    ["bindings", true],
   ]);
 }
 function testBankManagerForwardsShiftSelection() {
@@ -1275,7 +1296,7 @@ testAnalyzerBindingUsesOneTransactionForHandleDrag();
 testAnalyzerHandleDragPublishesLatestPositionWhileDragging();
 testUiHostAcceptsTrackNameMessage();
 testUiHostPublishesOnlyChangedInstanceActivity();
-testUiHostKeepsRemoteStateCurrentWhileInactive();
+testUiHostRefreshesSnapshotBeforePresentingActivatedInstance();
 testUiHostLoadsInIsolatedMaxContext();
 testFeaturePresenterSetEnumeratesTypedPresenters();
 testFeaturePresenterSetTracksSourceAvailability();

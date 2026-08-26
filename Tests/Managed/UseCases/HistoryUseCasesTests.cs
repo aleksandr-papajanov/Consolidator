@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using Consolidator.Managed.Tests.Support;
 using Consolidator.Managed.State;
@@ -57,7 +58,7 @@ public sealed class HistoryUseCasesTests
             editor,
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(1));
         application.Send(editor, "set_instance_active", Integer(1));
         application.Send(observer, "set_instance_active", Integer(1));
         editor.Output.Clear();
@@ -90,15 +91,24 @@ public sealed class HistoryUseCasesTests
 
         Assert.NotEqual(-18.0F, editor.Dsp.Latest.CompressorThresholdDb);
         Assert.Contains(
-            editor.Output.Messages,
-            message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "compressor.threshold");
-        Assert.Contains(
             observer.Output.Messages,
             message => message.Selector == "history_state" &&
                 message.Atoms[2].Integer == 0 &&
-                message.Atoms[4].Integer == 1 &&
-            message.Atoms[5].Integer == 0);
+                message.Atoms[4].Integer == 0 &&
+            message.Atoms[5].Integer == 1);
+
+        application.Send(editor, "set_instance_active", Integer(1));
+        editor.Output.Clear();
+        application.Send(
+            editor,
+            "observe_target",
+            Symbol(editor.InstanceId.Value.ToString()),
+            Integer(1));
+        var snapshot = editor.Output.Single("target_state_snapshot");
+        var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[5].Integer)
+            .Single(index => snapshot.Atoms[6 + index * 6].Symbol ==
+                "compressor.threshold");
+        Assert.NotEqual(-18.0, snapshot.Atoms[7 + thresholdIndex * 6].Float);
     }
 
     private sealed class NonComparableHistoryValue : IHistoryValue

@@ -38,7 +38,15 @@ internal sealed class StateTopologyObserver
         FocusedBankChangedEvent?.Invoke(state.InstanceId, state.FocusedBank);
         try
         {
-            _peers.Refresh(state.InstanceId);
+            var affectedInstances = state.Banks
+                .Where(bank => bank.Group.Value is not null)
+                .SelectMany(bank => _topology.GetConnectedBankPeers(
+                    new BankAddress(state.InstanceId, (int)bank.Id)))
+                .Select(bank => bank.InstanceId)
+                .Append(state.InstanceId)
+                .Distinct()
+                .ToArray();
+            _peers.Refresh(affectedInstances);
             _audibility.Refresh();
         }
         catch

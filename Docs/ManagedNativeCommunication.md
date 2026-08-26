@@ -172,15 +172,13 @@ same instance ID is the delivery identity for that external's control output;
 there is no separate UI session.
 `NativeOutputService` remains the direct output transport for protocol responses
 and the callback registry. Presentation publishers use a separate
-`PresentationOutputGate`: it keeps per-instance active state, observed target,
-and pending coalesced presentation entries. Active instances receive entries
-immediately; inactive instances retain only the latest
-`CoalescedPresentation` entry for each recipient and delivery key. Lossless
-outputs and `LatestAnalysis` outputs continue directly through the gate.
-Activation flushes pending state entries through `NativeOutputService`.
-The flush uses `state_batch_begin`, `state_batch_entry` and `state_batch_done`
-with one entry per coalesced path, sorted by encoded path, so the receiver can
-apply the activation projection as one batch rather than a redraw series.
+`PresentationOutputGate`: it keeps only per-instance active state. Active
+instances receive entries immediately, while inactive `ActivePresentation`
+entries are discarded and never enter an outgoing backlog. After activation is
+acknowledged, the Max host
+requests one current `target_state_snapshot` and resumes bindings only after it
+has atomically replaced the target cache. Lossless outputs and `LatestAnalysis`
+outputs continue directly through the gate.
 Unregistration removes the gate state before the native callback is removed.
 Presentation publishers provide explicit recipient sets for each operation.
 Targeted state writes and resets publish DSP snapshots only to their affected
@@ -195,14 +193,13 @@ observers; equalizer curves use observers of the exact `(instance, bank)`; FFT
 frames return the selected source to the active viewer. A singleton
 service does not imply broadcast delivery.
 
-Runtime metrics expose `presentation_coalesced`, current
-`presentation_pending_paths`, `presentation_flush_batches`,
-`presentation_flush_entries`, `presentation_active_deliveries`, and
-`presentation_max_pending_paths`. `native_control_frames` reports the number
+Runtime metrics expose `presentation_active_deliveries` and
+`presentation_discarded` for active and inactive state entries respectively.
+`native_control_frames` reports the number
 of Managed native input frames and is the before/after comparison point for
 grouped edits. With fourteen devices and one active recipient, a grouped drag
-should produce one active `state_changed` delivery while the other paths remain
-coalesced in Managed pending maps.
+should produce one active `state_changed` delivery while inactive presentation
+entries increase only `presentation_discarded` and never create pending state.
 
 ## Native to Managed: Incoming Messages
 
@@ -364,14 +361,13 @@ reset, selection and bank-manager intents emit one snapshot after dispatch. This
 keeps diagnostics correlated with user activity without continuously loading the
 Max scheduler or flooding the console during a drag.
 
-Instance activity is also the presentation lifecycle boundary. Every UI host
-continues decoding protocol frames and updating its client cache, view models and
-presenters while inactive, but its control bindings suspend output to Max UI
-objects. Activating the instance resumes all bindings with one full refresh of
-their latest presentation instead of replaying intermediate changes. Bank manager
-resume always uses a complete presentation rather than its last delta; analyzer
-resume restores the latest handles, spectrum and curves. The same activity
-transition continues to publish `set_instance_active` for Managed analyzer capture.
+Instance activity is also the presentation lifecycle boundary. Inactive UI hosts
+do not receive state presentation and keep their control bindings
+disabled. Activating an instance first publishes `set_instance_active`, then
+requests a current target snapshot. Bindings resume only after the complete
+snapshot has atomically replaced the client cache. Bank manager activation
+likewise requests a complete registry snapshot; analyzer activation restores the
+latest handles, spectrum and curves.
 
 ## Lifecycle Contract
 
