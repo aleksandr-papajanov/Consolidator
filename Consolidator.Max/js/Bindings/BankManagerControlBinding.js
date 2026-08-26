@@ -69,6 +69,17 @@ BankManagerControlBinding.prototype.applyPresentation = function (presentation) 
     this.hasPresentation = true;
 };
 
+BankManagerControlBinding.prototype.refreshPresentation = function () {
+    var presentation = this.pendingPresentation ||
+        (this.presenter && this.presenter.presentation);
+    this.pendingPresentation = null;
+    if (!presentation) {
+        return;
+    }
+    this.hasPresentation = false;
+    this.applyPresentation(presentation);
+};
+
 BankManagerControlBinding.prototype.applyDelta = function (
     presentation,
     delta

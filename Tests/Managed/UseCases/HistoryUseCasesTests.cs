@@ -52,7 +52,7 @@ public sealed class HistoryUseCasesTests
         observer.Output.Clear();
 
         application.Send(editor, "begin_history", Symbol("41"));
-        application.Send(
+        application.Enqueue(
             editor,
             "write",
             Symbol(editor.InstanceId.Value.ToString()),

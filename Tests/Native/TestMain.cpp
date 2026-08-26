@@ -4,10 +4,14 @@ int main()
 {
     const auto abiSucceeded =
         consolidator::tests::RunAbiContractTests();
+    const auto dspParameterSmootherSucceeded =
+        consolidator::tests::RunDspParameterSmootherTests();
     const auto dspStateConsumerSucceeded =
         consolidator::tests::RunDspStateConsumerTests();
 
-    if (!abiSucceeded || !dspStateConsumerSucceeded)
+    if (!abiSucceeded ||
+        !dspParameterSmootherSucceeded ||
+        !dspStateConsumerSucceeded)
     {
         return 1;
     }

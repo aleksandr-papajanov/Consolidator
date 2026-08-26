@@ -332,6 +332,7 @@ void ConsolidatorExternal::Prepare(
     }
 
     const auto sampleRate = static_cast<double>(atoms[0]);
+    dspParameterSmoother_.Prepare(sampleRate);
 
     managed_.Prepare(
         instanceId_,
@@ -390,21 +391,41 @@ void ConsolidatorExternal::operator()(
         frameCount,
         output.samples(3));
 
-    for (std::size_t index = 0; index < frameCount; ++index)
-    {
-        output.samples(0)[index] *= dspState_.gain;
-        output.samples(1)[index] *= dspState_.gain;
-    }
+    ApplyDspRamp(
+        output.samples(0),
+        output.samples(1),
+        frameCount);
 }
 
 void ConsolidatorExternal::ConsumeDspState() noexcept
 {
-    static_cast<void>(ConsumePublishedDspState(
-        dspExchange_,
-        consumerDspIndex_,
-        dspState_));
+    if (!ConsumePublishedDspState(
+            dspExchange_,
+            consumerDspIndex_,
+            dspState_))
+    {
+        return;
+    }
+
+    dspParameterSmoother_.SetTarget(dspState_);
 }
+
+void ConsolidatorExternal::ApplyDspRamp(
+    double* mainLeft,
+    double* mainRight,
+    std::size_t frameCount) noexcept
+{
+    for (std::size_t index = 0; index < frameCount; ++index)
+    {
+        const auto& parameters = dspParameterSmoother_.Advance();
+
+        mainLeft[index] *= parameters.gain;
+        mainRight[index] *= parameters.gain;
+    }
+}
+
 
 } // namespace consolidator::max
 
 MIN_EXTERNAL(consolidator::max::ConsolidatorExternal);
+

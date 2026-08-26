@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -247,6 +248,8 @@ public static unsafe class NativeApi
         NativeAtom* atoms,
         nuint atomCount)
     {
+        var startedAt = Stopwatch.GetTimestamp();
+
         try
         {
             ReportPendingAudioBoundaryExceptions();
@@ -266,14 +269,6 @@ public static unsafe class NativeApi
 
             var managedAtoms = AtomDecoder.Decode(atoms, atomCount);
 
-            var atomText = string.Join(
-                " ",
-                managedAtoms.Select(FormatAtom));
-
-            LogSink.Write(
-                $"Managed received: instance={instanceId} "
-                + $"selector={managedSelector} atoms=[{atomText}]");
-
             ProtocolService.Receive(
                 new ProtocolInput(
                     instanceId,
@@ -286,17 +281,11 @@ public static unsafe class NativeApi
                 "ConsolidatorSendMessage",
                 exception);
         }
-    }
-
-    private static string FormatAtom(Atom atom)
-    {
-        return atom.Type switch
+        finally
         {
-            AtomType.Integer => $"int:{atom.Integer}",
-            AtomType.Float => $"float:{atom.Float}",
-            AtomType.Symbol => $"symbol:{atom.Symbol}",
-            _ => $"unknown:{atom.Type}"
-        };
+            RuntimeMetrics.Shared.RecordNativeInput(
+                Stopwatch.GetTimestamp() - startedAt);
+        }
     }
 
     [UnmanagedCallersOnly(

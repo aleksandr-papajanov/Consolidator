@@ -69,6 +69,9 @@ The Max client applies `target_state_begin/entry/done` as one presentation
 batch. Entry values update their view models silently while the snapshot is
 being assembled; the final ready-status transition publishes the complete new
 target once, without intermediate per-entry control renders.
+During a local dial gesture, the control renders its local preview until the
+gesture ends. Authoritative `state_changed` presentations continue updating the
+stored value but do not replace the value currently under the pointer.
 
 ## ABI Types
 
@@ -201,6 +204,11 @@ returns a complete UI projection. Subsequent notifications are routed to
 observers of that instance or exact bank. The protocol has no session, epoch or
 selected-bank field.
 
+The NativeAOT `SendMessage` boundary records only aggregate call count and
+elapsed time in `RuntimeMetrics`. Ordinary incoming messages are not formatted
+or sent to the native log sink. The `metrics` command is the explicit way to
+report this telemetry; errors continue to use the native log sink.
+
 ## Managed Instance Commands
 
 The first managed command contract is intentionally separate from atom decoding
@@ -261,18 +269,19 @@ After the callback returns, native code must not retain any pointer received fro
 
 ## Native Queue and Max Thread
 
-`ReceiveManagedOutput` never calls a Max outlet directly. Control frames are
-stored in a FIFO so control responses are not lost. Analysis frames use
-latest-only slots: one pending `fft` frame and one pending curve frame per
-analyzer selector and native external. A newer frame for the same selector
-replaces the older one before the Max queue is drained.
+`ReceiveManagedOutput` never calls a Max outlet directly. All control frames,
+including `state_changed`, are stored in one FIFO so state notifications retain
+their order relative to target snapshots, history notifications, errors, and
+command responses. Analysis frames use latest-only slots: one pending `fft` frame and one pending
+curve frame per analyzer selector and native external. A newer frame for the
+same selector replaces the older one before the Max queue is drained.
 
 One `c74::min::queue<>` is scheduled for both paths:
 
 ```text
 C# callback thread
     -> copy OutputFrame
-    -> lock only for control enqueue or analysis slot replacement
+    -> lock only for control enqueue or latest-only slot replacement
     -> outputQueue_.set()
 
 Max low-priority thread
@@ -289,12 +298,10 @@ routes `fft`, `equalizer_curves`, `compressor_detector_curves`, and
 `controlOutput`. The Max bridge connects that analysis outlet to the UI host's
 protocol input separately from control output.
 
-Each drain processes at most 32 control frames and 4096 control atoms, then
-processes the latest available analysis frames. Control frames are never
-dropped. Analysis frames are intentionally coalesced because only the newest
-spectrum and curve data is useful to the UI. If any queue or slot still has
-work, the qelem is scheduled again. Repeated `queue.set()` calls coalesce while
-the qelem is pending.
+Each drain processes at most 32 lossless control frames and 4096 control atoms,
+then processes the latest available analysis frames. If any queue or slot still has work, the qelem is
+scheduled again. Repeated `queue.set()` calls coalesce while the qelem is
+pending.
 
 The mutex is held only while pushing or swapping the queue. String conversion and Max atom construction happen outside the producer-side lock.
 
@@ -303,12 +310,28 @@ The native callback handler is `noexcept` and catches exceptions around `Receive
 ## Runtime Metrics
 
 Sending the `metrics` control message requests a diagnostic snapshot. Managed
-reports control-operation time, FFT and curve rates per instance, equalizer
-calculation time, registry snapshot/delta counts, dropped audio blocks and
-process Managed allocation totals through the control-path log sink. Native
+reports native-input and control-operation time, FFT and curve rates per
+instance, equalizer calculation time, registry snapshot/delta counts, dropped
+audio blocks and process Managed allocation totals through the control-path log sink. Native
 reports current control FIFO depth, replaced and skipped FFT frames, and the
 most recent Max queue drain duration. Audio-path metric updates use atomic
 counters only; they do not log or allocate.
+
+`ConsolidatorUiHost` sends diagnostic snapshots around UI activity. Continuous
+gestures report once at `gestureBegan` and once at `gestureEnded`; intermediate
+`valueChanged` and `filterMoved` intents do not emit metrics. Discrete button,
+reset, selection and bank-manager intents emit one snapshot after dispatch. This
+keeps diagnostics correlated with user activity without continuously loading the
+Max scheduler or flooding the console during a drag.
+
+Instance activity is also the presentation lifecycle boundary. Every UI host
+continues decoding protocol frames and updating its client cache, view models and
+presenters while inactive, but its control bindings suspend output to Max UI
+objects. Activating the instance resumes all bindings with one full refresh of
+their latest presentation instead of replaying intermediate changes. Bank manager
+resume always uses a complete presentation rather than its last delta; analyzer
+resume restores the latest handles, spectrum and curves. The same activity
+transition continues to publish `set_instance_active` for Managed analyzer capture.
 
 ## Lifecycle Contract
 

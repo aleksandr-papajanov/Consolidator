@@ -53,7 +53,9 @@ DialControl.prototype.setPresentationValue = function (index, value) {
     var ring = this.presentation.rings[index];
     if (!ring) return;
     ring.value = this.clamp(Number(value), ring.minimum, ring.maximum);
-    delete this.previewValues[index];
+    if (!this.dragging || this.dragIndex !== index) {
+        delete this.previewValues[index];
+    }
     mgraphics.redraw();
 };
 

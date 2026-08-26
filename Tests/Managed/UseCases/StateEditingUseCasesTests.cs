@@ -7,6 +7,7 @@ using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Tests.Support;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Consolidator.Managed.Tests.UseCases;
 
@@ -14,6 +15,13 @@ using static ManagedApplicationFixture;
 
 public sealed class StateEditingUseCasesTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public StateEditingUseCasesTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     [Fact]
     public void WriteReadAndResetFlowUpdatesStateNotificationsAndDspProjection()
     {
@@ -90,6 +98,32 @@ public sealed class StateEditingUseCasesTests
 
         Assert.Equal(initial, instance.Dsp.Latest.Gain);
         Assert.Equal(publishCount, instance.Dsp.PublishCount);
+        Assert.Equal("error", Assert.Single(instance.Output.Messages).Selector);
+    }
+
+    [Fact]
+    public void RejectedCallbacklessGestureWriteRetainsItsErrorResponse()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+        instance.Output.Clear();
+
+        var requestId = application.Enqueue(
+            instance,
+            "write",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("42"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("compressor"),
+            Symbol("detector"),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(100.0));
+        instance.Output.WaitForResponse(requestId);
+
         Assert.Equal("error", Assert.Single(instance.Output.Messages).Selector);
     }
 
@@ -562,6 +596,77 @@ public sealed class StateEditingUseCasesTests
                     message.Selector == "compressor_detector_curves"),
             TimeSpan.FromMilliseconds(500)));
         Assert.True(startedAt.Elapsed < TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact]
+    public void FortyConnectedInstancesApplyCallbacklessInputGainGestureWithinLatencyBudget()
+    {
+        const int instanceCount = 40;
+        const int writeCount = 120;
+        var latencyBudget = TimeSpan.FromMilliseconds(50);
+        using var application = new ManagedApplicationFixture();
+        var instances = Enumerable.Range(0, instanceCount)
+            .Select(_ => application.RegisterInstance())
+            .ToArray();
+        var editor = instances[0];
+
+        application.Send(
+            editor,
+            "observe_target",
+            Symbol(editor.InstanceId.Value.ToString()),
+            Integer(7));
+        application.Send(
+            editor,
+            "write",
+            Symbol(editor.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("input_gain"),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(2.0));
+        foreach (var instance in instances)
+        {
+            instance.Output.Clear();
+        }
+
+        var finalValue = 0.0;
+        var startedAt = Stopwatch.StartNew();
+        for (var index = 0; index < writeCount; index++)
+        {
+            finalValue = 1.0 + index % 24;
+            application.Enqueue(
+                editor,
+                "write",
+                Symbol(editor.InstanceId.Value.ToString()),
+                Symbol("42"),
+                Integer(1),
+                Symbol("entry"),
+                Symbol("input_gain"),
+                Symbol("gain"),
+                Symbol("value"),
+                Float(finalValue));
+        }
+        Assert.True(SpinWait.SpinUntil(
+            () => instances.All(instance =>
+                instance.Dsp.Latest.Gain == (float)finalValue),
+            TimeSpan.FromSeconds(5)),
+            "The final gesture value did not reach every DSP snapshot.");
+        startedAt.Stop();
+
+        _output.WriteLine(
+            $"40-instance input-gain gesture latency: {startedAt.Elapsed.TotalMilliseconds:F3} ms");
+        Assert.All(
+            instances,
+            instance => Assert.Equal((float)finalValue, instance.Dsp.Latest.Gain));
+        Assert.DoesNotContain(
+            editor.Output.Messages,
+            message => message.Selector == "action_done");
+        Assert.True(
+            startedAt.Elapsed <= latencyBudget,
+            $"Final gesture value took {startedAt.Elapsed.TotalMilliseconds:F3} ms; " +
+            $"budget is {latencyBudget.TotalMilliseconds:F0} ms.");
     }
 
     [Fact]

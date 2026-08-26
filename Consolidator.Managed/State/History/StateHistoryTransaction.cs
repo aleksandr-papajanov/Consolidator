@@ -6,14 +6,12 @@ public sealed class StateHistoryTransaction : IDisposable
     private readonly List<Action> _committedChanges = new();
     private bool _completed;
 
+    internal bool IsCompleted => _completed;
+
     internal void Add(IStateTransactionEntry entry)
     {
         ObjectDisposedException.ThrowIf(_completed, this);
-
-        if (!_entries.Contains(entry))
-        {
-            _entries.Add(entry);
-        }
+        _entries.Add(entry);
     }
 
     internal void AddCommittedChange(Action change)

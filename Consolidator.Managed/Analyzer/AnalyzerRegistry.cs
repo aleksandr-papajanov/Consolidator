@@ -491,19 +491,12 @@ public sealed class AnalyzerRegistry
                 var normalized = point / (double)(curve.Length - 1);
                 var frequency = 20.0 * Math.Pow(1000.0, normalized);
                 var decibels = 0.0;
-                var activeBankCount = 0;
                 foreach (var bank in _banks)
                 {
                     if (bank is not null && bank.IsActive && bank.HasResponse)
                     {
                         decibels += bank.DecibelsAt(frequency, _sampleRate);
-                        activeBankCount++;
                     }
-                }
-
-                if (activeBankCount > 0)
-                {
-                    decibels /= activeBankCount;
                 }
 
                 curve[point] = EqualizerBankCache.ToNormalizedDecibels(decibels);

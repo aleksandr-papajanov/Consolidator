@@ -26,7 +26,8 @@ include("Project:/js/Bindings/ControlBindings.js");
 function ConsolidatorUiHost(source, sendNative, sendUi) {
     this.source = source;
     this.trackName = null;
-    this.client = new ConsolidatorClient(source, sendNative);
+    this.sendNative = sendNative || function () {};
+    this.client = new ConsolidatorClient(source, this.sendNative);
     this.sendUi = sendUi || function () {};
     this.viewModel = new ConsolidatorViewModel(this.client.uiTarget);
     this.equalizer = new EqualizerController(this.viewModel);
@@ -58,10 +59,12 @@ function ConsolidatorUiHost(source, sendNative, sendUi) {
         )
     );
     this.bindings = new ControlBindings();
+    this.bindings.setPresentationActive(false);
     this.registryInitialized = false;
     this.lifecycle = "created";
     this.instanceActive = false;
     this.publishedInstanceActive = null;
+    this.metricsGestureActive = false;
 }
 
 var ConsolidatorControlMapping = {
@@ -94,6 +97,9 @@ ConsolidatorUiHost.prototype.sendControlMessage = function (
     selector,
     args
 ) {
+    if (!this.instanceActive) {
+        return;
+    }
     this.sendUi([controlName, selector].concat(args || []));
 };
 
@@ -109,6 +115,7 @@ ConsolidatorUiHost.prototype.handleControl = function (selector, args) {
 
 ConsolidatorUiHost.prototype.setInstanceActive = function (active) {
     this.instanceActive = Boolean(active);
+    this.bindings.setPresentationActive(this.instanceActive);
     if (this.instanceId === undefined ||
             this.publishedInstanceActive === this.instanceActive) {
         return;
@@ -145,7 +152,22 @@ ConsolidatorUiHost.prototype.handleUiIntent = function (
     intent,
     values
 ) {
+    if (intent === "gestureBegan") {
+        this.metricsGestureActive = true;
+        this.sendMetrics();
+    }
     this.bindings.handle(controlName, intent, values);
+    if (intent === "gestureEnded") {
+        this.metricsGestureActive = false;
+        this.sendMetrics();
+    }
+    else if (intent !== "gestureBegan" && !this.metricsGestureActive) {
+        this.sendMetrics();
+    }
+};
+
+ConsolidatorUiHost.prototype.sendMetrics = function () {
+    this.sendNative(["metrics"]);
 };
 
 ConsolidatorUiHost.prototype.bindControls = function () {
@@ -288,6 +310,8 @@ ConsolidatorUiHost.prototype.destroy = function () {
     this.bankManagerViewModel.destroy();
     this.viewModel.destroy();
     this.client.destroy();
+    this.metricsGestureActive = false;
+    this.sendNative = function () {};
 };
 
 inlets = 2;

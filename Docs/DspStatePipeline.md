@@ -111,8 +111,10 @@ address as its filters, so active state, bank curve, and all-bank curve are
 published from one coherent snapshot.
 
 The all-bank equalizer response is cached per source and invalidated by any
-equalizer-bank change or sample-rate change. Detector presentations reuse one
-immutable unity all-bank curve instead of allocating it for every frame.
+equalizer-bank change or sample-rate change. It sums the signed dB responses of
+active non-neutral banks, preserving the scale of the combined response when
+another bank is edited. Detector presentations reuse one immutable unity
+all-bank curve instead of allocating it for every frame.
 Detector filters keep one instance-level state and curve cache regardless of
 the selected equalizer bank. Like other instance-owned controls, an edit uses
 the selected bank only to choose its grouped peer instances.
@@ -129,6 +131,15 @@ existing operation gate. Coefficient and curve calculation run on the analyzer
 worker from immutable inputs and never read the state tree. The audio callback
 never accesses the registry, state tree, or observers. Native continues to
 consume only the fixed `DspSnapshot` through the existing publisher.
+
+The native audio path applies a 10 ms linear ramp to every continuous runtime
+snapshot parameter: input and output gain, saturator controls, and compressor
+controls. The ramp length is derived from the actual prepared sample rate.
+Discrete bypass, solo, active, listen, audibility, bank, and filter markers are
+applied immediately. Ramp state belongs to the external instance, is advanced
+only on the audio thread, supports retargeting from its current value, and
+reaches each snapshot target exactly on the final sample. Snapshot publication
+and its ABI remain unchanged.
 
 DSP publication is driven by committed-change observers rather than the
 command's original target list. At the end of a control operation Managed

@@ -25,7 +25,8 @@ internal sealed class ProtocolService : IDisposable
             SingleWriter = false
         });
     private readonly ConcurrentDictionary<ulong, byte> _cancelledInstances = new();
-    private readonly ConcurrentDictionary<CoalesceKey, QueuedCommand> _coalesced = new();
+    private readonly Dictionary<CoalesceKey, QueuedCommand> _coalesced = new();
+    private readonly object _coalesceLock = new();
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _worker;
 
@@ -67,17 +68,24 @@ internal sealed class ProtocolService : IDisposable
         var queued = new QueuedCommand(decoded, GetCoalesceKey(decoded));
         if (queued.Key is { } key)
         {
-            if (_coalesced.TryAdd(key, queued))
+            lock (_coalesceLock)
             {
-                if (!_commands.Writer.TryWrite(queued))
+                if (_coalesced.ContainsKey(key))
                 {
-                    _coalesced.TryRemove(key, out _);
-                    SendError(message, new ProtocolOverloadedException());
+                    _coalesced[key] = queued;
+                    return;
                 }
-                return;
+
+                _coalesced.Add(key, queued);
+                if (_commands.Writer.TryWrite(queued))
+                {
+                    return;
+                }
+
+                _coalesced.Remove(key);
             }
 
-            _coalesced[key] = queued;
+            SendError(message, new ProtocolOverloadedException());
             return;
         }
 
@@ -114,10 +122,15 @@ internal sealed class ProtocolService : IDisposable
             await foreach (var queued in _commands.Reader.ReadAllAsync(_cancellation.Token))
             {
                 var command = queued.Command;
-                if (queued.Key is { } key &&
-                    _coalesced.TryRemove(key, out var latest))
+                if (queued.Key is { } key)
                 {
-                    command = latest.Command;
+                    lock (_coalesceLock)
+                    {
+                        if (_coalesced.Remove(key, out var latest))
+                        {
+                            command = latest.Command;
+                        }
+                    }
                 }
 
                 if (_cancelledInstances.ContainsKey(command.SourceInstanceId))

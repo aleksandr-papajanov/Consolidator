@@ -54,11 +54,16 @@ ProtocolInput
 There is no synchronous execution path from the Native ABI entrypoint. Pending
 writes with the same source, target, ordered path shape, and transaction are
 coalesced at their existing FIFO position, preserving the final gesture values
-for both single-value and multi-value controls.
+for both single-value and multi-value controls. The latest-value slot and the
+presence of its FIFO placeholder change under one short control-path lock, so a
+producer cannot publish a replacement between worker removal and placeholder
+ownership and leave that final value without queued work.
 Max registers pending request callbacks only for commands that supplied a real
 callback; fire-and-forget gesture writes cannot accumulate pending entries when
-their intermediate commands are coalesced. A write with a real callback is sent
-without a coalescing transaction ID so its request always receives a response.
+their intermediate commands are coalesced. Successful callbackless gesture
+writes do not emit `action_done`; rejected results and execution errors retain
+their ordinary response. A write with a real callback is sent without a
+coalescing transaction ID so its request always receives a response.
 Registry lifecycle and label/group updates use revisioned typed delta messages.
 The Max client applies a delta only when its previous revision matches the
 current snapshot; a gap triggers one full snapshot resynchronization.
@@ -121,8 +126,9 @@ filters; Max only decodes and renders the frames. Filter values are individual
 dB deltas around the unity line. Combined values sum the active filters in the
 focused bank; all-bank values use the average signed dB deviation of active
 parallel banks with a non-neutral response at each frequency, so neutral banks
-do not reduce the visible gain and parallel banks are not counted as repeated
-serial gain. Native routes each complete frame atomically to `analysisOutput`.
+do not reduce the visible gain. Active bank responses are summed, so adding a
+bank does not reduce the visible Y-axis scale. Native routes each complete frame
+atomically to `analysisOutput`.
 The only analyzer target is the Live-selected external. Equalizer delivery
 additionally requires its focused `(InstanceId, BankIndex)` to match the dirty
 bank; compressor and saturator detector delivery requires the focused source

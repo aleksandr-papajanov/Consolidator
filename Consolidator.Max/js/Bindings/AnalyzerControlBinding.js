@@ -14,6 +14,9 @@ function AnalyzerControlBinding(controller, presenter, sendMessage, transactions
         this.unsubscribers.push(presenter.subscribeSpectrum(function (
             spectrum, referenceSpectrum
         ) {
+            if (!self.presentationActive) {
+                return;
+            }
             self.sendCurve("spectrum", spectrum);
             self.sendCurve("reference_spectrum", referenceSpectrum);
         }, true));
@@ -23,6 +26,9 @@ function AnalyzerControlBinding(controller, presenter, sendMessage, transactions
         this.unsubscribers.push(presenter.subscribeCurves(function (
             curves, combinedCurve, allBanksCurve
         ) {
+            if (!curveSelf.presentationActive) {
+                return;
+            }
             (curves || []).forEach(function (curve) {
                 curveSelf.sendCurve("curve", curve, curve.id);
             });
@@ -60,6 +66,20 @@ AnalyzerControlBinding.prototype.applyPresentation = function (presentation) {
         ]);
     }, this);
     this.send("presentation_end");
+};
+
+AnalyzerControlBinding.prototype.refreshPresentation = function () {
+    ControlBinding.prototype.refreshPresentation.call(this);
+    if (!this.presenter) {
+        return;
+    }
+    this.sendCurve("spectrum", this.presenter.spectrum);
+    this.sendCurve("reference_spectrum", this.presenter.referenceSpectrum);
+    (this.presenter.curves || []).forEach(function (curve) {
+        this.sendCurve("curve", curve, curve.id);
+    }, this);
+    this.sendCurve("combined", this.presenter.combinedCurve);
+    this.sendCurve("all_banks", this.presenter.allBanksCurve);
 };
 
 AnalyzerControlBinding.prototype.sendCurve = function (name, curve, id) {

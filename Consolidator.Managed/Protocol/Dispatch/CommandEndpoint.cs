@@ -1,8 +1,10 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
+using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Encoding;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Routing.Commands;
+using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Protocol.Dispatch;
 
@@ -53,6 +55,15 @@ internal sealed class CommandEndpoint<TCommand, TResult>
             new InstanceId(sourceInstanceId),
             typedCommand,
             cancellationToken);
+        if (typedCommand is WriteStateCommand
+            {
+                TransactionId: not 0
+            } && routed.Execution.Succeeded &&
+            routed.Execution.Value is
+                StateWriteStatus.Applied or StateWriteStatus.Unchanged)
+        {
+            return Array.Empty<ProtocolOutput>();
+        }
         return _responseEncoder.Encode(
             _responseSelector,
             routed.Execution,

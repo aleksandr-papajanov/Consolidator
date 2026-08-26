@@ -12,12 +12,9 @@ internal sealed class StatePeerObserver
     private readonly StateHistory _history;
     private readonly TopologyIndex _topology;
     private readonly object _lock = new();
-    private readonly Dictionary<InstanceId, List<IObservedValue>>
-        _valuesByInstance = new();
-    private readonly Dictionary<ObservedValueAddress, IObservedValue>
-        _valuesByAddress = new();
-    private readonly Dictionary<BankValueAddress, IObservedValue>
-        _bankValuesByAddress = new();
+    private readonly Dictionary<InstanceId, List<IObservedValue>> _valuesByInstance = new();
+    private readonly Dictionary<ObservedValueAddress, IObservedValue> _valuesByAddress = new();
+    private readonly Dictionary<BankValueAddress, IObservedValue> _bankValuesByAddress = new();
     private BankAddress? _editingBank;
     private bool _isEditing;
 
@@ -196,6 +193,11 @@ internal sealed class StatePeerObserver
 
     private void ValueChanged(IObservedValue changedValue)
     {
+        if (changedValue.Peers.HasPendingEffectiveRangeRefresh)
+        {
+            return;
+        }
+
         changedValue.Peers.UpdateEffectiveRanges(changedValue, false);
     }
 
@@ -539,6 +541,8 @@ internal sealed class StatePeerObserver
                     $"The requested delta is outside the effective range for path {Path}.");
             }
 
+                    peers.ScheduleEffectiveRangeRefresh(transaction, this);
+
             foreach (var peer in peers.Values.Cast<StatePeerValueObserver<TValue>>())
             {
                 if (peer._value is null)
@@ -597,6 +601,7 @@ internal sealed class StatePeerObserver
         private object?[]? _effectiveRangeValues;
         private readonly bool _sharesEffectiveRange;
         private readonly bool _tracksEffectiveRange;
+        private StateHistoryTransaction? _pendingEffectiveRangeRefresh;
 
         public PeerSet(
             IReadOnlyList<IObservedValue> values,
@@ -613,6 +618,27 @@ internal sealed class StatePeerObserver
             new(Array.Empty<IObservedValue>(), true);
 
         public IReadOnlyList<IObservedValue> Values { get; }
+
+        public bool HasPendingEffectiveRangeRefresh =>
+            _pendingEffectiveRangeRefresh is { IsCompleted: false };
+
+        public void ScheduleEffectiveRangeRefresh(
+            StateHistoryTransaction transaction,
+            IObservedValue source)
+        {
+            if (!_tracksEffectiveRange ||
+                ReferenceEquals(_pendingEffectiveRangeRefresh, transaction))
+            {
+                return;
+            }
+
+            _pendingEffectiveRangeRefresh = transaction;
+            transaction.AddCommittedChange(() =>
+            {
+                _pendingEffectiveRangeRefresh = null;
+                UpdateEffectiveRanges(source, true);
+            });
+        }
 
         public void UpdateEffectiveRanges(
             IObservedValue source,

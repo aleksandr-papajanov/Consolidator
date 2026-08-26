@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "AtomCodec.h"
+#include "DspParameterSmoother.h"
 #include "DspStateConsumer.h"
 #include "ManagedBridge.h"
 #include "SharedDspState.h"
@@ -262,6 +263,11 @@ private:
 
     void ConsumeDspState() noexcept;
 
+    void ApplyDspRamp(
+        double* mainLeft,
+        double* mainRight,
+        std::size_t frameCount) noexcept;
+
     void ReportMetrics() const;
 
     ManagedBridge managed_;
@@ -270,6 +276,7 @@ private:
     SharedDspExchange dspExchange_{};
     DspSnapshot dspState_{};
     std::uint32_t consumerDspIndex_{};
+    DspParameterSmoother dspParameterSmoother_;
 
     c74::min::queue<> outputQueue_{
         this,

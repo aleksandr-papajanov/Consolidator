@@ -20,6 +20,7 @@ inline bool Expect(
 }
 
 bool RunAbiContractTests();
+bool RunDspParameterSmootherTests();
 bool RunDspStateConsumerTests();
 
 } // namespace consolidator::tests

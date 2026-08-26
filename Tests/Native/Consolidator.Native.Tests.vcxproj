@@ -51,7 +51,9 @@
   <ItemGroup>
     <ClCompile Include="TestMain.cpp" />
     <ClCompile Include="Contracts\AbiContractTests.cpp" />
+    <ClCompile Include="Realtime\DspParameterSmootherTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\DspParameterSmoother.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\DspStateConsumer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

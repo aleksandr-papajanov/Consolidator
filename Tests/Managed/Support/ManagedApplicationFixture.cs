@@ -45,6 +45,16 @@ internal sealed class ManagedApplicationFixture : IDisposable
         string selector,
         params Atom[] body)
     {
+        var requestId = Enqueue(source, selector, body);
+        source.Output.WaitForResponse(requestId);
+        return requestId;
+    }
+
+    public ulong Enqueue(
+        TestInstance source,
+        string selector,
+        params Atom[] body)
+    {
         var requestId = ++_nextRequestId;
         var atoms = new List<Atom>
         {
@@ -57,7 +67,6 @@ internal sealed class ManagedApplicationFixture : IDisposable
             source.InstanceId.Value,
             selector,
             atoms));
-        source.Output.WaitForResponse(requestId);
         return requestId;
     }
 

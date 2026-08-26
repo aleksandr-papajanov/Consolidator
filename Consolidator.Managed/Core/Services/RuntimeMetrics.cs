@@ -10,10 +10,18 @@ public sealed class RuntimeMetrics
 
     private readonly long _startedAt = Stopwatch.GetTimestamp();
     private readonly ConcurrentDictionary<ulong, InstanceMetrics> _instances = new();
+    private long _nativeInputCalls;
+    private long _nativeInputTicks;
     private long _controlOperations;
     private long _controlOperationTicks;
     private long _registrySnapshots;
     private long _registryDeltas;
+
+    public void RecordNativeInput(long elapsedTicks)
+    {
+        Interlocked.Increment(ref _nativeInputCalls);
+        Interlocked.Add(ref _nativeInputTicks, elapsedTicks);
+    }
 
     public void RecordControlOperation(long elapsedTicks)
     {
@@ -33,6 +41,11 @@ public sealed class RuntimeMetrics
     public string FormatSnapshot()
     {
         var builder = new StringBuilder();
+        var nativeInputCalls = Interlocked.Read(ref _nativeInputCalls);
+        var nativeInputTicks = Interlocked.Read(ref _nativeInputTicks);
+        var nativeInputMilliseconds = nativeInputCalls == 0
+            ? 0
+            : nativeInputTicks * 1000.0 / Stopwatch.Frequency / nativeInputCalls;
         var operations = Interlocked.Read(ref _controlOperations);
         var operationTicks = Interlocked.Read(ref _controlOperationTicks);
         var operationMilliseconds = operations == 0
@@ -42,7 +55,9 @@ public sealed class RuntimeMetrics
             (Stopwatch.GetTimestamp() - _startedAt) / (double)Stopwatch.Frequency,
             0.001);
 
-        builder.Append("control_operations=").Append(operations)
+        builder.Append("native_input_calls=").Append(nativeInputCalls)
+            .Append(" native_input_avg_ms=").Append(nativeInputMilliseconds.ToString("F3"))
+            .Append(" control_operations=").Append(operations)
             .Append(" control_avg_ms=").Append(operationMilliseconds.ToString("F3"))
             .Append(" registry_snapshots=").Append(Interlocked.Read(ref _registrySnapshots))
             .Append(" registry_deltas=").Append(Interlocked.Read(ref _registryDeltas))

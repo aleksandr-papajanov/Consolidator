@@ -5,6 +5,7 @@ include("Project:/js/Bindings/BankManagerControlBinding.js");
 
 function ControlBindings() {
     this.items = {};
+    this.presentationActive = true;
 }
 
 ControlBindings.prototype.add = function (name, binding) {
@@ -12,8 +13,18 @@ ControlBindings.prototype.add = function (name, binding) {
     if (this.items.hasOwnProperty(name)) {
         throw new Error("Duplicate control binding varname: " + name);
     }
-    if (binding) this.items[name] = binding;
+    if (binding) {
+        binding.setPresentationActive(this.presentationActive);
+        this.items[name] = binding;
+    }
     return binding;
+};
+
+ControlBindings.prototype.setPresentationActive = function (active) {
+    this.presentationActive = Boolean(active);
+    Object.keys(this.items).forEach(function (name) {
+        this.items[name].setPresentationActive(this.presentationActive);
+    }, this);
 };
 
 ControlBindings.prototype.handle = function (name, intent, values) {
@@ -28,4 +39,5 @@ ControlBindings.prototype.destroy = function () {
         this.items[name].destroy();
     }, this);
     this.items = {};
+    this.presentationActive = false;
 };

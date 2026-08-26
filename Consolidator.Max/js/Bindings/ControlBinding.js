@@ -3,6 +3,8 @@ function ControlBinding(presenter, sendMessage) {
     this.sendMessage = sendMessage;
     this.unsubscribers = [];
     this.destroyed = false;
+    this.presentationActive = true;
+    this.pendingPresentation = null;
 }
 
 ControlBinding.prototype.connectPresentation = function () {
@@ -11,8 +13,36 @@ ControlBinding.prototype.connectPresentation = function () {
         return;
     }
     this.unsubscribers.push(this.presenter.subscribe(function (presentation) {
-        self.applyPresentation(presentation);
+        self.receivePresentation(presentation);
     }, true));
+};
+
+ControlBinding.prototype.receivePresentation = function (presentation) {
+    if (!this.presentationActive) {
+        this.pendingPresentation = presentation;
+        return;
+    }
+    this.applyPresentation(presentation);
+};
+
+ControlBinding.prototype.setPresentationActive = function (active) {
+    var next = Boolean(active);
+    if (this.destroyed || this.presentationActive === next) {
+        return;
+    }
+    this.presentationActive = next;
+    if (next) {
+        this.refreshPresentation();
+    }
+};
+
+ControlBinding.prototype.refreshPresentation = function () {
+    var presentation = this.pendingPresentation ||
+        (this.presenter && this.presenter.presentation);
+    this.pendingPresentation = null;
+    if (presentation) {
+        this.applyPresentation(presentation);
+    }
 };
 
 ControlBinding.prototype.send = function (selector, args) {
@@ -32,6 +62,7 @@ ControlBinding.prototype.destroy = function () {
     this.destroyed = true;
     this.unsubscribers.forEach(function (unsubscribe) { unsubscribe(); });
     this.unsubscribers = [];
+    this.pendingPresentation = null;
     this.presenter = null;
     this.sendMessage = null;
 };
