@@ -2,13 +2,13 @@ autowatch = 1;
 inlets = 1;
 outlets = 1;
 
-include("Project:/js/Presenters/Button/ButtonPresentation.js");
-
 mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-var ButtonControlOptions = {
+const { ButtonPresentation } = require("../../Presenters/Button/ButtonPresentation.js");
+
+const ButtonControlOptions = {
     background: [0.08, 0.08, 0.08, 1],
     active: [0.35, 0.7, 1, 1],
     inactive: [0.35, 0.35, 0.35, 1],
@@ -17,58 +17,97 @@ var ButtonControlOptions = {
     fontSize: 12
 };
 
-function ButtonControl() {
-    this.presentation = new ButtonPresentation();
-    this.pressed = false;
-}
+class ButtonControl
+{
+    constructor()
+    {
+        this.presentation = new ButtonPresentation();
+        this.pressed = false;
+        this.presentationDepth = 0;
+        this.presentationDirty = false;
+    }
 
-ButtonControl.prototype.applyPresentation = function (presentation) {
+    requestRedraw()
+    {
+        if (this.presentationDepth > 0)
+        {
+            this.presentationDirty = true;
+            return;
+        }
+        mgraphics.redraw();
+    }
+
+    beginPresentation()
+    {
+        this.presentationDepth += 1;
+    }
+
+    endPresentation()
+    {
+        if (this.presentationDepth === 0) return;
+        this.presentationDepth -= 1;
+        if (this.presentationDepth === 0 && this.presentationDirty)
+        {
+            this.presentationDirty = false;
+            mgraphics.redraw();
+        }
+    }
+
+    applyPresentation(presentation)
+    {
     if (!presentation) return;
     this.presentation = presentation;
     if (!presentation.enabled || presentation.mode !== "momentary") {
         this.pressed = false;
     }
-    mgraphics.redraw();
-};
+    this.requestRedraw();
+    }
 
-ButtonControl.prototype.setPresentationValue = function (value) {
+    setPresentationValue(value)
+    {
     this.presentation.value = Number(value) !== 0;
-    mgraphics.redraw();
-};
+    this.requestRedraw();
+    }
 
-ButtonControl.prototype.setPresentationEnabled = function (value) {
+    setPresentationEnabled(value)
+    {
     this.presentation.enabled = Number(value) !== 0;
-    mgraphics.redraw();
-};
+    this.requestRedraw();
+    }
 
-ButtonControl.prototype.setPresentationActive = function (value) {
+    setPresentationActive(value)
+    {
     this.presentation.active = Number(value) !== 0;
-    mgraphics.redraw();
-};
+    this.requestRedraw();
+    }
 
-ButtonControl.prototype.setPresentationMode = function (value) {
+    setPresentationMode(value)
+    {
     this.presentation.mode = String(value) === "momentary"
         ? "momentary" : "toggle";
-    mgraphics.redraw();
-};
+    this.requestRedraw();
+    }
 
-ButtonControl.prototype.setPresentationLabel = function (value) {
-    this.presentation.label = String(value);
-    mgraphics.redraw();
-};
+    setPresentationLabel(value)
+    {
+        this.presentation.label = String(value);
+        this.requestRedraw();
+    }
 
-ButtonControl.prototype.emit = function (name, payload) {
+    emit(name, payload)
+    {
     if (payload === undefined) outlet(0, name);
     else if (payload instanceof Array) outlet(0, [name].concat(payload));
     else outlet(0, [name, payload]);
-};
+    }
 
-ButtonControl.prototype.paint = function () {
-    var width = mgraphics.size[0];
-    var height = mgraphics.size[1];
-    var presentation = this.presentation;
-    var selected = Boolean(presentation.value);
-    var color = !presentation.enabled
+    paint()
+    {
+    const width = mgraphics.size[0];
+    const height = mgraphics.size[1];
+    const presentation = this.presentation;
+    const selected = Boolean(presentation.value);
+    const color = !presentation.enabled
         ? ButtonControlOptions.disabled
         : selected
             ? ButtonControlOptions.active
@@ -86,7 +125,7 @@ ButtonControl.prototype.paint = function () {
         mgraphics.select_font_face("Arial");
         mgraphics.set_font_size(ButtonControlOptions.fontSize);
         mgraphics.set_source_rgba.apply(mgraphics, ButtonControlOptions.text);
-        var textWidth = String(presentation.label).length
+        const textWidth = String(presentation.label).length
             * ButtonControlOptions.fontSize * 0.55;
         mgraphics.move_to(
             Math.max(2, (width - textWidth) * 0.5),
@@ -94,9 +133,10 @@ ButtonControl.prototype.paint = function () {
         );
         mgraphics.show_text(String(presentation.label));
     }
-};
+    }
 
-ButtonControl.prototype.click = function () {
+    click()
+    {
     if (!this.presentation.enabled) return;
     if (this.presentation.mode === "momentary") {
         this.pressed = true;
@@ -104,13 +144,15 @@ ButtonControl.prototype.click = function () {
         return;
     }
     this.emit("valueChanged", this.presentation.value ? 0 : 1);
-};
+    }
 
-ButtonControl.prototype.release = function () {
+    release()
+    {
     if (!this.pressed) return;
     this.pressed = false;
     this.emit("valueChanged", 0);
-};
+    }
+}
 
 function applyPresentation(presentation) {
     buttonControl.applyPresentation(presentation);
@@ -122,6 +164,10 @@ function presentation(presentation) {
 
 function paint() {
     buttonControl.paint();
+}
+
+function onresize() {
+    mgraphics.redraw();
 }
 
 function onclick() {
@@ -156,4 +202,12 @@ function label(value) {
     buttonControl.setPresentationLabel(value);
 }
 
-var buttonControl = new ButtonControl();
+function presentation_begin() {
+    buttonControl.beginPresentation();
+}
+
+function presentation_end() {
+    buttonControl.endPresentation();
+}
+
+const buttonControl = new ButtonControl();

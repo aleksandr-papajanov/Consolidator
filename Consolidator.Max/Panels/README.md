@@ -17,7 +17,7 @@ using the `Project:/` prefix:
 
 ```text
 Project:/js/Controls/Analyzer/AnalyzerControl.js
-Project:/js/PanelBindingHost.js
+Project:/js/PanelBindingHostV8.js
 ```
 
 These paths are resolved relative to the patcher containing the object. They
@@ -30,7 +30,7 @@ The parent patch sends presentation messages in this form:
 ```
 
 Each panel receives the complete stream and uses its local
-`PanelBindingHost.js` to resolve only controls inside that panel. Control
+`PanelBindingHostV8.js` to resolve only controls inside that panel. Control
 outlets are explicitly prefixed with their stable control ID before returning
 to the parent Host UI-intent inlet.
 
@@ -50,6 +50,9 @@ group patch messages followed by one redraw. A delta therefore does not replay
 every existing row through every loaded Max UI.
 Focus changes patch only the previously selected and newly selected bank cells;
 they do not rebuild or resend the registry table.
+
+Panel routing currently runs in Max 9's `v8` object through
+`PanelBindingHostV8.js`.
 
 `AnalyzerPresenter` owns analyzer handles, calculated filter curves and streamed
 spectrum data. Handle gestures use the ordinary state/history command path.

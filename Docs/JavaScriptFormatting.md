@@ -4,41 +4,57 @@
 
 ## Runtime
 
-Код выполняется в Max runtime и использует ES5-compatible стиль. Не использовать `let`, `const`, arrow functions, classes, modules, destructuring и spread syntax без подтверждённой поддержки текущего runtime.
+Production-код загружается только объектами `v8`/`v8ui` и использует
+современный синтаксис: `const`/`let`, classes, destructuring, rest/spread и
+arrow functions. `var`, prototype-конструкторы и legacy `include` запрещены.
 
 Использовать 4 пробела, Allman braces, `{}` для control flow и `;` после каждой инструкции. Не добавлять polyfills или runtime dependencies без необходимости.
 
 ## Files and dependencies
 
-Каждый файл должен иметь одну основную сущность. Конструктор и его prototype methods обычно находятся в одном файле:
+Каждый файл должен иметь одну основную сущность. Тип и его методы находятся в
+одном class declaration:
 
 ```javascript
-function ObservableValue(initialValue)
+class ObservableValue
 {
-    this.value = initialValue;
+    constructor(initialValue)
+    {
+        this.value = initialValue;
+    }
+
+    set(value)
+    {
+        this.value = value;
+    }
 }
-
-ObservableValue.prototype.set = function (value)
-{
-    this.value = value;
-};
-```
-
-Dependencies подключаются в начале файла через Max `include`:
-
-```javascript
-include("Project:/js/Clients/NativeProtocolClient.js");
-include("Project:/js/ViewModels/ObservableValue.js");
 ```
 
 Не рассчитывать на случайный порядок загрузки файлов.
+
+V8 libraries use CommonJS `require` and explicit named exports:
+
+```javascript
+const { ObservableValue } = require("../ViewModels/ObservableValue.js");
+
+module.exports = {
+    ObservableValue: ObservableValue
+};
+```
+
+V8 modules не публикуют constructors или helpers через глобальную область.
+
+Max entrypoints являются исключением: selectors и lifecycle hooks,
+вызываемые Max (`anything`, `paint`, `onclick`, `notifydeleted` и т. п.),
+объявлять как глобальные named function declarations. Всю stateful-логику
+держать в class instance, а глобальную function оставлять тонким adapter.
 
 ## Naming
 
 | Сущность | Стиль | Пример |
 | --- | --- | --- |
 | Constructor / type | `PascalCase` | `NativeProtocolClient` |
-| Prototype method | `camelCase` | `handleControl()` |
+| Method | `camelCase` | `handleControl()` |
 | Local variable / parameter | `camelCase` | `requestId` |
 | Field | `camelCase` | `destroyed` |
 | Constant | `UPPER_SNAKE_CASE` | `PROTOCOL_VERSION` |
@@ -49,21 +65,19 @@ Protocol selectors и Max control names сохранять буквально: �
 
 ## Callbacks and lifecycle
 
-Если callback должен обращаться к instance, использовать локальную ссылку `self` или явно контролировать `this`:
+Если callback должен обращаться к instance, использовать arrow function:
 
 ```javascript
-var self = this;
-
-this.unsubscribe = store.subscribe(function (value)
+this.unsubscribe = store.subscribe((value) =>
 {
-    self.apply(value);
+    this.apply(value);
 });
 ```
 
 Каждый subscribe должен иметь соответствующий unsubscribe. Components с subscriptions, tasks или child components должны иметь idempotent `destroy()`:
 
 ```javascript
-ControlBinding.prototype.destroy = function ()
+destroy()
 {
     if (this.destroyed)
     {
@@ -71,12 +85,12 @@ ControlBinding.prototype.destroy = function ()
     }
 
     this.destroyed = true;
-    this.unsubscribers.forEach(function (unsubscribe)
+    this.unsubscribers.forEach((unsubscribe) =>
     {
         unsubscribe();
     });
     this.unsubscribers = [];
-};
+}
 ```
 
 После `destroy()` callbacks не должны обращаться к освобождённым dependencies.
@@ -107,7 +121,7 @@ Bindings не знают деталей transport. ViewModels не обраща�
 Protocol clients должны очищать завершённые requests и сбрасывать callbacks при `destroy()`:
 
 ```javascript
-var callback = this.pending[String(requestId)];
+const callback = this.pending[String(requestId)];
 if (!callback)
 {
     return;

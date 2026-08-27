@@ -1,6 +1,7 @@
 var fs = require("fs");
 var path = require("path");
 var vm = require("vm");
+var createRequire = require("module").createRequire;
 
 var root = path.resolve(__dirname, "../..");
 
@@ -26,6 +27,13 @@ var commonFiles = [
   "js/Presenters/Core/PresentationBinding.js",
   "js/Presenters/Core/Normalization.js",
   "js/Presenters/Dial/DialPresentation.js",
+  "js/Presenters/Button/ButtonPresentation.js",
+  "js/Presenters/Analyzer/AnalyzerPresentation.js",
+  "js/Presenters/BankManager/BankManagerPresentation.js",
+  "js/Presenters/History/HistoryPresentation.js",
+  "js/Presenters/Slider/SliderPresentation.js",
+  "js/Presenters/BankManager/BankManagerPresenter.js",
+  "js/Presenters/Dial/DialPresentation.js",
   "js/Presenters/Dial/DialPresenter.js",
   "js/Presenters/Button/ButtonPresentation.js",
   "js/Presenters/Button/ButtonPresenter.js",
@@ -44,7 +52,7 @@ var commonFiles = [
   "js/Bindings/AnalyzerControlBinding.js",
   "js/Bindings/BankManagerControlBinding.js",
   "js/Bindings/ControlBindings.js",
-  "js/ConsolidatorUiHost.js",
+  "js/ConsolidatorUiApplication.js",
 ];
 
 var analyzerFiles = [
@@ -52,15 +60,81 @@ var analyzerFiles = [
   "js/Controls/Analyzer/AnalyzerLayout.js",
   "js/Controls/Analyzer/AnalyzerRenderer.js",
   "js/Controls/Analyzer/AnalyzerControl.js",
-  "js/PanelBindingHost.js",
 ];
 
+var moduleFiles = {
+  "js/Clients/NativeProtocolClient.js": true,
+  "js/Clients/StateClient.js": true,
+  "js/Clients/TargetStateClient.js": true,
+  "js/Clients/RegistryClient.js": true,
+  "js/Clients/TransactionClient.js": true,
+  "js/Clients/EditingActionClient.js": true,
+  "js/Clients/UiTarget.js": true,
+  "js/Clients/ConsolidatorClient.js": true,
+  "js/Presenters/Core/PresentationObservable.js": true,
+  "js/Presenters/Core/PresentationBinding.js": true,
+  "js/Presenters/Core/Normalization.js": true,
+  "js/ViewModels/ObservableValue.js": true,
+  "js/ViewModels/StateValueViewModel.js": true,
+  "js/ViewModels/GainViewModel.js": true,
+  "js/ViewModels/FilterViewModel.js": true,
+  "js/ViewModels/DetectorFilterViewModel.js": true,
+  "js/ViewModels/CompressorViewModel.js": true,
+  "js/ViewModels/SaturatorViewModel.js": true,
+  "js/ViewModels/EqualizerViewModel.js": true,
+  "js/ViewModels/ConsolidatorViewModel.js": true,
+  "js/ViewModels/HistoryViewModel.js": true,
+  "js/ViewModels/BankManagerViewModel.js": true,
+  "js/Presenters/Dial/DialPresentation.js": true,
+  "js/Presenters/Button/ButtonPresentation.js": true,
+  "js/Presenters/Analyzer/AnalyzerPresentation.js": true,
+  "js/Presenters/BankManager/BankManagerPresentation.js": true,
+  "js/Presenters/History/HistoryPresentation.js": true,
+  "js/Presenters/Slider/SliderPresentation.js": true,
+  "js/Presenters/Dial/DialPresenter.js": true,
+  "js/Presenters/Button/ButtonPresenter.js": true,
+  "js/Presenters/Analyzer/AnalyzerPresenter.js": true,
+  "js/Presenters/BankManager/BankManagerPresenter.js": true,
+  "js/Presenters/History/HistoryPresenter.js": true,
+  "js/Presenters/Slider/SliderPresenter.js": true,
+  "js/Bindings/ControlBinding.js": true,
+  "js/Bindings/DialControlBinding.js": true,
+  "js/Bindings/ButtonControlBinding.js": true,
+  "js/Bindings/AnalyzerControlBinding.js": true,
+  "js/Bindings/BankManagerControlBinding.js": true,
+  "js/Bindings/HistoryPanelBinding.js": true,
+  "js/Bindings/HistoryButtonBinding.js": true,
+  "js/Bindings/ControlBindings.js": true,
+  "js/Controllers/AnalyzerController.js": true,
+  "js/Controllers/FeaturePresenterSet.js": true,
+  "js/Controllers/EqualizerController.js": true,
+  "js/Controllers/CompressorController.js": true,
+  "js/Controllers/SaturatorController.js": true,
+  "js/Controllers/GainController.js": true,
+  "js/Controllers/BankManagerContext.js": true,
+  "js/Controllers/BankManagerController.js": true,
+  "js/Controls/Analyzer/AnalyzerViewState.js": true,
+  "js/Controls/Analyzer/AnalyzerLayout.js": true,
+  "js/Controls/Analyzer/AnalyzerRenderer.js": true,
+  "js/ConsolidatorUiApplication.js": true,
+};
+
 function load(files) {
-  global.include = function () {};
   files.forEach(function (file) {
-    vm.runInThisContext(fs.readFileSync(path.join(root, file), "utf8"), {
-      filename: file,
-    });
+    if (moduleFiles[file]) {
+      Object.keys(require(path.join(root, file))).forEach(function (name) {
+        global[name] = require(path.join(root, file))[name];
+      });
+      return;
+    }
+    var absolutePath = path.join(root, file);
+    var entrypoint = vm.runInThisContext(
+      "(function (require) {\n" +
+        fs.readFileSync(absolutePath, "utf8") +
+        "\n})",
+      { filename: file },
+    );
+    entrypoint(createRequire(absolutePath));
   });
 }
 
@@ -73,11 +147,6 @@ function loadClientEnvironment() {
     size: [800, 400],
   };
   global.outlet = global.outlet || function () {};
-  global.arrayfromargs =
-    global.arrayfromargs ||
-    function (values) {
-      return Array.prototype.slice.call(values);
-    };
   load(commonFiles);
 }
 
@@ -90,9 +159,6 @@ function loadExternalEnvironment() {
     size: [800, 400],
   };
   global.outlet = function () {};
-  global.arrayfromargs = function (values) {
-    return Array.prototype.slice.call(values);
-  };
   load(commonFiles.concat(analyzerFiles));
 }
 

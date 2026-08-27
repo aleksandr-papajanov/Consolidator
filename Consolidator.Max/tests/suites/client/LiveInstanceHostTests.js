@@ -21,7 +21,11 @@ function loadHost(LiveAPI, outputs)
     vm.runInContext(fs.readFileSync(sourcePath, "utf8"), context, {
         filename: "js/LiveInstanceHost.js",
     });
-    return context;
+    return vm.runInContext(
+        "new LiveInstanceHost(LiveAPI, function (message) { " +
+        "outlet(0, message); })",
+        context,
+    );
 }
 
 function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
@@ -31,20 +35,17 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
 
     function FakeLiveAPI(callbackOrPath, livePath)
     {
-        if (callbackOrPath === "this_device")
+        if (callbackOrPath === null && livePath === "this_device")
         {
             return {
                 id: 99,
-                get: function (property)
-                {
-                    assert.strictEqual(property, "canonical_parent");
-                    return ["id", 42];
-                },
             };
         }
-        if (callbackOrPath === "id 42")
+        if (callbackOrPath === null &&
+                livePath === "this_device canonical_parent")
         {
             return {
+                id: 42,
                 unquotedpath: "live_set tracks 3",
                 get: function (property)
                 {
@@ -83,6 +84,10 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
         "selected_device");
     assert.strictEqual(observers["id 42 view"], undefined);
 
+    observers["live_set view"].callback(["id", 3]);
+    observers["live_set tracks 3 view"].callback(["id", 4]);
+    assert.strictEqual(outputs.length, 2);
+
     observers["live_set tracks 3 view"].callback([
         "selected_device", "id", 100]);
     assert.deepStrictEqual(outputs[2], [0, ["instance_active", 0]]);
@@ -96,7 +101,7 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
     observers["id 42"].callback(["name", "Backing Vocal"]);
     assert.deepStrictEqual(outputs[6], [0, ["track_name", "Backing Vocal"]]);
 
-    context.freebang();
+    context.destroy();
     assert.strictEqual(context.trackObserver, null);
     assert.strictEqual(context.selectedTrackObserver, null);
     assert.strictEqual(context.selectedDeviceObserver, null);
@@ -105,13 +110,15 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
 function testInvalidParentDoesNotPublishOrCreateObservers()
 {
     var outputs = [];
-    function FakeLiveAPI(livePath)
+    function FakeLiveAPI(callback, livePath)
     {
-        assert.strictEqual(livePath, "this_device");
-        return {
-            id: 99,
-            get: function () { return ["id", 0]; },
-        };
+        assert.strictEqual(callback, null);
+        if (livePath === "this_device")
+        {
+            return { id: 99 };
+        }
+        assert.strictEqual(livePath, "this_device canonical_parent");
+        return { id: 0 };
     }
 
     var context = loadHost(FakeLiveAPI, outputs);

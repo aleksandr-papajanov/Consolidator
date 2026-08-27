@@ -48,6 +48,24 @@ function testTargetSnapshotAndPushUpdateUseSemanticPaths() {
   assert.deepStrictEqual(values, [-24, -18]);
 }
 
+function testUiTargetReportsSnapshotCompletion() {
+  var client = new ConsolidatorClient("ui", function () {});
+  var response;
+
+  client.uiTarget.show("4", 2, function (result) {
+    response = result;
+  });
+  client.handleControl("target_state_snapshot", [
+    1, "9", "1", "4", 3, 1, "compressor.threshold", -24,
+    -60, 0, -60, 0,
+  ]);
+
+  assert.strictEqual(response.error, null);
+  assert.strictEqual(response.entries.length, 1);
+  assert.strictEqual(response.entries[0].value, -24);
+  client.destroy();
+}
+
 function testObservedEqualizerPathsAreExpandedForWrites() {
   var frames = [];
   var protocol = new NativeProtocolClient("ui", function (frame) {
@@ -147,6 +165,7 @@ function testWriteWithCallbackIsNotEligibleForGestureCoalescing() {
 testInitializationUsesExternalIdentityFromManaged();
 testInstanceActivityUsesTheInstanceCommand();
 testTargetSnapshotAndPushUpdateUseSemanticPaths();
+testUiTargetReportsSnapshotCompletion();
 testObservedEqualizerPathsAreExpandedForWrites();
 testTargetSnapshotNotifiesStateValueOnceAfterCompletion();
 testStaleTargetSnapshotDoesNotResumeLatestTransition();

@@ -10,12 +10,15 @@
 | [`CSharpFormatting.md`](CSharpFormatting.md) | Форматирование, naming, using directives, managed dependencies и NativeAOT interop conventions для C#. |
 | [`JavaScriptFormatting.md`](JavaScriptFormatting.md) | ES5-compatible Max runtime style, include order, callbacks, lifecycle, protocol и UI layer conventions для JavaScript. |
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
+| [`UiPerformance.md`](UiPerformance.md) | Batching target snapshots и правила снижения Max JavaScript UI scheduler work. |
 | [`ManagedProtocol.md`](ManagedProtocol.md) | Граница Managed protocol: atom decoding, command types, relative paths, routing scopes и response encoding. |
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
 | [`DspStatePipeline.md`](DspStatePipeline.md) | Derived DSP objects, dirty propagation, coalesced recalculation и analyzer updates. |
 | [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
 | [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |
 | [`Testing.md`](Testing.md) | Философия тестов, уровни, сквозные use cases, структура suites и команды запуска. |
+| [`V8Migration.md`](V8Migration.md) | Инвентаризация Max JavaScript runtime и план перехода с `js`/`jsui` на `v8`/`v8ui`. |
+| [`MaxV8RuntimeDiagnostics.md`](MaxV8RuntimeDiagnostics.md) | Диагностика загрузки Max for Live UI: LiveAPI lifecycle, activity, protocol snapshots, host-only проверки и пересборка `.amxd`. |
 
 ## Правила работы с документацией
 

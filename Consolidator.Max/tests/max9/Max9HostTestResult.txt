@@ -1,0 +1,1 @@
+max9_host_test passed: named v8 router and v8ui probe resolved

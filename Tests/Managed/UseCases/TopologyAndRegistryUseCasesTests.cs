@@ -10,6 +10,24 @@ using static ManagedApplicationFixture;
 public sealed class TopologyAndRegistryUseCasesTests
 {
     [Fact]
+    public void UnregisterDisposesObservedPeerValuesExactlyOnce()
+    {
+        using var application = new ManagedApplicationFixture();
+        var source = application.RegisterInstance();
+        var target = application.RegisterInstance();
+
+        application.Send(
+            source,
+            "observe_target",
+            Symbol(target.InstanceId.Value.ToString()),
+            Integer(3));
+        application.Send(source, "set_instance_active", Integer(1));
+
+        application.UnregisterInstance(source);
+        application.UnregisterInstance(source);
+    }
+
+    [Fact]
     public void GroupedBanksPropagateEditsAndRegistryReportsTheConnectedTopology()
     {
         using var application = new ManagedApplicationFixture();

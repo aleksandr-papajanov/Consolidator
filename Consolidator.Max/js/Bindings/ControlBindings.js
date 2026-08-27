@@ -1,55 +1,70 @@
-include("Project:/js/Bindings/DialControlBinding.js");
-include("Project:/js/Bindings/ButtonControlBinding.js");
-include("Project:/js/Bindings/AnalyzerControlBinding.js");
-include("Project:/js/Bindings/BankManagerControlBinding.js");
+const { DialControlBinding } = require("./DialControlBinding.js");
+const { ButtonControlBinding } = require("./ButtonControlBinding.js");
+const { AnalyzerControlBinding } = require("./AnalyzerControlBinding.js");
+const { BankManagerControlBinding } = require("./BankManagerControlBinding.js");
 
-function ControlBindings() {
-    this.items = {};
-    this.presentationActive = true;
+class ControlBindings
+{
+    constructor()
+    {
+        this.items = {};
+        this.presentationActive = true;
+    }
+    
+    add(name, binding)
+    {
+        if (!name) throw new Error("Control binding requires a varname.");
+        if (this.items.hasOwnProperty(name)) {
+            throw new Error("Duplicate control binding varname: " + name);
+        }
+        if (binding) {
+            binding.setPresentationActive(this.presentationActive);
+            this.items[name] = binding;
+        }
+        return binding;
+    }
+    
+    suspend()
+    {
+        Object.keys(this.items).forEach((name) => {
+            this.items[name].suspend();
+        }, this);
+    }
+    
+    resumeLatest()
+    {
+        Object.keys(this.items).forEach((name) => {
+            this.items[name].resumeLatest();
+        }, this);
+    }
+    
+    setPresentationActive(active)
+    {
+        this.presentationActive = Boolean(active);
+        Object.keys(this.items).forEach((name) => {
+            this.items[name].setPresentationActive(this.presentationActive);
+        }, this);
+    }
+    
+    handle(name, intent, values)
+    {
+        let binding = this.items[name];
+        if (binding) {
+            binding.handleIntent(intent, values || []);
+        }
+    }
+    
+    destroy()
+    {
+        Object.keys(this.items).forEach((name) => {
+            this.items[name].destroy();
+        }, this);
+        this.items = {};
+        this.presentationActive = false;
+    }
 }
 
-ControlBindings.prototype.add = function (name, binding) {
-    if (!name) throw new Error("Control binding requires a varname.");
-    if (this.items.hasOwnProperty(name)) {
-        throw new Error("Duplicate control binding varname: " + name);
-    }
-    if (binding) {
-        binding.setPresentationActive(this.presentationActive);
-        this.items[name] = binding;
-    }
-    return binding;
+module.exports = {
+    ControlBindings: ControlBindings
 };
 
-ControlBindings.prototype.suspend = function () {
-    Object.keys(this.items).forEach(function (name) {
-        this.items[name].suspend();
-    }, this);
-};
-
-ControlBindings.prototype.resumeLatest = function () {
-    Object.keys(this.items).forEach(function (name) {
-        this.items[name].resumeLatest();
-    }, this);
-};
-
-ControlBindings.prototype.setPresentationActive = function (active) {
-    this.presentationActive = Boolean(active);
-    Object.keys(this.items).forEach(function (name) {
-        this.items[name].setPresentationActive(this.presentationActive);
-    }, this);
-};
-
-ControlBindings.prototype.handle = function (name, intent, values) {
-    var binding = this.items[name];
-    if (binding) {
-        binding.handleIntent(intent, values || []);
-    }
-};
-
-ControlBindings.prototype.destroy = function () {
-    Object.keys(this.items).forEach(function (name) {
-        this.items[name].destroy();
-    }, this);
-    this.items = {};
-    this.presentationActive = false;
-};

@@ -9,16 +9,16 @@
     },
     "classnamespace": "box",
     "rect": [
-      0.0,
-      0.0,
-      280.0,
-      240.0
+      0,
+      0,
+      280,
+      240
     ],
     "boxes": [
       {
         "box": {
           "id": "history_panel",
-          "maxclass": "jsui",
+          "maxclass": "v8ui",
           "filename": "Project:/js/Controls/History/HistoryPanel.js",
           "varname": "history_panel",
           "numinlets": 1,
@@ -27,17 +27,17 @@
             ""
           ],
           "patching_rect": [
-            0.0,
-            0.0,
-            280.0,
-            220.0
+            0,
+            0,
+            280,
+            220
           ],
           "presentation": 1,
           "presentation_rect": [
-            0.0,
-            0.0,
-            280.0,
-            220.0
+            0,
+            0,
+            280,
+            220
           ]
         }
       },
@@ -51,10 +51,10 @@
             ""
           ],
           "patching_rect": [
-            0.0,
-            230.0,
-            30.0,
-            30.0
+            0,
+            230,
+            30,
+            30
           ]
         }
       },
@@ -62,20 +62,20 @@
         "box": {
           "id": "router",
           "maxclass": "newobj",
-          "text": "js Project:/js/PanelBindingHost.js",
+          "text": "v8 Project:/js/PanelBindingHostV8.js",
           "numinlets": 1,
           "numoutlets": 1,
           "outlettype": [
             ""
           ],
           "patching_rect": [
-            50.0,
-            230.0,
-            210.0,
-            22.0
+            50,
+            230,
+            210,
+            22
           ],
           "saved_object_attributes": {
-            "filename": "Project:/js/PanelBindingHost.js",
+            "filename": "Project:/js/PanelBindingHostV8.js",
             "parameter_enable": 0
           }
         },
@@ -92,10 +92,10 @@
             ""
           ],
           "patching_rect": [
-            0.0,
-            270.0,
-            160.0,
-            22.0
+            0,
+            270,
+            160,
+            22
           ]
         }
       },
@@ -106,10 +106,10 @@
           "numinlets": 1,
           "numoutlets": 0,
           "patching_rect": [
-            0.0,
-            305.0,
-            30.0,
-            30.0
+            0,
+            305,
+            30,
+            30
           ]
         }
       }

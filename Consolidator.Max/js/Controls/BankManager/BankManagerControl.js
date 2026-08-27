@@ -2,13 +2,13 @@ autowatch = 1;
 inlets = 1;
 outlets = 1;
 
-include("Project:/js/Presenters/BankManager/BankManagerPresentation.js");
-
 mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
-var BankManagerControlOptions = {
+const { BankManagerPresentation } = require("../../Presenters/BankManager/BankManagerPresentation.js");
+
+const BankManagerControlOptions = {
     background: [0.08, 0.08, 0.08, 1],
     text: [0.8, 0.8, 0.8, 1],
     focused: [0.35, 0.7, 1, 1],
@@ -28,475 +28,491 @@ var BankManagerControlOptions = {
     fontSize: 11
 };
 
-function BankManagerControl() {
-    this.presentation = new BankManagerPresentation();
-    this.pendingPresentation = null;
-    this.scrollPosition = 0;
-    this.pointerDown = false;
-    this.pointerX = 0;
-    this.pointerY = 0;
-    this.pointerShift = false;
-    this.dragging = false;
-    this.lastY = 0;
-}
-
-BankManagerControl.prototype.applyPresentation = function (presentation) {
-    if (!presentation) {
-        return;
-    }
-
-    this.presentation = presentation;
-    if (!presentation.enabled) {
+class BankManagerControl
+{
+    constructor()
+    {
+        this.presentation = new BankManagerPresentation();
+        this.pendingPresentation = null;
+        this.scrollPosition = 0;
+        this.pointerDown = false;
+        this.pointerX = 0;
+        this.pointerY = 0;
+        this.pointerShift = false;
         this.dragging = false;
+        this.lastY = 0;
     }
 
-    mgraphics.redraw();
-};
-
-BankManagerControl.prototype.scrollOffset = function () {
-    this.scrollPosition = Math.max(
-        0,
-        Math.min(this.maximumScrollOffset(), this.scrollPosition)
-    );
-
-    return this.scrollPosition;
-};
-
-BankManagerControl.prototype.maximumScrollOffset = function () {
-    var rows = this.presentation.rows || [];
-    var contentHeight = rows.length * BankManagerControlOptions.rowHeight;
-    return Math.max(0, contentHeight - mgraphics.size[1]);
-};
-
-BankManagerControl.prototype.emit = function (name, payload) {
-    if (payload === undefined) {
-        outlet(0, name);
-    } else if (payload instanceof Array) {
-        outlet(0, [name].concat(payload));
-    } else {
-        outlet(0, [name, payload]);
-    }
-};
-
-BankManagerControl.prototype.paintBank = function (bank, x, y) {
-    if (!bank.visible) {
-        return;
-    }
-
-    var fallbackColor = bank.system
-        ? BankManagerControlOptions.text
-        : BankManagerControlOptions.focused;
-    var color = bank.color || fallbackColor;
-    var alpha = bank.opacity === undefined ? 1 : bank.opacity;
-    var displayColor = [
-        color[0],
-        color[1],
-        color[2],
-        (color[3] === undefined ? 1 : color[3]) * alpha
-    ];
-    var fallbackTextColor = bank.active
-        ? BankManagerControlOptions.background
-        : displayColor;
-    var textColor = bank.textColor || fallbackTextColor;
-
-    mgraphics.set_source_rgba.apply(mgraphics, displayColor);
-    mgraphics.rectangle(
-        x,
-        y,
-        BankManagerControlOptions.bankSize,
-        BankManagerControlOptions.bankSize
-    );
-    if (bank.active) {
-        mgraphics.fill();
-    } else {
-        mgraphics.stroke();
-    }
-
-    mgraphics.set_source_rgba.apply(mgraphics, textColor);
-    mgraphics.select_font_face("Arial");
-    mgraphics.set_font_size(9);
-    mgraphics.move_to(x + 4, y + 11);
-    mgraphics.show_text(String(bank.label));
-};
-
-BankManagerControl.prototype.paint = function () {
-    var width = mgraphics.size[0];
-    var height = mgraphics.size[1];
-    var rows = this.presentation.rows || [];
-    var offset = this.scrollOffset();
-
-    mgraphics.set_source_rgba.apply(
-        mgraphics,
-        BankManagerControlOptions.background
-    );
-    mgraphics.rectangle(0, 0, width, height);
-    mgraphics.fill();
-    mgraphics.select_font_face("Arial");
-    mgraphics.set_font_size(BankManagerControlOptions.fontSize);
-
-    this.paintActions(width);
-
-    for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        var row = rows[rowIndex];
-        var y = rowIndex * BankManagerControlOptions.rowHeight - offset;
-        if (y + BankManagerControlOptions.rowHeight < 0 || y > height) {
-            continue;
+    applyPresentation(presentation)
+    {
+        if (!presentation) {
+            return;
         }
 
-        if (row.local) {
-            mgraphics.set_source_rgba.apply(mgraphics, [0.12, 0.12, 0.12, 1]);
-            mgraphics.rectangle(
-                0,
-                y,
-                width - 44,
-                BankManagerControlOptions.rowHeight
-            );
-            mgraphics.fill();
+        this.presentation = presentation;
+        if (!presentation.enabled) {
+            this.dragging = false;
         }
 
-        mgraphics.set_source_rgba.apply(
-            mgraphics,
-            row.local
-                ? BankManagerControlOptions.focused
-                : BankManagerControlOptions.remote
-        );
-        mgraphics.move_to(2, y + 12);
-        mgraphics.show_text(row.label);
+        mgraphics.redraw();
+    }
 
-        for (var bankIndex = 0; bankIndex < row.banks.length; bankIndex += 1) {
-            this.paintBank(
-                row.banks[bankIndex],
-                100 + bankIndex * (
-                    BankManagerControlOptions.bankSize +
-                    BankManagerControlOptions.bankGap
-                ),
-                y
-            );
-        }
-
-        mgraphics.set_source_rgba.apply(
-            mgraphics,
-            BankManagerControlOptions.separator
-        );
-        mgraphics.rectangle(
+    scrollOffset()
+    {
+        this.scrollPosition = Math.max(
             0,
-            y + BankManagerControlOptions.rowHeight - 1,
-            width,
-            1
+            Math.min(this.maximumScrollOffset(), this.scrollPosition)
         );
-        mgraphics.fill();
+
+        return this.scrollPosition;
     }
 
-    var groups = this.presentation.linkGroups || [];
-    for (var groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-        var group = groups[groupIndex];
-        var groupX = width - 44 + (groupIndex % 2) * 22;
-        var groupY = BankManagerControlOptions.linkGroupStartY +
-            Math.floor(groupIndex / 2) *
-            BankManagerControlOptions.linkGroupCellHeight;
-        if (!group.color) {
-            continue;
+    maximumScrollOffset()
+    {
+        let rows = this.presentation.rows || [];
+        let contentHeight = rows.length * BankManagerControlOptions.rowHeight;
+        return Math.max(0, contentHeight - mgraphics.size[1]);
+    }
+
+    emit(name, payload)
+    {
+        if (payload === undefined) {
+            outlet(0, name);
+        } else if (payload instanceof Array) {
+            outlet(0, [name].concat(payload));
+        } else {
+            outlet(0, [name, payload]);
+        }
+    }
+
+    paintBank(bank, x, y)
+    {
+        if (!bank.visible) {
+            return;
         }
 
-        mgraphics.set_source_rgba.apply(mgraphics, group.color);
-        mgraphics.rectangle(groupX, groupY, 16, 14);
-        if (group.active) {
+        let fallbackColor = bank.system
+            ? BankManagerControlOptions.text
+            : BankManagerControlOptions.focused;
+        let color = bank.color || fallbackColor;
+        let alpha = bank.opacity === undefined ? 1 : bank.opacity;
+        let displayColor = [
+            color[0],
+            color[1],
+            color[2],
+            (color[3] === undefined ? 1 : color[3]) * alpha
+        ];
+        let fallbackTextColor = bank.active
+            ? BankManagerControlOptions.background
+            : displayColor;
+        let textColor = bank.textColor || fallbackTextColor;
+
+        mgraphics.set_source_rgba.apply(mgraphics, displayColor);
+        mgraphics.rectangle(
+            x,
+            y,
+            BankManagerControlOptions.bankSize,
+            BankManagerControlOptions.bankSize
+        );
+        if (bank.active) {
             mgraphics.fill();
         } else {
             mgraphics.stroke();
         }
 
-        var groupTextColor = BankManagerControlOptions.disabled;
-        if (group.active) {
-            groupTextColor = BankManagerControlOptions.background;
-        } else if (group.enabled) {
-            groupTextColor = group.color;
-        }
-
-        mgraphics.set_source_rgba.apply(mgraphics, groupTextColor);
+        mgraphics.set_source_rgba.apply(mgraphics, textColor);
         mgraphics.select_font_face("Arial");
         mgraphics.set_font_size(9);
-        mgraphics.move_to(groupX + 5, groupY + 10);
-        mgraphics.show_text(String(group.label));
-    }
-};
-
-BankManagerControl.prototype.paintActions = function (width) {
-    var edit = this.presentation.editAction || {};
-    var clear = this.presentation.clearAction || {};
-    var x = width - 44;
-
-    var editColor = BankManagerControlOptions.disabled;
-    if (edit.enabled) {
-        editColor = edit.active
-            ? BankManagerControlOptions.actionActive
-            : BankManagerControlOptions.action;
+        mgraphics.move_to(x + 4, y + 11);
+        mgraphics.show_text(String(bank.label));
     }
 
-    mgraphics.set_source_rgba.apply(mgraphics, editColor);
-    mgraphics.rectangle(x, 0, 44, BankManagerControlOptions.actionHeight);
-    if (edit.active && edit.enabled) {
-        mgraphics.fill();
-    } else {
-        mgraphics.stroke();
-    }
+    paint()
+    {
+        let width = mgraphics.size[0];
+        let height = mgraphics.size[1];
+        let rows = this.presentation.rows || [];
+        let offset = this.scrollOffset();
 
-    mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.text);
-    mgraphics.move_to(x + 4, 11);
-    mgraphics.show_text("edit");
-
-    var clearColor = clear.enabled
-        ? BankManagerControlOptions.action
-        : BankManagerControlOptions.disabled;
-    mgraphics.set_source_rgba.apply(mgraphics, clearColor);
-    mgraphics.rectangle(
-        x,
-        BankManagerControlOptions.actionHeight +
-            BankManagerControlOptions.actionGap,
-        44,
-        BankManagerControlOptions.actionHeight
-    );
-    if (clear.armed && clear.enabled) {
-        mgraphics.fill();
-    } else {
-        mgraphics.stroke();
-    }
-
-    mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.text);
-    mgraphics.move_to(
-        x + 4,
-        BankManagerControlOptions.actionHeight +
-            BankManagerControlOptions.actionGap +
-            11
-    );
-    mgraphics.show_text(clear.armed ? "sure?" : "clear");
-};
-
-BankManagerControl.prototype.rowAt = function (y) {
-    return Math.floor(
-        (y + this.scrollOffset()) / BankManagerControlOptions.rowHeight
-    );
-};
-
-BankManagerControl.prototype.bankAt = function (row, x) {
-    var index = Math.floor(
-        (x - 100) /
-        (BankManagerControlOptions.bankSize + BankManagerControlOptions.bankGap)
-    );
-
-    return index >= 0 && row && row.banks[index] ? index : -1;
-};
-
-BankManagerControl.prototype.selectAt = function (x, y, extendSelection) {
-    if (!this.presentation.enabled) {
-        return;
-    }
-
-    if (x >= mgraphics.size[0] - 44 && y < 16) {
-        if (
-            this.presentation.editAction &&
-            this.presentation.editAction.enabled
-        ) {
-            this.emit("editToggled");
-        }
-
-        return;
-    }
-
-    if (
-        x >= mgraphics.size[0] - 44 &&
-        y >= BankManagerControlOptions.actionHeight +
-            BankManagerControlOptions.actionGap &&
-        y < BankManagerControlOptions.actionHeight * 2 +
-            BankManagerControlOptions.actionGap
-    ) {
-        if (
-            this.presentation.clearAction &&
-            this.presentation.clearAction.enabled
-        ) {
-            this.emit("clearRequested");
-        }
-
-        return;
-    }
-
-    if (
-        x >= mgraphics.size[0] - 44 &&
-        y >= BankManagerControlOptions.linkGroupStartY
-    ) {
-        var groupIndex = Math.floor(
-            (y - BankManagerControlOptions.linkGroupStartY) /
-                BankManagerControlOptions.linkGroupCellHeight
-        ) * 2 + (x >= mgraphics.size[0] - 22 ? 1 : 0);
-        var group = (this.presentation.linkGroups || [])[groupIndex];
-        if (group && group.enabled) {
-            this.emit("linkGroupSelected", group.linkId);
-        }
-
-        return;
-    }
-
-    var rows = this.presentation.rows || [];
-    var rowIndex = this.rowAt(y);
-    var row = rows[rowIndex];
-    if (!row) {
-        return;
-    }
-
-    var bankIndex = this.bankAt(row, x);
-    if (bankIndex >= 0) {
-        var bank = row.banks[bankIndex];
-        if (bank.visible && bank.enabled) {
-            this.emit("bankSelected", [
-                row.instanceId,
-                bank.bankId,
-                extendSelection ? 1 : 0
-            ]);
-        }
-    } else {
-        this.emit("rowSelected", [row.instanceId]);
-    }
-};
-
-BankManagerControl.prototype.beginGesture = function (y) {
-    if (!this.presentation.enabled) {
-        return;
-    }
-
-    this.dragging = true;
-    this.lastY = y;
-    this.emit("gestureBegan");
-};
-
-BankManagerControl.prototype.beginPointer = function (x, y, shift) {
-    if (!this.presentation.enabled) {
-        return;
-    }
-
-    this.pointerDown = true;
-    this.pointerX = x;
-    this.pointerY = y;
-    this.pointerShift = Number(shift) !== 0;
-    this.dragging = false;
-};
-
-BankManagerControl.prototype.movePointer = function (x, y) {
-    if (!this.pointerDown) {
-        return;
-    }
-
-    if (!this.dragging) {
-        var distance = Math.sqrt(
-            Math.pow(x - this.pointerX, 2) + Math.pow(y - this.pointerY, 2)
+        mgraphics.set_source_rgba.apply(
+            mgraphics,
+            BankManagerControlOptions.background
         );
-        if (distance < 4) {
+        mgraphics.rectangle(0, 0, width, height);
+        mgraphics.fill();
+        mgraphics.select_font_face("Arial");
+        mgraphics.set_font_size(BankManagerControlOptions.fontSize);
+
+        this.paintActions(width);
+
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+            let row = rows[rowIndex];
+            let y = rowIndex * BankManagerControlOptions.rowHeight - offset;
+            if (y + BankManagerControlOptions.rowHeight < 0 || y > height) {
+                continue;
+            }
+
+            if (row.local) {
+                mgraphics.set_source_rgba.apply(mgraphics, [0.12, 0.12, 0.12, 1]);
+                mgraphics.rectangle(
+                    0,
+                    y,
+                    width - 44,
+                    BankManagerControlOptions.rowHeight
+                );
+                mgraphics.fill();
+            }
+
+            mgraphics.set_source_rgba.apply(
+                mgraphics,
+                row.local
+                    ? BankManagerControlOptions.focused
+                    : BankManagerControlOptions.remote
+            );
+            mgraphics.move_to(2, y + 12);
+            mgraphics.show_text(row.label);
+
+            for (let bankIndex = 0; bankIndex < row.banks.length; bankIndex += 1) {
+                this.paintBank(
+                    row.banks[bankIndex],
+                    100 + bankIndex * (
+                        BankManagerControlOptions.bankSize +
+                        BankManagerControlOptions.bankGap
+                    ),
+                    y
+                );
+            }
+
+            mgraphics.set_source_rgba.apply(
+                mgraphics,
+                BankManagerControlOptions.separator
+            );
+            mgraphics.rectangle(
+                0,
+                y + BankManagerControlOptions.rowHeight - 1,
+                width,
+                1
+            );
+            mgraphics.fill();
+        }
+
+        let groups = this.presentation.linkGroups || [];
+        for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+            let group = groups[groupIndex];
+            let groupX = width - 44 + (groupIndex % 2) * 22;
+            let groupY = BankManagerControlOptions.linkGroupStartY +
+                Math.floor(groupIndex / 2) *
+                BankManagerControlOptions.linkGroupCellHeight;
+            if (!group.color) {
+                continue;
+            }
+
+            mgraphics.set_source_rgba.apply(mgraphics, group.color);
+            mgraphics.rectangle(groupX, groupY, 16, 14);
+            if (group.active) {
+                mgraphics.fill();
+            } else {
+                mgraphics.stroke();
+            }
+
+            let groupTextColor = BankManagerControlOptions.disabled;
+            if (group.active) {
+                groupTextColor = BankManagerControlOptions.background;
+            } else if (group.enabled) {
+                groupTextColor = group.color;
+            }
+
+            mgraphics.set_source_rgba.apply(mgraphics, groupTextColor);
+            mgraphics.select_font_face("Arial");
+            mgraphics.set_font_size(9);
+            mgraphics.move_to(groupX + 5, groupY + 10);
+            mgraphics.show_text(String(group.label));
+        }
+    }
+
+    paintActions(width)
+    {
+        let edit = this.presentation.editAction || {};
+        let clear = this.presentation.clearAction || {};
+        let x = width - 44;
+
+        let editColor = BankManagerControlOptions.disabled;
+        if (edit.enabled) {
+            editColor = edit.active
+                ? BankManagerControlOptions.actionActive
+                : BankManagerControlOptions.action;
+        }
+
+        mgraphics.set_source_rgba.apply(mgraphics, editColor);
+        mgraphics.rectangle(x, 0, 44, BankManagerControlOptions.actionHeight);
+        if (edit.active && edit.enabled) {
+            mgraphics.fill();
+        } else {
+            mgraphics.stroke();
+        }
+
+        mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.text);
+        mgraphics.move_to(x + 4, 11);
+        mgraphics.show_text("edit");
+
+        let clearColor = clear.enabled
+            ? BankManagerControlOptions.action
+            : BankManagerControlOptions.disabled;
+        mgraphics.set_source_rgba.apply(mgraphics, clearColor);
+        mgraphics.rectangle(
+            x,
+            BankManagerControlOptions.actionHeight +
+                BankManagerControlOptions.actionGap,
+            44,
+            BankManagerControlOptions.actionHeight
+        );
+        if (clear.armed && clear.enabled) {
+            mgraphics.fill();
+        } else {
+            mgraphics.stroke();
+        }
+
+        mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.text);
+        mgraphics.move_to(
+            x + 4,
+            BankManagerControlOptions.actionHeight +
+                BankManagerControlOptions.actionGap +
+                11
+        );
+        mgraphics.show_text(clear.armed ? "sure?" : "clear");
+    }
+
+    rowAt(y)
+    {
+        return Math.floor(
+            (y + this.scrollOffset()) / BankManagerControlOptions.rowHeight
+        );
+    }
+
+    bankAt(row, x)
+    {
+        let index = Math.floor(
+            (x - 100) /
+            (BankManagerControlOptions.bankSize + BankManagerControlOptions.bankGap)
+        );
+
+        return index >= 0 && row && row.banks[index] ? index : -1;
+    }
+
+    selectAt(x, y, extendSelection)
+    {
+        if (!this.presentation.enabled) {
             return;
         }
 
-        this.beginGesture(this.pointerY);
+        if (x >= mgraphics.size[0] - 44 && y < 16) {
+            if (
+                this.presentation.editAction &&
+                this.presentation.editAction.enabled
+            ) {
+                this.emit("editToggled");
+            }
+
+            return;
+        }
+
+        if (
+            x >= mgraphics.size[0] - 44 &&
+            y >= BankManagerControlOptions.actionHeight +
+                BankManagerControlOptions.actionGap &&
+            y < BankManagerControlOptions.actionHeight * 2 +
+                BankManagerControlOptions.actionGap
+        ) {
+            if (
+                this.presentation.clearAction &&
+                this.presentation.clearAction.enabled
+            ) {
+                this.emit("clearRequested");
+            }
+
+            return;
+        }
+
+        if (
+            x >= mgraphics.size[0] - 44 &&
+            y >= BankManagerControlOptions.linkGroupStartY
+        ) {
+            let groupIndex = Math.floor(
+                (y - BankManagerControlOptions.linkGroupStartY) /
+                    BankManagerControlOptions.linkGroupCellHeight
+            ) * 2 + (x >= mgraphics.size[0] - 22 ? 1 : 0);
+            let group = (this.presentation.linkGroups || [])[groupIndex];
+            if (group && group.enabled) {
+                this.emit("linkGroupSelected", group.linkId);
+            }
+
+            return;
+        }
+
+        let rows = this.presentation.rows || [];
+        let rowIndex = this.rowAt(y);
+        let row = rows[rowIndex];
+        if (!row) {
+            return;
+        }
+
+        let bankIndex = this.bankAt(row, x);
+        if (bankIndex >= 0) {
+            let bank = row.banks[bankIndex];
+            if (bank.visible && bank.enabled) {
+                this.emit("bankSelected", [
+                    row.instanceId,
+                    bank.bankId,
+                    extendSelection ? 1 : 0
+                ]);
+            }
+        } else {
+            this.emit("rowSelected", [row.instanceId]);
+        }
     }
 
-    this.drag(y);
-};
+    beginGesture(y)
+    {
+        if (!this.presentation.enabled) {
+            return;
+        }
 
-BankManagerControl.prototype.endPointer = function (x, y) {
-    if (!this.pointerDown) {
-        return;
+        this.dragging = true;
+        this.lastY = y;
+        this.emit("gestureBegan");
     }
 
-    if (this.dragging) {
-        this.endGesture();
-    } else {
-        this.selectAt(x, y, this.pointerShift);
+    beginPointer(x, y, shift)
+    {
+        if (!this.presentation.enabled) {
+            return;
+        }
+
+        this.pointerDown = true;
+        this.pointerX = x;
+        this.pointerY = y;
+        this.pointerShift = Number(shift) !== 0;
+        this.dragging = false;
     }
 
-    this.pointerDown = false;
-    this.pointerShift = false;
-};
+    movePointer(x, y)
+    {
+        if (!this.pointerDown) {
+            return;
+        }
 
-BankManagerControl.prototype.cancelPointer = function () {
-    if (this.dragging) {
-        this.endGesture();
+        if (!this.dragging) {
+            let distance = Math.sqrt(
+                Math.pow(x - this.pointerX, 2) + Math.pow(y - this.pointerY, 2)
+            );
+            if (distance < 4) {
+                return;
+            }
+
+            this.beginGesture(this.pointerY);
+        }
+
+        this.drag(y);
     }
 
-    this.pointerDown = false;
-    this.pointerShift = false;
-};
+    endPointer(x, y)
+    {
+        if (!this.pointerDown) {
+            return;
+        }
 
-BankManagerControl.prototype.drag = function (y) {
-    if (!this.dragging) {
-        return;
+        if (this.dragging) {
+            this.endGesture();
+        } else {
+            this.selectAt(x, y, this.pointerShift);
+        }
+
+        this.pointerDown = false;
+        this.pointerShift = false;
     }
 
-    this.scrollPosition = Math.max(
-        0,
-        Math.min(
-            this.maximumScrollOffset(),
-            this.scrollOffset() + this.lastY - y
-        )
-    );
-    this.lastY = y;
-    mgraphics.redraw();
-};
+    cancelPointer()
+    {
+        if (this.dragging) {
+            this.endGesture();
+        }
 
-BankManagerControl.prototype.endGesture = function () {
-    if (!this.dragging) {
-        return;
+        this.pointerDown = false;
+        this.pointerShift = false;
     }
 
-    this.dragging = false;
-    this.emit("gestureEnded");
-};
+    drag(y)
+    {
+        if (!this.dragging) {
+            return;
+        }
 
-BankManagerControl.prototype.colorFromArguments = function (
-    hasColor,
+        this.scrollPosition = Math.max(
+            0,
+            Math.min(
+                this.maximumScrollOffset(),
+                this.scrollOffset() + this.lastY - y
+            )
+        );
+        this.lastY = y;
+        mgraphics.redraw();
+    }
+
+    endGesture()
+    {
+        if (!this.dragging) {
+            return;
+        }
+
+        this.dragging = false;
+        this.emit("gestureEnded");
+    }
+
+    colorFromArguments(hasColor,
     red,
     green,
     blue,
-    alpha
-) {
-    if (Number(hasColor) === 0) {
-        return null;
+    alpha)
+    {
+        if (Number(hasColor) === 0) {
+            return null;
+        }
+
+        return [
+            Number(red),
+            Number(green),
+            Number(blue),
+            Number(alpha)
+        ];
     }
 
-    return [
-        Number(red),
-        Number(green),
-        Number(blue),
-        Number(alpha)
-    ];
-};
+    beginPresentation(enabled,
+    linkEditing)
+    {
+        this.pendingPresentation = new BankManagerPresentation();
+        this.pendingPresentation.enabled = Number(enabled) !== 0;
+        this.pendingPresentation.linkEditing = Number(linkEditing) !== 0;
+    }
 
-BankManagerControl.prototype.beginPresentation = function (
-    enabled,
-    linkEditing
-) {
-    this.pendingPresentation = new BankManagerPresentation();
-    this.pendingPresentation.enabled = Number(enabled) !== 0;
-    this.pendingPresentation.linkEditing = Number(linkEditing) !== 0;
-};
-
-BankManagerControl.prototype.addRow = function (
-    index,
+    addRow(index,
     instanceId,
     label,
-    local
-) {
-    if (!this.pendingPresentation) {
-        return;
+    local)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+
+        let presentation = this.pendingPresentation;
+        presentation.rows[Number(index)] = {
+            instanceId: instanceId,
+            label: String(label),
+            local: Number(local) !== 0,
+            banks: []
+        };
     }
 
-    var presentation = this.pendingPresentation;
-    presentation.rows[Number(index)] = {
-        instanceId: instanceId,
-        label: String(label),
-        local: Number(local) !== 0,
-        banks: []
-    };
-};
-
-BankManagerControl.prototype.addBank = function (
-    rowIndex,
+    addBank(rowIndex,
     bankId,
     label,
     system,
@@ -513,44 +529,43 @@ BankManagerControl.prototype.addBank = function (
     textRed,
     textGreen,
     textBlue,
-    textAlpha
-) {
-    if (!this.pendingPresentation) {
-        return;
+    textAlpha)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+
+        let targetRow = this.pendingPresentation.rows[Number(rowIndex)];
+        if (!targetRow) {
+            return;
+        }
+
+        targetRow.banks.push({
+            bankId: bankId,
+            label: String(label),
+            system: Number(system) !== 0,
+            visible: Number(visible) !== 0,
+            enabled: Number(enabled) !== 0,
+            active: Number(active) !== 0,
+            opacity: Number(opacity),
+            color: this.colorFromArguments(
+                hasColor,
+                red,
+                green,
+                blue,
+                alpha
+            ),
+            textColor: this.colorFromArguments(
+                hasTextColor,
+                textRed,
+                textGreen,
+                textBlue,
+                textAlpha
+            )
+        });
     }
 
-    var targetRow = this.pendingPresentation.rows[Number(rowIndex)];
-    if (!targetRow) {
-        return;
-    }
-
-    targetRow.banks.push({
-        bankId: bankId,
-        label: String(label),
-        system: Number(system) !== 0,
-        visible: Number(visible) !== 0,
-        enabled: Number(enabled) !== 0,
-        active: Number(active) !== 0,
-        opacity: Number(opacity),
-        color: this.colorFromArguments(
-            hasColor,
-            red,
-            green,
-            blue,
-            alpha
-        ),
-        textColor: this.colorFromArguments(
-            hasTextColor,
-            textRed,
-            textGreen,
-            textBlue,
-            textAlpha
-        )
-    });
-};
-
-BankManagerControl.prototype.addLinkGroup = function (
-    linkId,
+    addLinkGroup(linkId,
     label,
     active,
     used,
@@ -559,158 +574,164 @@ BankManagerControl.prototype.addLinkGroup = function (
     red,
     green,
     blue,
-    alpha
-) {
-    if (!this.pendingPresentation) {
-        return;
+    alpha)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+
+        this.pendingPresentation.linkGroups.push({
+            linkId: linkId,
+            label: String(label),
+            active: Number(active) !== 0,
+            used: Number(used) !== 0,
+            enabled: Number(enabled) !== 0,
+            color: this.colorFromArguments(
+                hasColor,
+                red,
+                green,
+                blue,
+                alpha
+            )
+        });
     }
 
-    this.pendingPresentation.linkGroups.push({
-        linkId: linkId,
-        label: String(label),
-        active: Number(active) !== 0,
-        used: Number(used) !== 0,
-        enabled: Number(enabled) !== 0,
-        color: this.colorFromArguments(
-            hasColor,
-            red,
-            green,
-            blue,
-            alpha
-        )
-    });
-};
+    setEditAction(enabled, active)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
 
-BankManagerControl.prototype.setEditAction = function (enabled, active) {
-    if (!this.pendingPresentation) {
-        return;
+        this.pendingPresentation.editAction = {
+            enabled: Number(enabled) !== 0,
+            active: Number(active) !== 0
+        };
     }
 
-    this.pendingPresentation.editAction = {
-        enabled: Number(enabled) !== 0,
-        active: Number(active) !== 0
-    };
-};
+    setClearAction(enabled, armed)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
 
-BankManagerControl.prototype.setClearAction = function (enabled, armed) {
-    if (!this.pendingPresentation) {
-        return;
+        this.pendingPresentation.clearAction = {
+            enabled: Number(enabled) !== 0,
+            armed: Number(armed) !== 0
+        };
     }
 
-    this.pendingPresentation.clearAction = {
-        enabled: Number(enabled) !== 0,
-        armed: Number(armed) !== 0
-    };
-};
+    endPresentation()
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
 
-BankManagerControl.prototype.endPresentation = function () {
-    if (!this.pendingPresentation) {
-        return;
+        this.applyPresentation(this.pendingPresentation);
+        this.pendingPresentation = null;
     }
 
-    this.applyPresentation(this.pendingPresentation);
-    this.pendingPresentation = null;
-};
+    beginPresentationPatch(enabled,
+    linkEditing)
+    {
+        this.presentation.enabled = Number(enabled) !== 0;
+        this.presentation.linkEditing = Number(linkEditing) !== 0;
+    }
 
-BankManagerControl.prototype.beginPresentationPatch = function (
-    enabled,
-    linkEditing
-) {
-    this.presentation.enabled = Number(enabled) !== 0;
-    this.presentation.linkEditing = Number(linkEditing) !== 0;
-};
-
-BankManagerControl.prototype.patchRow = function (
-    index,
+    patchRow(index,
     instanceId,
     label,
-    local
-) {
-    var rowIndex = Number(index);
-    var row = this.presentation.rows[rowIndex];
-    if (!row) {
-        row = { banks: [] };
-        this.presentation.rows[rowIndex] = row;
+    local)
+    {
+        let rowIndex = Number(index);
+        let row = this.presentation.rows[rowIndex];
+        if (!row) {
+            row = { banks: [] };
+            this.presentation.rows[rowIndex] = row;
+        }
+        row.instanceId = instanceId;
+        row.label = String(label);
+        row.local = Number(local) !== 0;
     }
-    row.instanceId = instanceId;
-    row.label = String(label);
-    row.local = Number(local) !== 0;
-};
 
-BankManagerControl.prototype.removeRow = function (index) {
-    var rowIndex = Number(index);
-    if (rowIndex >= 0 && rowIndex < this.presentation.rows.length) {
-        this.presentation.rows.splice(rowIndex, 1);
-    }
-};
-
-BankManagerControl.prototype.patchBank = function () {
-    var args = arrayfromargs(arguments);
-    var rowIndex = Number(args[0]);
-    var bankId = Number(args[1]);
-    var row = this.presentation.rows[rowIndex];
-    if (!row) return;
-
-    var bank = {
-        bankId: args[1],
-        label: String(args[2]),
-        system: Number(args[3]) !== 0,
-        visible: Number(args[4]) !== 0,
-        enabled: Number(args[5]) !== 0,
-        active: Number(args[6]) !== 0,
-        opacity: Number(args[7]),
-        color: this.colorFromArguments.apply(this, args.slice(8, 13)),
-        textColor: this.colorFromArguments.apply(this, args.slice(13, 18))
-    };
-    for (var index = 0; index < row.banks.length; index += 1) {
-        if (Number(row.banks[index].bankId) === bankId) {
-            row.banks[index] = bank;
-            return;
+    removeRow(index)
+    {
+        let rowIndex = Number(index);
+        if (rowIndex >= 0 && rowIndex < this.presentation.rows.length) {
+            this.presentation.rows.splice(rowIndex, 1);
         }
     }
-    row.banks.push(bank);
-};
 
-BankManagerControl.prototype.patchLinkGroup = function () {
-    var args = arrayfromargs(arguments);
-    var linkId = Number(args[0]);
-    var group = {
-        linkId: args[0],
-        label: String(args[1]),
-        active: Number(args[2]) !== 0,
-        used: Number(args[3]) !== 0,
-        enabled: Number(args[4]) !== 0,
-        color: this.colorFromArguments.apply(this, args.slice(5, 10))
-    };
-    for (var index = 0;
-            index < this.presentation.linkGroups.length;
-            index += 1) {
-        if (Number(this.presentation.linkGroups[index].linkId) === linkId) {
-            this.presentation.linkGroups[index] = group;
-            return;
+    patchBank(...args)
+    {
+        let rowIndex = Number(args[0]);
+        let bankId = Number(args[1]);
+        let row = this.presentation.rows[rowIndex];
+        if (!row) return;
+
+        let bank = {
+            bankId: args[1],
+            label: String(args[2]),
+            system: Number(args[3]) !== 0,
+            visible: Number(args[4]) !== 0,
+            enabled: Number(args[5]) !== 0,
+            active: Number(args[6]) !== 0,
+            opacity: Number(args[7]),
+            color: this.colorFromArguments.apply(this, args.slice(8, 13)),
+            textColor: this.colorFromArguments.apply(this, args.slice(13, 18))
+        };
+        for (let index = 0; index < row.banks.length; index += 1) {
+            if (Number(row.banks[index].bankId) === bankId) {
+                row.banks[index] = bank;
+                return;
+            }
         }
+        row.banks.push(bank);
     }
-    this.presentation.linkGroups.push(group);
-};
 
-BankManagerControl.prototype.patchEditAction = function (enabled, active) {
-    this.presentation.editAction = {
-        enabled: Number(enabled) !== 0,
-        active: Number(active) !== 0
-    };
-};
+    patchLinkGroup(...args)
+    {
+        let linkId = Number(args[0]);
+        let group = {
+            linkId: args[0],
+            label: String(args[1]),
+            active: Number(args[2]) !== 0,
+            used: Number(args[3]) !== 0,
+            enabled: Number(args[4]) !== 0,
+            color: this.colorFromArguments.apply(this, args.slice(5, 10))
+        };
+        for (let index = 0;
+                index < this.presentation.linkGroups.length;
+                index += 1) {
+            if (Number(this.presentation.linkGroups[index].linkId) === linkId) {
+                this.presentation.linkGroups[index] = group;
+                return;
+            }
+        }
+        this.presentation.linkGroups.push(group);
+    }
 
-BankManagerControl.prototype.patchClearAction = function (enabled, armed) {
-    this.presentation.clearAction = {
-        enabled: Number(enabled) !== 0,
-        armed: Number(armed) !== 0
-    };
-};
+    patchEditAction(enabled, active)
+    {
+        this.presentation.editAction = {
+            enabled: Number(enabled) !== 0,
+            active: Number(active) !== 0
+        };
+    }
 
-BankManagerControl.prototype.endPresentationPatch = function () {
-    this.scrollOffset();
-    mgraphics.redraw();
-};
+    patchClearAction(enabled, armed)
+    {
+        this.presentation.clearAction = {
+            enabled: Number(enabled) !== 0,
+            armed: Number(armed) !== 0
+        };
+    }
+
+    endPresentationPatch()
+    {
+        this.scrollOffset();
+        mgraphics.redraw();
+    }
+}
 
 function presentation_begin(enabled, linkEditing) {
     bankManagerControl.beginPresentation(enabled, linkEditing);
@@ -720,12 +741,12 @@ function row(index, instanceId, label, local) {
     bankManagerControl.addRow(index, instanceId, label, local);
 }
 
-function bank() {
-    bankManagerControl.addBank.apply(bankManagerControl, arguments);
+function bank(...args) {
+    bankManagerControl.addBank(...args);
 }
 
-function link_group() {
-    bankManagerControl.addLinkGroup.apply(bankManagerControl, arguments);
+function link_group(...args) {
+    bankManagerControl.addLinkGroup(...args);
 }
 
 function edit_action(enabled, active) {
@@ -752,12 +773,12 @@ function row_remove(index) {
     bankManagerControl.removeRow(index);
 }
 
-function bank_patch() {
-    bankManagerControl.patchBank.apply(bankManagerControl, arguments);
+function bank_patch(...args) {
+    bankManagerControl.patchBank(...args);
 }
 
-function link_group_patch() {
-    bankManagerControl.patchLinkGroup.apply(bankManagerControl, arguments);
+function link_group_patch(...args) {
+    bankManagerControl.patchLinkGroup(...args);
 }
 
 function edit_action_patch(enabled, active) {
@@ -776,6 +797,10 @@ function paint() {
     bankManagerControl.paint();
 }
 
+function onresize() {
+    mgraphics.redraw();
+}
+
 function onclick(x, y, button, modifier1, shift) {
     bankManagerControl.beginPointer(x, y, shift);
 }
@@ -792,4 +817,4 @@ function onidleout() {
     bankManagerControl.cancelPointer();
 }
 
-var bankManagerControl = new BankManagerControl();
+const bankManagerControl = new BankManagerControl();

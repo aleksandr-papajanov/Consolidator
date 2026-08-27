@@ -320,8 +320,12 @@ internal sealed class StatePeerObserver
             _presentationPeerSets.Add(key, peerSet);
             foreach (var peer in peerSet.Values)
             {
-                _peerSetsByValue.TryAdd(peer, new HashSet<PeerSet>());
-                _peerSetsByValue[peer].Add(peerSet);
+                if (!_peerSetsByValue.TryGetValue(peer, out var peerSets))
+                {
+                    peerSets = new HashSet<PeerSet>();
+                    _peerSetsByValue.Add(peer, peerSets);
+                }
+                peerSets.Add(peerSet);
             }
             peerSet.UpdateEffectiveRanges(value, false);
             return peerSet;
@@ -581,6 +585,11 @@ internal sealed class StatePeerObserver
 
         public void Detach(StateValue<TValue> value)
         {
+            if (_value is null)
+            {
+                return;
+            }
+
             _owner.Detach(this);
             _value = null;
             _peers = PeerSet.Empty;

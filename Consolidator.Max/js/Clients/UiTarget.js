@@ -1,11 +1,21 @@
-function UiTarget(targetState) {
-    this.targetState = targetState;
+class UiTarget
+{
+    constructor(targetState)
+    {
+        this.targetState = targetState;
+    }
+    
+    show(instanceId, bankId, callback)
+    {
+        return this.targetState.selectTarget(instanceId, bankId, callback);
+    }
+    
+    destroy()
+    {
+        this.targetState = null;
+    }
 }
 
-UiTarget.prototype.show = function (instanceId, bankId) {
-    return this.targetState.selectTarget(instanceId, bankId);
-};
-
-UiTarget.prototype.destroy = function () {
-    this.targetState = null;
+module.exports = {
+    UiTarget: UiTarget
 };

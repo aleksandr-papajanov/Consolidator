@@ -10,7 +10,11 @@ tests/
 │  ├─ LiveInstanceHostTests.js       Live identity/activity lifecycle
 │  ├─ RuntimePathTests.js             complete Max package contract
 │  └─ ClientSuite.js                 exhaustive suite registry
-└─ ClientTests.js                         stable test entrypoint
+├─ ClientTests.js                         stable test entrypoint
+└─ max9/
+   ├─ Max9HostTests.maxpat                 Max 9 v8/v8ui host harness
+   ├─ Max9HostTestRunner.js                 v8 patcher/dispatch checks
+   └─ V8UiTestProbe.js                      v8ui mgraphics/Task checks
 ```
 
 The root files are stable entry points used by developer commands and CTest.
@@ -23,4 +27,9 @@ Run from the repository root:
 ```text
 node Consolidator.Max/tests/ClientTests.js
 ```
+
+Max 9 host mode: open `Consolidator.Max/tests/max9/Max9HostTests.maxpat` in
+Max 9 / Live 12 and inspect its outlet results. Node and Max 9 modes are
+separate by design: only the Max host can exercise `patcher`, `mgraphics`,
+`Task` and native object message dispatch.
 

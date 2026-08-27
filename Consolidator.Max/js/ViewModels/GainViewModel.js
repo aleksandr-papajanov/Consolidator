@@ -1,11 +1,24 @@
-function GainViewModel(state, path) {
-    this.gain = new StateValueViewModel(state, path + ".gain");
+const { StateValueViewModel } = require("./StateValueViewModel.js");
+
+class GainViewModel
+{
+    constructor(state, path)
+    {
+        this.gain = new StateValueViewModel(state, path + ".gain");
+    }
+    
+    getStateValues()
+    {
+        return [this.gain];
+    }
+    
+    destroy()
+    {
+        this.gain.destroy();
+    }
 }
 
-GainViewModel.prototype.getStateValues = function () {
-    return [this.gain];
-};
 
-GainViewModel.prototype.destroy = function () {
-    this.gain.destroy();
+module.exports = {
+    GainViewModel: GainViewModel
 };

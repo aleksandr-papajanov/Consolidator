@@ -1,11 +1,21 @@
-include("Project:/js/Controllers/FeaturePresenterSet.js");
+const { FeaturePresenterSet } = require("./FeaturePresenterSet.js");
 
-function GainController(viewModel) {
-    this.presenters = new FeaturePresenterSet();
-    this.presenters.addDial("gain", viewModel.gain,
-        { decimals: 1, suffix: " dB" });
+class GainController
+{
+    constructor(viewModel)
+    {
+        this.presenters = new FeaturePresenterSet();
+        this.presenters.addDial("gain", viewModel.gain,
+            { decimals: 1, suffix: " dB" });
+    }
+    
+    destroy()
+    {
+        this.presenters.destroy();
+    }
 }
 
-GainController.prototype.destroy = function () {
-    this.presenters.destroy();
+module.exports = {
+    GainController: GainController
 };
+

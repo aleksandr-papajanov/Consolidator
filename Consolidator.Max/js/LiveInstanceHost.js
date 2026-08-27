@@ -1,125 +1,178 @@
 inlets = 1;
 outlets = 1;
 
-var trackObserver = null;
-var selectedTrackObserver = null;
-var selectedDeviceObserver = null;
-var deviceId = 0;
-var trackId = 0;
-var selectedTrackId = 0;
-var selectedDeviceId = 0;
-var lastPublishedActive = null;
-
-function normalizeName(value)
+class LiveInstanceHost
 {
-    var name = String(value || "");
-    if (name.length >= 2 && name.charAt(0) === '"' &&
-            name.charAt(name.length - 1) === '"')
+    constructor(LiveAPIConstructor, emit)
     {
-        return name.substring(1, name.length - 1);
+        this.LiveAPI = LiveAPIConstructor;
+        this.emit = emit || (() => {});
+        this.trackObserver = null;
+        this.selectedTrackObserver = null;
+        this.selectedDeviceObserver = null;
+        this.deviceId = 0;
+        this.trackId = 0;
+        this.selectedTrackId = 0;
+        this.selectedDeviceId = 0;
+        this.lastPublishedActive = null;
     }
-    return name;
-}
 
-function readId(values)
-{
-    if (!values)
+    normalizeName(value)
     {
+        let name = String(value || "");
+        if (name.length >= 2 && name.charAt(0) === '"' &&
+                name.charAt(name.length - 1) === '"')
+        {
+            return name.substring(1, name.length - 1);
+        }
+        return name;
+    }
+
+    readId(values)
+    {
+        if (!values)
+        {
+            return 0;
+        }
+        let items = values instanceof Array ? values : [values];
+        for (let index = 0; index < items.length - 1; index += 1)
+        {
+            if (String(items[index]) === "id")
+            {
+                let value = Number(items[index + 1]);
+                return isFinite(value) && value > 0 ? value : 0;
+            }
+        }
         return 0;
     }
-    var items = values instanceof Array ? values : [values];
-    for (var index = 0; index < items.length - 1; index += 1)
+
+    publishName(value)
     {
-        if (String(items[index]) === "id")
+        this.emit(["track_name", this.normalizeName(value)]);
+    }
+
+    publishActivity()
+    {
+        let active = this.deviceId > 0 && this.trackId > 0 &&
+            this.selectedTrackId === this.trackId &&
+            this.selectedDeviceId === this.deviceId;
+        if (this.lastPublishedActive === active)
         {
-            var value = Number(items[index + 1]);
-            return isFinite(value) && value > 0 ? value : 0;
+            return;
         }
+        this.lastPublishedActive = active;
+        this.emit(["instance_active", active ? 1 : 0]);
     }
-    return 0;
-}
 
-function publishName(value)
-{
-    outlet(0, ["track_name", normalizeName(value)]);
-}
-
-function publishActivity()
-{
-    var active = deviceId > 0 && trackId > 0 &&
-        selectedTrackId === trackId && selectedDeviceId === deviceId;
-    if (lastPublishedActive === active)
+    trackNameChanged(values)
     {
-        return;
+        if (!values || values.length < 2 || String(values[0]) !== "name")
+        {
+            return;
+        }
+        this.publishName(values[1]);
     }
-    lastPublishedActive = active;
-    outlet(0, ["instance_active", active ? 1 : 0]);
-}
 
-function trackNameChanged(values)
-{
-    if (!values || values.length < 2 || String(values[0]) !== "name")
+    selectedTrackChanged(values)
     {
-        return;
+        if (!values || values.length < 2 ||
+                String(values[0]) !== "selected_track")
+        {
+            return;
+        }
+        this.selectedTrackId = this.readId(values);
+        this.publishActivity();
     }
-    publishName(values[1]);
+
+    selectedDeviceChanged(values)
+    {
+        if (!values || values.length < 2 ||
+                String(values[0]) !== "selected_device")
+        {
+            return;
+        }
+        this.selectedDeviceId = this.readId(values);
+        this.publishActivity();
+    }
+
+    bang()
+    {
+        let device = new this.LiveAPI(null, "this_device");
+        this.deviceId = Number(device.id);
+        let track = new this.LiveAPI(null, "this_device canonical_parent");
+        this.trackId = Number(track.id);
+        if (!isFinite(this.deviceId) || this.deviceId <= 0 || this.trackId <= 0)
+        {
+            return;
+        }
+
+        let name = track.get("name");
+        this.publishName(name && name.length ? name[0] : "");
+        let trackPath = String(track.unquotedpath || "");
+        if (!trackPath)
+        {
+            return;
+        }
+        let trackViewPath = trackPath + " view";
+        this.trackObserver = new this.LiveAPI((values) =>
+        {
+            this.trackNameChanged(values);
+        }, "id " + this.trackId);
+        this.trackObserver.property = "name";
+
+        this.selectedTrackObserver = new this.LiveAPI((values) =>
+        {
+            this.selectedTrackChanged(values);
+        }, "live_set view");
+        this.selectedTrackId = this.readId(
+            this.selectedTrackObserver.get("selected_track"));
+        this.selectedTrackObserver.property = "selected_track";
+
+        this.selectedDeviceObserver = new this.LiveAPI((values) =>
+        {
+            this.selectedDeviceChanged(values);
+        }, trackViewPath);
+        this.selectedDeviceId = this.readId(
+            this.selectedDeviceObserver.get("selected_device"));
+        this.selectedDeviceObserver.property = "selected_device";
+        this.publishActivity();
+    }
+
+    destroy()
+    {
+        this.trackObserver = null;
+        this.selectedTrackObserver = null;
+        this.selectedDeviceObserver = null;
+    }
 }
 
-function selectedTrackChanged(values)
-{
-    selectedTrackId = readId(values);
-    publishActivity();
-}
+let liveInstanceHost = null;
 
-function selectedDeviceChanged(values)
+function ensureHost()
 {
-    selectedDeviceId = readId(values);
-    publishActivity();
+    if (!liveInstanceHost)
+    {
+        liveInstanceHost = new LiveInstanceHost(
+            LiveAPI,
+            (message) =>
+            {
+                outlet(0, message);
+            }
+        );
+    }
+    return liveInstanceHost;
 }
 
 function bang()
 {
-    var device = new LiveAPI("this_device");
-    deviceId = Number(device.id);
-    var parent = device.get("canonical_parent");
-    trackId = readId(parent);
-    if (!isFinite(deviceId) || deviceId <= 0 || trackId <= 0)
-    {
-        return;
-    }
-
-    var track = new LiveAPI("id " + trackId);
-    var name = track.get("name");
-    publishName(name && name.length ? name[0] : "");
-    var trackPath = String(track.unquotedpath || "");
-    if (!trackPath)
-    {
-        return;
-    }
-    var trackViewPath = trackPath + " view";
-
-    trackObserver = new LiveAPI(trackNameChanged, "id " + trackId);
-    trackObserver.property = "name";
-
-    selectedTrackObserver = new LiveAPI(
-        selectedTrackChanged,
-        "live_set view");
-    selectedTrackId = readId(
-        selectedTrackObserver.get("selected_track"));
-    selectedTrackObserver.property = "selected_track";
-
-    selectedDeviceObserver = new LiveAPI(
-        selectedDeviceChanged,
-        trackViewPath);
-    selectedDeviceId = readId(
-        selectedDeviceObserver.get("selected_device"));
-    selectedDeviceObserver.property = "selected_device";
-    publishActivity();
+    ensureHost().bang();
 }
 
-function freebang()
+function notifydeleted()
 {
-    trackObserver = null;
-    selectedTrackObserver = null;
-    selectedDeviceObserver = null;
+    if (liveInstanceHost)
+    {
+        liveInstanceHost.destroy();
+        liveInstanceHost = null;
+    }
 }

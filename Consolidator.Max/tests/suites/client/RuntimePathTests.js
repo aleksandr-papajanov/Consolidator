@@ -56,11 +56,18 @@ function visitPatcherValue(value, sourceFile)
         return;
     }
 
-    if (value.maxclass === "jsui")
+    if (value.maxclass === "jsui" || value.maxclass === "v8ui")
     {
         assertProjectPath(value.filename, sourceFile);
+        if (value.maxclass === "v8ui")
+        {
+            assert.strictEqual(
+                value.text,
+                undefined,
+                sourceFile + " passes an unsupported positional argument to v8ui");
+        }
     }
-    if (value.maxclass === "newobj" && /^js\s/.test(value.text || ""))
+    if (value.maxclass === "newobj" && /^(js|v8)\s/.test(value.text || ""))
     {
         var scriptPath = value.text.split(/\s+/)[1];
         assertProjectPath(scriptPath, sourceFile);
