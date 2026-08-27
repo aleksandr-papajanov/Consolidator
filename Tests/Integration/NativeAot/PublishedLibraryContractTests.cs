@@ -47,4 +47,21 @@ public sealed class PublishedLibraryContractTests
         Assert.InRange(instance.PublishedSnapshotIndex, 0, 2);
         Assert.Equal(1.0F, instance.PublishedGain);
     }
+
+    [Fact]
+    public void RegistrationRestartsManagedServicesAfterShutdown()
+    {
+        using (var firstInstance = _library.Register())
+        {
+            Assert.NotEqual(0UL, firstInstance.InstanceId);
+        }
+
+        _library.ShutdownServices();
+
+        using var restartedInstance = _library.Register();
+
+        Assert.NotEqual(0UL, restartedInstance.InstanceId);
+        Assert.NotEqual((nuint)0, restartedInstance.AudioInputHandle);
+        Assert.Equal(1.0F, restartedInstance.PublishedGain);
+    }
 }

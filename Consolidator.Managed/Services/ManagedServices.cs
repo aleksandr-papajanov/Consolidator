@@ -93,7 +93,6 @@ public static class ManagedServices
         services.AddSingleton<StatePeerObserver>();
         services.AddSingleton<AudibilityObserver>();
         services.AddSingleton<StateTopologyObserver>();
-        services.AddSingleton<AnalyzerRegistry>();
         services.AddSingleton<StateRegistry<InstanceId>>();
         services.AddSingleton<StateValueMetadataRegistry>();
         services.AddSingleton<TargetStateProjector>();
@@ -103,7 +102,6 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StatePeerObserver>(),
                 serviceProvider.GetRequiredService<StateValueMetadataRegistry>(),
                 serviceProvider.GetRequiredService<IStateChangeSink>(),
-                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
                 serviceProvider.GetRequiredService<DspStateChangeTracker>()));
         services.AddSingleton(serviceProvider =>
             new InstanceRegistry(
@@ -112,7 +110,6 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StateValueFactory>(),
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
                 serviceProvider.GetRequiredService<AudibilityObserver>(),
-                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
                 serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<IOperationGate>(),
                 serviceProvider.GetRequiredService<RegistryChangePublisher>(),
@@ -155,7 +152,6 @@ public static class ManagedServices
             new CommandExecutor(
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
                 serviceProvider.GetRequiredService<ICommandDispatcher>(),
-                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
                 serviceProvider.GetRequiredService<DspStateChangeTracker>()));
         services.AddSingleton(serviceProvider =>
             new InstanceCommandRouter(
@@ -176,8 +172,7 @@ public static class ManagedServices
         services.AddSingleton<FftAnalyzer>(serviceProvider =>
             new FftAnalyzer(
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
-                serviceProvider.GetRequiredService<IPresentationTransport>(),
-                serviceProvider.GetRequiredService<AnalyzerRegistry>()));
+                serviceProvider.GetRequiredService<IPresentationTransport>()));
         services.AddSingleton<IInstanceAudioInputService>(serviceProvider =>
             serviceProvider.GetRequiredService<FftAnalyzer>());
         services.AddSingleton<IInstancePreparationHandler>(serviceProvider =>
@@ -186,7 +181,6 @@ public static class ManagedServices
             new HistoryNavigation(
                 serviceProvider.GetRequiredService<StateHistory>(),
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
-                serviceProvider.GetRequiredService<AnalyzerRegistry>(),
                 serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<HistoryStatePublisher>()));
 

@@ -116,25 +116,16 @@ second bank address.
 Notification delivery failures do not turn an already committed state mutation
 into a failed operation.
 
-Analyzer curve updates use the dedicated analysis output. For a focused bank,
-Managed sends one curve frame for each analyzer view: `equalizer_curves`,
-`compressor_detector_curves`, and `saturator_detector_curves`. All frames use
-the same versioned payload containing the active flag, filter count, 256
-normalized values for each filter, the combined curve, and the all-bank curve.
-The response calculation and cache are shared by equalizer and detector
-filters; Max only decodes and renders the frames. Filter values are individual
-dB deltas around the unity line. Combined values sum the active filters in the
-focused bank; all-bank values use the average signed dB deviation of active
-parallel banks with a non-neutral response at each frequency, so neutral banks
-do not reduce the visible gain. Active bank responses are summed, so adding a
-bank does not reduce the visible Y-axis scale. Native routes each complete frame
-atomically to `analysisOutput`.
-The only analyzer target is the Live-selected external. Equalizer delivery
-additionally requires its focused `(InstanceId, BankIndex)` to match the dirty
-bank; compressor and saturator detector delivery requires the focused source
-`InstanceId` to match. Filter observers publish the affected view after
-recalculating it; changing the active viewer's focus publishes the required
-cached analyzer views immediately.
+Analyzer curves are JavaScript presentation derived from the focused parameter
+state. Managed publishes no curve arrays. It sends the active viewer only the
+observed source configuration required for correct local calculation:
+
+```text
+analyzer_configuration 1 sourceInstanceId sampleRate
+```
+
+This `ActivePresentation` frame is emitted on viewer activation, source-focus
+change, and source preparation. FFT remains the only streamed analysis frame.
 
 ## Routing and Core ownership
 
@@ -165,7 +156,7 @@ that gate and must not enter it again. The executor never chooses targets.
 `ProtocolOutput` carries `TargetInstanceIds`, a selector and atoms.
 It also carries explicit delivery semantics: `Lossless` for responses, errors,
 lifecycle and history command outputs; `ActivePresentation` for state
-notifications; and `LatestAnalysis` for FFT and curve frames. Transport behavior
+notifications and analyzer configuration; and `LatestAnalysis` for FFT frames. Transport behavior
 is selected by this contract, never by selector string.
 `NativeOutputService` implements both `IProtocolTransport` and
 `IProtocolOutputRegistry`: transport sends outputs, while the registry exposes

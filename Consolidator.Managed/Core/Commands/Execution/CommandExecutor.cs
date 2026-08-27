@@ -1,4 +1,3 @@
-using Consolidator.Managed.Analyzer;
 using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
@@ -15,18 +14,15 @@ public sealed class CommandExecutor
 {
     private readonly InstanceRegistry _instanceRegistry;
     private readonly ICommandDispatcher _commandDispatcher;
-    private readonly AnalyzerRegistry _analyzerRegistry;
     private readonly DspStateChangeTracker _dspChanges;
 
     internal CommandExecutor(
         InstanceRegistry instanceRegistry,
         ICommandDispatcher commandDispatcher,
-        AnalyzerRegistry analyzerRegistry,
         DspStateChangeTracker dspChanges)
     {
         _instanceRegistry = instanceRegistry;
         _commandDispatcher = commandDispatcher;
-        _analyzerRegistry = analyzerRegistry;
         _dspChanges = dspChanges;
     }
 
@@ -67,7 +63,6 @@ public sealed class CommandExecutor
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {
-            _analyzerRegistry.CapturePendingInputs();
             _instanceRegistry.PublishDspStates(_dspChanges.Drain());
         }
 

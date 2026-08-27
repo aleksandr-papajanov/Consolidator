@@ -22,7 +22,6 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private readonly StateValueFactory _stateValueFactory;
     private readonly StateTopologyObserver _topologyObserver;
     private readonly AudibilityObserver _audibilityObserver;
-    private readonly AnalyzerRegistry _analyzerRegistry;
     private readonly DspStateChangeTracker _dspChanges;
     private readonly IOperationGate _operationGate;
     private ulong _nextInstanceId;
@@ -35,7 +34,6 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         StateValueFactory stateValueFactory,
         StateTopologyObserver topologyObserver,
         AudibilityObserver audibilityObserver,
-        AnalyzerRegistry analyzerRegistry,
         DspStateChangeTracker dspChanges,
         IOperationGate operationGate,
         RegistryChangePublisher registryChanges,
@@ -46,7 +44,6 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         _stateValueFactory = stateValueFactory;
         _topologyObserver = topologyObserver;
         _audibilityObserver = audibilityObserver;
-        _analyzerRegistry = analyzerRegistry;
         _dspChanges = dspChanges;
         _operationGate = operationGate;
         _registryChanges = registryChanges;
@@ -99,7 +96,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 }
 
                 _stateRegistry.RemoveRoot(instanceId);
-                _analyzerRegistry.Unregister(instanceId);
+                _fftAnalyzer.RemoveInstance(instanceId);
             }
 
             _topologyObserver.RemoveState(instanceId);
@@ -209,7 +206,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             foreach (var instance in instances)
             {
                 _stateRegistry.RemoveRoot(instance.InstanceId);
-                _analyzerRegistry.Unregister(instance.InstanceId);
+                _fftAnalyzer.RemoveInstance(instance.InstanceId);
                 _topologyObserver.RemoveState(instance.InstanceId);
             }
         }
@@ -251,13 +248,11 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             var dsp = new DspState(instanceId, _stateValueFactory, runtime);
             var root = _stateRegistry.GetRoot(instanceId);
             var state = new ManagedState(instance, dsp, runtime, root);
-            _analyzerRegistry.Register(instanceId, dsp);
             _topologyObserver.AddState(state.Instance);
             return state;
         }
         catch
         {
-            _analyzerRegistry.Unregister(instanceId);
             _stateRegistry.RemoveRoot(instanceId);
             throw;
         }

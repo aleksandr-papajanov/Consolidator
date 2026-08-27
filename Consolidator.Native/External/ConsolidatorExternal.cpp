@@ -21,14 +21,6 @@ namespace
 constexpr std::size_t kMaxControlFramesPerDrain = 32;
 constexpr std::size_t kMaxControlAtomsPerDrain = 4096;
 
-bool IsAnalysisSelector(const std::string& selector)
-{
-    return selector == "fft" ||
-        selector == "equalizer_curves" ||
-        selector == "compressor_detector_curves" ||
-        selector == "saturator_detector_curves";
-}
-
 }
 
 ConsolidatorExternal::ConsolidatorExternal()
@@ -162,14 +154,13 @@ void ConsolidatorExternal::ReceiveManagedOutput(
         {
             if (frame.atoms.size() > 1)
             {
-                if (const auto source = std::get_if<std::int64_t>(
-                    &frame.atoms[1]))
+                if (std::holds_alternative<std::int64_t>(frame.atoms[1]))
                 {
-                    if (pendingFftBySource_.contains(*source))
+                    if (pendingFftFrame_)
                     {
                         replacedFftFrames_.fetch_add(1, std::memory_order_relaxed);
                     }
-                    pendingFftBySource_[*source] = std::move(frame);
+                    pendingFftFrame_ = std::move(frame);
                 }
                 else
                 {
@@ -180,13 +171,6 @@ void ConsolidatorExternal::ReceiveManagedOutput(
             {
                 skippedFftFrames_.fetch_add(1, std::memory_order_relaxed);
             }
-        }
-        else if (frame.selector == "equalizer_curves" ||
-            frame.selector == "compressor_detector_curves" ||
-            frame.selector == "saturator_detector_curves")
-        {
-            const auto selector = frame.selector;
-            pendingCurveFrames_[selector] = std::move(frame);
         }
         else
         {
@@ -202,8 +186,7 @@ void ConsolidatorExternal::DrainManagedOutput()
 {
     const auto drainStarted = std::chrono::steady_clock::now();
     std::deque<OutputFrame> controlFrames;
-    std::unordered_map<std::int64_t, OutputFrame> fftFrames;
-    std::unordered_map<std::string, OutputFrame> curveFrames;
+    std::optional<OutputFrame> fftFrame;
     std::size_t controlAtomCount = 0;
 
     {
@@ -226,8 +209,7 @@ void ConsolidatorExternal::DrainManagedOutput()
             controlQueueDepth_.fetch_sub(1, std::memory_order_relaxed);
         }
 
-        fftFrames.swap(pendingFftBySource_);
-        curveFrames.swap(pendingCurveFrames_);
+        fftFrame.swap(pendingFftFrame_);
     }
 
     const auto sendFrame = [this](OutputFrame& frame)
@@ -260,9 +242,7 @@ void ConsolidatorExternal::DrainManagedOutput()
                 value);
         }
 
-        if (IsAnalysisSelector(frame.selector) ||
-            frame.selector == "combined" ||
-            frame.selector == "all_banks")
+        if (frame.selector == "fft")
         {
             analysisOutput.send(output);
         }
@@ -277,22 +257,16 @@ void ConsolidatorExternal::DrainManagedOutput()
         sendFrame(frame);
     }
 
-    for (auto& entry : fftFrames)
+    if (fftFrame)
     {
-        sendFrame(entry.second);
-    }
-
-    for (auto& entry : curveFrames)
-    {
-        sendFrame(entry.second);
+        sendFrame(*fftFrame);
     }
 
     bool hasPendingWork = false;
     {
         std::lock_guard lock{ outputMutex_ };
         hasPendingWork = !pendingControl_.empty() ||
-            !pendingFftBySource_.empty() ||
-            !pendingCurveFrames_.empty();
+            pendingFftFrame_.has_value();
     }
 
     if (hasPendingWork)
@@ -350,12 +324,7 @@ void ConsolidatorExternal::operator()(
 
     ConsumeDspState();
 
-    //
-    // Analyzer input.
-    //
-    // C# implementation пока должна либо ничего не делать,
-    // либо очень быстро копировать данные в заранее подготовленный buffer.
-    //
+    // Managed copies analyzer input into its preallocated capture ring.
     if (instanceId_ != 0)
     {
         managed_.SendAudio(
@@ -366,10 +335,6 @@ void ConsolidatorExternal::operator()(
             input.samples(3),
             frameCount);
     }
-
-    //
-    // Пока DSP нет — просто passthrough.
-    //
 
     std::copy_n(
         input.samples(0),

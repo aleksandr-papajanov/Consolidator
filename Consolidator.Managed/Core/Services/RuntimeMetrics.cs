@@ -79,10 +79,7 @@ public sealed class RuntimeMetrics
             builder.Append(" instance=").Append(entry.Key)
                 .Append(" fft=").Append(entry.Value.FftFrames)
                 .Append(" fft_fps=").Append((entry.Value.FftFrames / elapsedSeconds).ToString("F2"))
-                .Append(" curves=").Append(entry.Value.CurveFrames)
-                .Append(" curves_fps=").Append((entry.Value.CurveFrames / elapsedSeconds).ToString("F2"))
-                .Append(" dropped_audio_samples=").Append(entry.Value.DroppedAudioSamples)
-                .Append(" eq_avg_ms=").Append(entry.Value.EqualizerAverageMilliseconds.ToString("F3"));
+                .Append(" dropped_audio_samples=").Append(entry.Value.DroppedAudioSamples);
         }
 
         return builder.ToString();
@@ -91,36 +88,13 @@ public sealed class RuntimeMetrics
     public sealed class InstanceMetrics
     {
         private long _fftFrames;
-        private long _curveFrames;
         private long _droppedAudioSamples;
-        private long _equalizerCalculations;
-        private long _equalizerCalculationTicks;
 
         public long FftFrames => Interlocked.Read(ref _fftFrames);
-        public long CurveFrames => Interlocked.Read(ref _curveFrames);
         public long DroppedAudioSamples => Interlocked.Read(ref _droppedAudioSamples);
 
-        public double EqualizerAverageMilliseconds
-        {
-            get
-            {
-                var calculations = Interlocked.Read(ref _equalizerCalculations);
-                var ticks = Interlocked.Read(ref _equalizerCalculationTicks);
-                return calculations == 0
-                    ? 0
-                    : ticks * 1000.0 / Stopwatch.Frequency / calculations;
-            }
-        }
-
         public void RecordFftFrame() => Interlocked.Increment(ref _fftFrames);
-        public void RecordCurveFrame() => Interlocked.Increment(ref _curveFrames);
         public void RecordDroppedAudioSamples(long sampleCount) =>
             Interlocked.Add(ref _droppedAudioSamples, sampleCount);
-
-        public void RecordEqualizerCalculation(long elapsedTicks)
-        {
-            Interlocked.Increment(ref _equalizerCalculations);
-            Interlocked.Add(ref _equalizerCalculationTicks, elapsedTicks);
-        }
     }
 }

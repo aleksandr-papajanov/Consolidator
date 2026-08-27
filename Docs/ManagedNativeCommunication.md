@@ -62,8 +62,8 @@ selected device; activating one external replaces the previous active viewer.
 The capture buffer belongs to the source selected by that viewer, which may be
 a different instance. Without an active viewer, the audio entrypoint returns
 before capture lookup or audio copying. The analyzer worker processes at most
-one FFT window per 33 ms. Equalizer curve invalidation remains a control-side
-update; publication is limited to the active viewer and has its own budget.
+one FFT window per 33 ms. Curves are calculated locally by the JavaScript UI
+from focused state and do not cross the Managed/Native callback boundary.
 
 The Max client treats each `target_state_snapshot` as one target transition.
 Bindings are suspended before `observe_target` is sent. The client assembles
@@ -82,10 +82,11 @@ target_state_snapshot 1 source requestId instanceId bankId entryCount
     path value physicalMin physicalMax effectiveMin effectiveMax × entryCount
 ```
 
-Curve presentation refreshes are queued as latest-only analyzer work. Changing
-the focused bank updates the active source and capture demand, then returns;
-curve calculation and publication happen on the analyzer worker and never delay
-the target snapshot.
+Changing the focused bank updates the active source and capture demand and
+publishes one small `analyzer_configuration` presentation containing the
+source's prepared sample rate. Curve calculation does not delay the target
+snapshot because it runs locally after the focused parameter presentation is
+applied.
 During a local dial gesture, the control renders its local preview until the
 gesture ends. Authoritative `state_changed` presentations continue updating the
 stored value but do not replace the value currently under the pointer.
@@ -157,14 +158,15 @@ The DSP exchange pointer is required and points to memory owned by the native ex
 
 `ManagedBridge` instances share one native `ManagedRuntime`. The runtime lazily
 loads `Consolidator.Managed.dll` and resolves its exported functions once per
-native module. It owns the process-wide Managed log callback registration and
-clears that callback before releasing the DLL in its destructor. Destroying one
-external therefore cannot unload the ManagedAOT module while other externals
-or the shared Managed services are still active.
+process. NativeAOT libraries do not support `FreeLibrary`, so the runtime keeps
+the module loaded until process termination. It owns the Managed log callback
+registration and clears that callback when the last external is destroyed, so
+the callback never points into an unloaded native external module.
 The native bridge counts live external objects and explicitly calls the shared
 `ConsolidatorShutdown` export when the last external is destroyed. This stops
-Managed worker services before the ManagedAOT module is released; the runtime
-destructor remains an idempotent final safety net.
+Managed worker services without unloading the NativeAOT runtime. Opening a new
+external in the same process installs the log callback again; registration then
+creates a fresh Managed service provider.
 
 The managed registry stores per-instance `ManagedInstance` records. Each
 `ManagedInstance` owns its `ManagedState`, DSP publisher and command gate. The
@@ -188,9 +190,8 @@ as registry observers. The Max registry client requests a snapshot and keeps a
 registry observer only while its UI instance is active; deactivation removes
 that demand, so inactive UIs neither fetch nor accumulate registry deltas.
 Activation performs one current snapshot fetch before resuming delta delivery.
-State notifications use topology-resolved focused
-observers; equalizer curves use observers of the exact `(instance, bank)`; FFT
-frames return the selected source to the active viewer. A singleton
+State notifications use topology-resolved focused observers. FFT frames and
+analyzer configuration return the selected source to the active viewer. A singleton
 service does not imply broadcast delivery.
 
 Runtime metrics expose `presentation_active_deliveries` and
@@ -309,9 +310,9 @@ After the callback returns, native code must not retain any pointer received fro
 `ReceiveManagedOutput` never calls a Max outlet directly. All control frames,
 including `state_changed`, are stored in one FIFO so state notifications retain
 their order relative to target snapshots, history notifications, errors, and
-command responses. Analysis frames use latest-only slots: one pending `fft` frame and one pending
-curve frame per analyzer selector and native external. A newer frame for the
-same selector replaces the older one before the Max queue is drained.
+command responses. Analysis frames use one latest-only pending `fft` slot per
+native external. A newer frame replaces the older one before the Max queue is
+drained, including across an observed-source transition.
 
 One `c74::min::queue<>` is scheduled for both paths:
 
@@ -329,11 +330,10 @@ Max low-priority thread
     -> controlOutput.send or analysisOutput.send
 ```
 
-Analysis frames use the dedicated `analysisOutput` outlet. The native drain
-routes `fft`, `equalizer_curves`, `compressor_detector_curves`, and
-`saturator_detector_curves` there; other Managed protocol frames use
-`controlOutput`. The Max bridge connects that analysis outlet to the UI host's
-protocol input separately from control output.
+FFT frames use the dedicated `analysisOutput` outlet. Other Managed protocol
+frames, including `analyzer_configuration`, use `controlOutput`. The Max bridge
+connects the analysis outlet to the UI host's protocol input separately from
+control output.
 
 Each drain processes at most 32 lossless control frames and 4096 control atoms,
 then processes the latest available analysis frames. If any queue or slot still has work, the qelem is
@@ -347,9 +347,9 @@ The native callback handler is `noexcept` and catches exceptions around `Receive
 ## Runtime Metrics
 
 Sending the `metrics` control message requests a diagnostic snapshot. Managed
-reports native-input and control-operation time, FFT and curve rates per
-instance, equalizer calculation time, registry snapshot/delta counts, dropped
-audio blocks and process Managed allocation totals through the control-path log sink. Native
+reports native-input and control-operation time, FFT rate per instance,
+registry snapshot/delta counts, dropped audio blocks and process Managed
+allocation totals through the control-path log sink. Native
 reports current control FIFO depth, replaced and skipped FFT frames, and the
 most recent Max queue drain duration. Audio-path metric updates use atomic
 counters only; they do not log or allocate.
@@ -367,7 +367,8 @@ disabled. Activating an instance first publishes `set_instance_active`, then
 requests a current target snapshot. Bindings resume only after the complete
 snapshot has atomically replaced the client cache. Bank manager activation
 likewise requests a complete registry snapshot; analyzer activation restores the
-latest handles, spectrum and curves.
+latest handles and locally calculated curves; new FFT frames resume from the
+selected source.
 
 ## Lifecycle Contract
 
@@ -406,10 +407,12 @@ external lifecycle must therefore serialize audio callback start with
 destruction; catching an invalid `GCHandle` in Managed is not a lifetime
 mechanism.
 
-Before unloading `Consolidator.Managed.dll`, the native bridge calls
+When the last external is destroyed, the native bridge calls
 `ConsolidatorShutdown`. Managed disposes the DI provider, which stops and
 disposes all remaining instances. Any remaining audio-input handles are then
-released, the log callback is cleared, and only then is the library unloaded.
+released and the native bridge clears the log callback. The NativeAOT library
+remains mapped until process termination because NativeAOT does not support
+dynamic unloading.
 
 ## Audio Calls
 
@@ -443,20 +446,11 @@ the remainder of an input block. It publishes `fft` output only to the active
 viewer of the selected source instance; the output contains protocol version,
 source instance ID, FFT size, main spectrum bins and reference spectrum bins.
 
-Analyzer EQ caches are lazy. Instance registration creates the state and native
-DSP runtime immediately, while bank curves and all-bank presentation are built
-only for the active instance viewer. Instance activity gates both spectrum
-capture and curve delivery; activation publishes the latest presentation, and
-dirty curves are coalesced to the UI cadence before crossing the callback. The
-worker publishes at most two oldest dirty curve addresses with active focused
-recipients per interval. Dirty addresses without recipients are discarded from
-the notification queue without consuming that budget; their latest immutable
-inputs remain available for a later focus presentation. The callback rate is
-therefore bounded without allowing invisible grouped peers to delay the visible
-curve.
-
-Equalizer curve frames are routed to the active viewer when it observes the
-exact source instance and bank. Compressor and saturator detector curve frames
-are routed to that viewer when it observes the source instance, independent of
-its selected EQ bank; detector caches use a single instance-level bank slot.
+`FftAnalyzer` owns its capture rings directly; there is no separate analyzer
+registry or curve cache. Instance activity gates spectrum capture. Activation,
+source-focus changes and source preparation publish
+`analyzer_configuration 1 sourceInstanceId sampleRate` to the active viewer.
+JavaScript then rebuilds focused equalizer and detector curves from its current
+parameter presentation. No bank response arrays are allocated or copied by
+Managed or Native.
 

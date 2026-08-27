@@ -11,7 +11,6 @@ using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
 using Consolidator.Managed.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
-using Consolidator.Managed.Analyzer;
 
 namespace Consolidator.Managed.Native;
 
@@ -33,9 +32,6 @@ public static unsafe class NativeApi
 
     private static IInstanceAudioInputService AudioInputService =>
         ManagedServices.Provider.GetRequiredService<IInstanceAudioInputService>();
-
-    private static FftAnalyzer FftAnalyzer =>
-        ManagedServices.Provider.GetRequiredService<FftAnalyzer>();
 
     private static InstanceActivityCoordinator ActivityCoordinator =>
         ManagedServices.Provider.GetRequiredService<InstanceActivityCoordinator>();
@@ -143,7 +139,6 @@ public static unsafe class NativeApi
             OutputRegistry.Register(
                 instanceId.Value,
                 new NativeOutput(context, outputCallback));
-            FftAnalyzer.ReplayEqualizerPresentation(instanceId);
 
             var audioInput = new NativeAudioInput(instanceId, AudioInputService);
             handle = GCHandle.Alloc(audioInput);

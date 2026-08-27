@@ -38,4 +38,3 @@ class SaturatorController
 module.exports = {
     SaturatorController: SaturatorController
 };
-

@@ -36,10 +36,6 @@ class AnalyzerRenderer
             }
             graphics.stroke();
         };
-        let allBanks = presentation.allBanksCurve;
-        drawCurve(allBanks && allBanks.values,
-            allBanks && allBanks.active === false
-                ? [0.35, 0.25, 0.45, 0.6] : [0.8, 0.35, 1, 0.9]);
         (presentation.curves || []).forEach((curve) => {
             let filterColors = [
                 [0.95, 0.4, 0.35, 0.8],

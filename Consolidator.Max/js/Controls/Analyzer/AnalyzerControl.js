@@ -78,7 +78,6 @@ class AnalyzerControl
             differenceSpectrum: current.differenceSpectrum || null,
             curves: (current.curves || []).slice(0),
             combinedCurve: current.combinedCurve || null,
-            allBanksCurve: current.allBanksCurve || null,
             handles: []
         };
     }
@@ -99,7 +98,6 @@ class AnalyzerControl
             presentation.differenceSpectrum = curve;
         }
         else if (name === "combined") presentation.combinedCurve = curve;
-        else if (name === "all_banks") presentation.allBanksCurve = curve;
         else presentation.curves.push({
             id: Number(id),
             active: curve.active,
@@ -122,7 +120,6 @@ class AnalyzerControl
             this.presentation.differenceSpectrum = curve;
         }
         else if (name === "combined") this.presentation.combinedCurve = curve;
-        else if (name === "all_banks") this.presentation.allBanksCurve = curve;
         else if (name === "curve") {
             for (let index = 0; index < this.presentation.curves.length; index += 1) {
                 if (this.presentation.curves[index].id === Number(id)) {
@@ -309,6 +306,11 @@ function ondrag(x, y, button) {
         x: nextX,
         y: nextY
     };
+    analyzerControl.emitIntent("filterPreview", [
+        analyzerControl.state.selectedId,
+        nextX,
+        nextY
+    ]);
     analyzerControl.scheduleMove(
         analyzerControl.state.selectedId,
         nextX,
@@ -366,14 +368,6 @@ function combined(...args) {
         analyzerControl.addCurve("combined", args);
     } else {
         analyzerControl.updateCurve("combined", args);
-    }
-}
-
-function all_banks(...args) {
-    if (analyzerControl.pendingPresentation) {
-        analyzerControl.addCurve("all_banks", args);
-    } else {
-        analyzerControl.updateCurve("all_banks", args);
     }
 }
 

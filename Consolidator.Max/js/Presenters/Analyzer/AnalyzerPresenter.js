@@ -4,6 +4,9 @@ const { presentationBindingValue } = require("../Core/PresentationBinding.js");
 const { presentationBindingWrite } = require("../Core/PresentationBinding.js");
 const { subscribePresentationBinding } = require("../Core/PresentationBinding.js");
 const { AnalyzerPresentation } = require("./AnalyzerPresentation.js");
+const { BiquadCalculator } = require("./BiquadCalculator.js");
+
+const DEFAULT_SAMPLE_RATE = 48000;
 
 class AnalyzerPresenter extends PresentationObservable
 {
@@ -24,16 +27,22 @@ class AnalyzerPresenter extends PresentationObservable
             ? -24 : Number(gainRange.minimum);
         this.gainMaximum = gainRange.maximum === undefined
             ? 24 : Number(gainRange.maximum);
+        this.sampleRate = Number(this.options.sampleRate) > 0
+            ? Number(this.options.sampleRate) : DEFAULT_SAMPLE_RATE;
+        this.sampleRates = {};
+        this.sourceInstanceId = null;
+        this.curvePointCount = 256;
+        this.curveFrequencies = this.createCurveFrequencies();
+        this.bankBypass = this.options.bankBypass || null;
         this.spectrum = null;
         this.referenceSpectrum = null;
         this.curves = [];
         this.combinedCurve = null;
-        this.allBanksCurve = null;
         this.spectrumListeners = [];
         this.curveListeners = [];
         this.lastPublishedCurves = null;
         this.lastPublishedCombined = null;
-        this.lastPublishedAllBanks = null;
+        this.curvePreview = {};
         this.subscribeParameters();
         this.subscribeStatus();
         this.rebuild();
@@ -41,22 +50,27 @@ class AnalyzerPresenter extends PresentationObservable
     
     subscribeParameters()
     {
-        (this.options.parameters || []).forEach((parameter) => {
-            [
+        let bindings = (this.options.parameters || []).reduce((values, parameter) => {
+            return values.concat([
                 parameter.frequency,
                 parameter.gain,
                 parameter.q,
                 parameter.enabled
-            ].forEach((source) => {
-                if (!source) {
-                    return;
+            ]);
+        }, []);
+        if (this.bankBypass) {
+            bindings.push(this.bankBypass);
+        }
+        bindings.forEach((source) => {
+            if (!source) {
+                return;
+            }
+            subscribePresentationBinding(source, () => {
+                this.curvePreview = {};
+                if (this.ready) {
+                    this.requestRebuild();
                 }
-                subscribePresentationBinding(source, () => {
-                    if (this.ready) {
-                        this.requestRebuild();
-                    }
-                }, this.unsubscribers);
-            });
+            }, this.unsubscribers);
         });
     }
     
@@ -64,13 +78,23 @@ class AnalyzerPresenter extends PresentationObservable
     {
         let statusSource = this.options.statusSource;
         if (!statusSource || typeof statusSource.subscribeStatus !== "function") {
+            this.hasTargetStatus = false;
             this.ready = true;
             return;
         }
+        this.hasTargetStatus = true;
         this.unsubscribers.push(statusSource.subscribeStatus((status) => {
             this.ready = Boolean(status && status.ready);
             if (!this.ready) {
                 this.selectedId = 0;
+                this.sourceInstanceId = null;
+            }
+            else {
+                this.sourceInstanceId = status.target
+                    ? status.target.instanceId : null;
+                const configuredSampleRate =
+                    this.sampleRates[String(this.sourceInstanceId)];
+                this.sampleRate = configuredSampleRate || DEFAULT_SAMPLE_RATE;
             }
             this.requestRebuild();
         }, true));
@@ -82,6 +106,11 @@ class AnalyzerPresenter extends PresentationObservable
             return;
         }
         this.unsubscribers.push(protocol.on("fft", (args) => {
+            if (!args || args.length < 3 ||
+                    (this.hasTargetStatus &&
+                        String(args[1]) !== String(this.sourceInstanceId))) {
+                return;
+            }
             let fftSize = Number(args[2]);
             let binCount = Math.floor(fftSize / 2) + 1;
             if (!isFinite(fftSize) || binCount <= 1 ||
@@ -111,6 +140,33 @@ class AnalyzerPresenter extends PresentationObservable
                 (listener) => { return listener !== callback; });
         };
     }
+
+    connectConfiguration(protocol)
+    {
+        if (!protocol || typeof protocol.on !== "function") {
+            return;
+        }
+        this.unsubscribers.push(protocol.on("analyzer_configuration", (args) => {
+            if (!args || Number(args[0]) !== 1 || args.length < 3) {
+                return;
+            }
+            const sampleRate = Number(args[2]);
+            if (!isFinite(sampleRate) || sampleRate <= 0) {
+                return;
+            }
+            const sourceInstanceId = String(args[1]);
+            this.sampleRates[sourceInstanceId] = sampleRate;
+            if (this.hasTargetStatus &&
+                    sourceInstanceId !== String(this.sourceInstanceId)) {
+                return;
+            }
+            if (sampleRate === this.sampleRate) {
+                return;
+            }
+            this.sampleRate = sampleRate;
+            this.requestRebuild();
+        }));
+    }
     
     publishSpectrum()
     {
@@ -120,47 +176,11 @@ class AnalyzerPresenter extends PresentationObservable
         }
     }
     
-    connectCurves(protocol, selector)
-    {
-        if (!protocol || typeof protocol.on !== "function") {
-            return;
-        }
-        this.unsubscribers.push(protocol.on(selector || "equalizer_curves", (args) => {
-            if (!args || Number(args[0]) !== 1 || args.length < 3) return;
-            let filterCount = Number(args[2]);
-            if (!isFinite(filterCount) || filterCount < 0 || filterCount > 32) return;
-            let position = 3;
-            let curves = [];
-            for (let filterIndex = 0; filterIndex < filterCount; filterIndex++) {
-                if (position + 257 > args.length) return;
-                curves.push({
-                    id: filterIndex + 1,
-                    active: Number(args[position++]) !== 0,
-                    values: args.slice(position, position + 256).map(Number)
-                });
-                position += 256;
-            }
-            if (position + 512 > args.length) return;
-            this.curves = curves;
-            this.combinedCurve = {
-                active: Number(args[1]) !== 0,
-                values: args.slice(position, position + 256).map(Number)
-            };
-            position += 256;
-            this.allBanksCurve = {
-                active: true,
-                values: args.slice(position, position + 256).map(Number)
-            };
-            this.publishCurves();
-        }));
-    }
-    
     subscribeCurves(callback, immediate)
     {
         this.curveListeners.push(callback);
-        if (immediate && (this.curves.length || this.combinedCurve ||
-                this.allBanksCurve)) {
-            callback(this.curves, this.combinedCurve, this.allBanksCurve);
+        if (immediate && (this.curves.length || this.combinedCurve)) {
+            callback(this.curves, this.combinedCurve);
         }
         return () => {
             this.curveListeners = this.curveListeners.filter(
@@ -185,17 +205,13 @@ class AnalyzerPresenter extends PresentationObservable
         });
         let combinedChanged = !this.sameCurve(
             this.lastPublishedCombined, this.combinedCurve);
-        let allBanksChanged = !this.sameCurve(
-            this.lastPublishedAllBanks, this.allBanksCurve);
         this.lastPublishedCurves = this.curves;
         this.lastPublishedCombined = this.combinedCurve;
-        this.lastPublishedAllBanks = this.allBanksCurve;
         let listeners = this.curveListeners.slice();
         for (let index = 0; index < listeners.length; index += 1) {
             listeners[index](
                 changedCurves,
-                combinedChanged ? this.combinedCurve : null,
-                allBanksChanged ? this.allBanksCurve : null);
+                combinedChanged ? this.combinedCurve : null);
         }
     }
     
@@ -244,13 +260,19 @@ class AnalyzerPresenter extends PresentationObservable
     
     rebuild()
     {
+        if (this.ready) {
+            this.calculateCurves();
+        }
+        else {
+            this.curves = [];
+            this.combinedCurve = null;
+        }
         let presentation = new AnalyzerPresentation();
         presentation.mode = this.options.mode || "equalizer";
         presentation.enabled = this.ready;
         presentation.spectrum = this.spectrum;
         presentation.referenceSpectrum = this.referenceSpectrum;
         presentation.combinedCurve = this.combinedCurve;
-        presentation.allBanksCurve = this.allBanksCurve;
         presentation.curves = this.curves;
         if (this.ready) {
             (this.options.parameters || []).forEach((parameter, index) => {
@@ -283,6 +305,104 @@ class AnalyzerPresenter extends PresentationObservable
         }
         this.publish(presentation);
     }
+
+    calculateCurves()
+    {
+        let parameters = this.options.parameters || [];
+        let bankActive = !this.read(this.bankBypass, false);
+        let responses = parameters.map((parameter, index) => {
+            let preview = this.curvePreview[index + 1];
+            let enabled = Boolean(this.read(parameter.enabled, true));
+            return this.calculateFilterCurve(
+                index + 1, parameter, enabled, preview);
+        });
+        let combinedDecibels = new Array(this.curvePointCount).fill(0);
+        for (let point = 0; point < this.curvePointCount; point += 1) {
+            if (bankActive) {
+                responses.forEach((response) => {
+                    if (response.active) {
+                        combinedDecibels[point] += response.decibels[point];
+                    }
+                });
+            }
+        }
+        let combined = combinedDecibels.map((decibels) => {
+            return this.toNormalizedDecibels(decibels);
+        });
+        this.curves = responses.map((response) => {
+            return {
+                id: response.id,
+                active: response.active,
+                values: response.values
+            };
+        });
+        this.combinedCurve = { active: bankActive, values: combined };
+        this.publishCurves();
+    }
+
+    calculateFilterCurve(id, parameter, enabled, preview)
+    {
+        const filterFrequency = preview && preview.frequency !== undefined
+            ? Number(preview.frequency)
+            : Number(this.read(parameter.frequency, 1000));
+        const q = preview && preview.q !== undefined
+            ? Number(preview.q)
+            : Number(this.read(parameter.q, 1));
+        const gain = preview && preview.gain !== undefined
+            ? Number(preview.gain)
+            : Number(this.read(parameter.gain, 0));
+        const valid = enabled && isFinite(filterFrequency) && isFinite(q) &&
+            isFinite(gain) && filterFrequency > 0 && q > 0;
+        const coefficients = valid
+            ? BiquadCalculator.calculateBell(
+                filterFrequency, q, gain, this.sampleRate)
+            : null;
+        const decibels = this.curveFrequencies.map((frequency) => {
+            return coefficients
+                ? BiquadCalculator.decibelsAt(
+                    coefficients, frequency, this.sampleRate)
+                : 0;
+        });
+        return {
+            id: id,
+            active: enabled,
+            decibels: decibels,
+            values: decibels.map((value) => {
+                return this.toNormalizedDecibels(value);
+            })
+        };
+    }
+
+    createCurveFrequencies()
+    {
+        let frequencies = [];
+        for (let point = 0; point < this.curvePointCount; point += 1) {
+            let normalized = point / (this.curvePointCount - 1);
+            frequencies.push(this.frequencyMinimum * Math.pow(
+                this.frequencyMaximum / this.frequencyMinimum,
+                normalized));
+        }
+        return frequencies;
+    }
+
+    previewMoved(id, x, y)
+    {
+        let parameter = (this.options.parameters || [])[Number(id) - 1];
+        if (!parameter || !this.ready) {
+            return;
+        }
+        let frequency = this.clampParameterValue(
+            parameter.frequency, this.xToFrequency(x));
+        let gain = this.clampParameterValue(
+            parameter.gain, this.yToGain(y));
+        this.curvePreview[Number(id)] = { frequency: frequency, gain: gain };
+        this.requestRebuild();
+    }
+
+    toNormalizedDecibels(decibels)
+    {
+        return Math.max(0, Math.min(1, 1 - (decibels + 24) / 48));
+    }
     
     selectFilter(id)
     {
@@ -305,12 +425,37 @@ class AnalyzerPresenter extends PresentationObservable
         let gain = this.yToGain(y);
         frequency = this.clampParameterValue(parameter.frequency, frequency);
         gain = this.clampParameterValue(parameter.gain, gain);
+        this.curvePreview[Number(id)] = { frequency: frequency, gain: gain };
+        this.requestRebuild();
         if (typeof parameter.setPosition === "function") {
             parameter.setPosition(frequency, gain, transactionId);
             return;
         }
         presentationBindingWrite(parameter.frequency, frequency, transactionId);
         presentationBindingWrite(parameter.gain, gain, transactionId);
+    }
+
+    commitPreview(id, transactionId, callback)
+    {
+        let preview = this.curvePreview[Number(id)];
+        let parameter = (this.options.parameters || [])[Number(id) - 1];
+        if (!preview || preview.frequency === undefined ||
+                preview.gain === undefined || !parameter) {
+            if (callback) callback({ status: "accepted", error: null });
+            return;
+        }
+        if (typeof parameter.setPosition === "function") {
+            parameter.setPosition(
+                preview.frequency,
+                preview.gain,
+                transactionId,
+                callback);
+            return;
+        }
+        presentationBindingWrite(
+            parameter.frequency, preview.frequency, transactionId);
+        presentationBindingWrite(parameter.gain, preview.gain, transactionId);
+        if (callback) callback({ status: "accepted", error: null });
     }
     
     clampParameterValue(source, value)
@@ -365,6 +510,8 @@ class AnalyzerPresenter extends PresentationObservable
             return;
         }
         let next = Math.max(minimum, Math.min(maximum, current + change));
+        this.curvePreview[Number(id)] = { q: next };
+        this.requestRebuild();
         presentationBindingWrite(parameter.q, next);
     }
     
@@ -376,6 +523,8 @@ class AnalyzerPresenter extends PresentationObservable
         this.unsubscribers = [];
         this.spectrumListeners = [];
         this.curveListeners = [];
+        this.sampleRates = {};
+        this.sourceInstanceId = null;
         super.destroy();
     }
 }

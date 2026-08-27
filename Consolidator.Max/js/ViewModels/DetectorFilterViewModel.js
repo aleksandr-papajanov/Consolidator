@@ -22,12 +22,12 @@ class DetectorFilterViewModel
         return [this.frequency, this.q, this.gain, this.bypass];
     }
     
-    setPosition(frequency, gain, transactionId)
+    setPosition(frequency, gain, transactionId, callback)
     {
         this.state.setMany([
             { path: this.frequency.path, value: frequency },
             { path: this.gain.path, value: gain }
-        ], undefined, transactionId);
+        ], callback, transactionId);
     }
     
     destroy()

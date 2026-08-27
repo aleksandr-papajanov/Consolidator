@@ -42,4 +42,3 @@ class CompressorController
 module.exports = {
     CompressorController: CompressorController
 };
-

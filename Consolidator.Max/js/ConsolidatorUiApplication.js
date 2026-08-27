@@ -54,13 +54,11 @@ class ConsolidatorUiHost
         this.compressor = new CompressorController(this.viewModel);
         this.saturator = new SaturatorController(this.viewModel);
         this.equalizer.analyzer.presenter.connectSpectrum(this.client.protocol);
-        this.equalizer.analyzer.presenter.connectCurves(this.client.protocol);
         this.compressor.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.saturator.analyzer.presenter.connectSpectrum(this.client.protocol);
-        this.compressor.analyzer.presenter.connectCurves(
-            this.client.protocol, "compressor_detector_curves");
-        this.saturator.analyzer.presenter.connectCurves(
-            this.client.protocol, "saturator_detector_curves");
+        this.equalizer.analyzer.presenter.connectConfiguration(this.client.protocol);
+        this.compressor.analyzer.presenter.connectConfiguration(this.client.protocol);
+        this.saturator.analyzer.presenter.connectConfiguration(this.client.protocol);
         this.inputGain = new GainController(this.viewModel.inputGain);
         this.outputGain = new GainController(this.viewModel.outputGain);
         this.bankManagerViewModel = new BankManagerViewModel(

@@ -62,7 +62,8 @@ claim/copy semantics triple-buffer exchange без загрузки Max runtime.
 - register/unregister и audio handle;
 - initial DSP snapshot;
 - Native atoms → Managed command/state → native callback atoms;
-- unregister barrier.
+- unregister barrier;
+- остановку и повторное создание Managed services без выгрузки NativeAOT DLL.
 
 Integration project не ссылается на Managed assembly, иначе он бы не доказывал
 опубликованную ABI boundary.
@@ -105,9 +106,9 @@ frames and control priority, bounded drain batches, repeated queue scheduling,
 teardown with pending work, and the allocation-free audio ring including wrap
 and overflow behavior.
 
-JavaScript suites must cover analyzer-only FFT presentation, Equalizer-only
-curve delivery, one redraw per FFT update, instance activity changes with Live
-selection
+JavaScript suites must cover analyzer-only FFT presentation, local curve
+calculation and preview, sample-rate configuration, one redraw per FFT update,
+instance activity changes with Live selection
 or inactive, targeted registry row deltas, single revision-gap resync, latest
 gesture value preservation, and subscription/demand cleanup on destroy.
 

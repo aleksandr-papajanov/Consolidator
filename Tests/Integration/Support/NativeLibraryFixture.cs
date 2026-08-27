@@ -122,6 +122,11 @@ public sealed class NativeLibraryFixture : IDisposable
         return Marshal.GetDelegateForFunctionPointer<TDelegate>(pointer);
     }
 
+    public void ShutdownServices()
+    {
+        _shutdown();
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -131,7 +136,6 @@ public sealed class NativeLibraryFixture : IDisposable
 
         _disposed = true;
         _shutdown();
-        NativeLibrary.Free(_library);
     }
 
     internal void Unregister(NativeInstance instance)

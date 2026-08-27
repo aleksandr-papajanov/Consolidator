@@ -53,8 +53,8 @@ internal sealed class InstanceActivityCoordinator
                 _registryChanges.UnregisterObserver(previous.Value);
             }
 
-            _analyzer.SetInstanceActive(instanceId, true);
             _presentation.SetActive(instanceId.Value, true);
+            _analyzer.SetInstanceActive(instanceId, true);
             _activeInstanceId = instanceId;
         }
     }

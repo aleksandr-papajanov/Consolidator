@@ -57,4 +57,6 @@ Panel routing currently runs in Max 9's `v8` object through
 `AnalyzerPresenter` owns analyzer handles, calculated filter curves and streamed
 spectrum data. Handle gestures use the ordinary state/history command path.
 Dragging updates the local preview immediately and sends the latest position at
-a bounded live rate; spectrum and curve redraws are independently coalesced.
+a bounded live rate. Curves are calculated locally from the focused parameter
+presentation and the observed source's prepared sample rate; spectrum and curve
+redraws are independently coalesced.

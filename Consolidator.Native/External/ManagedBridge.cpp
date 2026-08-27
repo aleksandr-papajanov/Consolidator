@@ -3,8 +3,8 @@
 #include <Windows.h>
 #undef SendMessage
 
-#include <atomic>
 #include <cstring>
+#include <mutex>
 
 #include "c74_min_api.h"
 
@@ -62,15 +62,15 @@ HMODULE LoadManagedLibrary()
 class ManagedRuntime
 {
 public:
-    ManagedRuntime();
-    ~ManagedRuntime();
+    ManagedRuntime() = default;
 
     ManagedRuntime(const ManagedRuntime&) = delete;
     ManagedRuntime& operator=(const ManagedRuntime&) = delete;
 
     [[nodiscard]] bool IsLoaded() const noexcept;
     bool Load() noexcept;
-    void Shutdown() noexcept;
+    void Activate() const noexcept;
+    void Deactivate() const noexcept;
 
 private:
     friend class ManagedBridge;
@@ -122,11 +122,6 @@ private:
     ShutdownFn shutdown{};
 };
 
-ManagedRuntime::ManagedRuntime()
-{
-    Load();
-}
-
 bool ManagedRuntime::Load() noexcept
 {
     if (IsLoaded())
@@ -136,7 +131,7 @@ bool ManagedRuntime::Load() noexcept
 
     if (library)
     {
-        Shutdown();
+        return false;
     }
 
     library = LoadManagedLibrary();
@@ -161,47 +156,26 @@ bool ManagedRuntime::Load() noexcept
     shutdown = reinterpret_cast<ShutdownFn>(
         GetProcAddress(library, "ConsolidatorShutdown"));
 
+    return IsLoaded();
+}
+
+void ManagedRuntime::Activate() const noexcept
+{
     if (IsLoaded())
     {
         setLogCallback(nullptr, ManagedLogCallbackHandler);
-        return true;
     }
-
-    Shutdown();
-    return false;
 }
 
-ManagedRuntime::~ManagedRuntime()
+void ManagedRuntime::Deactivate() const noexcept
 {
-    Shutdown();
-}
-
-void ManagedRuntime::Shutdown() noexcept
-{
-    if (!library)
+    if (!IsLoaded())
     {
         return;
     }
 
-    if (setLogCallback)
-    {
-        if (shutdown)
-        {
-            shutdown();
-        }
-
-        setLogCallback(nullptr, nullptr);
-    }
-
-    FreeLibrary(library);
-    library = nullptr;
-    registerInstance = nullptr;
-    unregisterInstance = nullptr;
-    setLogCallback = nullptr;
-    sendMessage = nullptr;
-    prepare = nullptr;
-    sendAudio = nullptr;
-    shutdown = nullptr;
+    shutdown();
+    setLogCallback(nullptr, nullptr);
 }
 
 bool ManagedRuntime::IsLoaded() const noexcept
@@ -222,7 +196,8 @@ ManagedRuntime& GetManagedRuntime()
     return runtime;
 }
 
-std::atomic_uint32_t activeExternalCount{};
+std::mutex runtimeMutex;
+std::uint32_t activeExternalCount{};
 
 }
 
@@ -234,16 +209,24 @@ struct ManagedBridge::Implementation
 ManagedBridge::ManagedBridge()
     : implementation_(new Implementation{})
 {
+    const std::lock_guard lock(runtimeMutex);
     implementation_->runtime = &GetManagedRuntime();
     implementation_->runtime->Load();
-    activeExternalCount.fetch_add(1, std::memory_order_relaxed);
+    if (activeExternalCount == 0)
+    {
+        implementation_->runtime->Activate();
+    }
+
+    ++activeExternalCount;
 }
 
 ManagedBridge::~ManagedBridge()
 {
-    if (activeExternalCount.fetch_sub(1, std::memory_order_acq_rel) == 1)
+    const std::lock_guard lock(runtimeMutex);
+    --activeExternalCount;
+    if (activeExternalCount == 0)
     {
-        implementation_->runtime->Shutdown();
+        implementation_->runtime->Deactivate();
     }
 }
 

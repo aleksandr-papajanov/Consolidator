@@ -9,14 +9,14 @@ class AnalyzerControlBinding extends ControlBinding
         this.transactions = transactions;
         this.activeTransactionId = null;
         this.transactionReady = false;
-        this.pendingMove = null;
         this.pendingEnd = false;
+        this.lastMove = null;
         this.connectPresentation();
         if (presenter && typeof presenter.subscribeSpectrum === "function") {
             this.unsubscribers.push(presenter.subscribeSpectrum((
                 spectrum, referenceSpectrum
             ) => {
-                if (!this.presentationActive) {
+                if (!this.presentationActive || this.batchSuspended) {
                     return;
                 }
                 this.sendCurve("spectrum", spectrum);
@@ -25,16 +25,15 @@ class AnalyzerControlBinding extends ControlBinding
         }
         if (presenter && typeof presenter.subscribeCurves === "function") {
             this.unsubscribers.push(presenter.subscribeCurves((
-                curves, combinedCurve, allBanksCurve
+                curves, combinedCurve
             ) => {
-                if (!this.presentationActive) {
+                if (!this.presentationActive || this.batchSuspended) {
                     return;
                 }
                 (curves || []).forEach((curve) => {
                     this.sendCurve("curve", curve, curve.id);
                 });
                 this.sendCurve("combined", combinedCurve);
-                this.sendCurve("all_banks", allBanksCurve);
             }, true));
         }
     }
@@ -79,7 +78,6 @@ class AnalyzerControlBinding extends ControlBinding
             this.sendCurve("curve", curve, curve.id);
         }, this);
         this.sendCurve("combined", this.presenter.combinedCurve);
-        this.sendCurve("all_banks", this.presenter.allBanksCurve);
     }
     
     sendCurve(name, curve, id)
@@ -99,19 +97,17 @@ class AnalyzerControlBinding extends ControlBinding
             this.beginTransaction();
             return;
         }
-        if (name === "filterMoved" && this.activeTransactionId !== null &&
-                !this.transactionReady) {
-            this.pendingMove = values.slice(0);
-            return;
-        }
         if (name === "gestureEnded") {
             if (this.activeTransactionId !== null && !this.transactionReady) {
                 this.pendingEnd = true;
             }
             else {
-                this.finishTransaction();
+                this.commitAndFinish();
             }
             return;
+        }
+        if (name === "filterMoved") {
+            this.lastMove = values.slice(0);
         }
         this.controller.handle(name, values, this.activeTransactionId);
     }
@@ -122,7 +118,6 @@ class AnalyzerControlBinding extends ControlBinding
             return;
         }
         this.transactionReady = false;
-        this.pendingMove = null;
         this.pendingEnd = false;
         this.activeTransactionId = this.transactions.begin((id, response) => {
             this.completeTransactionBegin(id, response);
@@ -137,18 +132,42 @@ class AnalyzerControlBinding extends ControlBinding
             return;
         }
         if (!response || response.status !== "accepted") {
+            if (this.controller && this.controller.presenter) {
+                this.controller.presenter.curvePreview = {};
+                this.controller.presenter.requestRebuild();
+            }
             this.send("transactionRejected");
             this.clearTransaction();
             return;
         }
         this.transactionReady = true;
-        if (this.pendingMove) {
-            this.controller.handle("filterMoved", this.pendingMove, id);
-            this.pendingMove = null;
-        }
         if (this.pendingEnd) {
-            this.finishTransaction();
+            this.commitAndFinish();
         }
+    }
+
+    commitAndFinish()
+    {
+        if (!this.lastMove || !this.controller ||
+                this.activeTransactionId === null) {
+            this.finishTransaction();
+            return;
+        }
+        let transactionId = this.activeTransactionId;
+        this.controller.handle(
+            "filterCommit",
+            [this.lastMove[0]],
+            transactionId,
+            (response) => {
+                if (!response || response.error || response.status !== "accepted") {
+                    if (this.controller && this.controller.presenter) {
+                        this.controller.presenter.curvePreview = {};
+                        this.controller.presenter.requestRebuild();
+                    }
+                    this.send("transactionRejected");
+                }
+                this.finishTransaction();
+            });
     }
     
     finishTransaction()
@@ -164,8 +183,8 @@ class AnalyzerControlBinding extends ControlBinding
     {
         this.activeTransactionId = null;
         this.transactionReady = false;
-        this.pendingMove = null;
         this.pendingEnd = false;
+        this.lastMove = null;
     }
     
     destroy()

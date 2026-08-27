@@ -9,7 +9,6 @@ Managed DLL:
 InstanceRegistry
   -> StateRegistry<InstanceId>
   -> StateValueFactory
-  -> AnalyzerRegistry
   -> StateHistory
   -> StatePeerObserver
   -> StateTopologyObserver
@@ -28,23 +27,21 @@ Responsibilities are intentionally narrow:
   registration and root removal;
 - `StateValueFactory` owns application edit policy and composes concrete value
   observers;
-- `AnalyzerRegistry` owns per-instance audio capture and derived DSP objects,
-  captures and coalesces dirty filter inputs at control-operation boundaries,
-  then materializes curves only for focused recipients;
 - `StateHistory` owns the shared history cursor and active history-value list;
 - `StatePeerObserver` owns peer buckets, grouped mutations and effective delta
   ranges;
 - `StateTopologyObserver` reacts to bank-group and instance lifecycle events;
 - `TopologyIndex` stores derived group/focus indexes and serves queries;
 - `AudibilityObserver` observes mute/solo values and projects audibility;
-- `FftAnalyzer` owns bounded per-instance audio capture, worker-side FFT and
-  focused-bank spectrum publication;
+- `FftAnalyzer` owns the demanded source's bounded audio capture, prepared
+  sample rate, worker-side FFT, focused-viewer configuration and spectrum
+  publication;
 - `InstanceCommandRouter` validates sources and selects targets;
 - `CommandExecutor` executes commands on already selected instances.
 
-Pure DSP coefficient calculations live in the managed `Consolidator.Managed.Dsp`
-namespace. `BiquadCalculator` provides the shared bell, shelf and gain biquad
-design used by DSP and analysis code without owning state or audio buffers.
+UI-only biquad response calculation lives in the JavaScript
+`AnalyzerPresenter`; Managed does not retain analyzer coefficient or curve
+caches.
 
 There is no global coordinator facade, general projection service or state
 resolver layer.
@@ -74,7 +71,9 @@ remove ManagedInstance from InstanceRegistry
 
 After `UnregisterInstance` returns, the instance ID is not reused and its native
 callback cannot be invoked. Managed shutdown applies the same removal sequence
-to every remaining instance before releasing audio handles and unloading.
+to every remaining instance before releasing audio handles. The NativeAOT
+module remains loaded until process termination because dynamic unloading is
+not supported.
 
 ## State changes
 

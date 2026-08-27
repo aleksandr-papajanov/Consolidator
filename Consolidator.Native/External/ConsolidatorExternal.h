@@ -5,7 +5,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -289,8 +288,7 @@ private:
 
     std::mutex outputMutex_;
     std::deque<OutputFrame> pendingControl_;
-    std::unordered_map<std::int64_t, OutputFrame> pendingFftBySource_;
-    std::unordered_map<std::string, OutputFrame> pendingCurveFrames_;
+    std::optional<OutputFrame> pendingFftFrame_;
     std::atomic_size_t controlQueueDepth_{};
     std::atomic_uint64_t replacedFftFrames_{};
     std::atomic_uint64_t skippedFftFrames_{};

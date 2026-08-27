@@ -5,15 +5,21 @@ class AnalyzerController
         this.presenter = presenter;
     }
     
-    handle(intent, payload, transactionId)
+    handle(intent, payload, transactionId, callback)
     {
         if (!this.presenter) {
             return;
         }
         switch (intent) {
+        case "filterPreview":
+            this.presenter.previewMoved(payload[0], payload[1], payload[2]);
+            break;
         case "filterMoved":
             this.presenter.filterMoved(
                 payload[0], payload[1], payload[2], transactionId);
+            break;
+        case "filterCommit":
+            this.presenter.commitPreview(payload[0], transactionId, callback);
             break;
         case "filterQChanged":
             this.presenter.filterQChanged(payload[0], payload[1]);
@@ -28,4 +34,3 @@ class AnalyzerController
 module.exports = {
     AnalyzerController: AnalyzerController
 };
-

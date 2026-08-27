@@ -16,6 +16,7 @@ class EqualizerController
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,
+            bankBypass: viewModel.equalizer.bankBypass,
             parameters: this.createBankParameters(viewModel.equalizer.filters)
         }));
     }
@@ -51,4 +52,3 @@ class EqualizerController
 module.exports = {
     EqualizerController: EqualizerController
 };
-

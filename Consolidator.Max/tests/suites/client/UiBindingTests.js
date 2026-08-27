@@ -510,7 +510,6 @@ function testAnalyzerHandlesPublishOnlyAfterTargetSnapshotIsReady() {
   statusCallback({ ready: true, loading: false });
   assert.strictEqual(presenter.presentation.enabled, true);
   assert.strictEqual(presenter.presentation.spectrum, null);
-  assert.deepStrictEqual(presenter.presentation.curves, []);
   assert.strictEqual(presenter.presentation.handles.length, 1);
   presenter.filterMoved(1, 0.5, 0.25, 7);
   assert.strictEqual(writes.length, 1);
@@ -530,7 +529,10 @@ function testAnalyzerPublishesOneSpectrumNotificationPerFftFrame() {
   var presenter = new AnalyzerPresenter({
     statusSource: {
       subscribeStatus: function (callback, immediate) {
-        if (immediate) callback({ ready: true });
+        if (immediate) callback({
+          ready: true,
+          target: { instanceId: 7, bankId: 1 },
+        });
         return function () {};
       },
     },
@@ -540,6 +542,11 @@ function testAnalyzerPublishesOneSpectrumNotificationPerFftFrame() {
     notifications += 1;
   });
 
+  protocolHandlers.fft([
+    1, 8, 4,
+    0.1, 0.2, 0.3,
+    0.4, 0.5, 0.6,
+  ]);
   protocolHandlers.fft([
     1, 7, 4,
     0.1, 0.2, 0.3,
@@ -580,7 +587,7 @@ function testAnalyzerDragClampsToEffectivePeerRanges() {
   ]);
   presenter.destroy();
 }
-function testAnalyzerParameterUpdatesDoNotReplayStreamedCurves() {
+function testAnalyzerParameterUpdatesRecalculateLocalCurves() {
   var parameterListeners = [];
   var frequency = {
     value: 1000,
@@ -589,71 +596,64 @@ function testAnalyzerParameterUpdatesDoNotReplayStreamedCurves() {
       return function () {};
     },
   };
-  var curveHandler = null;
   var presenter = new AnalyzerPresenter({
-    parameters: [{ frequency: frequency, gain: { value: 0 } }],
+    parameters: [{
+      frequency: frequency,
+      gain: { value: 6 },
+      q: { value: 1 },
+      enabled: true,
+    }],
   });
-  presenter.connectCurves({
-    on: function (selector, callback) {
-      curveHandler = callback;
-      return function () {};
-    },
-  });
-  var curve = [];
-  for (var point = 0; point < 256; point += 1) {
-    curve.push(0.5);
-  }
-  curveHandler([1, 1, 1, 1].concat(curve, curve, curve));
+  var previous = presenter.curves[0].values.slice(0);
 
-  var messages = [];
-  var binding = new AnalyzerControlBinding({}, presenter, function (name, args) {
-    messages.push([name, args]);
-  });
-  assert.strictEqual(messages.filter(function (message) {
-    return message[0] === "curve";
-  }).length, 1);
-
-  messages = [];
   frequency.value = 1500;
   parameterListeners[0]();
 
-  assert.strictEqual(messages.filter(function (message) {
-    return message[0] === "curve" || message[0] === "combined" ||
-      message[0] === "all_banks" || message[0] === "spectrum" ||
-      message[0] === "reference_spectrum";
-  }).length, 0);
-  assert.strictEqual(messages[0][0], "presentation_begin");
-  assert.strictEqual(messages[messages.length - 1][0], "presentation_end");
-  binding.destroy();
+  assert.notDeepStrictEqual(presenter.curves[0].values, previous);
   presenter.destroy();
 }
-function testDetectorPresenterBuildsFilterCurves() {
+function testAnalyzerConfigurationRecalculatesCurvesForSampleRate() {
   var protocolHandlers = {};
   var presenter = new AnalyzerPresenter({
-    mode: "detector",
+    statusSource: {
+      subscribeStatus: function (callback, immediate) {
+        if (immediate) callback({
+          ready: true,
+          target: { instanceId: 7, bankId: 1 },
+        });
+        return function () {};
+      },
+    },
+    parameters: [{
+      frequency: { value: 18000 },
+      gain: { value: 12 },
+      q: { value: 1 },
+    }],
   });
-  presenter.connectCurves({
+  presenter.connectConfiguration({
     on: function (selector, callback) {
       protocolHandlers[selector] = callback;
       return function () {};
     },
   });
-  var presentation = null;
-  presenter.subscribe(function (value) {
-    presentation = value;
-  }, true);
+  var previous = presenter.curves[0].values.slice(0);
 
-  var frame = [1, 1, 2];
-  for (var filterIndex = 0; filterIndex < 2; filterIndex += 1) {
-    frame.push(1);
-    for (var point = 0; point < 256; point += 1) {
-      frame.push(0.5 + filterIndex * 0.01);
-    }
-  }
-  for (var curvePoint = 0; curvePoint < 512; curvePoint += 1) {
-    frame.push(0.5);
-  }
-  protocolHandlers.equalizer_curves(frame);
+  protocolHandlers.analyzer_configuration([1, 8, 32000]);
+  assert.strictEqual(presenter.sampleRate, 48000);
+  protocolHandlers.analyzer_configuration([1, 7, 44100]);
+
+  assert.strictEqual(presenter.sampleRate, 44100);
+  assert.notDeepStrictEqual(presenter.curves[0].values, previous);
+  presenter.destroy();
+}
+function testDetectorPresenterBuildsFilterCurves() {
+  var presenter = new AnalyzerPresenter({
+    mode: "detector",
+    parameters: [
+      { frequency: { value: 500 }, gain: { value: 3 }, q: { value: 1 } },
+      { frequency: { value: 2000 }, gain: { value: -3 }, q: { value: 1 } },
+    ],
+  });
 
   assert.strictEqual(presenter.curves.length, 2);
   assert.strictEqual(presenter.curves[0].values.length, 256);
@@ -662,49 +662,29 @@ function testDetectorPresenterBuildsFilterCurves() {
   presenter.destroy();
 }
 function testDetectorPresenterUpdatesCurvesDuringFilterDrag() {
-  var handler = null;
-  var neutralCurve = [];
-  var changedCurve = [];
-  for (var point = 0; point < 256; point += 1) {
-    neutralCurve.push(0.5);
-    changedCurve.push(0.25);
-  }
   var presenter = new AnalyzerPresenter({
     mode: "detector",
+    parameters: [{
+      frequency: { value: 1000 },
+      gain: { value: 6 },
+      q: { value: 1 },
+    }],
   });
-  presenter.connectCurves({
-    on: function (selector, callback) {
-      handler = callback;
-      return function () {};
-    },
-  }, "compressor_detector_curves");
-  handler([1, 1, 1, 1].concat(
-    neutralCurve,
-    neutralCurve,
-    neutralCurve,
-  ));
   var previous = presenter.curves[0].values.slice(0);
-  handler([1, 1, 1, 1].concat(
-    changedCurve,
-    neutralCurve,
-    neutralCurve,
-  ));
+  presenter.previewMoved(1, 0.75, 0.25);
 
   assert.notDeepStrictEqual(presenter.curves[0].values, previous);
   presenter.destroy();
 }
 function testDetectorBindingPublishesCurvesToControl() {
   var messages = [];
-  var handler = null;
   var presenter = new AnalyzerPresenter({
     mode: "detector",
+    parameters: [
+      { frequency: { value: 500 }, gain: { value: 3 }, q: { value: 1 } },
+      { frequency: { value: 2000 }, gain: { value: -3 }, q: { value: 1 } },
+    ],
   });
-  presenter.connectCurves({
-    on: function (selector, callback) {
-      handler = callback;
-      return function () {};
-    },
-  }, "compressor_detector_curves");
   var binding = new AnalyzerControlBinding(
     {},
     presenter,
@@ -712,18 +692,6 @@ function testDetectorBindingPublishesCurvesToControl() {
       messages.push([name, args]);
     }
   );
-  var curve = [];
-  for (var point = 0; point < 256; point += 1) {
-    curve.push(0.5);
-  }
-  var frame = [1, 1, 2];
-  for (var filterIndex = 0; filterIndex < 2; filterIndex += 1) {
-    frame.push(1);
-    frame = frame.concat(curve);
-  }
-  frame = frame.concat(curve, curve);
-  handler(frame);
-
   var curves = messages.filter(function (message) {
     return message[0] === "curve";
   });
@@ -739,13 +707,7 @@ function testDetectorBindingPublishesCurvesToControl() {
 
   messages = [];
   binding.setPresentationActive(false);
-  curve[0] = 0.75;
-  handler([1, 1, 2, 1].concat(
-    curve,
-    [1], curve,
-    curve,
-    curve
-  ));
+  presenter.previewMoved(1, 0.75, 0.25);
   assert.deepStrictEqual(messages, []);
 
   binding.setPresentationActive(true);
@@ -758,7 +720,7 @@ function testDetectorBindingPublishesCurvesToControl() {
   binding.destroy();
   presenter.destroy();
 }
-function testAnalyzerControlCommitsPendingCurves() {
+function testAnalyzerControlPreservesCurvesAcrossHandlePresentation() {
   var previousTask = global.Task;
   global.Task = function () {
     this.schedule = function () {};
@@ -797,8 +759,11 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   var transactionCalls = [];
   var beginCallback = null;
   var controller = {
-    handle: function (intent, payload, transactionId) {
+    handle: function (intent, payload, transactionId, callback) {
       calls.push([intent, payload, transactionId]);
+      if (intent === "filterCommit") {
+        callback({ status: "accepted", error: null });
+      }
     },
   };
   var presenter = {
@@ -834,7 +799,9 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
     ["end", 12],
   ]);
   assert.deepStrictEqual(calls, [
+    ["filterMoved", [1, 0.4, 0.6], 12],
     ["filterMoved", [1, 0.5, 0.7], 12],
+    ["filterCommit", [1], 12],
   ]);
   binding.destroy();
 }
@@ -1310,11 +1277,12 @@ testUiHostEntrypointInitializesFromLiveReadyAndRoutesLists();
 testAnalyzerHandlesPublishOnlyAfterTargetSnapshotIsReady();
 testAnalyzerPublishesOneSpectrumNotificationPerFftFrame();
 testAnalyzerDragClampsToEffectivePeerRanges();
-testAnalyzerParameterUpdatesDoNotReplayStreamedCurves();
+testAnalyzerParameterUpdatesRecalculateLocalCurves();
+testAnalyzerConfigurationRecalculatesCurvesForSampleRate();
 testDetectorPresenterBuildsFilterCurves();
 testDetectorPresenterUpdatesCurvesDuringFilterDrag();
 testDetectorBindingPublishesCurvesToControl();
-testAnalyzerControlCommitsPendingCurves();
+testAnalyzerControlPreservesCurvesAcrossHandlePresentation();
 testAnalyzerBindingUsesOneTransactionForHandleDrag();
 testAnalyzerHandleDragPublishesLatestPositionWhileDragging();
 testUiHostAcceptsTrackNameMessage();

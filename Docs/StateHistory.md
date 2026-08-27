@@ -38,8 +38,8 @@ assigns edit scope and notification ownership and appends three common observers
 - `StateChangeObserver<TValue>` publishes effective changes through
   `IStateChangeSink` for protocol/UI delivery.
 - `DspStateObserver<TValue>` records the owning instance for deferred DSP
-  publication and marks affected equalizer or detector filters dirty in the
-  derived `AnalyzerRegistry`; it does not calculate coefficients during notification.
+  snapshot publication. Analyzer curves are rebuilt by the JavaScript presenter
+  from the state notification received by the focused UI.
 
 Concrete state models add their specific observers explicitly:
 

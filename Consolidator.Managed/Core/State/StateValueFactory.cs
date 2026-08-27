@@ -1,4 +1,3 @@
-using Consolidator.Managed.Analyzer;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.State.Observers;
@@ -13,7 +12,6 @@ public sealed class StateValueFactory
     private readonly StatePeerObserver _peerObserver;
     private readonly StateValueMetadataRegistry _metadata;
     private readonly IStateChangeSink _stateChangeSink;
-    private readonly AnalyzerRegistry _analyzerRegistry;
     private readonly DspStateChangeTracker _dspChanges;
 
     internal StateValueFactory(
@@ -21,14 +19,12 @@ public sealed class StateValueFactory
         StatePeerObserver peerObserver,
         StateValueMetadataRegistry metadata,
         IStateChangeSink stateChangeSink,
-        AnalyzerRegistry analyzerRegistry,
         DspStateChangeTracker dspChanges)
     {
         _registry = registry;
         _peerObserver = peerObserver;
         _metadata = metadata;
         _stateChangeSink = stateChangeSink;
-        _analyzerRegistry = analyzerRegistry;
         _dspChanges = dspChanges;
     }
 
@@ -120,10 +116,8 @@ public sealed class StateValueFactory
                 peerObserver.GetEffectiveRange))
             .Append(stateChangeObserver)
             .Append(new DspStateObserver<TValue>(
-                _analyzerRegistry,
                 _dspChanges,
-                instanceId,
-                path))
+                instanceId))
             .ToArray();
         return _registry.CreateValue(
             instanceId,
