@@ -10,6 +10,9 @@ const { AnalyzerViewState } = require("./AnalyzerViewState.js");
 const { AnalyzerLayout } = require("./AnalyzerLayout.js");
 const { AnalyzerRenderer } = require("./AnalyzerRenderer.js");
 
+const ANALYZER_REDRAW_INTERVAL_MS = 16;
+const ANALYZER_MOVE_INTERVAL_MS = 33;
+
 class AnalyzerControl
 {
     constructor()
@@ -20,9 +23,9 @@ class AnalyzerControl
         this.renderer = new AnalyzerRenderer();
         this.parameterRevision = 0;
         this.viewKey = "";
-        this.spectrumRedrawScheduled = false;
-        this.spectrumRedrawTimer = new Task(() => {
-            this.spectrumRedrawScheduled = false;
+        this.redrawScheduled = false;
+        this.redrawTimer = new Task(() => {
+            this.redrawScheduled = false;
             mgraphics.redraw();
         }, this);
         this.moveScheduled = false;
@@ -62,7 +65,7 @@ class AnalyzerControl
                 delete this.state.preview[handle.id];
             }
         });
-        this.requestSpectrumRedraw();
+        this.requestRedraw();
     }
 
     beginPresentation(mode, enabled, parameterRevision, viewKey)
@@ -78,6 +81,7 @@ class AnalyzerControl
             differenceSpectrum: current.differenceSpectrum || null,
             curves: (current.curves || []).slice(0),
             combinedCurve: current.combinedCurve || null,
+            allBanksCurve: current.allBanksCurve || null,
             handles: []
         };
     }
@@ -98,6 +102,7 @@ class AnalyzerControl
             presentation.differenceSpectrum = curve;
         }
         else if (name === "combined") presentation.combinedCurve = curve;
+        else if (name === "all_banks") presentation.allBanksCurve = curve;
         else presentation.curves.push({
             id: Number(id),
             active: curve.active,
@@ -120,6 +125,7 @@ class AnalyzerControl
             this.presentation.differenceSpectrum = curve;
         }
         else if (name === "combined") this.presentation.combinedCurve = curve;
+        else if (name === "all_banks") this.presentation.allBanksCurve = curve;
         else if (name === "curve") {
             for (let index = 0; index < this.presentation.curves.length; index += 1) {
                 if (this.presentation.curves[index].id === Number(id)) {
@@ -128,7 +134,7 @@ class AnalyzerControl
                         active: curve.active,
                         values: curve.values
                     };
-                    this.requestSpectrumRedraw();
+                    this.requestRedraw();
                     return;
                 }
             }
@@ -139,14 +145,14 @@ class AnalyzerControl
             });
         }
         else return;
-        this.requestSpectrumRedraw();
+        this.requestRedraw();
     }
 
-    requestSpectrumRedraw()
+    requestRedraw()
     {
-        if (this.spectrumRedrawScheduled) return;
-        this.spectrumRedrawScheduled = true;
-        this.spectrumRedrawTimer.schedule(33);
+        if (this.redrawScheduled) return;
+        this.redrawScheduled = true;
+        this.redrawTimer.schedule(ANALYZER_REDRAW_INTERVAL_MS);
     }
 
     addHandle(args)
@@ -232,7 +238,7 @@ class AnalyzerControl
         this.state.pendingMove = [id, x, y];
         if (this.moveScheduled) return;
         this.moveScheduled = true;
-        this.moveTimer.schedule(33);
+        this.moveTimer.schedule(ANALYZER_MOVE_INTERVAL_MS);
     }
 
     flushMove()
@@ -257,9 +263,9 @@ class AnalyzerControl
 
     destroy()
     {
-        if (this.spectrumRedrawScheduled) {
-            this.spectrumRedrawTimer.cancel();
-            this.spectrumRedrawScheduled = false;
+        if (this.redrawScheduled) {
+            this.redrawTimer.cancel();
+            this.redrawScheduled = false;
         }
         if (this.moveScheduled) {
             this.moveTimer.cancel();
@@ -316,7 +322,7 @@ function ondrag(x, y, button) {
         nextX,
         nextY
     );
-    analyzerControl.requestSpectrumRedraw();
+    analyzerControl.requestRedraw();
 }
 
 function onwheel(x, y, delta, mod1, shift, caps, opt, mod2) {
@@ -368,6 +374,14 @@ function combined(...args) {
         analyzerControl.addCurve("combined", args);
     } else {
         analyzerControl.updateCurve("combined", args);
+    }
+}
+
+function all_banks(...args) {
+    if (analyzerControl.pendingPresentation) {
+        analyzerControl.addCurve("all_banks", args);
+    } else {
+        analyzerControl.updateCurve("all_banks", args);
     }
 }
 

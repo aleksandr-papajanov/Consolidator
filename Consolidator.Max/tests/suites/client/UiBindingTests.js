@@ -646,6 +646,54 @@ function testAnalyzerConfigurationRecalculatesCurvesForSampleRate() {
   assert.notDeepStrictEqual(presenter.curves[0].values, previous);
   presenter.destroy();
 }
+function testEqualizerPresenterBuildsAllBanksCurveFromRawState() {
+  var protocolHandlers = {};
+  var presenter = new AnalyzerPresenter({
+    mode: "equalizer",
+    statusSource: {
+      subscribeStatus: function (callback, immediate) {
+        if (immediate) callback({
+          ready: true,
+          target: { instanceId: 7, bankId: 0 },
+        });
+        return function () {};
+      },
+    },
+    parameters: [{
+      frequency: { value: 1000 },
+      gain: { value: 6 },
+      q: { value: 1 },
+      enabled: true,
+    }],
+  });
+  presenter.connectConfiguration({
+    on: function (selector, callback) {
+      protocolHandlers[selector] = callback;
+      return function () {};
+    },
+  });
+
+  protocolHandlers.analyzer_equalizer_state([
+    1, 8, 2, 1, 1,
+    1, 1, 1000, 1, 6,
+    1, 1, 2000, 1, 6,
+  ]);
+  assert.strictEqual(presenter.allBanksCurve.active, false);
+
+  protocolHandlers.analyzer_equalizer_state([
+    1, 7, 2, 1, 1,
+    1, 1, 1000, 1, 6,
+    1, 1, 2000, 1, 6,
+  ]);
+
+  assert.strictEqual(presenter.allBanksCurve.active, true);
+  assert.strictEqual(presenter.allBanksCurve.values.length, 256);
+  assert.notDeepStrictEqual(
+    presenter.allBanksCurve.values,
+    presenter.combinedCurve.values,
+  );
+  presenter.destroy();
+}
 function testDetectorPresenterBuildsFilterCurves() {
   var presenter = new AnalyzerPresenter({
     mode: "detector",
@@ -734,12 +782,17 @@ function testAnalyzerControlPreservesCurvesAcrossHandlePresentation() {
   analyzerControl.beginPresentation("detector", 1, 0, "");
   analyzerControl.addCurve("curve", [1, 0.5, 0.5], 1);
   analyzerControl.addCurve("combined", [1, 0.5, 0.5]);
+  analyzerControl.addCurve("all_banks", [1, 0.4, 0.4]);
   analyzerControl.applyPresentation(analyzerControl.pendingPresentation);
   analyzerControl.pendingPresentation = null;
 
   assert.strictEqual(analyzerControl.presentation.curves.length, 1);
   assert.strictEqual(
     analyzerControl.presentation.combinedCurve.values.length,
+    2
+  );
+  assert.strictEqual(
+    analyzerControl.presentation.allBanksCurve.values.length,
     2
   );
 
@@ -749,6 +802,10 @@ function testAnalyzerControlPreservesCurvesAcrossHandlePresentation() {
   assert.strictEqual(analyzerControl.presentation.curves.length, 1);
   assert.strictEqual(
     analyzerControl.presentation.combinedCurve.values.length,
+    2
+  );
+  assert.strictEqual(
+    analyzerControl.presentation.allBanksCurve.values.length,
     2
   );
   analyzerControl.destroy();
@@ -808,9 +865,11 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
 function testAnalyzerHandleDragPublishesLatestPositionWhileDragging() {
   var messages = [];
   var scheduled = null;
+  var scheduledDelays = [];
   var previousTask = global.Task;
   global.Task = function (callback) {
-    this.schedule = function () {
+    this.schedule = function (delay) {
+      scheduledDelays.push(delay);
       if (scheduled === null) scheduled = callback;
     };
     this.cancel = function () {
@@ -841,6 +900,7 @@ function testAnalyzerHandleDragPublishesLatestPositionWhileDragging() {
       yMaximum: 0.8,
     }],
   });
+  assert.deepStrictEqual(scheduledDelays, [16]);
   scheduled();
   scheduled = null;
 
@@ -853,6 +913,7 @@ function testAnalyzerHandleDragPublishesLatestPositionWhileDragging() {
   analyzerControl.emitIntent("gestureBegan", [1]);
   analyzerControl.scheduleMove(1, 0.6, 0.3);
   analyzerControl.scheduleMove(1, 0.6, 0.3);
+  assert.deepStrictEqual(scheduledDelays, [16, 33]);
   assert.deepStrictEqual(messages, [
     ["filterSelected", 1],
     ["gestureBegan", 1],
@@ -1279,6 +1340,7 @@ testAnalyzerPublishesOneSpectrumNotificationPerFftFrame();
 testAnalyzerDragClampsToEffectivePeerRanges();
 testAnalyzerParameterUpdatesRecalculateLocalCurves();
 testAnalyzerConfigurationRecalculatesCurvesForSampleRate();
+testEqualizerPresenterBuildsAllBanksCurveFromRawState();
 testDetectorPresenterBuildsFilterCurves();
 testDetectorPresenterUpdatesCurvesDuringFilterDrag();
 testDetectorBindingPublishesCurvesToControl();

@@ -57,13 +57,14 @@ Each Max external owns one managed instance. The instance ID addresses all contr
 
 Observed target and instance activity are separate pieces of state. The
 `observe_target` command changes only the instance/bank shown by the UI.
-`set_instance_active 1|0` reports whether the source external is Live's single
-selected device; activating one external replaces the previous active viewer.
+`set_instance_active 1|0` reports that the source external owns the active UI
+session; activating one external replaces the previous active viewer.
 The capture buffer belongs to the source selected by that viewer, which may be
 a different instance. Without an active viewer, the audio entrypoint returns
 before capture lookup or audio copying. The analyzer worker processes at most
 one FFT window per 33 ms. Curves are calculated locally by the JavaScript UI
-from focused state and do not cross the Managed/Native callback boundary.
+from focused state and the raw all-bank equalizer projection. Coefficients and
+rendered curve points do not cross the Managed/Native callback boundary.
 
 The Max client treats each `target_state_snapshot` as one target transition.
 Bindings are suspended before `observe_target` is sent. The client assembles
@@ -84,9 +85,10 @@ target_state_snapshot 1 source requestId instanceId bankId entryCount
 
 Changing the focused bank updates the active source and capture demand and
 publishes one small `analyzer_configuration` presentation containing the
-source's prepared sample rate. Curve calculation does not delay the target
-snapshot because it runs locally after the focused parameter presentation is
-applied.
+source's prepared sample rate. `observe_target` also publishes one atomic
+`analyzer_equalizer_state` raw-state frame for all source banks. Curve
+calculation does not delay the target snapshot because it runs locally after
+the presentations are applied.
 During a local dial gesture, the control renders its local preview until the
 gesture ends. Authoritative `state_changed` presentations continue updating the
 stored value but do not replace the value currently under the pointer.
@@ -331,7 +333,8 @@ Max low-priority thread
 ```
 
 FFT frames use the dedicated `analysisOutput` outlet. Other Managed protocol
-frames, including `analyzer_configuration`, use `controlOutput`. The Max bridge
+frames, including `analyzer_configuration` and `analyzer_equalizer_state`, use
+`controlOutput`. The Max bridge
 connects the analysis outlet to the UI host's protocol input separately from
 control output.
 
@@ -447,10 +450,13 @@ viewer of the selected source instance; the output contains protocol version,
 source instance ID, FFT size, main spectrum bins and reference spectrum bins.
 
 `FftAnalyzer` owns its capture rings directly; there is no separate analyzer
-registry or curve cache. Instance activity gates spectrum capture. Activation,
-source-focus changes and source preparation publish
+registry or Managed curve cache. Instance activity gates spectrum capture.
+Activation, source-focus changes and source preparation publish
 `analyzer_configuration 1 sourceInstanceId sampleRate` to the active viewer.
-JavaScript then rebuilds focused equalizer and detector curves from its current
-parameter presentation. No bank response arrays are allocated or copied by
-Managed or Native.
+Observe-target, committed equalizer changes and history navigation publish an
+atomic
+`analyzer_equalizer_state` projection containing raw bypass, frequency, Q and
+gain values for every source bank. JavaScript calculates focused and all-bank
+curves from those values. No coefficient or response arrays are allocated or
+copied by Managed or Native.
 

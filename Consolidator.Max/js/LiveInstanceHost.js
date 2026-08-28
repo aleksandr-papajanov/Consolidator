@@ -9,11 +9,10 @@ class LiveInstanceHost
         this.emit = emit || (() => {});
         this.trackObserver = null;
         this.selectedTrackObserver = null;
-        this.selectedDeviceObserver = null;
         this.deviceId = 0;
         this.trackId = 0;
         this.selectedTrackId = 0;
-        this.selectedDeviceId = 0;
+        this.selectionMonitoringEnabled = false;
         this.lastPublishedActive = null;
     }
 
@@ -54,8 +53,8 @@ class LiveInstanceHost
     publishActivity()
     {
         let active = this.deviceId > 0 && this.trackId > 0 &&
-            this.selectedTrackId === this.trackId &&
-            this.selectedDeviceId === this.deviceId;
+            (!this.selectionMonitoringEnabled ||
+                this.selectedTrackId === this.trackId);
         if (this.lastPublishedActive === active)
         {
             return;
@@ -84,17 +83,6 @@ class LiveInstanceHost
         this.publishActivity();
     }
 
-    selectedDeviceChanged(values)
-    {
-        if (!values || values.length < 2 ||
-                String(values[0]) !== "selected_device")
-        {
-            return;
-        }
-        this.selectedDeviceId = this.readId(values);
-        this.publishActivity();
-    }
-
     bang()
     {
         let device = new this.LiveAPI(null, "this_device");
@@ -113,7 +101,6 @@ class LiveInstanceHost
         {
             return;
         }
-        let trackViewPath = trackPath + " view";
         this.trackObserver = new this.LiveAPI((values) =>
         {
             this.trackNameChanged(values);
@@ -124,25 +111,18 @@ class LiveInstanceHost
         {
             this.selectedTrackChanged(values);
         }, "live_set view");
-        this.selectedTrackId = this.readId(
-            this.selectedTrackObserver.get("selected_track"));
         this.selectedTrackObserver.property = "selected_track";
 
-        this.selectedDeviceObserver = new this.LiveAPI((values) =>
-        {
-            this.selectedDeviceChanged(values);
-        }, trackViewPath);
-        this.selectedDeviceId = this.readId(
-            this.selectedDeviceObserver.get("selected_device"));
-        this.selectedDeviceObserver.property = "selected_device";
+        this.selectedTrackId = this.readId(
+            this.selectedTrackObserver.get("selected_track"));
         this.publishActivity();
+        this.selectionMonitoringEnabled = true;
     }
 
     destroy()
     {
         this.trackObserver = null;
         this.selectedTrackObserver = null;
-        this.selectedDeviceObserver = null;
     }
 }
 

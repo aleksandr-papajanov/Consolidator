@@ -62,7 +62,6 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
             get: function (property)
             {
                 if (property === "selected_track") return ["id", 42];
-                if (property === "selected_device") return ["id", 99];
                 throw new Error("Unexpected property " + property);
             },
         };
@@ -79,32 +78,15 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
     ]);
     assert.strictEqual(observers["id 42"].property, "name");
     assert.strictEqual(observers["live_set view"].property, "selected_track");
-    assert.strictEqual(
-        observers["live_set tracks 3 view"].property,
-        "selected_device");
-    assert.strictEqual(observers["id 42 view"], undefined);
-
-    observers["live_set view"].callback(["id", 3]);
-    observers["live_set tracks 3 view"].callback(["id", 4]);
-    assert.strictEqual(outputs.length, 2);
-
-    observers["live_set tracks 3 view"].callback([
-        "selected_device", "id", 100]);
-    assert.deepStrictEqual(outputs[2], [0, ["instance_active", 0]]);
-    observers["live_set tracks 3 view"].callback([
-        "selected_device", "id", 99]);
-    assert.deepStrictEqual(outputs[3], [0, ["instance_active", 1]]);
     observers["live_set view"].callback(["selected_track", "id", 43]);
-    assert.deepStrictEqual(outputs[4], [0, ["instance_active", 0]]);
+    assert.deepStrictEqual(outputs[2], [0, ["instance_active", 0]]);
     observers["live_set view"].callback(["selected_track", "id", 42]);
-    assert.deepStrictEqual(outputs[5], [0, ["instance_active", 1]]);
+    assert.deepStrictEqual(outputs[3], [0, ["instance_active", 1]]);
     observers["id 42"].callback(["name", "Backing Vocal"]);
-    assert.deepStrictEqual(outputs[6], [0, ["track_name", "Backing Vocal"]]);
+    assert.deepStrictEqual(outputs[4], [0, ["track_name", "Backing Vocal"]]);
 
     context.destroy();
     assert.strictEqual(context.trackObserver, null);
-    assert.strictEqual(context.selectedTrackObserver, null);
-    assert.strictEqual(context.selectedDeviceObserver, null);
 }
 
 function testInvalidParentDoesNotPublishOrCreateObservers()
@@ -127,7 +109,6 @@ function testInvalidParentDoesNotPublishOrCreateObservers()
     assert.deepStrictEqual(outputs, []);
     assert.strictEqual(context.trackObserver, null);
     assert.strictEqual(context.selectedTrackObserver, null);
-    assert.strictEqual(context.selectedDeviceObserver, null);
 }
 
 testSelectedDevicePublishesTrackNameAndExclusiveActivity();

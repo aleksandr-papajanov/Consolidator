@@ -15,6 +15,11 @@ stable for the lifetime of the panel. Button presentation updates are framed by
 for the complete update. Analyzer redraw and drag scheduling reuse one task per
 purpose rather than allocating a task for each update.
 
+Analyzer visual redraw is coalesced at 16 ms for a responsive local marker and
+curve preview. Authoritative drag writes remain coalesced at 33 ms, and FFT
+production remains on its independent 33 ms cadence. Increasing visual frame
+rate therefore does not increase Managed command or analysis frequency.
+
 `PanelBindingHostV8` is the first modern-engine pilot. It uses an ES6 class,
 `Map`, rest/spread arguments and destructuring, and is instantiated by `v8`
 objects in all panels.

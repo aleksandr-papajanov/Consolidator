@@ -5,6 +5,7 @@ using MathNet.Numerics.IntegralTransforms;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
@@ -82,6 +83,66 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
     {
         _captures.TryRemove(instanceId, out _);
         _preparations.TryRemove(instanceId, out _);
+    }
+
+    internal void PublishEqualizerState(ManagedState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        var sourceInstanceId = state.Instance.InstanceId;
+        var targetId = GetSpectrumRecipient(sourceInstanceId);
+        if (targetId == 0)
+        {
+            return;
+        }
+
+        var banks = state.Dsp.EqualizerBanks;
+        var filterCount = banks.Length == 0 ? 0 : banks[0].Filters.Length;
+        var atoms = new List<Atom>(5 + banks.Length * (1 + filterCount * 4))
+        {
+            new(AtomType.Integer, 1, 0, null),
+            new(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
+            new(AtomType.Integer, banks.Length, 0, null),
+            new(AtomType.Integer, filterCount, 0, null),
+            new(
+                AtomType.Integer,
+                state.Dsp.Equalizer.Bypass.Value ? 0 : 1,
+                0,
+                null)
+        };
+        foreach (var bank in banks)
+        {
+            atoms.Add(new Atom(
+                AtomType.Integer,
+                bank.Bypass.Value ? 0 : 1,
+                0,
+                null));
+            foreach (var filter in bank.Filters)
+            {
+                atoms.Add(new Atom(
+                    AtomType.Integer,
+                    filter.Bypass.Value ? 0 : 1,
+                    0,
+                    null));
+                atoms.Add(new Atom(
+                    AtomType.Float,
+                    0,
+                    filter.FrequencyHz.Value,
+                    null));
+                atoms.Add(new Atom(AtomType.Float, 0, filter.Q.Value, null));
+                atoms.Add(new Atom(
+                    AtomType.Float,
+                    0,
+                    filter.GainDb.Value,
+                    null));
+            }
+        }
+
+        _transport.Send(new ProtocolOutput(
+            [targetId],
+            "analyzer_equalizer_state",
+            atoms,
+            DeliverySemantics.ActivePresentation));
     }
 
     public void SetInstanceActive(InstanceId instanceId, bool active)

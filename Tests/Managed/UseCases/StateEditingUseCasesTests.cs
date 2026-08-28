@@ -491,6 +491,72 @@ public sealed class StateEditingUseCasesTests
     }
 
     [Fact]
+    public void EqualizerPresentationPublishesAllBanksOnlyForRelevantChanges()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+        application.Send(instance, "set_instance_active", Integer(1));
+        instance.Output.Clear();
+
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(1));
+
+        var state = instance.Output.Single("analyzer_equalizer_state");
+        Assert.Equal(208, state.Atoms.Count);
+        Assert.Equal(1, state.Atoms[0].Integer);
+        Assert.Equal((long)instance.InstanceId.Value, state.Atoms[1].Integer);
+        Assert.Equal(7, state.Atoms[2].Integer);
+        Assert.Equal(7, state.Atoms[3].Integer);
+        Assert.Equal(1, state.Atoms[4].Integer);
+        Assert.Equal(1, state.Atoms[5].Integer);
+        Assert.Equal(1, state.Atoms[6].Integer);
+        Assert.Equal(1000.0, state.Atoms[7].Float);
+        Assert.Equal(1.0, state.Atoms[8].Float);
+        Assert.Equal(0.0, state.Atoms[9].Float);
+
+        instance.Output.Clear();
+        application.Send(
+            instance,
+            "write",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(1),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(6.0));
+
+        Assert.Equal(
+            6.0,
+            instance.Output.Single("analyzer_equalizer_state").Atoms[9].Float);
+
+        instance.Output.Clear();
+        application.Send(
+            instance,
+            "write",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("input_gain"),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(2.0));
+
+        Assert.DoesNotContain(
+            instance.Output.Messages,
+            message => message.Selector == "analyzer_equalizer_state");
+    }
+
+    [Fact]
     public void FortyConnectedInstancesApplyCallbacklessInputGainGestureWithinLatencyBudget()
     {
         const int instanceCount = 40;

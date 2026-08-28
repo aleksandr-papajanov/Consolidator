@@ -53,6 +53,7 @@ internal sealed class ObserveTargetCommandHandler
         context.State.Instance.FocusedBank = new BankAddress(
             command.TargetInstanceId,
             (int)command.BankId);
+        _registry.PublishAnalyzerState(command.TargetInstanceId);
         return ValueTask.FromResult(
             _projector.Project(target.State, command.BankId));
     }

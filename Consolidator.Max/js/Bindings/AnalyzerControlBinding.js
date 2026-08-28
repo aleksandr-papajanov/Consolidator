@@ -25,7 +25,7 @@ class AnalyzerControlBinding extends ControlBinding
         }
         if (presenter && typeof presenter.subscribeCurves === "function") {
             this.unsubscribers.push(presenter.subscribeCurves((
-                curves, combinedCurve
+                curves, combinedCurve, allBanksCurve
             ) => {
                 if (!this.presentationActive || this.batchSuspended) {
                     return;
@@ -34,6 +34,7 @@ class AnalyzerControlBinding extends ControlBinding
                     this.sendCurve("curve", curve, curve.id);
                 });
                 this.sendCurve("combined", combinedCurve);
+                this.sendCurve("all_banks", allBanksCurve);
             }, true));
         }
     }
@@ -78,6 +79,7 @@ class AnalyzerControlBinding extends ControlBinding
             this.sendCurve("curve", curve, curve.id);
         }, this);
         this.sendCurve("combined", this.presenter.combinedCurve);
+        this.sendCurve("all_banks", this.presenter.allBanksCurve);
     }
     
     sendCurve(name, curve, id)

@@ -42,8 +42,20 @@ observed source changes, and when that source is prepared with a new sample
 rate. Until preparation, the defined analyzer default is 48 kHz, matching the
 initial DSP preparation context.
 
-The UI renders only the focused bank response. There is no partial or cached
-`all_banks` presentation assembled from banks that the client has not loaded.
+For the equalizer, Managed also publishes an atomic raw-state projection for all
+banks of the observed source:
+
+```text
+analyzer_equalizer_state 1 sourceInstanceId bankCount filterCount
+    equalizerActive
+    (bankActive (filterActive frequencyHz q gainDb)*)*
+```
+
+This projection contains no coefficients or rendered points. JavaScript remains
+the only curve calculator. It caches the raw projection, calculates the response
+of non-focused banks when that projection or the sample rate changes, and adds
+the live focused-bank response during gestures to produce `all_banks` without
+recalculating every bank on each drag frame.
 
 ## Spectrum capture
 

@@ -35,7 +35,9 @@ public sealed class HistoryNavigation : IHistoryNavigation
             return false;
         }
 
-        _instanceRegistry.PublishDspStates(_dspChanges.Drain());
+        var affectedInstanceIds = _dspChanges.Drain();
+        _instanceRegistry.PublishDspStates(affectedInstanceIds);
+        _instanceRegistry.PublishAnalyzerStates(affectedInstanceIds);
         return true;
     }
 }

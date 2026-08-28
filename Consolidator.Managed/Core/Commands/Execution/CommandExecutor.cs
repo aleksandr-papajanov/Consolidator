@@ -63,10 +63,30 @@ public sealed class CommandExecutor
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {
-            _instanceRegistry.PublishDspStates(_dspChanges.Drain());
+            var affectedInstanceIds = _dspChanges.Drain();
+            _instanceRegistry.PublishDspStates(affectedInstanceIds);
+            if (AffectsEqualizer(command))
+            {
+                _instanceRegistry.PublishAnalyzerStates(affectedInstanceIds);
+            }
         }
 
         return result;
+    }
+
+    private static bool AffectsEqualizer<TResult>(
+        IInstanceCommand<TResult> command)
+    {
+        return command switch
+        {
+            WriteStateCommand write => write.Entries.Any(entry =>
+                entry.Path.Nodes.Contains(StateNodeIds.Equalizer)),
+            ResetStateCommand reset => reset.Target.Depth == 0 ||
+                reset.Target.Depth == 1 &&
+                reset.Target.Nodes[0] == StateNodeIds.Dsp ||
+                reset.Target.Nodes.Contains(StateNodeIds.Equalizer),
+            _ => false
+        };
     }
 
     private async ValueTask<CommandExecutionResult<TResult>> ExecuteOnTargets<TResult>(

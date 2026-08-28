@@ -117,15 +117,32 @@ Notification delivery failures do not turn an already committed state mutation
 into a failed operation.
 
 Analyzer curves are JavaScript presentation derived from the focused parameter
-state. Managed publishes no curve arrays. It sends the active viewer only the
-observed source configuration required for correct local calculation:
+state and the raw all-bank equalizer projection. Managed publishes no curve
+arrays. It sends the active viewer the observed source configuration required
+for correct local calculation:
 
 ```text
 analyzer_configuration 1 sourceInstanceId sampleRate
 ```
 
-This `ActivePresentation` frame is emitted on viewer activation, source-focus
-change, and source preparation. FFT remains the only streamed analysis frame.
+The equalizer analyzer additionally receives one active-presentation snapshot
+of raw state for every bank:
+
+```text
+analyzer_equalizer_state 1 sourceInstanceId bankCount filterCount
+    equalizerActive
+    (bankActive (filterActive frequencyHz q gainDb)*)*
+```
+
+Managed publishes this snapshot after `observe_target`, committed equalizer
+writes/resets and history navigation. Other DSP changes do not produce this
+frame. It does not contain biquad coefficients or curve points; those remain
+JavaScript presentation concerns.
+
+`analyzer_configuration` is emitted on viewer activation, source-focus change,
+and source preparation. `analyzer_equalizer_state` is emitted after
+`observe_target`, relevant equalizer changes and history navigation. FFT
+remains the only streamed analysis frame.
 
 ## Routing and Core ownership
 

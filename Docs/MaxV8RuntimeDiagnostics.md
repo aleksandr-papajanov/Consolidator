@@ -22,8 +22,8 @@ The expected activation sequence is:
 live.thisdevice bang
 → resolve this_device and its canonical parent track
 → publish track_name
-→ read and observe selected_track and selected_device
-→ publish instance_active 1
+→ publish instance_active 1 for the resolved `this_device`
+→ observe selected_track for later focus changes
 → set_instance_active acknowledgement
 → observe_target
 → target_state_snapshot
@@ -49,25 +49,26 @@ through `get`; navigate to the canonical-parent path.
 
 A `LiveAPI` callback is invoked both for observed property changes and for
 object binding. The object-binding notification has an `id` selector and is
-not a property value. Every observer callback must validate its selector before
-changing activity state:
+not a property value. The track-name and selected-track observers validate
+their selectors:
 
 ```javascript
-function selectedTrackChanged(values)
+function trackNameChanged(values)
 {
     if (!values || values.length < 2 ||
-            String(values[0]) !== "selected_track")
+            String(values[0]) !== "name")
     {
         return;
     }
-    // Apply the selected track ID.
+    // Apply the track name.
 }
 ```
 
-The same rule applies to `selected_device`. Treating an object-binding
-notification such as `id 3` as a selected track ID deactivates a valid UI after
-it was briefly active. Tests must model these service callbacks instead of
-providing a permissive fake that accepts only the intended property messages.
+Activation starts with the device instance itself: after `this_device` and its
+canonical parent track resolve successfully, the host publishes
+`instance_active 1`. The selected-track observer then owns subsequent
+transitions away from and back to the device. The host does not poll Live or infer activation
+from structural `tracks`/`devices` changes.
 
 ## Diagnostic layers
 
@@ -99,8 +100,9 @@ protocol behavior. They do not provide the real `LiveAPI`, `patcher`,
 `mgraphics`, `Task` or Max message dispatcher.
 
 `LiveInstanceHostTests.js` must enforce the real `(callback, path)` constructor
-shape and cover object-binding `id` callbacks. A fake that accepts a path as
-the first constructor argument hides a host-only failure.
+shape, the own-device activation path and later selected-track/device callbacks.
+A fake that accepts a path as the first constructor argument hides a host-only
+failure.
 
 The Max host harness must verify actual message dispatch, not only that named
 objects exist. A result written before routing a message can be a false pass.

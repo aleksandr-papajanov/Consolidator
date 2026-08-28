@@ -152,6 +152,25 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         }
     }
 
+    internal void PublishAnalyzerState(InstanceId instanceId)
+    {
+        PublishAnalyzerStates([instanceId]);
+    }
+
+    internal void PublishAnalyzerStates(IReadOnlyList<InstanceId> instanceIds)
+    {
+        lock (_lock)
+        {
+            foreach (var instanceId in instanceIds.Distinct())
+            {
+                if (_instances.TryGetValue(instanceId, out var instance))
+                {
+                    _fftAnalyzer.PublishEqualizerState(instance.State);
+                }
+            }
+        }
+    }
+
     internal RegistrySnapshotResult CreateSnapshot()
     {
         RuntimeMetrics.Shared.RecordRegistrySnapshot();

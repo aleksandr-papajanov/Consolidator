@@ -30,6 +30,10 @@ class AnalyzerPresenter extends PresentationObservable
         this.sampleRate = Number(this.options.sampleRate) > 0
             ? Number(this.options.sampleRate) : DEFAULT_SAMPLE_RATE;
         this.sampleRates = {};
+        this.equalizerStates = {};
+        this.equalizerState = null;
+        this.otherBanksDecibels = null;
+        this.focusedBankId = 0;
         this.sourceInstanceId = null;
         this.curvePointCount = 256;
         this.curveFrequencies = this.createCurveFrequencies();
@@ -38,10 +42,12 @@ class AnalyzerPresenter extends PresentationObservable
         this.referenceSpectrum = null;
         this.curves = [];
         this.combinedCurve = null;
+        this.allBanksCurve = null;
         this.spectrumListeners = [];
         this.curveListeners = [];
         this.lastPublishedCurves = null;
         this.lastPublishedCombined = null;
+        this.lastPublishedAllBanks = null;
         this.curvePreview = {};
         this.subscribeParameters();
         this.subscribeStatus();
@@ -88,14 +94,21 @@ class AnalyzerPresenter extends PresentationObservable
             if (!this.ready) {
                 this.selectedId = 0;
                 this.sourceInstanceId = null;
+                this.focusedBankId = null;
+                this.equalizerState = null;
             }
             else {
                 this.sourceInstanceId = status.target
                     ? status.target.instanceId : null;
+                this.focusedBankId = status.target
+                    ? Number(status.target.bankId) : null;
                 const configuredSampleRate =
                     this.sampleRates[String(this.sourceInstanceId)];
                 this.sampleRate = configuredSampleRate || DEFAULT_SAMPLE_RATE;
+                this.equalizerState = this.equalizerStates[
+                    String(this.sourceInstanceId)] || null;
             }
+            this.otherBanksDecibels = null;
             this.requestRebuild();
         }, true));
     }
@@ -164,8 +177,104 @@ class AnalyzerPresenter extends PresentationObservable
                 return;
             }
             this.sampleRate = sampleRate;
+            this.otherBanksDecibels = null;
             this.requestRebuild();
         }));
+        this.unsubscribers.push(protocol.on("analyzer_equalizer_state", (args) => {
+            const state = this.decodeEqualizerState(args);
+            if (!state) {
+                return;
+            }
+            this.equalizerStates[state.sourceInstanceId] = state;
+            if (this.hasTargetStatus &&
+                    state.sourceInstanceId !== String(this.sourceInstanceId)) {
+                return;
+            }
+            const preserveOtherBanks = this.sameOtherBanksState(
+                this.equalizerState,
+                state);
+            this.equalizerState = state;
+            if (!preserveOtherBanks) {
+                this.otherBanksDecibels = null;
+            }
+            this.requestRebuild();
+        }));
+    }
+
+    sameOtherBanksState(first, second)
+    {
+        if (!first || !second ||
+                first.sourceInstanceId !== second.sourceInstanceId ||
+                first.banks.length !== second.banks.length) {
+            return false;
+        }
+        for (let bankIndex = 0; bankIndex < first.banks.length;
+                bankIndex += 1) {
+            if (bankIndex === this.focusedBankId) {
+                continue;
+            }
+            let firstBank = first.banks[bankIndex];
+            let secondBank = second.banks[bankIndex];
+            if (firstBank.active !== secondBank.active ||
+                    firstBank.filters.length !== secondBank.filters.length) {
+                return false;
+            }
+            for (let filterIndex = 0; filterIndex < firstBank.filters.length;
+                    filterIndex += 1) {
+                let firstFilter = firstBank.filters[filterIndex];
+                let secondFilter = secondBank.filters[filterIndex];
+                if (firstFilter.active !== secondFilter.active ||
+                        firstFilter.frequency !== secondFilter.frequency ||
+                        firstFilter.q !== secondFilter.q ||
+                        firstFilter.gain !== secondFilter.gain) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    decodeEqualizerState(args)
+    {
+        if (!args || Number(args[0]) !== 1 || args.length < 5) {
+            return null;
+        }
+        const bankCount = Math.floor(Number(args[2]));
+        const filterCount = Math.floor(Number(args[3]));
+        const expectedLength = 5 + bankCount * (1 + filterCount * 4);
+        if (!isFinite(bankCount) || bankCount < 1 || bankCount > 32 ||
+                !isFinite(filterCount) || filterCount < 1 || filterCount > 32 ||
+                args.length !== expectedLength) {
+            return null;
+        }
+        let position = 5;
+        let banks = [];
+        for (let bankIndex = 0; bankIndex < bankCount; bankIndex += 1) {
+            let bank = { active: Number(args[position]) !== 0, filters: [] };
+            position += 1;
+            for (let filterIndex = 0; filterIndex < filterCount;
+                    filterIndex += 1) {
+                let filter = {
+                    active: Number(args[position]) !== 0,
+                    frequency: Number(args[position + 1]),
+                    q: Number(args[position + 2]),
+                    gain: Number(args[position + 3])
+                };
+                if (!isFinite(filter.frequency) || filter.frequency <= 0 ||
+                        !isFinite(filter.q) || filter.q <= 0 ||
+                        !isFinite(filter.gain)) {
+                    return null;
+                }
+                bank.filters.push(filter);
+                position += 4;
+            }
+            banks.push(bank);
+        }
+        return {
+            sourceInstanceId: String(args[1]),
+            active: Number(args[4]) !== 0,
+            banks: banks
+        };
     }
     
     publishSpectrum()
@@ -179,8 +288,9 @@ class AnalyzerPresenter extends PresentationObservable
     subscribeCurves(callback, immediate)
     {
         this.curveListeners.push(callback);
-        if (immediate && (this.curves.length || this.combinedCurve)) {
-            callback(this.curves, this.combinedCurve);
+        if (immediate && (this.curves.length || this.combinedCurve ||
+                this.allBanksCurve)) {
+            callback(this.curves, this.combinedCurve, this.allBanksCurve);
         }
         return () => {
             this.curveListeners = this.curveListeners.filter(
@@ -205,13 +315,17 @@ class AnalyzerPresenter extends PresentationObservable
         });
         let combinedChanged = !this.sameCurve(
             this.lastPublishedCombined, this.combinedCurve);
+        let allBanksChanged = !this.sameCurve(
+            this.lastPublishedAllBanks, this.allBanksCurve);
         this.lastPublishedCurves = this.curves;
         this.lastPublishedCombined = this.combinedCurve;
+        this.lastPublishedAllBanks = this.allBanksCurve;
         let listeners = this.curveListeners.slice();
         for (let index = 0; index < listeners.length; index += 1) {
             listeners[index](
                 changedCurves,
-                combinedChanged ? this.combinedCurve : null);
+                combinedChanged ? this.combinedCurve : null,
+                allBanksChanged ? this.allBanksCurve : null);
         }
     }
     
@@ -266,6 +380,7 @@ class AnalyzerPresenter extends PresentationObservable
         else {
             this.curves = [];
             this.combinedCurve = null;
+            this.allBanksCurve = null;
         }
         let presentation = new AnalyzerPresentation();
         presentation.mode = this.options.mode || "equalizer";
@@ -273,6 +388,7 @@ class AnalyzerPresenter extends PresentationObservable
         presentation.spectrum = this.spectrum;
         presentation.referenceSpectrum = this.referenceSpectrum;
         presentation.combinedCurve = this.combinedCurve;
+        presentation.allBanksCurve = this.allBanksCurve;
         presentation.curves = this.curves;
         if (this.ready) {
             (this.options.parameters || []).forEach((parameter, index) => {
@@ -337,7 +453,56 @@ class AnalyzerPresenter extends PresentationObservable
             };
         });
         this.combinedCurve = { active: bankActive, values: combined };
+        this.allBanksCurve = this.calculateAllBanksCurve(
+            combinedDecibels,
+            bankActive);
         this.publishCurves();
+    }
+
+    calculateAllBanksCurve(focusedDecibels, focusedBankActive)
+    {
+        if ((this.options.mode || "equalizer") !== "equalizer") {
+            return null;
+        }
+        if (!this.equalizerState) {
+            return {
+                active: false,
+                values: []
+            };
+        }
+        if (!this.otherBanksDecibels) {
+            this.otherBanksDecibels = new Array(this.curvePointCount).fill(0);
+            this.equalizerState.banks.forEach((bank, bankIndex) => {
+                if (!bank.active || bankIndex === this.focusedBankId) {
+                    return;
+                }
+                bank.filters.forEach((filter, filterIndex) => {
+                    if (!filter.active) {
+                        return;
+                    }
+                    let response = this.calculateFilterCurve(
+                        filterIndex + 1,
+                        filter,
+                        true,
+                        null);
+                    for (let point = 0; point < this.curvePointCount; point += 1) {
+                        this.otherBanksDecibels[point] += response.decibels[point];
+                    }
+                });
+            });
+        }
+        let decibels = this.otherBanksDecibels.slice(0);
+        if (focusedBankActive) {
+            for (let point = 0; point < this.curvePointCount; point += 1) {
+                decibels[point] += focusedDecibels[point];
+            }
+        }
+        return {
+            active: this.equalizerState.active,
+            values: decibels.map((value) => {
+                return this.toNormalizedDecibels(value);
+            })
+        };
     }
 
     calculateFilterCurve(id, parameter, enabled, preview)
@@ -524,6 +689,9 @@ class AnalyzerPresenter extends PresentationObservable
         this.spectrumListeners = [];
         this.curveListeners = [];
         this.sampleRates = {};
+        this.equalizerStates = {};
+        this.equalizerState = null;
+        this.otherBanksDecibels = null;
         this.sourceInstanceId = null;
         super.destroy();
     }
