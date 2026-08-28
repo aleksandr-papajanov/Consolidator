@@ -63,22 +63,32 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 instanceId,
                 state,
                 dspPublisher);
+
             lock (_lock)
             {
                 _instances.Add(instanceId, instance);
             }
 
             instance.PublishDspState();
+
             PublishDspStates(_dspChanges.Drain()
                 .Where(changedInstanceId => changedInstanceId != instanceId)
                 .ToArray());
+
             _logger.Info($"Registered instance {instanceId}");
+
             _registryChanges.InstanceAdded(
                 instanceId.Value,
                 state.Instance.Label.Value,
+                state.Instance.Mute.Value,
+                state.Instance.Solo.Value,
                 state.Instance.Banks
-                    .Select(bank => ((int)bank.Id, bank.Group.Value?.Value))
+                    .Select(bank => (
+                        (int)bank.Id,
+                        bank.Group.Value?.Value,
+                        state.Dsp.EqualizerBanks[(int)bank.Id].EffectActive))
                     .ToArray());
+
             return instanceId;
         }
     }
@@ -104,7 +114,9 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         }
 
         instance.Dispose();
+
         _logger.Info($"Unregistered instance {instanceId}");
+        
         _registryChanges.UnregisterObserver(instanceId.Value);
         _registryChanges.InstanceRemoved(instanceId.Value);
     }
@@ -185,10 +197,13 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         var snapshots = instances.Select(instance => new RegistryInstanceSnapshot(
                 instance.InstanceId.Value,
                 instance.State.Instance.Label.Value,
+                instance.State.Instance.Mute.Value,
+                instance.State.Instance.Solo.Value,
                 instance.State.Instance.Banks
                     .Select(bank => new RegistryBankSnapshot(
                         (int)bank.Id,
-                        bank.Group.Value?.Value))
+                        bank.Group.Value?.Value,
+                        instance.State.Dsp.EqualizerBanks[(int)bank.Id].EffectActive))
                     .ToArray()))
             .ToArray();
         var groups = snapshots
@@ -264,7 +279,11 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 runtime,
                 _audibilityObserver,
                 _topologyObserver);
-            var dsp = new DspState(instanceId, _stateValueFactory, runtime);
+            var dsp = new DspState(
+                instanceId,
+                _stateValueFactory,
+                runtime,
+                _stateValueFactory.BankEffectStatusSink);
             var root = _stateRegistry.GetRoot(instanceId);
             var state = new ManagedState(instance, dsp, runtime, root);
             _topologyObserver.AddState(state.Instance);

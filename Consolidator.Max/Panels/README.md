@@ -44,6 +44,10 @@ starts a new grouping selection, while Shift-click extends that selection
 across banks and instances. Selected banks remain visibly active until a group
 is applied or edit mode is closed.
 
+The bank manager includes the 10-slot history timeline below its action
+buttons. Available slots are clickable and navigate the shared history cursor
+through the existing `jump_history` protocol command.
+
 The first bank-manager snapshot uses a complete presentation. Later registry
 additions, removals, label changes and bank-group changes use row, bank and
 group patch messages followed by one redraw. A delta therefore does not replay

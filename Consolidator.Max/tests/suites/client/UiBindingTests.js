@@ -270,15 +270,12 @@ function testBankManagerBindingPatchesRegistryAddition() {
   var listener = null;
   var initial = {
     enabled: true,
-    linkEditing: false,
     rows: [{
     instanceId: "1",
     label: "First",
     local: true,
     banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
     }],
-    linkGroups: [],
-    editAction: null,
     clearAction: null,
     delta: null,
   };
@@ -298,15 +295,12 @@ function testBankManagerBindingPatchesRegistryAddition() {
 
   var updated = {
     enabled: true,
-    linkEditing: false,
     rows: initial.rows.concat([{
       instanceId: "2",
       label: "Second",
       local: false,
       banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
     }]),
-    linkGroups: [],
-    editAction: null,
     clearAction: null,
     delta: {
       selector: "registry_instance_added",
@@ -1162,17 +1156,16 @@ function testMessageControlsConstructCompletePresentation() {
     "BankManagerControl",
   );
   var bankManagerControl = new BankManagerControl();
-  bankManagerControl.beginPresentation(1, 0);
+  bankManagerControl.beginPresentation(1);
   bankManagerControl.addRow(0, "instance.1", "Local", 1);
-  bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0.75, 1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
-  bankManagerControl.addLinkGroup(2, "A", 1, 1, 1, 1, 0.5, 0.6, 0.7, 0.8);
-  bankManagerControl.setEditAction(1, 0);
+  bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0, 0.75, 1, 1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
+  bankManagerControl.setGroupAction(1, 0);
+  bankManagerControl.setUngroupAction(0, 0);
   bankManagerControl.setClearAction(1, 1);
   bankManagerControl.endPresentation();
 
   assert.strictEqual(bankManagerControl.pendingPresentation, null);
   assert.strictEqual(bankManagerControl.presentation.enabled, true);
-  assert.strictEqual(bankManagerControl.presentation.linkEditing, false);
   assert.strictEqual(
     bankManagerControl.presentation.rows[0].instanceId,
     "instance.1",
@@ -1185,16 +1178,12 @@ function testMessageControlsConstructCompletePresentation() {
     bankManagerControl.presentation.rows[0].banks[0].textColor,
     null,
   );
-  assert.deepStrictEqual(
-    bankManagerControl.presentation.linkGroups[0].color,
-    [0.5, 0.6, 0.7, 0.8],
-  );
-  assert.strictEqual(bankManagerControl.presentation.editAction.enabled, true);
+  assert.strictEqual(bankManagerControl.presentation.groupAction.enabled, true);
   assert.strictEqual(bankManagerControl.presentation.clearAction.armed, true);
 
-  bankManagerControl.beginPresentationPatch(1, 0);
+  bankManagerControl.beginPresentationPatch(1);
   bankManagerControl.patchRow(0, "instance.1", "Renamed", 1);
-  bankManagerControl.patchBank(0, 1, "1", 0, 1, 1, 0, 1,
+  bankManagerControl.patchBank(0, 1, "1", 0, 1, 1, 0, 0, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
   bankManagerControl.endPresentationPatch();
   assert.strictEqual(
@@ -1301,10 +1290,33 @@ function testBankManagerForwardsShiftSelection() {
     ["instance.1", 1, 1],
   ]]);
 }
+function testBankManagerForwardsInstanceControlModifiers() {
+  var intents = [];
+  var presentation = new BankManagerPresentation();
+  presentation.rows = [{
+    instanceId: "instance.1",
+    label: "Local",
+    local: true,
+    solo: false,
+    mute: false,
+    banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
+  }];
+  bankManagerControl.applyPresentation(presentation);
+  bankManagerControl.emit = function (name, values) {
+    intents.push([name, values]);
+  };
+
+  global.mgraphics.size = [800, 400];
+  bankManagerControl.selectAt(121, 5, true, true);
+  bankManagerControl.selectAt(137, 5, true, true);
+  assert.deepStrictEqual(intents, [
+    ["instanceSoloChanged", ["instance.1", 1, 1, 1]],
+    ["instanceMuteChanged", ["instance.1", 1, 1]],
+  ]);
+}
 function testBankManagerPresentsGroupingSelectionAsActive() {
   var viewModel = {
     enabled: true,
-    linkEditing: true,
     rows: [{
       instanceId: "instance.1",
       label: "Local",
@@ -1312,11 +1324,10 @@ function testBankManagerPresentsGroupingSelectionAsActive() {
       banks: [{
         bankId: 1,
         active: false,
-        linkSelected: true,
+        selected: true,
       }],
     }],
-    linkGroups: [],
-    editAction: { enabled: true, active: true },
+    groupAction: { enabled: true, active: true },
     clearAction: { enabled: false, armed: false },
     subscribe: function () { return function () {}; },
   };
@@ -1361,5 +1372,6 @@ testDetectorPositionUsesOneStateBatch();
 testDetectorBypassIsInvertedForPresentation();
 testMessageControlsConstructCompletePresentation();
 testBankManagerForwardsShiftSelection();
+testBankManagerForwardsInstanceControlModifiers();
 testBankManagerPresentsGroupingSelectionAsActive();
 console.log("UiBindingTests passed");

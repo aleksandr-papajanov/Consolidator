@@ -13,20 +13,25 @@ public sealed class StateValueFactory
     private readonly StateValueMetadataRegistry _metadata;
     private readonly IStateChangeSink _stateChangeSink;
     private readonly DspStateChangeTracker _dspChanges;
+    private readonly IBankEffectStatusSink _bankEffectStatusSink;
 
     internal StateValueFactory(
         StateRegistry<InstanceId> registry,
         StatePeerObserver peerObserver,
         StateValueMetadataRegistry metadata,
         IStateChangeSink stateChangeSink,
-        DspStateChangeTracker dspChanges)
+        DspStateChangeTracker dspChanges,
+        IBankEffectStatusSink bankEffectStatusSink)
     {
         _registry = registry;
         _peerObserver = peerObserver;
         _metadata = metadata;
         _stateChangeSink = stateChangeSink;
         _dspChanges = dspChanges;
+        _bankEffectStatusSink = bankEffectStatusSink;
     }
+
+    public IBankEffectStatusSink BankEffectStatusSink => _bankEffectStatusSink;
 
     public StateValue<TValue> CreateValue<TValue>(
         InstanceId instanceId,
@@ -37,14 +42,11 @@ public sealed class StateValueFactory
         params IStateValueObserver<TValue>[] observers)
     {
         ValidatePath(path);
-        var scope = path.Nodes[0].Equals(StateNodeIds.Instance)
-            ? StateValueEditScope.Local
-            : StateValueEditScope.ConnectedInstances;
         return Create(
             instanceId,
             path,
             initialValue,
-            scope,
+            StateValueEditScope.Local,
             editMode,
             physicalRange,
             StateValueOwnership.InstanceOwned,
@@ -57,7 +59,7 @@ public sealed class StateValueFactory
         TValue initialValue,
         StateValueEditMode editMode,
         FloatRange? physicalRange = null,
-        StateValueEditScope scope = StateValueEditScope.ConnectedInstances,
+        StateValueEditScope scope = StateValueEditScope.BankGroup,
         params IStateValueObserver<TValue>[] observers)
     {
         ValidatePath(path);

@@ -6,17 +6,19 @@ Managed coordination services are DI singletons for the lifetime of the loaded
 Managed DLL:
 
 ```text
-InstanceRegistry
+ManagedServices
+  -> InstanceRegistry
   -> StateRegistry<InstanceId>
   -> StateValueFactory
   -> StateHistory
+  -> TopologyIndex
   -> StatePeerObserver
   -> StateTopologyObserver
-      -> TopologyIndex
-      -> AudibilityObserver
+  -> AudibilityObserver
+  -> InstanceControlTargetResolver
   -> FftAnalyzer
   -> InstanceCommandRouter
-      -> CommandExecutor
+  -> CommandExecutor
 ```
 
 Responsibilities are intentionally narrow:
@@ -28,6 +30,8 @@ Responsibilities are intentionally narrow:
 - `StateValueFactory` owns application edit policy and composes concrete value
   observers;
 - `StateHistory` owns the shared history cursor and active history-value list;
+- `InstanceControlTargetResolver` resolves explicit instance or exact bank-group
+  targets for mute and solo commands;
 - `StatePeerObserver` owns peer buckets, grouped mutations and effective delta
   ranges;
 - `StateTopologyObserver` reacts to bank-group and instance lifecycle events;
@@ -50,8 +54,7 @@ resolver layer.
 
 Registration creates a root tree, runtime snapshot, typed state models and
 their observers. `StateTopologyObserver.AddState` indexes the completed
-instance and refreshes peer buckets and audibility before the first DSP
-snapshot is published.
+instance and refreshes peer buckets before the first DSP snapshot is published.
 
 `ManagedInstance` owns its `ManagedState`, DSP publisher and per-instance
 command gate. The generic registry owns the root tree. The root owns its
@@ -63,7 +66,7 @@ Unregistration runs in this order under the shared operation gate:
 remove ManagedInstance from InstanceRegistry
   -> remove and dispose generic registry root values
   -> unregister history and value observers
-  -> remove topology and refresh surviving peers/audibility
+  -> remove topology and refresh surviving peers
   -> leave shared operation gate
   -> wait for the instance command gate
   -> stop DSP publisher
@@ -96,6 +99,19 @@ does not contain a second broadcast-write implementation. After a successful
 write or reset, the executor publishes DSP snapshots for all instances because
 peer and audibility observers may have changed runtime projections outside the
 explicit command target.
+
+Instance mute and solo are local instance-owned values. Dedicated control
+commands carry an explicit instance or bank-group target and use
+`InstanceControlTargetResolver` to select a snapshot of exact group members.
+The mute handler changes only that resolved set. Exclusive solo additionally
+clears solo outside the set; additive solo leaves it unchanged. These handlers
+prepare all affected values in one transaction and bypass focused-bank peer
+resolution. Direct protocol writes to instance mute or solo are rejected so
+there is no second mutation path.
+
+`InstanceCommandRouter` has no edit context and does not derive group targets
+from focus. Focus is used only by relative bank routing and notification
+addressing; grouped state propagation is limited to bank-owned peer values.
 
 ## Threading
 

@@ -7,12 +7,14 @@ namespace Consolidator.Managed.Core.State.Models;
 
 public sealed class FilterState
 {
-    public FilterState(
+    internal FilterState(
         InstanceId instanceId,
         StatePath path,
         StateValueFactory values,
         bool bankOwned,
-        Action<bool> bypassProjection)
+        Action<bool> bypassProjection,
+        EqualizerBankEffectObserver? effectObserver = null,
+        int filterId = -1)
     {
         FrequencyHz = CreateValue(
             instanceId,
@@ -34,14 +36,22 @@ public sealed class FilterState
             values,
             bankOwned,
             0.0F,
-            DspParameterRanges.FilterGainDb);
+            DspParameterRanges.FilterGainDb,
+            effectObserver is null
+                ? Array.Empty<IStateValueObserver<float>>()
+                : [effectObserver.ObserveFilterGain(filterId)]);
         Bypass = CreateValue(
             instanceId,
             path.Append(StateNodeIds.Bypass),
             values,
             bankOwned,
             false,
-            new StateProjectionObserver<bool>(bypassProjection));
+            effectObserver is null
+                ? [new StateProjectionObserver<bool>(bypassProjection)]
+                : [
+                    new StateProjectionObserver<bool>(bypassProjection),
+                    effectObserver.ObserveFilterBypass(filterId)
+                ]);
         Solo = CreateValue(
             instanceId,
             path.Append(StateNodeIds.Solo),
@@ -66,11 +76,8 @@ public sealed class FilterState
         StateValueFactory values,
         bool bankOwned,
         TValue initialValue,
-        IStateValueObserver<TValue>? observer = null)
+        params IStateValueObserver<TValue>[] observers)
     {
-        IStateValueObserver<TValue>[] observers = observer is null
-            ? Array.Empty<IStateValueObserver<TValue>>()
-            : [observer];
         return bankOwned
             ? values.CreateBankValue(
                 instanceId,
@@ -92,7 +99,8 @@ public sealed class FilterState
         StateValueFactory values,
         bool bankOwned,
         float initialValue,
-        FloatRange physicalRange)
+        FloatRange physicalRange,
+        params IStateValueObserver<float>[] observers)
     {
         return bankOwned
             ? values.CreateBankValue(
@@ -100,12 +108,14 @@ public sealed class FilterState
                 path,
                 initialValue,
                 StateValueEditMode.ApplyDelta,
-                physicalRange)
+                physicalRange,
+                observers: observers)
             : values.CreateValue(
                 instanceId,
                 path,
                 initialValue,
                 StateValueEditMode.ApplyDelta,
-                physicalRange);
+                physicalRange,
+                observers: observers);
     }
 }

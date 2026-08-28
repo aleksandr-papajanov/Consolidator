@@ -2,7 +2,7 @@ namespace Consolidator.Managed.State.History;
 
 public sealed class StateHistory
 {
-    public const int Capacity = 16;
+    public const int Capacity = 10;
 
     private readonly object _lock = new();
     private readonly LinkedList<IHistoryValue> _values = new();

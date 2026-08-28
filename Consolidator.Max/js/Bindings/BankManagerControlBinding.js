@@ -26,15 +26,16 @@ class BankManagerControlBinding extends ControlBinding
             return;
         }
         this.send("presentation_begin", [
-            presentation.enabled ? 1 : 0,
-            presentation.linkEditing ? 1 : 0
+            presentation.enabled ? 1 : 0
         ]);
         (presentation.rows || []).forEach((row, rowIndex) => {
             this.send("row", [
                 rowIndex,
                 row.instanceId,
                 row.label || "",
-                row.local ? 1 : 0
+                row.local ? 1 : 0,
+                row.solo ? 1 : 0,
+                row.mute ? 1 : 0
             ]);
             (row.banks || []).forEach((bank) => {
                 this.send("bank", [
@@ -45,26 +46,30 @@ class BankManagerControlBinding extends ControlBinding
                     bank.visible ? 1 : 0,
                     bank.enabled ? 1 : 0,
                     bank.active ? 1 : 0,
-                    bank.opacity === undefined ? 1 : bank.opacity
+                    bank.selected ? 1 : 0,
+                    bank.opacity === undefined ? 1 : bank.opacity,
+                    bank.groupId === undefined || bank.groupId === null
+                        ? -1 : Number(bank.groupId),
+                    bank.effectActive ? 1 : 0
                 ].concat(
                     this.colorArguments(bank.color),
                     this.colorArguments(bank.textColor)
                 ));
             });
         });
-        (presentation.linkGroups || []).forEach((group) => {
-            this.send("link_group", [
-                group.linkId,
-                group.label || "",
-                group.active ? 1 : 0,
-                group.used ? 1 : 0,
-                group.enabled ? 1 : 0
-            ].concat(this.colorArguments(group.color)));
-        });
-        let edit = presentation.editAction || {};
+        let group = presentation.groupAction || {};
+        let ungroup = presentation.ungroupAction || {};
         let clear = presentation.clearAction || {};
-        this.send("edit_action", [edit.enabled ? 1 : 0, edit.active ? 1 : 0]);
+        this.send("group_action", [group.enabled ? 1 : 0, group.active ? 1 : 0]);
+        this.send("ungroup_action", [ungroup.enabled ? 1 : 0, ungroup.active ? 1 : 0]);
         this.send("clear_action", [clear.enabled ? 1 : 0, clear.armed ? 1 : 0]);
+        let history = presentation.history || {};
+        this.send("history", [
+            Number(history.cursor) || 0,
+            Number(history.entryCount) || 0,
+            history.canUndo ? 1 : 0,
+            history.canRedo ? 1 : 0
+        ]);
         this.send("presentation_end");
         this.hasPresentation = true;
     }
@@ -88,8 +93,7 @@ class BankManagerControlBinding extends ControlBinding
     {
         let rowIndex = Number(delta.rowIndex);
         this.send("presentation_patch_begin", [
-            presentation.enabled ? 1 : 0,
-            presentation.linkEditing ? 1 : 0
+            presentation.enabled ? 1 : 0
         ]);
     
         if (delta.selector === "bank_focus_changed") {
@@ -115,7 +119,8 @@ class BankManagerControlBinding extends ControlBinding
                 this.sendRow("row_patch", row, rowIndex);
                 if (delta.selector === "registry_instance_added") {
                     this.sendBanks("bank_patch", row, rowIndex);
-                } else if (delta.selector === "registry_bank_group_changed") {
+                } else if (delta.selector === "registry_bank_group_changed" ||
+                        delta.selector === "registry_bank_effect_changed") {
                     let bankId = Number(delta.args[4]);
                     let bank = (row.banks || []).filter((candidate) => {
                         return Number(candidate.bankId) === bankId;
@@ -126,7 +131,6 @@ class BankManagerControlBinding extends ControlBinding
         }
     
         if (delta.selector !== "registry_label_changed") {
-            this.sendLinkGroups("link_group_patch", presentation.linkGroups);
             this.sendActions(presentation);
         }
         this.send("presentation_patch_end");
@@ -157,7 +161,9 @@ class BankManagerControlBinding extends ControlBinding
             rowIndex,
             row.instanceId,
             row.label || "",
-            row.local ? 1 : 0
+            row.local ? 1 : 0,
+            row.solo ? 1 : 0,
+            row.mute ? 1 : 0
         ]);
     }
     
@@ -175,7 +181,11 @@ class BankManagerControlBinding extends ControlBinding
             bank.visible ? 1 : 0,
             bank.enabled ? 1 : 0,
             bank.active ? 1 : 0,
-            bank.opacity === undefined ? 1 : bank.opacity
+            bank.selected ? 1 : 0,
+            bank.opacity === undefined ? 1 : bank.opacity,
+            bank.groupId === undefined || bank.groupId === null
+                ? -1 : Number(bank.groupId),
+            bank.effectActive ? 1 : 0
         ].concat(
             this.colorArguments(bank.color),
             this.colorArguments(bank.textColor)
@@ -193,33 +203,29 @@ class BankManagerControlBinding extends ControlBinding
         });
     }
     
-    sendLinkGroups(
-        selector,
-        groups
-    )
-    {
-        (groups || []).forEach((group) => {
-            this.send(selector, [
-                group.linkId,
-                group.label || "",
-                group.active ? 1 : 0,
-                group.used ? 1 : 0,
-                group.enabled ? 1 : 0
-            ].concat(this.colorArguments(group.color)));
-        });
-    }
-    
     sendActions(presentation)
     {
-        let edit = presentation.editAction || {};
+        let group = presentation.groupAction || {};
+        let ungroup = presentation.ungroupAction || {};
         let clear = presentation.clearAction || {};
-        this.send("edit_action_patch", [
-            edit.enabled ? 1 : 0,
-            edit.active ? 1 : 0
+        this.send("group_action_patch", [
+            group.enabled ? 1 : 0,
+            group.active ? 1 : 0
+        ]);
+        this.send("ungroup_action_patch", [
+            ungroup.enabled ? 1 : 0,
+            ungroup.active ? 1 : 0
         ]);
         this.send("clear_action_patch", [
             clear.enabled ? 1 : 0,
             clear.armed ? 1 : 0
+        ]);
+        let history = presentation.history || {};
+        this.send("history_patch", [
+            Number(history.cursor) || 0,
+            Number(history.entryCount) || 0,
+            history.canUndo ? 1 : 0,
+            history.canRedo ? 1 : 0
         ]);
     }
     

@@ -273,16 +273,19 @@ The shared operation gate covers one complete logical operation. Synchronous
 topology/history operations and async command batches use the same gate, so a
 command cannot interleave with a history jump or a topology mutation while it
 is suspended. `WriteStateCommand` does not broadcast through the command
-router. The router keeps the source external's focused `BankAddress` active for
-the complete operation, and the target `StateValue` peer observer uses that
-context to prepare the grouped history transaction. Bank-owned peers remain
-materialized by bank address; instance-owned peers are resolved from an
-address index for the selected bank's group. There is no second broadcast-write
-path in the command executor. Each target instance has
+router. Bank-owned peers are materialized by bank address and prepare one
+grouped history transaction. Instance-owned values remain local; commands that
+intentionally operate on a group carry an explicit bank-group target. There is
+no second broadcast-write path in the command executor. Each target instance has
 its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
-`ManagedProtocol.md`.
+`ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute` and
+`set_instance_solo` as explicit Max messages. It forwards their encoded target
+unchanged: instance scope carries only the target instance, while group scope
+also carries the selected bank. Solo additionally carries exclusive or
+additive selection mode. Exact group resolution and all instance-state
+mutations are computed in Managed.
 
 ## Managed to Native: Output Callback
 

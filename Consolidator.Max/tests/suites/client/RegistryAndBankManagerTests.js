@@ -5,12 +5,14 @@ var vm = require("vm");
 var environment = require("../../support/ProductionEnvironment.js");
 var root = environment.root;
 environment.loadClientEnvironment();
-function makeBankManagerControllerFixture(linkEditing) {
-  var calls = { views: [], selected: [], toggled: [], focused: [], cleared: 0 };
+function makeBankManagerControllerFixture() {
+  var calls = {
+    views: [], selected: [], toggled: [], focused: [], cleared: 0, requests: [],
+  };
   var viewModel = {
-    linkEditing: Boolean(linkEditing),
     clearAction: { enabled: true, armed: false },
     rows: [{ instanceId: "remote", banks: [{ bankId: 5 }] }],
+    focusedBank: function () { return { bankId: 5 }; },
     apply: function (state) {
       if (state.clearAction) this.clearAction = state.clearAction;
     },
@@ -22,10 +24,10 @@ function makeBankManagerControllerFixture(linkEditing) {
   ) {
     calls.toggled.push([instanceId, bankId, extendSelection]);
   };
+  viewModel.canSelectBank = function () { return true; };
   viewModel.setFocusedBank = function (instanceId, bankId) {
     calls.focused.push([instanceId, bankId]);
   };
-  viewModel.toggleLinkEditing = function () {};
   viewModel.getSelectedBanks = function () {
     return [];
   };
@@ -43,11 +45,17 @@ function makeBankManagerControllerFixture(linkEditing) {
       calls.views.push([instanceId, bankId]);
     },
   };
+  var protocol = {
+    request: function (selector, args) {
+      calls.requests.push([selector, args]);
+    },
+  };
   var context = new BankManagerContext(
     viewModel,
     state,
     uiTarget,
     "local",
+    protocol,
   );
   return {
     controller: new BankManagerController(context),
@@ -93,7 +101,7 @@ function testRegistryDeltaDuringFetchIsRetained() {
 
   client.registry.fetch();
   client.handleControl("registry_instance_added", [
-    1, 20, 21, "7", "Kick", 0,
+    1, 20, 21, "7", "Kick", 0, 0, 0,
   ]);
   client.handleControl("registry_begin", [1, "ui.main", "1", "20", 0, 0]);
   client.handleControl("registry_done", [1, "ui.main", "1"]);
@@ -136,7 +144,7 @@ function testRegistryDeltaFetchesWhenIdle() {
   });
 
   client.handleControl("registry_instance_added", [
-    1, 4, 5, "7", "Kick", 0,
+    1, 4, 5, "7", "Kick", 0, 0, 0,
   ]);
   assert.deepStrictEqual(sent[0], ["registry", 1, "ui.main", "1"]);
 }
@@ -200,7 +208,7 @@ function testRegistryBroadcastRequiresProtocolVersion() {
     sent.push(frame);
   });
   client.handleControl("registry_instance_added", [
-    2, 98, 99, "7", "Kick", 0,
+    2, 98, 99, "7", "Kick", 0, 0, 0,
   ]);
   assert.strictEqual(sent.length, 0);
   assert.strictEqual(client.registry.requiredRevision, 0);
@@ -228,7 +236,7 @@ function testRegistryErrorClearsFetchState() {
   assert.strictEqual(response.result.error, "malformed");
 
   client.handleControl("registry_instance_added", [
-    1, 1, 2, "7", "Kick", 0,
+    1, 1, 2, "7", "Kick", 0, 0, 0,
   ]);
   assert.deepStrictEqual(sent[1], ["registry", 1, "ui.main", "2"]);
 }
@@ -297,17 +305,14 @@ function testBankManagerUsesRegistryAndLocalInstance() {
   assert.strictEqual(vm.rows[0].banks[1].groupId, 0);
   assert.strictEqual(vm.rows[0].banks[1].active, false);
   assert.strictEqual(vm.rows[0].banks[1].system, false);
-  assert.strictEqual(vm.linkGroups[0].linkId, 0);
-  assert.strictEqual(vm.linkGroups[0].used, true);
-  assert.strictEqual(vm.editAction.enabled, true);
+  assert.strictEqual(vm.ungroupAction.enabled, false);
   assert.strictEqual(vm.clearAction.enabled, true);
   vm.setFocusedBank(7, 2);
   assert.strictEqual(vm.rows[0].banks[1].focused, true);
-  vm.toggleLinkEditing();
-  assert.strictEqual(vm.editAction.active, true);
+  assert.strictEqual(vm.ungroupAction.enabled, true);
   vm.destroy();
 }
-function testBankManagerOffersEmptyEditableGroups() {
+function testBankManagerOffersNextGroupId() {
   var protocol = new NativeProtocolClient("ui.main", function () {});
   var registry = new RegistryClient(protocol);
   var vm = new BankManagerViewModel(registry, "7");
@@ -319,11 +324,8 @@ function testBankManagerOffersEmptyEditableGroups() {
 
   vm.applyRegistrySnapshot(registry.snapshot);
 
-  assert.strictEqual(vm.linkGroups.length, 16);
-  assert.strictEqual(vm.linkGroups[0].linkId, 0);
-  assert.strictEqual(vm.linkGroups[0].used, false);
-  assert.strictEqual(vm.linkGroups[0].enabled, true);
-  assert.ok(vm.linkGroups[0].color);
+  assert.strictEqual(vm.nextGroupId(), 1);
+  assert.strictEqual(vm.groupAction.enabled, false);
   vm.destroy();
 }
 function testBankManagerKeepsOneFocusedBankAcrossInstances() {
@@ -368,7 +370,11 @@ function testBankManagerControllerLocalAndRemoteSelection() {
     ["local", 3],
     ["remote", 4],
   ]);
-  assert.deepStrictEqual(fixture.calls.toggled, []);
+  assert.deepStrictEqual(fixture.calls.toggled, [
+    ["local", 3, false],
+    ["remote", 4, false],
+    ["remote", 5, false],
+  ]);
 
   fixture.controller.selectRow("remote");
   assert.deepStrictEqual(fixture.calls.views, [
@@ -379,13 +385,28 @@ function testBankManagerControllerLocalAndRemoteSelection() {
 
   assert.deepStrictEqual(fixture.calls.selected, []);
 }
-function testBankManagerControllerLinkEditingOnlyTogglesSelection() {
-  var fixture = makeBankManagerControllerFixture(true);
+function testBankManagerControllerShiftOnlyTogglesSelection() {
+  var fixture = makeBankManagerControllerFixture();
   fixture.controller.handleIntent("bankSelected", ["remote", 4, 1]);
 
   assert.deepStrictEqual(fixture.calls.views, []);
   assert.deepStrictEqual(fixture.calls.selected, []);
   assert.deepStrictEqual(fixture.calls.toggled, [["remote", 4, true]]);
+}
+function testBankManagerControllerSendsExplicitInstanceAndGroupControls() {
+  var fixture = makeBankManagerControllerFixture();
+
+  fixture.controller.handleIntent("instanceMuteChanged", ["remote", 1, 0]);
+  fixture.controller.handleIntent("instanceMuteChanged", ["remote", 0, 1]);
+  fixture.controller.handleIntent("instanceSoloChanged", ["remote", 1, 0, 0]);
+  fixture.controller.handleIntent("instanceSoloChanged", ["remote", 1, 1, 1]);
+
+  assert.deepStrictEqual(fixture.calls.requests, [
+    ["set_instance_mute", ["remote", "instance", 1]],
+    ["set_instance_mute", ["remote", "group", 5, 0]],
+    ["set_instance_solo", ["remote", "instance", 1, "exclusive"]],
+    ["set_instance_solo", ["remote", "group", 5, 1, "additive"]],
+  ]);
 }
 function testBankManagerShiftExtendsGroupingSelection() {
   var protocol = new NativeProtocolClient("ui.main", function () {});
@@ -401,20 +422,17 @@ function testBankManagerShiftExtendsGroupingSelection() {
     groups: [],
   };
   viewModel.applyRegistrySnapshot(registry.snapshot);
-  viewModel.toggleLinkEditing();
-
   viewModel.toggleBankSelection("local", 1, false);
   viewModel.toggleBankSelection("local", 2, true);
   assert.deepStrictEqual(viewModel.getSelectedBanks(), [
     { instanceId: "local", bankId: 1 },
-    { instanceId: "local", bankId: 2 },
   ]);
 
   viewModel.toggleBankSelection("local", 3, false);
   assert.deepStrictEqual(viewModel.getSelectedBanks(), [
     { instanceId: "local", bankId: 3 },
   ]);
-  assert.strictEqual(viewModel.rows[0].banks[2].linkSelected, true);
+  assert.strictEqual(viewModel.rows[0].banks[2].selected, true);
   viewModel.destroy();
 }
 function testBankManagerControllerClearRequiresConfirmation() {
@@ -435,7 +453,6 @@ function testBankManagerControllerClearRequiresConfirmation() {
 function testBankManagerWritesSelectedGroupsForEveryInstance() {
   var writes = [];
   var viewModel = {
-    linkEditing: true,
     clearAction: { enabled: true, armed: false },
     getSelectedBanks: function () {
       return [
@@ -444,7 +461,6 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
       ];
     },
     clearBankSelection: function () {},
-    toggleLinkEditing: function () {},
   };
   var controller = new BankManagerController(
     new BankManagerContext(
@@ -461,7 +477,7 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
     ),
   );
 
-  controller.applyLinkGroup(7);
+  controller.groupSelectedBanks();
   assert.deepStrictEqual(writes, [
     [
       "local",
@@ -492,10 +508,11 @@ testRegistryErrorClearsFetchState();
 testStateClientAddressesRemoteTopologyWrites();
 testStateClientEncodesZeroBasedBankPath();
 testBankManagerUsesRegistryAndLocalInstance();
-testBankManagerOffersEmptyEditableGroups();
+testBankManagerOffersNextGroupId();
 testBankManagerKeepsOneFocusedBankAcrossInstances();
 testBankManagerControllerLocalAndRemoteSelection();
-testBankManagerControllerLinkEditingOnlyTogglesSelection();
+testBankManagerControllerShiftOnlyTogglesSelection();
+testBankManagerControllerSendsExplicitInstanceAndGroupControls();
 testBankManagerShiftExtendsGroupingSelection();
 testBankManagerControllerClearRequiresConfirmation();
 testBankManagerWritesSelectedGroupsForEveryInstance();

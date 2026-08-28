@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Dsp;
-using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Observers;
 
@@ -7,16 +6,12 @@ namespace Consolidator.Managed.Core.State.Observers;
 
 internal sealed class AudibilityObserver
 {
-    private readonly TopologyIndex _topology;
     private readonly DspStateChangeTracker _dspChanges;
     private readonly Dictionary<InstanceId, InstanceEntry> _instances = new();
     private readonly object _lock = new();
 
-    public AudibilityObserver(
-        TopologyIndex topology,
-        DspStateChangeTracker dspChanges)
+    public AudibilityObserver(DspStateChangeTracker dspChanges)
     {
-        _topology = topology;
         _dspChanges = dspChanges;
     }
 
@@ -42,22 +37,9 @@ internal sealed class AudibilityObserver
             instances = _instances.Values.ToArray();
         }
 
-        var soloInstances = instances
-            .Where(instance => instance.Solo)
-            .Select(instance => instance.InstanceId)
-            .ToHashSet();
+        var hasSolo = instances.Any(instance => instance.Solo);
         foreach (var instance in instances)
         {
-            var groupedBanks = _topology.GetGroupedBanks(instance.InstanceId);
-            var connectedInstanceIds = groupedBanks.Count == 0
-                ? [instance.InstanceId]
-                : _topology
-                    .GetConnectedGroupBanks(groupedBanks)
-                    .Select(bank => bank.InstanceId)
-                    .Append(instance.InstanceId)
-                    .Distinct()
-                    .ToArray();
-            var hasSolo = connectedInstanceIds.Any(soloInstances.Contains);
             var audible = !instance.Mute &&
                 (!hasSolo || instance.Solo);
             if (instance.Runtime.Audible != audible)

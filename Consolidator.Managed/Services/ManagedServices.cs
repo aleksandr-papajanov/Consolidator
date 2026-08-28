@@ -4,6 +4,7 @@ using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Execution;
 using Consolidator.Managed.Core.Commands.Handlers;
+using Consolidator.Managed.Core.Commands.Policies;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services;
@@ -84,10 +85,13 @@ public static class ManagedServices
         services.AddSingleton<StateHistory>();
         services.AddSingleton<DspStateChangeTracker>();
         services.AddSingleton<TopologyIndex>();
+        services.AddSingleton<InstanceControlTargetResolver>();
         services.AddSingleton<StateChangeRouter>();
         services.AddSingleton<StateChangePublisher>();
         services.AddSingleton<HistoryStatePublisher>();
         services.AddSingleton<RegistryChangePublisher>();
+        services.AddSingleton<IBankEffectStatusSink>(serviceProvider =>
+            serviceProvider.GetRequiredService<RegistryChangePublisher>());
         services.AddSingleton<IStateChangeSink>(serviceProvider =>
             serviceProvider.GetRequiredService<StateChangePublisher>());
         services.AddSingleton<StatePeerObserver>();
@@ -102,7 +106,8 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StatePeerObserver>(),
                 serviceProvider.GetRequiredService<StateValueMetadataRegistry>(),
                 serviceProvider.GetRequiredService<IStateChangeSink>(),
-                serviceProvider.GetRequiredService<DspStateChangeTracker>()));
+                serviceProvider.GetRequiredService<DspStateChangeTracker>(),
+                serviceProvider.GetRequiredService<IBankEffectStatusSink>()));
         services.AddSingleton(serviceProvider =>
             new InstanceRegistry(
                 serviceProvider.GetRequiredService<IManagedLogger>(),
@@ -115,6 +120,8 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<RegistryChangePublisher>(),
                 serviceProvider.GetRequiredService<FftAnalyzer>()));
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
+        services.AddSingleton<IStateWritePolicy, BankGroupWritePolicy>();
+        services.AddSingleton<IStateWritePolicy, InstanceControlWritePolicy>();
         services.AddSingleton<ICommandHandler, WriteStateCommandHandler>();
         services.AddSingleton<ICommandHandler, ResetStateCommandHandler>();
         services.AddSingleton<ICommandHandler, BeginHistoryCommandHandler>();
@@ -124,6 +131,8 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, InitializeUiCommandHandler>();
         services.AddSingleton<ICommandHandler, ObserveTargetCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceActiveCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetInstanceMuteCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetInstanceSoloCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -136,6 +145,8 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, InitializeInputCodec>();
         services.AddSingleton<IInputCodec, ObserveTargetInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceActiveInputCodec>();
+        services.AddSingleton<IInputCodec, SetInstanceMuteInputCodec>();
+        services.AddSingleton<IInputCodec, SetInstanceSoloInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -147,6 +158,12 @@ public static class ManagedServices
         services.AddCommandEndpoint<InitializeUiCommand, UiInitializationResult>("initialize", "initialized");
         services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_snapshot");
         services.AddCommandEndpoint<SetInstanceActiveCommand, CommandAcknowledgement>("set_instance_active", "action_done");
+        services.AddCommandEndpoint<SetInstanceMuteCommand, StateWriteStatus>(
+            "set_instance_mute",
+            "action_done");
+        services.AddCommandEndpoint<SetInstanceSoloCommand, StateWriteStatus>(
+            "set_instance_solo",
+            "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>
             new CommandExecutor(
@@ -158,8 +175,7 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
                 serviceProvider.GetRequiredService<TopologyIndex>(),
                 serviceProvider.GetRequiredService<CommandExecutor>(),
-                serviceProvider.GetRequiredService<IOperationGate>(),
-                serviceProvider.GetRequiredService<StatePeerObserver>()));
+                serviceProvider.GetRequiredService<IOperationGate>()));
         services.AddSingleton<CommandDecoder>();
         services.AddSingleton<ProtocolService>(serviceProvider =>
             new ProtocolService(

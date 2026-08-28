@@ -44,7 +44,7 @@ The controls-scope files include the six drawing controls and
 | --- | ---: | --- | --- |
 | `js` | 0 | no remaining legacy Max JavaScript objects | `v8` |
 | `jsui` | 0 | no remaining drawing controls | `v8ui` |
-| `v8ui` | 23 | `AnalyzerControl.js` (3), `BankManagerControl.js` (1), `ButtonControl.js` (6), `DialControl.js` (12), `HistoryPanel.js` (1) | retain as V8UI runtime |
+| `v8ui` | 22 | `AnalyzerControl.js` (3), `BankManagerControl.js` (1), `ButtonControl.js` (6), `DialControl.js` (12) | retain as V8UI runtime |
 | `v8` | 9 | `PanelBindingHostV8.js` in the panels and both hosts in the bridge | retain as V8 runtime |
 
 The patchers containing these objects are the seven panel patchers under

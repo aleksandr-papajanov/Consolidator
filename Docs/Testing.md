@@ -86,6 +86,7 @@ JS suite и NativeAOT suite используют один wire contract с дв�
 - initialize и observe target;
 - write, read, reset и malformed command;
 - grouped-bank propagation и notification routing;
+- explicit instance/group mute и exclusive/additive solo targeting;
 - registry snapshot и registry revision handling;
 - begin/end history и jump;
 - register, DSP publication, unregister barrier;

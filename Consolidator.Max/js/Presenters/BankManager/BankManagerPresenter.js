@@ -32,12 +32,13 @@ class BankManagerPresenter extends PresentationObservable
         let viewModel = this.viewModel || {};
         let presentation = new BankManagerPresentation();
         presentation.enabled = Boolean(this.read(viewModel.enabled, true));
-        let linkEditing = Boolean(this.read(viewModel.linkEditing, false));
         presentation.rows = (this.read(viewModel.rows, []) || []).map((row) => {
             return {
                 instanceId: row.instanceId,
                 label: row.label,
                 local: Boolean(row.local),
+                mute: Boolean(row.mute),
+                solo: Boolean(row.solo),
                 banks: (row.banks || []).map((bank) => {
                     return {
                         bankId: bank.bankId,
@@ -46,13 +47,12 @@ class BankManagerPresenter extends PresentationObservable
                         visible: bank.visible === undefined ? true : Boolean(bank.visible),
                         enabled: bank.enabled === undefined
                             ? true : Boolean(bank.enabled),
-                        active: Boolean(linkEditing
-                            ? bank.linkSelected
-                            : bank.active),
-                        focused: Boolean(!linkEditing && bank.focused),
-                        linkSelected: Boolean(bank.linkSelected),
-                        linkId: bank.groupId === undefined || bank.groupId === null
+                        active: Boolean(bank.active),
+                        selected: Boolean(bank.selected),
+                        focused: Boolean(bank.focused),
+                        groupId: bank.groupId === undefined || bank.groupId === null
                             ? null : bank.groupId,
+                        effectActive: Boolean(bank.effectActive),
                         color: bank.color || null,
                         textColor: bank.textColor || null,
                         opacity: bank.opacity === undefined ? 1 : bank.opacity
@@ -60,27 +60,25 @@ class BankManagerPresenter extends PresentationObservable
                 })
             };
         });
-        presentation.linkEditing = linkEditing;
-        presentation.linkGroups = (this.read(viewModel.linkGroups, []) || []).map((group) => {
-            return {
-                linkId: group.linkId,
-                label: group.label,
-                active: Boolean(linkEditing
-                    ? group.selectionActive
-                    : group.activeLink === undefined ? group.active : group.activeLink),
-                used: Boolean(group.used),
-                enabled: Boolean(group.enabled),
-                color: group.color || null
-            };
-        });
-        presentation.editAction = this.read(viewModel.editAction, {
+        presentation.groupAction = this.read(viewModel.groupAction, {
             enabled: false,
-            active: presentation.linkEditing
+            active: false
+        });
+        presentation.ungroupAction = this.read(viewModel.ungroupAction, {
+            enabled: false,
+            active: false
         });
         presentation.clearAction = this.read(viewModel.clearAction, {
             enabled: false,
             armed: false
         });
+        let history = this.read(viewModel.history, {});
+        presentation.history = {
+            cursor: Number(history.cursor) || 0,
+            entryCount: Number(history.entryCount) || 0,
+            canUndo: Boolean(history.canUndo),
+            canRedo: Boolean(history.canRedo)
+        };
         presentation.delta = delta || null;
         this.publish(presentation);
     }

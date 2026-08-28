@@ -75,12 +75,14 @@ internal sealed class CommandResponseEncoder
         foreach (var instance in registry.Instances)
         {
             outputs.Add(Output(target, "registry_instance", Header(target, requestId)
-                .Concat([Symbol(instance.InstanceId.ToString()), Symbol(instance.Label)]).ToArray()));
+                .Concat([Symbol(instance.InstanceId.ToString()), Symbol(instance.Label),
+                    Integer(instance.Mute ? 1 : 0), Integer(instance.Solo ? 1 : 0)]).ToArray()));
             foreach (var bank in instance.Banks)
             {
                 outputs.Add(Output(target, "registry_bank", Header(target, requestId)
                     .Concat([Symbol(instance.InstanceId.ToString()), Integer(bank.BankId),
-                        bank.GroupId is { } group ? Integer(group) : Symbol("none")]).ToArray()));
+                        bank.GroupId is { } group ? Integer(group) : Symbol("none"),
+                        Integer(bank.EffectActive ? 1 : 0)]).ToArray()));
             }
         }
         foreach (var group in registry.Groups)

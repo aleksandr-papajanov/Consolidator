@@ -95,9 +95,9 @@ the resulting frame or multipart frame sequence to the source external.
 
 All protocol command types implement `IInstanceCommand<TResult>`. Command
 definitions and results live in Core; they do not depend on Protocol.
-`CommandScope` determines whether routing resolves the observed target,
-connected instances or a coordinator-wide operation. An explicit UI target
-takes precedence over derived target routing. Coordinator-scoped commands execute
+`CommandScope` determines whether routing resolves the observed target or a
+coordinator-wide operation. An explicit UI target takes precedence over derived
+target routing. Coordinator-scoped commands execute
 once through the source instance command gate, while their state operation is
 shared globally by the injected coordinator service.
 
@@ -210,10 +210,45 @@ snapshot. Instance activation keeps bindings inactive until this same target
 transition completes.
 State changes are published by the existing
 observer chain and addressed by `StateChangeRouter` using topology and focus.
+State writes pass through registered path-scoped policies before the common
+typed write validation and history transaction. Bank-group writes are checked
+by the bank-group policy: automatic group `0` is immutable, a bank cannot be
+assigned to a second group, and one track cannot contribute multiple banks to
+the same group. Rejected policy writes do not open or commit a history
+transaction.
 `begin_history` and `end_history` frame a global history action. `jump_history`
 moves the shared `StateHistory` cursor to a logical history
 position. Every successful history advance or jump publishes a `history_state`
 snapshot to all registered instances; the snapshot contains revision, cursor,
-entry count and navigation availability. Registry reads current managed state
-and returns a structured atom sequence. Command handlers remain in Core and do
-not move routing or state mutation into codecs.
+entry count and navigation availability. UI initialization also publishes the
+current snapshot so a newly connected Max UI can render existing history before
+the next history mutation. Registry reads current managed state
+and returns a structured atom sequence. Each registry instance entry carries
+its instance-level `mute` and `solo` values. Each registry bank entry also carries
+`effectActive`, which is true when the bank is not bypassed and has an active
+filter with non-zero gain. Managed emits `registry_bank_effect_changed` only
+when that derived status changes; instance mute and solo changes use their
+corresponding registry deltas. Instance controls use dedicated
+`set_instance_mute` and `set_instance_solo` commands; direct protocol writes to
+the instance `mute` and `solo` paths are rejected. Each command carries an
+explicit `instance` or `group` scope. A group target additionally carries the
+bank ID whose exact group membership is resolved under the shared operation
+gate. Group resolution never traverses another group on the same track and
+never falls back to the instance when the bank is ungrouped. Solo also carries
+an `exclusive` or `additive` selection mode. Both handlers update the resolved
+local instance values in one atomic state transaction without creating a
+history point. Later topology changes do not migrate the stored mute or solo
+values. Command handlers remain in Core and do not move routing or state
+mutation into codecs.
+
+After the common command-frame header, the request bodies are:
+
+```text
+set_instance_mute targetInstanceId instance 0|1
+set_instance_mute targetInstanceId group bankId 0|1
+set_instance_solo targetInstanceId instance 0|1 exclusive|additive
+set_instance_solo targetInstanceId group bankId 0|1 exclusive|additive
+```
+
+`bankId` uses the public one-based range `1..7` and is converted to the internal
+zero-based `BankId` only by the protocol codec.

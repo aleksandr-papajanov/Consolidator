@@ -173,6 +173,26 @@ public:
         }
     };
 
+    c74::min::message<> setInstanceMute{
+        this,
+        "set_instance_mute",
+        MIN_FUNCTION
+        {
+            ForwardMessage("set_instance_mute", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> setInstanceSolo{
+        this,
+        "set_instance_solo",
+        MIN_FUNCTION
+        {
+            ForwardMessage("set_instance_solo", args);
+            return {};
+        }
+    };
+
     c74::min::message<> beginHistory{
         this,
         "begin_history",

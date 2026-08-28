@@ -4,10 +4,15 @@ class BankManagerPresentation
     {
         this.enabled = true;
         this.rows = [];
-        this.linkEditing = false;
-        this.linkGroups = [];
-        this.editAction = null;
+        this.groupAction = null;
+        this.ungroupAction = null;
         this.clearAction = null;
+        this.history = {
+            cursor: 0,
+            entryCount: 0,
+            canUndo: false,
+            canRedo: false
+        };
         this.delta = null;
     }
 }

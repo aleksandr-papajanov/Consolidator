@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core.Dsp;
+using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.State;
 
@@ -9,7 +10,8 @@ public sealed class DspState
     public DspState(
         InstanceId instanceId,
         StateValueFactory values,
-        DspRuntimeState runtime)
+        DspRuntimeState runtime,
+        IBankEffectStatusSink effectStatusSink)
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(runtime);
@@ -50,7 +52,8 @@ public sealed class DspState
                     .Append(StateNodeIds.BankAt(index)),
                 values,
                 runtime,
-                index))
+                index,
+                effectStatusSink))
             .ToArray();
         OutputGain = new GainState(
             instanceId,

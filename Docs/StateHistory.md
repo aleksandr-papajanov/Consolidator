@@ -78,8 +78,8 @@ effective StateValue change
 
 For a bank group change, `StateTopologyObserver` first updates
 `TopologyIndex`. It then asks `StatePeerObserver` to rebuild affected peer
-buckets and effective delta ranges, refreshes audibility, and only afterwards
-does the common state-change observer publish the UI notification.
+buckets and effective delta ranges before the common state-change observer
+publishes the UI notification. Audibility does not depend on topology.
 
 Bank-owned notifications are addressed only to instances currently focused on
 the changed `BankAddress`. Instance-owned notifications return to the owning
@@ -96,41 +96,23 @@ topology change alters a range without changing its value, Managed publishes a
 metadata-only `state_changed` entry with the current value and new range; it
 does not create history, registry, analyzer, or DSP work.
 
-For instance-owned controls, target snapshots calculate the effective range in
-the context of the bank selected by the requesting external. The same selected
-bank context remains active for the complete write or reset, including a write
-to another source instance, so validation and peer mutation use the group that
-the editor actually sees.
-
 ## Peers and constraints
 
 `StatePeerObserver` is the materialized registry of observed values. Local
 values keep themselves as their only peer. Connected bank values are bucketed
 by value type, bank-relative `StatePath` and connected `BankAddress` values, so
-different bank indexes in one topology component still address corresponding
-state. Connected non-bank values use their exact path and resolve the peer
-instances of the editing UI's selected bank on demand. Their state remains
-instance-owned, but editing a
-grouped focused bank applies the same operation to the corresponding values of
-that bank's group. A focused ungrouped bank keeps the value local. Switching
-focus only changes the context used by the next edit or snapshot; it does not
-rebuild peers or copy or replace stored instance values.
+different bank indexes in one exact bank group still address corresponding
+state. Non-bank values are always local; group-scoped instance controls resolve
+their explicit target set in the command layer instead of entering the generic
+peer mechanism.
 
-Both bank-relative and instance-relative values are indexed by their complete
-peer address. Registration, removal and topology refreshes
-therefore resolve only the members of each peer set; they never rescan every
-state value for every control. A separate per-instance value index limits a
-topology refresh to affected state trees, so loading another instance does not
-walk unrelated values owned by instances that are already running.
-Bank-owned peer sets are materialized only when instances or bank-group
-membership change. Instance-owned presentation peer sets are materialized for
-every bank context of affected instances and reused by both snapshots and
-writes. Focus changes rebuild only the affected instance's contexts. Value
-changes use a reverse index to recalculate every containing context once after
-commit.
-State-change delivery likewise groups recipients by their selected-bank context
-and encodes the corresponding effective range for each group; there is no single
-focus-dependent range cache shared by different UIs.
+Bank-relative values are indexed by their complete peer address. Registration,
+removal and topology refreshes therefore resolve only the members of each peer
+set; they never rescan every state value for every control. A separate
+per-instance value index limits a topology refresh to affected state trees, so
+loading another instance does not walk unrelated values owned by instances
+that are already running. Bank-owned peer sets are materialized only when
+instances or bank-group membership change. Focus changes do not rebuild peers.
 
 `CopyValue` writes the requested value to every peer. `ApplyDelta` writes the
 requested source value and applies the same delta to every peer. Delta mode is
@@ -141,13 +123,10 @@ Values are never normalized or clamped: a write outside the effective range is
 rejected before the transaction commits.
 
 Each symmetric bank peer component caches one intersection of its values'
-remaining physical ranges. A directional instance-owned peer set caches the
-intersection for its owning editor instead, because another instance may have
-a different bank selected. The caches are rebuilt when topology or focus
-changes and recalculated once after committed values change. A target snapshot
-also resolves the selected-bank intersection directly, and a write validates
-against that same contextual peer set before preparing the transaction.
-Topology refresh publishes only effective ranges that actually changed.
+remaining physical ranges. The cache is rebuilt when topology changes and
+recalculated once after committed values change. A write validates against the
+same materialized peer set before preparing the transaction. Topology refresh
+publishes only effective ranges that actually changed.
 
 The Max dial binding sends a full presentation when structure, range, active
 state, or visualization metadata changes. Ordinary value changes use a single
@@ -172,9 +151,12 @@ The group value is bank-owned for notification routing but has local edit
 scope. Changing membership rebuilds peer buckets; it is not itself propagated
 as a grouped DSP edit.
 
-`AudibilityObserver` stores only the observed mute/solo values and target
-`DspRuntimeState` references. On mute, solo or topology changes it recalculates
-audibility for the affected connectivity graph. The former general
+`AudibilityObserver` stores only the observed local instance mute/solo values
+and target `DspRuntimeState` references. On mute, solo or instance lifecycle
+changes it recalculates global audibility: mute always disables its instance,
+and any active solo disables every non-solo instance. Bank groups select the
+instances mutated by an explicit control command; they are not part of the
+audibility calculation. The former general
 `StateValueProjection`, `AudibilityResolver` and `ProcessingStateResolver`
 layers no longer exist.
 

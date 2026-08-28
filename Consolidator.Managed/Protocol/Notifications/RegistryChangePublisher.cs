@@ -1,10 +1,11 @@
 using Consolidator.Managed.Core.Services;
+using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Protocol.Notifications;
 
-internal sealed class RegistryChangePublisher
+internal sealed class RegistryChangePublisher : IBankEffectStatusSink
 {
     private readonly IPresentationTransport _transport;
     private readonly IProtocolOutputRegistry _outputs;
@@ -37,18 +38,23 @@ internal sealed class RegistryChangePublisher
     public void InstanceAdded(
         ulong instanceId,
         string label,
-        IReadOnlyList<(int BankId, uint? GroupId)> banks)
+        bool mute,
+        bool solo,
+        IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive)> banks)
     {
-        var payload = new List<Atom>(3 + banks.Count * 2)
+        var payload = new List<Atom>(5 + banks.Count * 3)
         {
             Symbol(instanceId.ToString()),
             Symbol(label),
+            Integer(mute ? 1 : 0),
+            Integer(solo ? 1 : 0),
             Integer(banks.Count)
         };
         foreach (var bank in banks)
         {
             payload.Add(Integer(bank.BankId));
             payload.Add(bank.GroupId is { } group ? Integer(group) : Symbol("none"));
+            payload.Add(Integer(bank.EffectActive ? 1 : 0));
         }
         Publish("registry_instance_added", payload.ToArray());
     }
@@ -59,12 +65,30 @@ internal sealed class RegistryChangePublisher
     public void LabelChanged(ulong instanceId, string label) =>
         Publish("registry_label_changed", Symbol(instanceId.ToString()), Symbol(label));
 
+    public void InstanceMuteChanged(ulong instanceId, bool mute) =>
+        Publish("registry_instance_mute_changed",
+            Symbol(instanceId.ToString()), Integer(mute ? 1 : 0));
+
+    public void InstanceSoloChanged(ulong instanceId, bool solo) =>
+        Publish("registry_instance_solo_changed",
+            Symbol(instanceId.ToString()), Integer(solo ? 1 : 0));
+
     public void BankGroupChanged(ulong instanceId, int bankId, uint? groupId) =>
         Publish(
             "registry_bank_group_changed",
             Symbol(instanceId.ToString()),
             Integer(bankId),
             groupId is { } group ? Integer(group) : Symbol("none"));
+
+    public void BankEffectStatusChanged(
+        Consolidator.Managed.Core.State.InstanceId instanceId,
+        int bankId,
+        bool effectActive) =>
+        Publish(
+            "registry_bank_effect_changed",
+            Symbol(instanceId.Value.ToString()),
+            Integer(bankId),
+            Integer(effectActive ? 1 : 0));
 
     public void Publish(string selector, params Atom[] payload)
     {

@@ -45,15 +45,13 @@ internal sealed class StateChangePublisher : IStateChangeSink
             var targets = _router.ResolveTargets(change);
             var bank = _topology.ResolveBankAddress(change.InstanceId, change.Path);
             var metadata = _metadata.Get(change.InstanceId, change.Path);
-            foreach (var targetGroup in targets.GroupBy(targetId =>
-                metadata.GetEffectiveRange(
-                    _topology.ResolveFocusedBank(new InstanceId(targetId)))))
+            if (targets.Count > 0)
             {
                 _transport.Send(StateChangeEncoder.Encode(
                     change,
-                    targetGroup.ToArray(),
+                    targets,
                     metadata,
-                    targetGroup.Key,
+                    metadata.EffectiveRange,
                     bank?.BankIndex));
             }
             if (change.IsValueChange &&
@@ -62,6 +60,20 @@ internal sealed class StateChangePublisher : IStateChangeSink
                 _registryChanges.LabelChanged(
                     change.InstanceId.Value,
                     (string)change.CurrentValue!);
+            }
+            else if (change.IsValueChange &&
+                IsInstanceValue(change.Path, StateNodeIds.Mute))
+            {
+                _registryChanges.InstanceMuteChanged(
+                    change.InstanceId.Value,
+                    (bool)change.CurrentValue!);
+            }
+            else if (change.IsValueChange &&
+                IsInstanceValue(change.Path, StateNodeIds.Solo))
+            {
+                _registryChanges.InstanceSoloChanged(
+                    change.InstanceId.Value,
+                    (bool)change.CurrentValue!);
             }
             else if (change.IsValueChange &&
                 change.Path.Nodes.Contains(StateNodeIds.Group) &&
@@ -80,5 +92,14 @@ internal sealed class StateChangePublisher : IStateChangeSink
             _logger.Warning(
                 $"Failed to publish state change for {change.Path}: {exception.Message}");
         }
+    }
+
+    private static bool IsInstanceValue(
+        Consolidator.Managed.State.StatePath path,
+        Consolidator.Managed.State.Tree.NodeId node)
+    {
+        return path.Nodes.Count == 2 &&
+            path.Nodes[0] == StateNodeIds.Instance &&
+            path.Nodes[1] == node;
     }
 }

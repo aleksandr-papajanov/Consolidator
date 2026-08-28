@@ -10,7 +10,6 @@ internal sealed class TopologyIndex
     private readonly Dictionary<BankAddress, GroupId> _bankGroups = new();
     private readonly Dictionary<GroupId, HashSet<BankAddress>> _groupBanks = new();
     private readonly Dictionary<GroupId, HashSet<InstanceId>> _groupInstances = new();
-    private readonly Dictionary<InstanceId, HashSet<BankAddress>> _groupedBanks = new();
     private readonly object _lock = new();
 
     public void AddInstance(
@@ -71,7 +70,6 @@ internal sealed class TopologyIndex
                 }
 
                 RemoveFromSet(_groupBanks, previousGroupId, bank);
-                RemoveFromSet(_groupedBanks, bank.InstanceId, bank);
                 if (!_groupBanks.TryGetValue(previousGroupId, out var remainingBanks)
                     || remainingBanks.All(value => value.InstanceId != bank.InstanceId))
                 {
@@ -90,7 +88,6 @@ internal sealed class TopologyIndex
                 _bankGroups[bank] = newGroupId;
                 AddToSet(_groupBanks, newGroupId, bank);
                 AddToSet(_groupInstances, newGroupId, bank.InstanceId);
-                AddToSet(_groupedBanks, bank.InstanceId, bank);
             }
 
             return affectedInstances.ToArray();
@@ -145,20 +142,6 @@ internal sealed class TopologyIndex
         return new BankAddress(instanceId, (int)bankNode.Value - 100);
     }
 
-    public IReadOnlyList<InstanceId> ResolveConnectedInstanceIds(InstanceId sourceInstanceId)
-    {
-        var focusedBank = GetFocusedBank(sourceInstanceId);
-        if (focusedBank is not { } value)
-        {
-            return Array.Empty<InstanceId>();
-        }
-
-        return GetConnectedGroupBanks([value])
-            .Select(bank => bank.InstanceId)
-            .Distinct()
-            .ToArray();
-    }
-
     public IReadOnlyList<InstanceId> ResolveFocusedInstanceIds(InstanceId targetInstanceId)
     {
         lock (_lock)
@@ -170,80 +153,9 @@ internal sealed class TopologyIndex
         }
     }
 
-    public IReadOnlyList<InstanceId> ResolveStatePeerInstanceIds(InstanceId instanceId)
-    {
-        var focusedBank = GetFocusedBank(instanceId);
-        if (focusedBank is not { } bank)
-        {
-            return [instanceId];
-        }
-
-        return GetConnectedBankPeers(bank)
-            .Select(peer => peer.InstanceId)
-            .Append(instanceId)
-            .Distinct()
-            .ToArray();
-    }
-
     public InstanceId? ResolveFocusedInstanceId(InstanceId sourceInstanceId)
     {
         return GetFocusedBank(sourceInstanceId)?.InstanceId;
-    }
-
-    public BankAddress? ResolveFocusedBank(InstanceId sourceInstanceId)
-    {
-        return GetFocusedBank(sourceInstanceId);
-    }
-
-    public IReadOnlyList<BankAddress> GetGroupedBanks(InstanceId instanceId)
-    {
-        lock (_lock)
-        {
-            return _groupedBanks.TryGetValue(instanceId, out var banks)
-                ? banks.ToArray()
-                : Array.Empty<BankAddress>();
-        }
-    }
-
-    public IReadOnlyList<BankAddress> GetConnectedGroupBanks(
-        IReadOnlyList<BankAddress> seeds)
-    {
-        ArgumentNullException.ThrowIfNull(seeds);
-
-        lock (_lock)
-        {
-            var pending = new Queue<BankAddress>(seeds);
-            var connected = new HashSet<BankAddress>();
-
-            while (pending.TryDequeue(out var bank))
-            {
-                if (!connected.Add(bank))
-                {
-                    continue;
-                }
-
-                if (_groupedBanks.TryGetValue(bank.InstanceId, out var groupedBanks))
-                {
-                    foreach (var groupedBank in groupedBanks)
-                    {
-                        pending.Enqueue(groupedBank);
-                    }
-                }
-
-                if (!_bankGroups.TryGetValue(bank, out var groupId)
-                    || !_groupBanks.TryGetValue(groupId, out var members))
-                {
-                    continue;
-                }
-
-                foreach (var member in members)
-                {
-                    pending.Enqueue(member);
-                }
-            }
-
-            return connected.ToArray();
-        }
     }
 
     public IReadOnlyList<BankAddress> GetConnectedBankPeers(BankAddress bank)
@@ -257,6 +169,24 @@ internal sealed class TopologyIndex
             }
 
             return members.ToArray();
+        }
+    }
+
+    public IReadOnlyList<InstanceId> GetBankGroupInstanceIds(BankAddress bank)
+    {
+        lock (_lock)
+        {
+            if (!_bankGroups.TryGetValue(bank, out var groupId) ||
+                !_groupBanks.TryGetValue(groupId, out var members))
+            {
+                return Array.Empty<InstanceId>();
+            }
+
+            return members
+                .Select(member => member.InstanceId)
+                .Distinct()
+                .OrderBy(instanceId => instanceId.Value)
+                .ToArray();
         }
     }
 
@@ -286,7 +216,6 @@ internal sealed class TopologyIndex
             _bankGroups[bank] = groupId.Value;
             AddToSet(_groupBanks, groupId.Value, bank);
             AddToSet(_groupInstances, groupId.Value, instanceId);
-            AddToSet(_groupedBanks, instanceId, bank);
         }
     }
 
@@ -301,8 +230,6 @@ internal sealed class TopologyIndex
             }
 
             RemoveFromSet(_groupBanks, groupId, bank);
-            RemoveFromSet(_groupedBanks, instanceId, bank);
-
             if (_groupBanks.TryGetValue(groupId, out var remainingBanks)
                 && remainingBanks.Any(value => value.InstanceId == instanceId))
             {

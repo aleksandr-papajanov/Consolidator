@@ -1,4 +1,3 @@
-let BANK_MANAGER_EDITABLE_GROUP_COUNT = 16;
 let BANK_MANAGER_GROUP_COLORS = [
     [0.4353, 0.8471, 0.7373, 1],
     [0.4392, 0.7686, 0.7725, 1],
@@ -24,49 +23,34 @@ function bankManagerGroupColor(groupId) {
     return BANK_MANAGER_GROUP_COLORS[index];
 }
 
-function bankManagerGroupIds(snapshotGroups) {
-    let groupsById = {};
-    (snapshotGroups || []).forEach((group) => {
-        groupsById[String(group.groupId)] = group;
-    });
-
-    let groups = [];
-    for (let groupId = 0;
-            groupId < BANK_MANAGER_EDITABLE_GROUP_COUNT;
-            groupId += 1) {
-        groups.push(groupsById[String(groupId)] || {
-            groupId: groupId,
-            members: []
-        });
-    }
-
-    // Keep protocol-valid groups outside the UI's editable range visible.
-    (snapshotGroups || []).forEach((group) => {
-        if (Number(group.groupId) < 0 ||
-                Number(group.groupId) >= BANK_MANAGER_EDITABLE_GROUP_COUNT) {
-            groups.unshift(group);
-        }
-    });
-    return groups;
-}
-
 class BankManagerViewModel
 {
-    constructor(registryClient, localInstanceId)
+    constructor(registryClient, localInstanceId, historyClient)
     {
         this.registryClient = registryClient;
         this.localInstanceId = localInstanceId;
         this.enabled = true;
         this.rows = [];
-        this.linkEditing = false;
         this.selectedBanks = {};
         this.focusedSelection = null;
-        this.linkGroups = [];
-        this.editAction = { enabled: false, active: false };
+        this.groupAction = { enabled: false, active: false };
+        this.ungroupAction = { enabled: false, active: false };
         this.clearAction = { enabled: false, armed: false };
         this.listeners = [];
         this.unsubscribeRegistry = null;
         this.registryActive = false;
+        this.history = historyClient ? historyClient.history : {
+            cursor: 0,
+            entryCount: 0,
+            canUndo: false,
+            canRedo: false
+        };
+        this.unsubscribeHistory = historyClient
+            ? historyClient.subscribeHistory((history) => {
+                this.history = history;
+                this.notify();
+            }, true)
+            : null;
     }
     
     setRegistryActive(active, callback)
@@ -121,6 +105,16 @@ class BankManagerViewModel
             if (rowIndex < 0) return false;
             delta.rowIndex = rowIndex;
             this.rows[rowIndex].label = String(args[4]);
+        } else if (delta.selector === "registry_instance_mute_changed" ||
+                delta.selector === "registry_instance_solo_changed") {
+            rowIndex = this.findRowIndex(instanceId);
+            if (rowIndex < 0) return false;
+            delta.rowIndex = rowIndex;
+            if (delta.selector === "registry_instance_mute_changed") {
+                this.rows[rowIndex].mute = Number(args[4]) !== 0;
+            } else {
+                this.rows[rowIndex].solo = Number(args[4]) !== 0;
+            }
         } else if (delta.selector === "registry_bank_group_changed") {
             rowIndex = this.findRowIndex(instanceId);
             if (rowIndex < 0) return false;
@@ -130,10 +124,22 @@ class BankManagerViewModel
                 if (bank.bankId === bankId) {
                     bank.groupId = args[5] === "none" ? null : args[5];
                     bank.color = bank.groupId === null ? null : bankManagerGroupColor(bank.groupId);
+                    if (bank.groupId !== null) {
+                        delete this.selectedBanks[instanceId + ":" + String(bankId)];
+                    }
+                }
+            });
+        } else if (delta.selector === "registry_bank_effect_changed") {
+            rowIndex = this.findRowIndex(instanceId);
+            if (rowIndex < 0) return false;
+            delta.rowIndex = rowIndex;
+            let bankId = Number(args[4]);
+            this.rows[rowIndex].banks.forEach((bank) => {
+                if (Number(bank.bankId) === bankId) {
+                    bank.effectActive = Number(args[5]) !== 0;
                 }
             });
         } else return false;
-        this.updateLinkGroups(snapshot.groups);
         this.refreshActions();
         this.notify(delta);
         return true;
@@ -155,6 +161,8 @@ class BankManagerViewModel
             instanceId: instance.instanceId,
             label: instance.label,
             local: String(instance.instanceId) === String(this.localInstanceId),
+            mute: Boolean(instance.mute),
+            solo: Boolean(instance.solo),
             banks: instance.banks.map((bank) => {
                 let bankId = Number(bank.bankId);
                 return {
@@ -165,8 +173,10 @@ class BankManagerViewModel
                     enabled: true,
                     active: Boolean(focusedSelection && String(focusedSelection.instanceId) === String(instance.instanceId) && bankId === focusedSelection.bankId),
                     focused: Boolean(focusedSelection && String(focusedSelection.instanceId) === String(instance.instanceId) && bankId === focusedSelection.bankId),
-                    linkSelected: Boolean(selectedBanks[String(instance.instanceId) + ":" + String(bankId)]),
+                    selected: (bank.groupId === undefined || bank.groupId === null) &&
+                        Boolean(selectedBanks[String(instance.instanceId) + ":" + String(bankId)]),
                     groupId: bank.groupId,
+                    effectActive: Boolean(bank.effectActive),
                     color: bank.groupId === undefined || bank.groupId === null ? null : bankManagerGroupColor(bank.groupId),
                     opacity: 1
                 };
@@ -177,13 +187,29 @@ class BankManagerViewModel
     applyRegistrySnapshot(snapshot)
     {
         if (!snapshot) return;
-        let selectedBanks = this.selectedBanks;
+        let selectedBanks = {};
+        snapshot.instances.forEach((instance) => {
+            instance.banks.forEach((bank) => {
+                if ((bank.groupId === undefined || bank.groupId === null) &&
+                        this.selectedBanks[String(instance.instanceId) + ":" +
+                            String(bank.bankId)]) {
+                    selectedBanks[String(instance.instanceId) + ":" +
+                        String(bank.bankId)] = {
+                        instanceId: instance.instanceId,
+                        bankId: Number(bank.bankId)
+                    };
+                }
+            });
+        });
+        this.selectedBanks = selectedBanks;
         let focusedSelection = this.focusedSelection;
         this.rows = snapshot.instances.map((instance) => {
             return {
                 instanceId: instance.instanceId,
                 label: instance.label,
                 local: String(instance.instanceId) === String(this.localInstanceId),
+                mute: Boolean(instance.mute),
+                solo: Boolean(instance.solo),
                 banks: instance.banks.map((bank) => {
                     let bankId = Number(bank.bankId);
                     return {
@@ -200,10 +226,12 @@ class BankManagerViewModel
                             String(focusedSelection.instanceId) ===
                                 String(instance.instanceId) &&
                             bankId === focusedSelection.bankId),
-                        linkSelected: Boolean(selectedBanks[
-                            String(instance.instanceId) + ":" + String(bankId)
-                        ]),
+                        selected: (bank.groupId === undefined || bank.groupId === null) &&
+                            Boolean(selectedBanks[
+                                String(instance.instanceId) + ":" + String(bankId)
+                            ]),
                         groupId: bank.groupId,
+                        effectActive: Boolean(bank.effectActive),
                         color: bank.groupId === undefined || bank.groupId === null
                             ? null : bankManagerGroupColor(bank.groupId),
                         opacity: 1
@@ -211,24 +239,8 @@ class BankManagerViewModel
                 })
             };
         }, this);
-        this.updateLinkGroups(snapshot.groups);
         this.refreshActions();
         this.notify();
-    }
-    
-    updateLinkGroups(snapshotGroups)
-    {
-        this.linkGroups = bankManagerGroupIds(snapshotGroups).map((group) => {
-            return {
-                linkId: group.groupId,
-                label: String(group.groupId),
-                active: false,
-                used: (group.members || []).length > 0,
-                enabled: true,
-                members: group.members || [],
-                color: bankManagerGroupColor(group.groupId)
-            };
-        });
     }
     
     refreshActions()
@@ -237,13 +249,36 @@ class BankManagerViewModel
         let editableBanks = localRow ? localRow.banks.filter((bank) => {
             return !bank.system;
         }) : [];
-        let editEnabled = editableBanks.length > 0;
+        let selectedCount = this.getSelectedBanks().length;
+        let focusedBank = this.focusedBank();
+        let usedGroupIds = {};
+        this.rows.forEach((row) => {
+            row.banks.forEach((bank) => {
+                if (bank.groupId !== undefined && bank.groupId !== null) {
+                    usedGroupIds[String(bank.groupId)] = true;
+                }
+            });
+        });
+        let hasFreeGroup = false;
+        for (let groupId = 0; groupId < 16; groupId += 1) {
+            if (!usedGroupIds[String(groupId)]) {
+                hasFreeGroup = true;
+                break;
+            }
+        }
         let clearEnabled = editableBanks.some((bank) => {
             return bank.groupId !== undefined && bank.groupId !== null;
         });
-        this.editAction = {
-            enabled: editEnabled,
-            active: editEnabled && this.linkEditing
+        this.groupAction = {
+            enabled: selectedCount >= 2 && hasFreeGroup,
+            active: false
+        };
+        this.ungroupAction = {
+            enabled: Boolean(focusedBank &&
+                focusedBank.groupId !== undefined &&
+                focusedBank.groupId !== null &&
+                Number(focusedBank.groupId) > 0),
+            active: false
         };
         this.clearAction = {
             enabled: clearEnabled,
@@ -265,8 +300,22 @@ class BankManagerViewModel
         let previous = this.focusedSelection;
         if (previous && String(previous.instanceId) === nextInstanceId &&
                 Number(previous.bankId) === nextBankId) {
+            this.selectedBanks = {};
+            this.rows.forEach((row) => {
+                row.banks.forEach((bank) => {
+                    bank.selected = false;
+                });
+            });
+            this.refreshActions();
+            this.notify();
             return false;
         }
+        this.selectedBanks = {};
+        this.rows.forEach((row) => {
+            row.banks.forEach((bank) => {
+                bank.selected = false;
+            });
+        });
     
         let previousRowIndex = previous
             ? this.findRowIndex(previous.instanceId) : -1;
@@ -297,6 +346,7 @@ class BankManagerViewModel
             });
         }
         if (this.rows.length > 0) {
+            this.refreshActions();
             this.notify({
                 selector: "bank_focus_changed",
                 rowIndex: rowIndex,
@@ -314,6 +364,9 @@ class BankManagerViewModel
         extendSelection
     )
     {
+        if (!this.canSelectBank(instanceId, bankId, extendSelection)) {
+            return;
+        }
         if (!extendSelection) {
             this.selectedBanks = {};
         }
@@ -325,6 +378,52 @@ class BankManagerViewModel
         };
         this.applyRegistrySnapshot(this.registryClient.get());
     }
+
+    focusedBank()
+    {
+        if (!this.focusedSelection) {
+            return null;
+        }
+
+        let row = this.rows.filter((candidate) => {
+            return String(candidate.instanceId) ===
+                String(this.focusedSelection.instanceId);
+        })[0];
+        if (!row) {
+            return null;
+        }
+
+        return row.banks.filter((bank) => {
+            return Number(bank.bankId) === Number(this.focusedSelection.bankId);
+        })[0] || null;
+    }
+
+    focusedBankFor(instanceId)
+    {
+        if (!this.focusedSelection ||
+                String(this.focusedSelection.instanceId) !== String(instanceId)) {
+            return null;
+        }
+        return this.focusedBank();
+    }
+
+    nextGroupId()
+    {
+        let usedGroupIds = {};
+        this.rows.forEach((row) => {
+            row.banks.forEach((bank) => {
+                if (bank.groupId !== undefined && bank.groupId !== null) {
+                    usedGroupIds[String(bank.groupId)] = true;
+                }
+            });
+        });
+        for (let groupId = 1; groupId < 16; groupId += 1) {
+            if (!usedGroupIds[String(groupId)]) {
+                return groupId;
+            }
+        }
+        return -1;
+    }
     
     getSelectedBanks()
     {
@@ -332,19 +431,31 @@ class BankManagerViewModel
             return this.selectedBanks[key];
         }, this);
     }
+
+    canSelectBank(instanceId, bankId, extendSelection)
+    {
+        let row = this.rows.filter((candidate) => {
+            return String(candidate.instanceId) === String(instanceId);
+        })[0];
+        if (!row) return false;
+        let bank = row.banks.filter((candidate) => {
+            return Number(candidate.bankId) === Number(bankId);
+        })[0];
+        if (!bank || (bank.groupId !== undefined && bank.groupId !== null)) {
+            return false;
+        }
+        if (!extendSelection) return true;
+        let key = String(instanceId) + ":" + String(bankId);
+        if (this.selectedBanks[key]) return true;
+        return !this.getSelectedBanks().some((selection) => {
+            return String(selection.instanceId) === String(instanceId);
+        });
+    }
     
     clearBankSelection()
     {
         this.selectedBanks = {};
         this.applyRegistrySnapshot(this.registryClient.get());
-    }
-    
-    toggleLinkEditing()
-    {
-        this.linkEditing = !this.linkEditing;
-        if (!this.linkEditing) this.selectedBanks = {};
-        this.refreshActions();
-        this.notify();
     }
     
     subscribe(callback, immediate)
@@ -370,8 +481,8 @@ class BankManagerViewModel
     {
         state = state || {};
         if (state.enabled !== undefined) this.enabled = Boolean(state.enabled);
-        if (state.linkEditing !== undefined) this.linkEditing = Boolean(state.linkEditing);
-        if (state.editAction !== undefined) this.editAction = state.editAction;
+        if (state.groupAction !== undefined) this.groupAction = state.groupAction;
+        if (state.ungroupAction !== undefined) this.ungroupAction = state.ungroupAction;
         if (state.clearAction !== undefined) this.clearAction = state.clearAction;
         this.notify();
     }
@@ -379,6 +490,9 @@ class BankManagerViewModel
     destroy()
     {
         if (this.unsubscribeRegistry) this.unsubscribeRegistry();
+        if (this.unsubscribeHistory) this.unsubscribeHistory();
+        this.unsubscribeRegistry = null;
+        this.unsubscribeHistory = null;
         this.listeners = [];
     }
 }

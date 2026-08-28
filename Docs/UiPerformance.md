@@ -23,3 +23,52 @@ rate therefore does not increase Managed command or analysis frequency.
 `PanelBindingHostV8` is the first modern-engine pilot. It uses an ES6 class,
 `Map`, rest/spread arguments and destructuring, and is instantiated by `v8`
 objects in all panels.
+
+## BankManager scrolling
+
+`BankManagerControl` keeps track scrolling local to the Max UI control. When
+the rows exceed the control height, it draws a scrollbar in the content area;
+the thumb can be dragged and the mouse wheel moves by one row per wheel step.
+Scrolling is clamped to the available content range and does not create
+Managed protocol traffic.
+
+Track names are rendered with the control's fixed track-name size on every
+row. Bank cells do not display their bank ID; only banks assigned to a group
+display that group's alphabetic ID (`A` for group `0`). The bank grid is drawn
+separately from the cells; selection fills the cell space without adding a
+cell border, group labels are centered using the active font metrics, and
+selecting a grouped bank highlights every bank in that group. Banks with an
+active EQ effect show a small contrasting marker, including when the bank is
+selected. This status is updated by a registry delta only when the
+neutral/active state changes.
+
+BankManager actions are rendered in a bottom action panel. A normal click
+starts a selection with one bank and Shift-click adds or removes banks from
+it; `Group` writes the next available
+group ID to the selected banks, `Ungroup` clears the focused bank's group, and
+`Clear` clears local groups with confirmation. The former link-group panel is
+not part of the presentation.
+
+The BankManager also renders the 10-slot history timeline directly below its
+action buttons. Filled slots show the applied portion of the timeline, the
+current cursor is highlighted, and clicking an available slot sends one
+`jump_history` request. History state is delivered through the same complete
+presentation stream as the bank table; it does not create registry traffic.
+
+Group `0` is the automatic system group and cannot be changed or ungrouped.
+User groups accept at most one bank from each track, and only ungrouped banks
+can be selected for a new group; the same constraints are enforced again by
+Managed when state writes are received.
+
+Each track row also exposes instance-level `S` and `M` controls to toggle its
+solo and mute state through explicit Managed instance-control intents. A plain
+click targets only the row instance. Ctrl/Cmd-click targets the exact group of
+the clicked row at the currently focused bank column; an ungrouped group target
+is rejected without falling back to the instance. Shift selects additive solo,
+and Ctrl/Cmd+Shift selects additive group solo. Mute never changes the solo set.
+Group resolution selects only direct members of that bank group, not a
+transitive connectivity graph through other banks on the same tracks. The
+resolved membership is a snapshot for that command: later topology changes do
+not rewrite existing instance mute or solo values. Device and bank solo
+controls keep their existing state paths and are outside this instance-control
+contract.

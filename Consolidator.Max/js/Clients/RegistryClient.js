@@ -18,7 +18,10 @@ class RegistryClient
         protocol.on("registry_instance_added", this.handleDelta.bind(this, "registry_instance_added"));
         protocol.on("registry_instance_removed", this.handleDelta.bind(this, "registry_instance_removed"));
         protocol.on("registry_label_changed", this.handleDelta.bind(this, "registry_label_changed"));
+        protocol.on("registry_instance_mute_changed", this.handleDelta.bind(this, "registry_instance_mute_changed"));
+        protocol.on("registry_instance_solo_changed", this.handleDelta.bind(this, "registry_instance_solo_changed"));
         protocol.on("registry_bank_group_changed", this.handleDelta.bind(this, "registry_bank_group_changed"));
+        protocol.on("registry_bank_effect_changed", this.handleDelta.bind(this, "registry_bank_effect_changed"));
         protocol.on("error", this.handleError.bind(this));
     }
     
@@ -60,8 +63,14 @@ class RegistryClient
             this.applyInstanceRemoved(args);
         } else if (selector === "registry_label_changed") {
             this.applyLabelChanged(args);
+        } else if (selector === "registry_instance_mute_changed") {
+            this.applyInstanceBooleanChanged(args, "mute");
+        } else if (selector === "registry_instance_solo_changed") {
+            this.applyInstanceBooleanChanged(args, "solo");
         } else if (selector === "registry_bank_group_changed") {
             this.applyBankGroupChanged(args);
+        } else if (selector === "registry_bank_effect_changed") {
+            this.applyBankEffectChanged(args);
         } else {
             return;
         }
@@ -72,13 +81,20 @@ class RegistryClient
     applyInstanceAdded(args)
     {
         let instanceId = args[3];
-        let instance = { instanceId: instanceId, label: String(args[4]), banks: [] };
-        let count = Number(args[5]);
+        let instance = {
+            instanceId: instanceId,
+            label: String(args[4]),
+            mute: Number(args[5]) !== 0,
+            solo: Number(args[6]) !== 0,
+            banks: []
+        };
+        let count = Number(args[7]);
         for (let index = 0; index < count; index += 1) {
-            let position = 6 + index * 2;
+            let position = 8 + index * 3;
             instance.banks.push({
                 bankId: args[position],
-                groupId: args[position + 1] === "none" ? null : args[position + 1]
+                groupId: args[position + 1] === "none" ? null : args[position + 1],
+                effectActive: Number(args[position + 2]) !== 0
             });
         }
         this.snapshot.instances.push(instance);
@@ -101,6 +117,16 @@ class RegistryClient
             if (String(instance.instanceId) === instanceId) instance.label = String(args[4]);
         });
     }
+
+    applyInstanceBooleanChanged(args, property)
+    {
+        let instanceId = String(args[3]);
+        this.snapshot.instances.forEach((instance) => {
+            if (String(instance.instanceId) === instanceId) {
+                instance[property] = Number(args[4]) !== 0;
+            }
+        });
+    }
     
     applyBankGroupChanged(args)
     {
@@ -114,6 +140,19 @@ class RegistryClient
             });
         });
         this.updateGroupsForInstance(instanceId, this.snapshot.instances);
+    }
+
+    applyBankEffectChanged(args)
+    {
+        let instanceId = String(args[3]);
+        let bankId = Number(args[4]);
+        let effectActive = Number(args[5]) !== 0;
+        this.snapshot.instances.forEach((instance) => {
+            if (String(instance.instanceId) !== instanceId) return;
+            instance.banks.forEach((bank) => {
+                if (Number(bank.bankId) === bankId) bank.effectActive = effectActive;
+            });
+        });
     }
     
     updateGroupsForInstance(instanceId, instances)
@@ -175,6 +214,8 @@ class RegistryClient
         let instance = {
             instanceId: args[3],
             label: String(args[4]),
+            mute: Number(args[5]) !== 0,
+            solo: Number(args[6]) !== 0,
             banks: []
         };
         response.instances.push(instance);
@@ -189,7 +230,8 @@ class RegistryClient
         if (!instance) return;
         instance.banks.push({
             bankId: args[4],
-            groupId: args[5] === "none" ? null : args[5]
+            groupId: args[5] === "none" ? null : args[5],
+            effectActive: Number(args[6]) !== 0
         });
     }
     

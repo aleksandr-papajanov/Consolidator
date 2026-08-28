@@ -63,7 +63,8 @@ class ConsolidatorUiHost
         this.outputGain = new GainController(this.viewModel.outputGain);
         this.bankManagerViewModel = new BankManagerViewModel(
             this.client.registry,
-            source
+            source,
+            this.client.transactions
         );
         this.bankManagerPresenter = new BankManagerPresenter(
             this.bankManagerViewModel
@@ -73,7 +74,9 @@ class ConsolidatorUiHost
                 this.bankManagerViewModel,
                 this.client.state,
                 this.client.uiTarget,
-                source
+                source,
+                this.client.protocol,
+                this.client.transactions
             )
         );
         this.bindings = new ControlBindings();

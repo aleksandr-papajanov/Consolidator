@@ -20,19 +20,19 @@
 					"clickthrough" : 0,
 					"enablehscroll" : 0,
 					"enablevscroll" : 0,
-					"id" : "obj-1",
+					"id" : "history-panel-legacy",
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "HistoryPanel.maxpat",
+					"maxclass" : "comment",
+					"text" : "History is integrated into BankManagerPanel",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 354.0, 583.0, 286.0, 192.0 ],
-					"presentation" : 1,
+					"presentation" : 0,
 					"presentation_rect" : [ 0.0, 0.0, 224.0, 168.0 ],
-					"viewvisibility" : 1
+					"viewvisibility" : 0
 				}
 
 			}
@@ -165,7 +165,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 30.0, 230.0, 220.0, 220.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 304.0, 0.0, 280.0, 168.0 ],
+					"presentation_rect" : [ 304.0, 0.0, 280.0, 186.0 ],
 					"viewvisibility" : 1
 				}
 

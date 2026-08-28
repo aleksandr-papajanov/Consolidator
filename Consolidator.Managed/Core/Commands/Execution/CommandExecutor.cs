@@ -59,7 +59,9 @@ public sealed class CommandExecutor
             command,
             cancellationToken);
         var stateChanged = command is ResetStateCommand ||
-            command is WriteStateCommand &&
+            (command is WriteStateCommand ||
+                command is SetInstanceMuteCommand ||
+                command is SetInstanceSoloCommand) &&
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {

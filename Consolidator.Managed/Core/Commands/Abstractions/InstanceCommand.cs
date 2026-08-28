@@ -6,8 +6,7 @@ namespace Consolidator.Managed.Core.Commands.Abstractions;
 public enum CommandScope
 {
     Coordinator,
-    FocusedBank,
-    ConnectedInstances
+    FocusedBank
 }
 
 public interface IInstanceCommand<TResult>

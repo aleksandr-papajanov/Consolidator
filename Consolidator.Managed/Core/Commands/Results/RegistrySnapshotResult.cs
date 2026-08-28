@@ -8,11 +8,14 @@ public sealed record RegistrySnapshotResult(
 public sealed record RegistryInstanceSnapshot(
     ulong InstanceId,
     string Label,
+    bool Mute,
+    bool Solo,
     IReadOnlyList<RegistryBankSnapshot> Banks);
 
 public sealed record RegistryBankSnapshot(
     int BankId,
-    uint? GroupId);
+    uint? GroupId,
+    bool EffectActive);
 
 public sealed record RegistryGroupSnapshot(
     uint GroupId,

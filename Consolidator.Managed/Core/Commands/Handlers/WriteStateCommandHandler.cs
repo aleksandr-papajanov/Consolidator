@@ -10,11 +10,16 @@ public sealed class WriteStateCommandHandler
     : CommandHandler<WriteStateCommand, StateWriteStatus>
 {
     private readonly StateHistory _history;
+    private readonly IReadOnlyList<IStateWritePolicy> _policies;
 
-    public WriteStateCommandHandler(StateHistory history)
+    public WriteStateCommandHandler(
+        StateHistory history,
+        IEnumerable<IStateWritePolicy> policies)
     {
         ArgumentNullException.ThrowIfNull(history);
+        ArgumentNullException.ThrowIfNull(policies);
         _history = history;
+        _policies = policies.ToArray();
     }
 
     public override ValueTask<StateWriteStatus> HandleAsync(
@@ -29,8 +34,12 @@ public sealed class WriteStateCommandHandler
             return ValueTask.FromResult(StateWriteStatus.NotHandled);
         }
 
-        var writes = new List<(StateNode Node, StateWriteEntry Entry)>(
-            command.Entries.Count);
+        if (!AreWritesAllowed(command, context))
+        {
+            return ValueTask.FromResult(StateWriteStatus.Rejected);
+        }
+
+        var writes = new List<(StateNode Node, StateWriteEntry Entry)>(command.Entries.Count);
         var paths = new HashSet<StatePath>();
         foreach (var entry in command.Entries)
         {
@@ -73,6 +82,22 @@ public sealed class WriteStateCommandHandler
         }
         transaction.Commit();
         return ValueTask.FromResult(status);
+    }
+
+    private bool AreWritesAllowed(
+        WriteStateCommand command,
+        InstanceCommandContext context)
+    {
+        foreach (var policy in _policies)
+        {
+            if (command.Entries.Any(entry => policy.Applies(entry.Path)) &&
+                !policy.IsAllowed(command, context))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private sealed class WriteValueVisitor : IStateNodeVisitor
