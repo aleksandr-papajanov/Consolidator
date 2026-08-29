@@ -32,7 +32,9 @@ class BankManagerPresenter extends PresentationObservable
         let viewModel = this.viewModel || {};
         let presentation = new BankManagerPresentation();
         presentation.enabled = Boolean(this.read(viewModel.enabled, true));
-        presentation.selectedPanel = "input";
+        presentation.selectedPanel = this.read(
+            viewModel.selectedPanel,
+            "equalizer");
         presentation.rows = (this.read(viewModel.rows, []) || []).map((row) => {
             return {
                 instanceId: row.instanceId,

@@ -1,6 +1,7 @@
 class BankManagerContext
 {
-    constructor(viewModel, state, uiTarget, instanceId, protocol, transactions)
+    constructor(viewModel, state, uiTarget, instanceId, protocol, transactions,
+        onSnapshotAccepted)
     {
         this.viewModel = viewModel;
         this.state = state;
@@ -8,6 +9,7 @@ class BankManagerContext
         this.instanceId = instanceId;
         this.protocol = protocol;
         this.transactions = transactions;
+        this.onSnapshotAccepted = onSnapshotAccepted || (() => {});
     }
 }
 

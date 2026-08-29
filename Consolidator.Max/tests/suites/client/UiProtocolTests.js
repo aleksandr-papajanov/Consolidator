@@ -10,8 +10,9 @@ function testInitializationUsesExternalIdentityFromManaged() {
   var result;
   client.initialize(function (response) { result = response; });
   assert.deepStrictEqual(frames[0], ["initialize", 1, "ui", "1"]);
-  client.handleControl("initialized", [1, "17", "1", "17"]);
+  client.handleControl("initialized", [1, "17", "1", "17", "equalizer"]);
   assert.strictEqual(String(result.instanceId), "17");
+  assert.strictEqual(result.snapshotContext, "equalizer");
 }
 
 function testInstanceActivityUsesTheInstanceCommand() {
@@ -36,10 +37,10 @@ function testTargetSnapshotAndPushUpdateUseSemanticPaths() {
   client.targetState.subscribe("compressor.threshold", function (entry) {
     values.push(entry.value);
   });
-  client.uiTarget.show("4", 2);
-  assert.deepStrictEqual(frames[0], ["observe_target", 1, "ui", "1", "4", 2]);
+  client.uiTarget.show("4", 2, "compressor");
+  assert.deepStrictEqual(frames[0], ["observe_target", 1, "ui", "1", "4", 2, "compressor"]);
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, "compressor", 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
   client.handleControl("state_changed", [
@@ -52,11 +53,11 @@ function testUiTargetReportsSnapshotCompletion() {
   var client = new ConsolidatorClient("ui", function () {});
   var response;
 
-  client.uiTarget.show("4", 2, function (result) {
+  client.uiTarget.show("4", 2, "compressor", function (result) {
     response = result;
   });
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, "compressor", 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
 
@@ -88,11 +89,11 @@ function testTargetSnapshotNotifiesStateValueOnceAfterCompletion() {
   );
   var notifications = 0;
   value.subscribe(function () { notifications += 1; });
-  client.uiTarget.show("4", 2);
+  client.uiTarget.show("4", 2, "compressor");
   notifications = 0;
 
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, "compressor", 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
   assert.strictEqual(notifications, 1);
@@ -111,10 +112,10 @@ function testStaleTargetSnapshotDoesNotResumeLatestTransition() {
     transitions.push("done");
   });
 
-  client.uiTarget.show("4", 2);
-  client.uiTarget.show("4", 3);
+  client.uiTarget.show("4", 2, "compressor");
+  client.uiTarget.show("4", 3, "compressor");
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, "compressor", 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
   assert.deepStrictEqual(transitions, ["begin", "begin"]);
@@ -122,7 +123,7 @@ function testStaleTargetSnapshotDoesNotResumeLatestTransition() {
   assert.strictEqual(client.targetState.pendingTarget.bankId, 3);
 
   client.handleControl("target_state_snapshot", [
-    1, "9", "2", "4", 3, 1, "compressor.threshold", -18,
+    1, "9", "2", "4", 3, "compressor", 1, "compressor.threshold", -18,
     -60, 0, -60, 0,
   ]);
   assert.deepStrictEqual(transitions, ["begin", "begin", "done"]);

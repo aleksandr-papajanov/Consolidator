@@ -52,9 +52,9 @@ navigates the shared history cursor through the existing `jump_history` command
 and shifts the visible timeline window.
 
 The Bank Manager also provides a vertical panel selector on its right side.
-Selecting Input, Saturator, Compressor, EQ or Output shows that panel beside
-the manager and hides the other effect panels. This is a Max presentation
-concern; it does not create protocol traffic or change Managed state.
+Selecting Input, Saturator, Compressor, EQ or Output changes the local panel
+presentation. Target snapshots continue to follow the existing bank focus
+transition.
 
 The first bank-manager snapshot uses a complete presentation. Later registry
 additions, removals, label changes and bank-group changes use row, bank and

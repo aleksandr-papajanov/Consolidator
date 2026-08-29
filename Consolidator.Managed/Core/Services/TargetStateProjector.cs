@@ -17,7 +17,8 @@ internal sealed class TargetStateProjector
 
     public TargetStateSnapshotResult Project(
         ManagedState state,
-        BankId bankId)
+        BankId bankId,
+        UiSnapshotContext snapshotContext)
     {
         ArgumentNullException.ThrowIfNull(state);
 
@@ -27,10 +28,12 @@ internal sealed class TargetStateProjector
             state.Root,
             StatePath.Empty,
             bankId,
+            snapshotContext,
             values);
         return new TargetStateSnapshotResult(
             state.Instance.InstanceId.Value,
             (int)bankId,
+            snapshotContext,
             values);
     }
 
@@ -39,19 +42,20 @@ internal sealed class TargetStateProjector
         StateNode node,
         StatePath path,
         BankId bankId,
+        UiSnapshotContext snapshotContext,
         ICollection<TargetStateValue> values)
     {
         foreach (var child in node.Children.Values)
         {
             var childPath = path.Append(child.Id);
-            if (!ShouldInclude(childPath, bankId))
+            if (!ShouldInclude(childPath, bankId, snapshotContext))
             {
                 continue;
             }
 
             if (child.IsContainer)
             {
-                VisitChildren(instanceId, child, childPath, bankId, values);
+                VisitChildren(instanceId, child, childPath, bankId, snapshotContext, values);
                 continue;
             }
 
@@ -66,12 +70,30 @@ internal sealed class TargetStateProjector
         }
     }
 
-    private static bool ShouldInclude(StatePath path, BankId bankId)
+    private static bool ShouldInclude(
+        StatePath path,
+        BankId bankId,
+        UiSnapshotContext snapshotContext)
     {
-        if (path.Nodes.Count >= 2 &&
-            path.Nodes[0] == StateNodeIds.Instance &&
-            (path.Nodes[1] == StateNodeIds.Bank ||
-             path.Nodes[1] == StateNodeIds.FocusedBank))
+        if (path.Nodes.Count == 1 && path.Nodes[0] == StateNodeIds.Dsp)
+        {
+            return true;
+        }
+        if (path.Nodes.Count < 2 || path.Nodes[0] != StateNodeIds.Dsp)
+        {
+            return false;
+        }
+
+        var expectedDevice = snapshotContext switch
+        {
+            UiSnapshotContext.Input => StateNodeIds.InputGain,
+            UiSnapshotContext.Saturator => StateNodeIds.Saturator,
+            UiSnapshotContext.Compressor => StateNodeIds.Compressor,
+            UiSnapshotContext.Equalizer => StateNodeIds.Equalizer,
+            UiSnapshotContext.Output => StateNodeIds.OutputGain,
+            _ => throw new ArgumentOutOfRangeException(nameof(snapshotContext))
+        };
+        if (path.Nodes[1] != expectedDevice)
         {
             return false;
         }

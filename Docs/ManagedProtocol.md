@@ -195,12 +195,16 @@ their classification reserves a later managed coalescing policy.
 The command surface contains state read/write, state reset, history framing,
 history jumps, UI initialization, target observation, instance activity and
 registry snapshots.
-`initialize` returns the external's managed instance ID. `observe_target`
-selects an `(InstanceId, BankId)` view and returns one `target_state_snapshot`
-frame containing the target identity, bank, entry count, and each relative path
+`initialize` returns the external's managed instance ID and transient UI context.
+The default context is `equalizer`. `observe_target` receives
+`targetInstanceId`, `bankId` and one strict context symbol (`input`, `saturator`,
+`compressor`, `equalizer` or `output`), then atomically records the UI context
+and target before returning one `target_state_snapshot` frame containing the
+target identity, bank, context, entry count, and each relative path
 with its value and physical/effective ranges. A successful frame implies
 `ready` for every entry; an error applies to the complete frame.
-There is no UI session, epoch or selected-bank state. Later changes use
+The context is per-instance transient UI state: it is not a `StateValue`, does
+not participate in history or persistence, and never affects DSP. Later changes use
 `state_changed` with the same semantic paths and range metadata. Reset writes the target
 state subtree's initial values through one prepared transaction, so peer
 propagation remains authoritative and observers see only the complete reset.

@@ -32,10 +32,11 @@ public sealed class StateEditingUseCasesTests
         application.Send(instance, "initialize");
 
         var initialized = instance.Output.Single("initialized");
-        Assert.Equal(4, initialized.Atoms.Count);
+        Assert.Equal(5, initialized.Atoms.Count);
         Assert.Equal(
             instance.InstanceId.Value.ToString(),
             initialized.Atoms[3].Symbol);
+        Assert.Equal("equalizer", initialized.Atoms[4].Symbol);
     }
 
     [Fact]
@@ -266,14 +267,15 @@ public sealed class StateEditingUseCasesTests
             second,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("compressor"));
         var threshold = Assert.Single(
             second.Output.Messages,
             message => message.Selector == "target_state_snapshot");
-        var thresholdIndex = Enumerable.Range(0, (int)threshold.Atoms[5].Integer)
-            .Single(index => threshold.Atoms[6 + index * 6].Symbol == "compressor.threshold");
-        Assert.Equal(-120.0, threshold.Atoms[10 + thresholdIndex * 6].Float);
-        Assert.Equal(0.0, threshold.Atoms[11 + thresholdIndex * 6].Float);
+        var thresholdIndex = Enumerable.Range(0, (int)threshold.Atoms[6].Integer)
+            .Single(index => threshold.Atoms[7 + index * 6].Symbol == "compressor.threshold");
+        Assert.Equal(-120.0, threshold.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(0.0, threshold.Atoms[12 + thresholdIndex * 6].Float);
     }
 
     [Fact]
@@ -307,7 +309,8 @@ public sealed class StateEditingUseCasesTests
             source,
             "observe_target",
             Symbol(source.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("compressor"));
 
         Assert.DoesNotContain(
             source.Output.Messages,
@@ -315,10 +318,10 @@ public sealed class StateEditingUseCasesTests
         Assert.Contains(
             source.Output.Messages,
             message => message.Selector == "target_state_snapshot" &&
-                Enumerable.Range(0, (int)message.Atoms[5].Integer).Any(index =>
-                    message.Atoms[6 + index * 6].Symbol == "compressor.threshold" &&
-                    message.Atoms[10 + index * 6].Float == -120.0 &&
-                    message.Atoms[11 + index * 6].Float == 0.0));
+                Enumerable.Range(0, (int)message.Atoms[6].Integer).Any(index =>
+                    message.Atoms[7 + index * 6].Symbol == "compressor.threshold" &&
+                    message.Atoms[11 + index * 6].Float == -120.0 &&
+                    message.Atoms[12 + index * 6].Float == 0.0));
     }
 
     [Fact]
@@ -332,13 +335,15 @@ public sealed class StateEditingUseCasesTests
             target,
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("equalizer"));
         application.Send(target, "set_instance_active", Integer(1));
         application.Send(
             localObserver,
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         application.Send(localObserver, "set_instance_active", Integer(1));
         target.Output.Clear();
         groupedPeer.Output.Clear();
@@ -373,13 +378,14 @@ public sealed class StateEditingUseCasesTests
             target,
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("compressor"));
         var snapshot = target.Output.Single("target_state_snapshot");
-        var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[5].Integer)
-            .Single(index => snapshot.Atoms[6 + index * 6].Symbol ==
+        var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
+            .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
                 "compressor.threshold");
-        Assert.Equal(-120.0, snapshot.Atoms[10 + thresholdIndex * 6].Float);
-        Assert.Equal(0.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(-120.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(0.0, snapshot.Atoms[12 + thresholdIndex * 6].Float);
     }
 
     [Fact]
@@ -499,7 +505,8 @@ public sealed class StateEditingUseCasesTests
             instance,
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("equalizer"));
 
         var state = instance.Output.Single("analyzer_equalizer_state");
         Assert.Equal(208, state.Atoms.Count);
@@ -638,7 +645,8 @@ public sealed class StateEditingUseCasesTests
             viewer,
             "observe_target",
             Symbol(source.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         application.Send(
             viewer,
             "set_instance_active",
@@ -724,5 +732,24 @@ public sealed class StateEditingUseCasesTests
                 message.Selector == "state_done"),
             TimeSpan.FromSeconds(1)));
         Assert.Equal(1000.0, instance.Output.Single("state_done").Atoms[^1].Float);
+    }
+
+    [Fact]
+    public void ObserveTargetProjectsOnlyTheSelectedPanelContext()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0),
+            Symbol("input"));
+
+        var snapshot = instance.Output.Single("target_state_snapshot");
+        Assert.Equal("input", snapshot.Atoms[5].Symbol);
+        Assert.All(
+            snapshot.Atoms.Skip(7).Where((_, index) => index % 6 == 0),
+            atom => Assert.StartsWith("input_gain", atom.Symbol));
     }
 }

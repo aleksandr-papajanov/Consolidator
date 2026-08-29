@@ -21,7 +21,8 @@ public sealed class TopologyAndRegistryUseCasesTests
             source,
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
-            Integer(3));
+            Integer(3),
+            Symbol("equalizer"));
         application.Send(source, "set_instance_active", Integer(1));
 
         application.UnregisterInstance(source);
@@ -309,16 +310,18 @@ public sealed class TopologyAndRegistryUseCasesTests
             source,
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
-            Integer(3));
+            Integer(3),
+            Symbol("equalizer"));
 
         var snapshot = source.Output.Single("target_state_snapshot");
-        var entryCount = snapshot.Atoms[5].Integer;
+        var entryCount = snapshot.Atoms[6].Integer;
         Assert.Equal(target.InstanceId.Value.ToString(), snapshot.Atoms[3].Symbol);
         Assert.Equal(3, snapshot.Atoms[4].Integer);
+        Assert.Equal("equalizer", snapshot.Atoms[5].Symbol);
         Assert.True(entryCount > 0);
         Assert.Contains(
             Enumerable.Range(0, (int)entryCount),
-            index => snapshot.Atoms[6 + index * 6].Symbol == "equalizer.filter.1.gain");
+            index => snapshot.Atoms[7 + index * 6].Symbol == "equalizer.filter.1.gain");
     }
 
     private static void WriteGroup(

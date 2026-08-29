@@ -1,5 +1,9 @@
 const { BankManagerContext } = require("./BankManagerContext.js");
 
+function panelDebug(message) {
+    if (typeof post === "function") post("[panel-debug] controller " + message + "\\n");
+}
+
 class BankManagerController
 {
     constructor(context)
@@ -61,7 +65,35 @@ class BankManagerController
             this.toggleBankSelection(instanceId, bankId, false);
         }
         if (focusedChanged !== false) {
-            this.context.uiTarget.show(instanceId, bankId);
+            this.context.uiTarget.show(
+                instanceId,
+                bankId,
+                this.context.viewModel.selectedPanel,
+                (response) => this.acceptSnapshot(response));
+        }
+    }
+
+    selectPanel(panel)
+    {
+        let target = this.context.uiTarget.targetState.target;
+        panelDebug("selectPanel panel=" + panel + " target=" +
+            (target ? target.instanceId + "/" + target.bankId : "none"));
+        if (!target) return;
+        this.context.uiTarget.show(
+            target.instanceId,
+            target.bankId,
+            panel,
+            (response) => this.acceptSnapshot(response));
+    }
+
+    acceptSnapshot(response)
+    {
+        panelDebug("snapshot response context=" +
+            (response && response.snapshotContext) + " error=" +
+            (response && response.error));
+        if (response && !response.error && response.snapshotContext) {
+            this.context.viewModel.setSelectedPanel(response.snapshotContext);
+            this.context.onSnapshotAccepted(response.snapshotContext);
         }
     }
     
@@ -193,6 +225,7 @@ class BankManagerController
         case "bankSelected":
             this.selectBank(values[0], values[1], Number(values[2]) !== 0);
             break;
+        case "panelSelected": this.selectPanel(values[0]); break;
         case "rowSelected": this.selectRow(values[0]); break;
         case "groupRequested": this.groupSelectedBanks(); break;
         case "ungroupRequested": this.ungroupFocusedBank(); break;

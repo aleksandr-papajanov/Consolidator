@@ -1,12 +1,16 @@
 autowatch = 1;
 inlets = 1;
-outlets = 1;
+outlets = 2;
 
 mgraphics.init();
 mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
 const { BankManagerPresentation } = require("../../Presenters/BankManager/BankManagerPresentation.js");
+
+function panelDebug(message) {
+    if (typeof post === "function") post("[panel-debug] control " + message + "\\n");
+}
 
 const BankManagerControlOptions = {
     background: [0.08, 0.08, 0.08, 1],
@@ -704,9 +708,8 @@ class BankManagerControl
 
         let panel = this.panelAt(x, y);
         if (panel) {
-            this.presentation.selectedPanel = panel;
+            panelDebug("click panel=" + panel);
             this.emit("panelSelected", [panel]);
-            mgraphics.redraw();
             return;
         }
 
@@ -1049,6 +1052,14 @@ class BankManagerControl
         };
     }
 
+    setSelectedPanel(panel)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+        this.pendingPresentation.selectedPanel = String(panel);
+    }
+
     patchHistory(cursor, entryCount, canUndo, canRedo)
     {
         this.presentation.history = {
@@ -1189,6 +1200,12 @@ function clear_action(enabled, armed) {
 
 function history(cursor, entryCount, canUndo, canRedo) {
     bankManagerControl.setHistory(cursor, entryCount, canUndo, canRedo);
+}
+
+function selected_panel(panel) {
+    panelDebug("accepted selected_panel=" + panel);
+    bankManagerControl.setSelectedPanel(panel);
+    outlet(1, panel);
 }
 
 function presentation_end() {

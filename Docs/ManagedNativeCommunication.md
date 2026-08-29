@@ -56,7 +56,9 @@ must use a separate native-owned channel.
 Each Max external owns one managed instance. The instance ID addresses all control and audio calls for that external.
 
 Observed target and instance activity are separate pieces of state. The
-`observe_target` command changes only the instance/bank shown by the UI.
+`observe_target` changes the UI target instance, bank and context as one
+operation. Panel selection uses this command; there is no separate
+`select_panel` command.
 `set_instance_active 1|0` reports that the source external owns the active UI
 session; activating one external replaces the previous active viewer.
 The capture buffer belongs to the source selected by that viewer, which may be
@@ -79,7 +81,7 @@ resume bindings or replace the current target. A successful snapshot implies
 The snapshot frame is:
 
 ```text
-target_state_snapshot 1 source requestId instanceId bankId entryCount
+target_state_snapshot 1 source requestId instanceId bankId snapshotContext entryCount
     path value physicalMin physicalMax effectiveMin effectiveMax × entryCount
 ```
 
@@ -90,8 +92,8 @@ when forwarding a bank index.
 
 Changing the focused bank updates the active source and capture demand and
 publishes one small `analyzer_configuration` presentation containing the
-source's prepared sample rate. `observe_target` also publishes one atomic
-`analyzer_equalizer_state` raw-state frame for all source banks. Curve
+source's prepared sample rate. `observe_target` publishes
+`analyzer_equalizer_state` only for the `equalizer` context. Curve
 calculation does not delay the target snapshot because it runs locally after
 the presentations are applied.
 During a local dial gesture, the control renders its local preview until the
@@ -244,10 +246,10 @@ protocol architecture is defined in
 [`ManagedProtocol.md`](ManagedProtocol.md): command types, handler registrations,
 relative path/value decoder boundaries, multipart target/registry snapshots,
 and response encoder boundaries are owned by Managed. `initialize` identifies
-the calling external. `observe_target(instance, bank)` records its view and
-returns a complete UI projection. Subsequent notifications are routed to
-observers of that instance or exact bank. The protocol has no session, epoch or
-selected-bank field.
+the calling external. `observe_target(instance, bank, snapshotContext)` records
+its target and transient panel context and returns a complete filtered UI
+projection. Subsequent notifications are routed to observers of that instance
+or exact bank. The protocol has no session, epoch or selected-bank field.
 
 The NativeAOT `SendMessage` boundary records only aggregate call count and
 elapsed time in `RuntimeMetrics`. Ordinary incoming messages are not formatted

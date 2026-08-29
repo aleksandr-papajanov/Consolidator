@@ -70,6 +70,9 @@ class BankManagerControlBinding extends ControlBinding
             history.canUndo ? 1 : 0,
             history.canRedo ? 1 : 0
         ]);
+        this.send("selected_panel", [
+            presentation.selectedPanel || "equalizer"
+        ]);
         this.send("presentation_end");
         this.hasPresentation = true;
     }

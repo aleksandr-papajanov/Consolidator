@@ -20,8 +20,8 @@
 					"id" : "control",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
 					"parameter_enable" : 0,
 					"patching_rect" : [ 0.0, 0.0, 351.0, 169.0 ],
 					"presentation" : 1,
@@ -88,6 +88,17 @@
 , 			{
 				"box" : 				{
 					"comment" : "",
+					"id" : "panel-out",
+					"index" : 2,
+					"maxclass" : "outlet",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 45.0, 215.0, 30.0, 30.0 ]
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "out",
 					"index" : 1,
 					"maxclass" : "outlet",
@@ -102,6 +113,13 @@
 				"patchline" : 				{
 					"destination" : [ "prefix", 0 ],
 					"source" : [ "control", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "panel-out", 0 ],
+					"source" : [ "control", 1 ]
 				}
 
 			}

@@ -30,6 +30,7 @@ class BankManagerViewModel
         this.registryClient = registryClient;
         this.localInstanceId = localInstanceId;
         this.enabled = true;
+        this.selectedPanel = "equalizer";
         this.rows = [];
         this.selectedBanks = {};
         this.focusedSelection = null;
@@ -291,6 +292,12 @@ class BankManagerViewModel
         if (String(this.localInstanceId) === String(instanceId)) return;
         this.localInstanceId = instanceId;
         this.applyRegistrySnapshot(this.registryClient.get());
+    }
+
+    setSelectedPanel(panel)
+    {
+        this.selectedPanel = String(panel);
+        this.notify();
     }
     
     setFocusedBank(instanceId, bankId)

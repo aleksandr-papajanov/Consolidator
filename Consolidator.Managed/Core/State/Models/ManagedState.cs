@@ -29,6 +29,8 @@ public sealed class ManagedState
 
     public DspRuntimeState Runtime { get; }
 
+    public UiSnapshotContext SnapshotContext { get; set; } = UiSnapshotContext.Equalizer;
+
     internal StateNode Root { get; }
 
 }

@@ -15,6 +15,10 @@ const { BankManagerControlBinding } = require("./Bindings/BankManagerControlBind
 const { DialControlBinding } = require("./Bindings/DialControlBinding.js");
 const { ButtonControlBinding } = require("./Bindings/ButtonControlBinding.js");
 
+function panelDebug(message) {
+    if (typeof post === "function") post("[panel-debug] host " + message + "\\n");
+}
+
 const ConsolidatorControlMapping = {
     inputGain: "input_gain",
     outputGain: "output_gain",
@@ -97,6 +101,7 @@ class ConsolidatorUiHost
         this.instanceActive = false;
         this.publishedInstanceActive = null;
         this.metricsGestureActive = false;
+        this.snapshotContext = "equalizer";
     }
     
     sendControlMessage(
@@ -147,6 +152,7 @@ class ConsolidatorUiHost
             this.client.uiTarget.show(
                 target.instanceId,
                 target.bankId,
+                this.snapshotContext,
                 (snapshotResponse) => {
                     if (this.instanceActive && snapshotResponse &&
                             !snapshotResponse.error) {
@@ -187,6 +193,10 @@ class ConsolidatorUiHost
         values
     )
     {
+        if (controlName === "bank_manager") {
+            panelDebug("intent=" + intent + " values=" +
+                (values || []).join(","));
+        }
         if (intent === "gestureBegan") {
             this.metricsGestureActive = true;
             this.sendMetrics();
@@ -278,6 +288,8 @@ class ConsolidatorUiHost
                 return;
             }
             this.instanceId = initialization.instanceId;
+            this.snapshotContext = initialization.snapshotContext || "equalizer";
+            this.bankManagerViewModel.setSelectedPanel(this.snapshotContext);
             this.viewModel.instanceId = this.instanceId;
             this.bankManager.context.instanceId = this.instanceId;
             this.bankManagerViewModel.setLocalInstanceId(this.instanceId);

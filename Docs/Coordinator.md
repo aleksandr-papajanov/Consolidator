@@ -87,7 +87,8 @@ reactions; none is a second source of truth.
 
 The currently observed bank is transient routing metadata on each external's
 instance model; it is not a tree value and is never persisted or exposed as a
-`selected_bank` parameter. `observe_target` copies the view into the derived
+`selected_bank` parameter. `observe_target` copies the target, bank and transient
+UI context into the derived
 `TopologyIndex` used for routing notifications. Bank group membership is
 history-backed and observed by the same boundary.
 

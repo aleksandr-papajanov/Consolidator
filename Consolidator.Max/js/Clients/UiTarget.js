@@ -5,9 +5,10 @@ class UiTarget
         this.targetState = targetState;
     }
     
-    show(instanceId, bankId, callback)
+    show(instanceId, bankId, snapshotContext, callback)
     {
-        return this.targetState.selectTarget(instanceId, bankId, callback);
+        return this.targetState.selectTarget(
+            instanceId, bankId, snapshotContext, callback);
     }
     
     destroy()

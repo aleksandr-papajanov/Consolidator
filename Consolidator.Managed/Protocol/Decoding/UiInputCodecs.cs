@@ -31,7 +31,7 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header)
     {
-        if (atoms.Length != header.Position + 2)
+        if (atoms.Length != header.Position + 3)
         {
             throw new FormatException("Invalid observe_target frame.");
         }
@@ -43,11 +43,17 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
             throw new FormatException("Observed bank is out of range.");
         }
 
+        if (atoms[header.Position + 2].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid snapshot context.");
+        }
+
         return CommandCodecSupport.Success(
             header,
             new ObserveTargetCommand(
                 new InstanceId(instanceId),
-                (BankId)atoms[header.Position + 1].Integer));
+                (BankId)atoms[header.Position + 1].Integer,
+                UiSnapshotContexts.Parse(atoms[header.Position + 2].Symbol)));
     }
 }
 

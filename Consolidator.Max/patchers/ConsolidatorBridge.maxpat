@@ -137,9 +137,9 @@
 					"maxclass" : "bpatcher",
 					"name" : "BankManagerPanel.maxpat",
 					"numinlets" : 1,
-					"numoutlets" : 1,
+					"numoutlets" : 2,
 					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
+					"outlettype" : [ "", "" ],
 					"patching_rect" : [ 521.0, 481.0, 27.0, 26.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 0.0, 0.0, 351.0, 169.0 ],
@@ -386,6 +386,18 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "panel-intent-prefix",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 330.0, 664.0, 125.0, 22.0 ],
+					"text" : "prepend panelSelected"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "presentation-list-normalizer",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -406,13 +418,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "intent-list-normalizer", 0 ],
-					"source" : [ "bank-manager-route", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "panel-selection-route", 0 ],
 					"source" : [ "bank-manager-route", 0 ]
 				}
@@ -420,8 +425,29 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "intent-list-normalizer", 0 ],
+					"source" : [ "bank-manager-route", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "intent-list-normalizer", 0 ],
+					"source" : [ "bank-manager-intent-prefix", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "bank-manager-route", 0 ],
 					"source" : [ "bank-panel", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "panel-selector", 0 ],
+					"source" : [ "bank-panel", 1 ]
 				}
 
 			}
@@ -572,22 +598,22 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "panel-intent-prefix", 0 ],
+					"source" : [ "panel-selection-route", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "bank-manager-intent-prefix", 0 ],
+					"source" : [ "panel-intent-prefix", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "bank-manager-intent-prefix", 0 ],
 					"source" : [ "panel-selection-route", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "intent-list-normalizer", 0 ],
-					"source" : [ "bank-manager-intent-prefix", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "panel-selector", 0 ],
-					"source" : [ "panel-selection-route", 0 ]
 				}
 
 			}

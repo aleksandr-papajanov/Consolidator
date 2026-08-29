@@ -55,7 +55,8 @@ public sealed record InitializeUiCommand()
 
 public sealed record ObserveTargetCommand(
     InstanceId TargetInstanceId,
-    BankId BankId) : IInstanceCommand<TargetStateSnapshotResult>
+    BankId BankId,
+    UiSnapshotContext SnapshotContext) : IInstanceCommand<TargetStateSnapshotResult>
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }

@@ -31,7 +31,9 @@ internal sealed class InitializeUiCommandHandler
         cancellationToken.ThrowIfCancellationRequested();
         _historyStatePublisher.Publish(_history.Snapshot);
         return ValueTask.FromResult(
-            new UiInitializationResult(context.InstanceId.Value));
+            new UiInitializationResult(
+                context.InstanceId.Value,
+                context.State.SnapshotContext));
     }
 }
 
@@ -67,9 +69,15 @@ internal sealed class ObserveTargetCommandHandler
         context.State.Instance.FocusedBank = new BankAddress(
             command.TargetInstanceId,
             (int)command.BankId);
-        _registry.PublishAnalyzerState(command.TargetInstanceId);
+        context.State.SnapshotContext = command.SnapshotContext;
+        if (command.SnapshotContext == UiSnapshotContext.Equalizer)
+        {
+            _registry.PublishAnalyzerState(
+                command.TargetInstanceId,
+                command.SnapshotContext);
+        }
         return ValueTask.FromResult(
-            _projector.Project(target.State, command.BankId));
+            _projector.Project(target.State, command.BankId, command.SnapshotContext));
     }
 }
 

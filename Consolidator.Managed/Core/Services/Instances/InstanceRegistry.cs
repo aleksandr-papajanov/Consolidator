@@ -164,9 +164,19 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         }
     }
 
-    internal void PublishAnalyzerState(InstanceId instanceId)
+    internal void PublishAnalyzerState(
+        InstanceId instanceId,
+        UiSnapshotContext snapshotContext)
     {
-        PublishAnalyzerStates([instanceId]);
+        lock (_lock)
+        {
+            if (_instances.TryGetValue(instanceId, out var instance))
+            {
+                _fftAnalyzer.PublishEqualizerState(
+                    instance.State,
+                    snapshotContext);
+            }
+        }
     }
 
     internal void PublishAnalyzerStates(IReadOnlyList<InstanceId> instanceIds)
@@ -177,7 +187,9 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             {
                 if (_instances.TryGetValue(instanceId, out var instance))
                 {
-                    _fftAnalyzer.PublishEqualizerState(instance.State);
+                    _fftAnalyzer.PublishEqualizerState(
+                        instance.State,
+                        instance.State.SnapshotContext);
                 }
             }
         }

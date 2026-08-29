@@ -1,6 +1,10 @@
 inlets = 1;
 outlets = 0;
 
+function panelDebug(message) {
+    if (typeof post === "function") post("[panel-debug] selector " + message + "\\n");
+}
+
 const PANEL_IDS = {
     input: "input-panel",
     saturator: "saturator-panel",
@@ -14,7 +18,7 @@ class PanelSelector
     constructor(patcher)
     {
         this.patcher = patcher;
-        this.selected = "input";
+        this.selected = "equalizer";
     }
 
     setVisible(id, visible)
@@ -28,7 +32,9 @@ class PanelSelector
     select(panel)
     {
         let name = String(panel || "").toLowerCase();
+        panelDebug("select requested=" + name);
         if (!PANEL_IDS[name]) {
+            panelDebug("select rejected=" + name);
             return;
         }
         Object.keys(PANEL_IDS).forEach((key) => {

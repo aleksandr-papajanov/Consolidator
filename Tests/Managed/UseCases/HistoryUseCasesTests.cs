@@ -58,7 +58,8 @@ public sealed class HistoryUseCasesTests
             editor,
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("compressor"));
         application.Send(editor, "set_instance_active", Integer(1));
         application.Send(observer, "set_instance_active", Integer(1));
         editor.Output.Clear();
@@ -103,12 +104,13 @@ public sealed class HistoryUseCasesTests
             editor,
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("compressor"));
         var snapshot = editor.Output.Single("target_state_snapshot");
-        var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[5].Integer)
-            .Single(index => snapshot.Atoms[6 + index * 6].Symbol ==
+        var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
+            .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
                 "compressor.threshold");
-        Assert.NotEqual(-18.0, snapshot.Atoms[7 + thresholdIndex * 6].Float);
+        Assert.NotEqual(-18.0, snapshot.Atoms[8 + thresholdIndex * 6].Float);
     }
 
     private sealed class NonComparableHistoryValue : IHistoryValue

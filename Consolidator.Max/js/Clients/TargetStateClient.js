@@ -1,3 +1,7 @@
+function panelDebug(message) {
+    if (typeof post === "function") post("[panel-debug] target " + message + "\\n");
+}
+
 class TargetStateClient
 {
     constructor(protocol, state)
@@ -21,14 +25,17 @@ class TargetStateClient
         protocol.on("state_changed", this.handleChanged.bind(this));
     }
     
-    selectTarget(instanceId, bankId, callback)
+    selectTarget(instanceId, bankId, snapshotContext, callback)
     {
+        panelDebug("request instance=" + instanceId + " bank=" + bankId +
+            " context=" + snapshotContext);
         let generation = this.generation + 1;
         this.generation = generation;
         this.beginTargetTransition();
         this.pendingTarget = {
             instanceId: String(instanceId),
             bankId: Number(bankId),
+            snapshotContext: String(snapshotContext || "equalizer"),
             generation: generation,
             requestId: null
         };
@@ -36,7 +43,7 @@ class TargetStateClient
         this.notifyStatus();
         let requestId = this.protocol.request(
             "observe_target",
-            [String(instanceId), Number(bankId)],
+            [String(instanceId), Number(bankId), String(snapshotContext || "equalizer")],
             (response) => {
                 let current = this.pendingTarget &&
                     this.pendingTarget.generation === generation;
@@ -197,18 +204,22 @@ class TargetStateClient
     handleSnapshot(args)
     {
         let requestId = String(args[2]);
-        let entryCount = Number(args[5]);
+        let snapshotContext = String(args[5]);
+        let entryCount = Number(args[6]);
         let entrySize = 6;
         let snapshot = {
                 instanceId: String(args[3]), bankId: Number(args[4]),
-            expected: entryCount, entries: []
+                snapshotContext: snapshotContext, expected: entryCount, entries: []
         };
+        panelDebug("received request=" + requestId + " instance=" +
+            snapshot.instanceId + " bank=" + snapshot.bankId + " context=" +
+            snapshot.snapshotContext);
         if (!isFinite(entryCount) || entryCount < 0 ||
-                args.length !== 6 + entryCount * entrySize) {
+                args.length !== 7 + entryCount * entrySize) {
             snapshot.invalid = true;
         }
         for (let index = 0; !snapshot.invalid && index < entryCount; index += 1) {
-            let offset = 6 + index * entrySize;
+            let offset = 7 + index * entrySize;
             snapshot.entries.push(this.decodeEntry(
                 args[offset],
                 [args[offset + 1], "ready"].concat(args.slice(offset + 2, offset + entrySize)),
@@ -216,7 +227,10 @@ class TargetStateClient
         }
         let current = snapshot && this.pendingTarget &&
             this.pendingTarget.requestId === requestId &&
-            this.pendingTarget.generation === this.generation;
+            this.pendingTarget.generation === this.generation &&
+            this.pendingTarget.instanceId === snapshot.instanceId &&
+            this.pendingTarget.bankId === snapshot.bankId &&
+            this.pendingTarget.snapshotContext === snapshot.snapshotContext;
         if (snapshot.invalid || snapshot.entries.length !== snapshot.expected) {
             if (current) {
                 this.pendingTarget = null;
@@ -228,10 +242,15 @@ class TargetStateClient
             return;
         }
         if (!current) {
+            panelDebug("stale snapshot request=" + requestId);
             this.protocol.complete(requestId, { stale: true, error: null });
             return;
         }
-        this.target = { instanceId: snapshot.instanceId, bankId: snapshot.bankId };
+        this.target = {
+            instanceId: snapshot.instanceId,
+            bankId: snapshot.bankId,
+            snapshotContext: snapshot.snapshotContext
+        };
         this.pendingTarget = null;
         this.error = null;
         let nextCache = {};
@@ -249,7 +268,7 @@ class TargetStateClient
             }, this);
             this.notifyStatus();
             this.targetSnapshotCompletedListeners.slice().forEach((listener) => {
-                listener();
+                listener(snapshot);
             });
         } finally {
             this.applyingSnapshot = false;
@@ -258,7 +277,11 @@ class TargetStateClient
             });
         }
         this.completeTargetTransition(this.generation);
-        this.protocol.complete(requestId, { entries: snapshot.entries, error: null });
+        this.protocol.complete(requestId, {
+            entries: snapshot.entries,
+            snapshotContext: snapshot.snapshotContext,
+            error: null
+        });
     }
     
     handleChanged(args)

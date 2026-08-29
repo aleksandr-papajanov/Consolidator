@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core.Commands.Results;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.State;
 
@@ -22,7 +23,10 @@ internal sealed class CommandResponseEncoder
         {
             UiInitializationResult initialized =>
                 [Output(sourceInstanceId, "initialized", Header(sourceInstanceId, requestId)
-                    .Append(Symbol(initialized.InstanceId.ToString())).ToArray())],
+                    .Concat([
+                        Symbol(initialized.InstanceId.ToString()),
+                        Symbol(UiSnapshotContexts.Encode(initialized.SnapshotContext))
+                    ]).ToArray())],
             TargetStateSnapshotResult snapshot => EncodeSnapshot(sourceInstanceId, requestId, snapshot),
             RegistrySnapshotResult registry => EncodeRegistry(sourceInstanceId, requestId, registry),
             StateWriteStatus status => [Output(sourceInstanceId, responseSelector,
@@ -47,6 +51,7 @@ internal sealed class CommandResponseEncoder
         atoms.AddRange(Header(target, requestId));
         atoms.Add(Symbol(snapshot.InstanceId.ToString()));
         atoms.Add(Integer(snapshot.BankId));
+        atoms.Add(Symbol(UiSnapshotContexts.Encode(snapshot.SnapshotContext)));
         atoms.Add(Integer(snapshot.Values.Count));
         for (var index = 0; index < snapshot.Values.Count; index++)
         {

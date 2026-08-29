@@ -23,9 +23,9 @@ class ConsolidatorViewModel
         if (callback) callback(null);
     }
     
-    show(instanceId, bankId)
+    show(instanceId, bankId, snapshotContext, callback)
     {
-        return this.uiTarget.show(instanceId, bankId);
+        return this.uiTarget.show(instanceId, bankId, snapshotContext, callback);
     }
     
     destroy()

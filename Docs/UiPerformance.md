@@ -24,6 +24,9 @@ rate therefore does not increase Managed command or analysis frequency.
 `Map`, rest/spread arguments and destructuring, and is instantiated by `v8`
 objects in all panels.
 
+Panel selection remains local to the Max presentation. Bank focus changes still
+drive the existing target transition and snapshot flow.
+
 ## BankManager scrolling
 
 `BankManagerControl` keeps track scrolling local to the Max UI control. When

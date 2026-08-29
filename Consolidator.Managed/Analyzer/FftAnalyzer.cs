@@ -85,9 +85,15 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         _preparations.TryRemove(instanceId, out _);
     }
 
-    internal void PublishEqualizerState(ManagedState state)
+    internal void PublishEqualizerState(
+        ManagedState state,
+        UiSnapshotContext snapshotContext)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (snapshotContext != UiSnapshotContext.Equalizer)
+        {
+            return;
+        }
 
         var sourceInstanceId = state.Instance.InstanceId;
         var targetId = GetSpectrumRecipient(sourceInstanceId);

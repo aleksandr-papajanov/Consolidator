@@ -55,6 +55,7 @@ class NativeProtocolClient
         if (selector === "initialized") {
             this.complete(String(args[2]), {
                 instanceId: args[3],
+                snapshotContext: args[4],
                 error: null
             });
         } else if (selector === "action_done") {

@@ -8,6 +8,9 @@ var stateFixtures = require("../../support/StateFixtures.js");
 var root = environment.root;
 environment.loadClientEnvironment();
 var makeStateFixture = stateFixtures.makeStateFixture;
+var BankManagerController = require(
+  path.join(root, "js/Controllers/BankManagerController.js")
+).BankManagerController;
 
 function loadMaxClass(relativePath, className) {
   var absolutePath = path.join(root, relativePath);
@@ -1291,9 +1294,9 @@ function testUiHostRefreshesSnapshotBeforePresentingActivatedInstance() {
         callback({ status: "accepted", error: null });
       },
       uiTarget: {
-        show: function (instanceId, bankId, callback) {
+        show: function (instanceId, bankId, snapshotContext, callback) {
           events.push(["snapshot", instanceId, bankId]);
-          callback({ entries: [], error: null });
+          callback({ entries: [], snapshotContext: snapshotContext, error: null });
         },
       },
     },
@@ -1352,6 +1355,45 @@ function testBankManagerForwardsShiftSelection() {
     "bankSelected",
     ["instance.1", 1, 1],
   ]]);
+}
+
+function testBankManagerPanelClickWaitsForSnapshot() {
+  var control = new BankManagerControl();
+  var emitted = [];
+  control.presentation = { enabled: true, selectedPanel: "equalizer" };
+  control.panelAt = function () { return "compressor"; };
+  control.emit = function (name, values) {
+    emitted.push([name].concat(values || []));
+  };
+
+  control.selectAt(10, 10, false, false);
+
+  assert.strictEqual(control.presentation.selectedPanel, "equalizer");
+  assert.deepStrictEqual(emitted, [["panelSelected", "compressor"]]);
+}
+
+function testPanelTransitionAppliesSelectionAfterSnapshot() {
+  var snapshotCallback = null;
+  var context = {
+    viewModel: {
+      selectedPanel: "equalizer",
+      setSelectedPanel: function (panel) { this.selectedPanel = panel; },
+    },
+    uiTarget: {
+      targetState: { target: { instanceId: "7", bankId: 2 } },
+      show: function (instanceId, bankId, panel, callback) {
+        assert.deepStrictEqual([instanceId, bankId, panel], ["7", 2, "compressor"]);
+        snapshotCallback = callback;
+      },
+    },
+    onSnapshotAccepted: function () {},
+  };
+  var controller = new BankManagerController(context);
+
+  controller.handleIntent("panelSelected", ["compressor"]);
+  assert.strictEqual(context.viewModel.selectedPanel, "equalizer");
+  snapshotCallback({ snapshotContext: "compressor", error: null });
+  assert.strictEqual(context.viewModel.selectedPanel, "compressor");
 }
 function testBankManagerForwardsInstanceControlModifiers() {
   var intents = [];
@@ -1440,6 +1482,8 @@ testDetectorPositionUsesOneStateBatch();
 testDetectorBypassIsInvertedForPresentation();
 testMessageControlsConstructCompletePresentation();
 testBankManagerForwardsShiftSelection();
+testBankManagerPanelClickWaitsForSnapshot();
+testPanelTransitionAppliesSelectionAfterSnapshot();
 testBankManagerForwardsInstanceControlModifiers();
 testBankManagerPresentsGroupingSelectionAsActive();
 console.log("UiBindingTests passed");
