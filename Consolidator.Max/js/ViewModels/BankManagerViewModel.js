@@ -140,6 +140,18 @@ class BankManagerViewModel
                     bank.effectActive = Number(args[5]) !== 0;
                 }
             });
+        } else if (delta.selector === "registry_processor_changed") {
+            rowIndex = this.findRowIndex(instanceId);
+            if (rowIndex < 0) return false;
+            delta.rowIndex = rowIndex;
+            let processorId = String(args[4]);
+            this.rows[rowIndex].processors.forEach((processor) => {
+                if (processor.processorId === processorId) {
+                    processor.effectActive = Number(args[5]) !== 0;
+                    processor.bypassed = Number(args[6]) !== 0;
+                    processor.soloed = Number(args[7]) !== 0;
+                }
+            });
         } else return false;
         this.refreshActions();
         this.notify(delta);
@@ -164,6 +176,12 @@ class BankManagerViewModel
             local: String(instance.instanceId) === String(this.localInstanceId),
             mute: Boolean(instance.mute),
             solo: Boolean(instance.solo),
+            processors: (instance.processors || []).map((processor) => ({
+                processorId: processor.processorId,
+                effectActive: Boolean(processor.effectActive),
+                bypassed: Boolean(processor.bypassed),
+                soloed: Boolean(processor.soloed)
+            })),
             banks: instance.banks.map((bank) => {
                 let bankId = Number(bank.bankId);
                 return {
@@ -211,6 +229,12 @@ class BankManagerViewModel
                 local: String(instance.instanceId) === String(this.localInstanceId),
                 mute: Boolean(instance.mute),
                 solo: Boolean(instance.solo),
+                processors: (instance.processors || []).map((processor) => ({
+                    processorId: processor.processorId,
+                    effectActive: Boolean(processor.effectActive),
+                    bypassed: Boolean(processor.bypassed),
+                    soloed: Boolean(processor.soloed)
+                })),
                 banks: instance.banks.map((bank) => {
                     let bankId = Number(bank.bankId);
                     return {

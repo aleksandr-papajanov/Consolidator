@@ -1,4 +1,3 @@
-using System.Threading;
 using Consolidator.Managed.Core.Dsp;
 
 namespace Consolidator.Managed.Native;

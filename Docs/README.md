@@ -20,6 +20,7 @@
 | [`Testing.md`](Testing.md) | Философия тестов, уровни, сквозные use cases, структура suites и команды запуска. |
 | [`V8Migration.md`](V8Migration.md) | Инвентаризация Max JavaScript runtime и план перехода с `js`/`jsui` на `v8`/`v8ui`. |
 | [`MaxV8RuntimeDiagnostics.md`](MaxV8RuntimeDiagnostics.md) | Диагностика загрузки Max for Live UI: LiveAPI lifecycle, activity, protocol snapshots, host-only проверки и пересборка `.amxd`. |
+| [`ProcessorActivity.md`](ProcessorActivity.md) | Derived Managed processor activity status, registry deltas and processor B/S commands. |
 
 ## Правила работы с документацией
 

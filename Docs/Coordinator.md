@@ -85,10 +85,11 @@ observer chain documented in [StateHistory.md](StateHistory.md). DSP runtime,
 topology, peer constraints, audibility and protocol notifications are derived
 reactions; none is a second source of truth.
 
-The currently observed bank is transient routing metadata on each external's
-instance model; it is not a tree value and is never persisted or exposed as a
-`selected_bank` parameter. `observe_target` copies the target, bank and transient
-UI context into the derived
+The currently observed bank and UI snapshot context are transient coordination
+metadata on each external's instance. They are kept in `InstanceTransientState`,
+not in the state tree, and are never persisted or exposed as `StateValue`
+parameters. The focused bank is not a `selected_bank` parameter. `observe_target`
+copies the target, bank and transient UI context into the derived
 `TopologyIndex` used for routing notifications. Bank group membership is
 history-backed and observed by the same boundary.
 

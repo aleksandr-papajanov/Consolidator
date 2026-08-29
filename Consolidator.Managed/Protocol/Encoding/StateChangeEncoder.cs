@@ -1,6 +1,5 @@
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Messages;
-using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Protocol.Encoding;
 

@@ -1,7 +1,6 @@
 using Consolidator.Managed.Analyzer;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Dsp;
-using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.PerInstance;
 using Consolidator.Managed.Core.State;
@@ -9,7 +8,6 @@ using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Protocol.Notifications;
 using Consolidator.Managed.State;
-using Consolidator.Managed.State.Tree;
 
 namespace Consolidator.Managed.Core.Services.Instances;
 
@@ -27,6 +25,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private ulong _nextInstanceId;
     private readonly RegistryChangePublisher _registryChanges;
     private readonly FftAnalyzer _fftAnalyzer;
+    private readonly IProcessorStatusSink _processorStatusSink;
 
     internal InstanceRegistry(
         IManagedLogger logger,
@@ -37,7 +36,8 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         DspStateChangeTracker dspChanges,
         IOperationGate operationGate,
         RegistryChangePublisher registryChanges,
-        FftAnalyzer fftAnalyzer)
+        FftAnalyzer fftAnalyzer,
+        IProcessorStatusSink processorStatusSink)
     {
         _logger = logger;
         _stateRegistry = stateRegistry;
@@ -48,6 +48,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         _operationGate = operationGate;
         _registryChanges = registryChanges;
         _fftAnalyzer = fftAnalyzer;
+        _processorStatusSink = processorStatusSink;
     }
 
     public InstanceId RegisterInstance(
@@ -82,6 +83,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 state.Instance.Label.Value,
                 state.Instance.Mute.Value,
                 state.Instance.Solo.Value,
+                state.ProcessorActivity.Snapshot(),
                 state.Instance.Banks
                     .Select(bank => (
                         (int)bank.Id,
@@ -158,6 +160,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             {
                 if (_instances.TryGetValue(instanceId, out var instance))
                 {
+                    instance.State.ProcessorActivity.Refresh();
                     instance.PublishDspState();
                 }
             }
@@ -166,7 +169,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
 
     internal void PublishAnalyzerState(
         InstanceId instanceId,
-        UiSnapshotContext snapshotContext)
+        ProcessorId snapshotContext)
     {
         lock (_lock)
         {
@@ -189,7 +192,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 {
                     _fftAnalyzer.PublishEqualizerState(
                         instance.State,
-                        instance.State.SnapshotContext);
+                    instance.State.Transient.SnapshotContext);
                 }
             }
         }
@@ -211,6 +214,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 instance.State.Instance.Label.Value,
                 instance.State.Instance.Mute.Value,
                 instance.State.Instance.Solo.Value,
+                instance.State.ProcessorActivity.Snapshot(),
                 instance.State.Instance.Banks
                     .Select(bank => new RegistryBankSnapshot(
                         (int)bank.Id,
@@ -285,6 +289,9 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         try
         {
             var runtime = DspDefaults.CreateRuntime();
+            var transient = new InstanceTransientState(
+                instanceId,
+                _topologyObserver);
             var instance = new InstanceState(
                 instanceId,
                 _stateValueFactory,
@@ -296,9 +303,19 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 _stateValueFactory,
                 runtime,
                 _stateValueFactory.BankEffectStatusSink);
+            var processorActivity = new ProcessorActivityObserver(
+                instanceId,
+                dsp,
+                _processorStatusSink);
             var root = _stateRegistry.GetRoot(instanceId);
-            var state = new ManagedState(instance, dsp, runtime, root);
-            _topologyObserver.AddState(state.Instance);
+            var state = new ManagedState(
+                instance,
+                transient,
+                dsp,
+                processorActivity,
+                runtime,
+                root);
+            _topologyObserver.AddState(state.Instance, state.Transient);
             return state;
         }
         catch

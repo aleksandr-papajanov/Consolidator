@@ -25,7 +25,7 @@ internal sealed class CommandResponseEncoder
                 [Output(sourceInstanceId, "initialized", Header(sourceInstanceId, requestId)
                     .Concat([
                         Symbol(initialized.InstanceId.ToString()),
-                        Symbol(UiSnapshotContexts.Encode(initialized.SnapshotContext))
+                        Symbol(ProcessorIds.Encode(initialized.SnapshotContext))
                     ]).ToArray())],
             TargetStateSnapshotResult snapshot => EncodeSnapshot(sourceInstanceId, requestId, snapshot),
             RegistrySnapshotResult registry => EncodeRegistry(sourceInstanceId, requestId, registry),
@@ -51,7 +51,7 @@ internal sealed class CommandResponseEncoder
         atoms.AddRange(Header(target, requestId));
         atoms.Add(Symbol(snapshot.InstanceId.ToString()));
         atoms.Add(Integer(snapshot.BankId));
-        atoms.Add(Symbol(UiSnapshotContexts.Encode(snapshot.SnapshotContext)));
+        atoms.Add(Symbol(ProcessorIds.Encode(snapshot.SnapshotContext)));
         atoms.Add(Integer(snapshot.Values.Count));
         for (var index = 0; index < snapshot.Values.Count; index++)
         {
@@ -82,6 +82,15 @@ internal sealed class CommandResponseEncoder
             outputs.Add(Output(target, "registry_instance", Header(target, requestId)
                 .Concat([Symbol(instance.InstanceId.ToString()), Symbol(instance.Label),
                     Integer(instance.Mute ? 1 : 0), Integer(instance.Solo ? 1 : 0)]).ToArray()));
+            foreach (var processor in instance.Processors)
+            {
+                outputs.Add(Output(target, "registry_processor", Header(target, requestId)
+                    .Concat([Symbol(instance.InstanceId.ToString()),
+                        Symbol(ProcessorIds.Encode(processor.ProcessorId)),
+                        Integer(processor.EffectActive ? 1 : 0),
+                        Integer(processor.Bypassed ? 1 : 0),
+                        Integer(processor.Soloed ? 1 : 0)]).ToArray()));
+            }
             foreach (var bank in instance.Banks)
             {
                 outputs.Add(Output(target, "registry_bank", Header(target, requestId)

@@ -6,7 +6,6 @@ using System.Threading;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;

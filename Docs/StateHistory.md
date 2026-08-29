@@ -96,23 +96,26 @@ topology change alters a range without changing its value, Managed publishes a
 metadata-only `state_changed` entry with the current value and new range; it
 does not create history, registry, analyzer, or DSP work.
 
+For instance-owned processor controls, target snapshots calculate the
+effective range in the context of the bank selected by the requesting UI. The
+same focused-bank context remains active for the complete write or reset, so
+validation and peer mutation use the exact group presented to the editor.
+
 ## Peers and constraints
 
 `StatePeerObserver` is the materialized registry of observed values. Local
 values keep themselves as their only peer. Connected bank values are bucketed
 by value type, bank-relative `StatePath` and connected `BankAddress` values, so
 different bank indexes in one exact bank group still address corresponding
-state. Non-bank values are always local; group-scoped instance controls resolve
-their explicit target set in the command layer instead of entering the generic
-peer mechanism.
+state. Connected non-bank processor values remain instance-owned and use their
+exact path plus the current operation's focused bank to resolve the matching
+instances. An ungrouped or absent focused bank keeps the mutation local.
 
-Bank-relative values are indexed by their complete peer address. Registration,
-removal and topology refreshes therefore resolve only the members of each peer
-set; they never rescan every state value for every control. A separate
-per-instance value index limits a topology refresh to affected state trees, so
-loading another instance does not walk unrelated values owned by instances
-that are already running. Bank-owned peer sets are materialized only when
-instances or bank-group membership change. Focus changes do not rebuild peers.
+Bank-relative and instance-relative values are indexed by their complete peer
+address. Bank-owned peer sets are materialized when topology changes.
+Instance-owned contextual peer sets are cached only for requested focused-bank
+contexts and reused by snapshots, notifications and writes. Topology refreshes
+rebuild only cached sets whose membership can have changed.
 
 `CopyValue` writes the requested value to every peer. `ApplyDelta` writes the
 requested source value and applies the same delta to every peer. Delta mode is

@@ -1,5 +1,3 @@
-using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Observers;
 

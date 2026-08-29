@@ -87,10 +87,10 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
 
     internal void PublishEqualizerState(
         ManagedState state,
-        UiSnapshotContext snapshotContext)
+        ProcessorId processorId)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (snapshotContext != UiSnapshotContext.Equalizer)
+        if (processorId != ProcessorId.Equalizer)
         {
             return;
         }

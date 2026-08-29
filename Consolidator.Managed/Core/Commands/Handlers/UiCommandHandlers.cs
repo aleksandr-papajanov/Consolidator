@@ -33,7 +33,7 @@ internal sealed class InitializeUiCommandHandler
         return ValueTask.FromResult(
             new UiInitializationResult(
                 context.InstanceId.Value,
-                context.State.SnapshotContext));
+                context.State.Transient.SnapshotContext));
     }
 }
 
@@ -66,11 +66,11 @@ internal sealed class ObserveTargetCommandHandler
             throw new ArgumentOutOfRangeException(nameof(command.BankId));
         }
 
-        context.State.Instance.FocusedBank = new BankAddress(
+        context.State.Transient.FocusedBank = new BankAddress(
             command.TargetInstanceId,
             (int)command.BankId);
-        context.State.SnapshotContext = command.SnapshotContext;
-        if (command.SnapshotContext == UiSnapshotContext.Equalizer)
+        context.State.Transient.SnapshotContext = command.SnapshotContext;
+        if (command.SnapshotContext == ProcessorId.Equalizer)
         {
             _registry.PublishAnalyzerState(
                 command.TargetInstanceId,

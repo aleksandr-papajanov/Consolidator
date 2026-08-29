@@ -1,11 +1,12 @@
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Protocol.Notifications;
 
-internal sealed class RegistryChangePublisher : IBankEffectStatusSink
+internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcessorStatusSink
 {
     private readonly IPresentationTransport _transport;
     private readonly IProtocolOutputRegistry _outputs;
@@ -40,6 +41,7 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink
         string label,
         bool mute,
         bool solo,
+        IReadOnlyList<ProcessorStatus> processors,
         IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive)> banks)
     {
         var payload = new List<Atom>(5 + banks.Count * 3)
@@ -48,8 +50,16 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink
             Symbol(label),
             Integer(mute ? 1 : 0),
             Integer(solo ? 1 : 0),
-            Integer(banks.Count)
+            Integer(processors.Count)
         };
+        foreach (var processor in processors)
+        {
+            payload.Add(Symbol(ProcessorIds.Encode(processor.ProcessorId)));
+            payload.Add(Integer(processor.EffectActive ? 1 : 0));
+            payload.Add(Integer(processor.Bypassed ? 1 : 0));
+            payload.Add(Integer(processor.Soloed ? 1 : 0));
+        }
+        payload.Add(Integer(banks.Count));
         foreach (var bank in banks)
         {
             payload.Add(Integer(bank.BankId));
@@ -89,6 +99,15 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink
             Symbol(instanceId.Value.ToString()),
             Integer(bankId),
             Integer(effectActive ? 1 : 0));
+
+    public void ProcessorStatusChanged(InstanceId instanceId, ProcessorStatus status) =>
+        Publish(
+            "registry_processor_changed",
+            Symbol(instanceId.Value.ToString()),
+            Symbol(ProcessorIds.Encode(status.ProcessorId)),
+            Integer(status.EffectActive ? 1 : 0),
+            Integer(status.Bypassed ? 1 : 0),
+            Integer(status.Soloed ? 1 : 0));
 
     public void Publish(string selector, params Atom[] payload)
     {

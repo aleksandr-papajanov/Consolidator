@@ -18,7 +18,7 @@ internal sealed class TargetStateProjector
     public TargetStateSnapshotResult Project(
         ManagedState state,
         BankId bankId,
-        UiSnapshotContext snapshotContext)
+        ProcessorId snapshotContext)
     {
         ArgumentNullException.ThrowIfNull(state);
 
@@ -42,7 +42,7 @@ internal sealed class TargetStateProjector
         StateNode node,
         StatePath path,
         BankId bankId,
-        UiSnapshotContext snapshotContext,
+        ProcessorId snapshotContext,
         ICollection<TargetStateValue> values)
     {
         foreach (var child in node.Children.Values)
@@ -66,14 +66,16 @@ internal sealed class TargetStateProjector
                 childPath,
                 reader.Value,
                 metadata.PhysicalRange,
-                metadata.EffectiveRange));
+                metadata.GetEffectiveRange(new BankAddress(
+                    instanceId,
+                    (int)bankId))));
         }
     }
 
     private static bool ShouldInclude(
         StatePath path,
         BankId bankId,
-        UiSnapshotContext snapshotContext)
+        ProcessorId snapshotContext)
     {
         if (path.Nodes.Count == 1 && path.Nodes[0] == StateNodeIds.Dsp)
         {
@@ -86,11 +88,11 @@ internal sealed class TargetStateProjector
 
         var expectedDevice = snapshotContext switch
         {
-            UiSnapshotContext.Input => StateNodeIds.InputGain,
-            UiSnapshotContext.Saturator => StateNodeIds.Saturator,
-            UiSnapshotContext.Compressor => StateNodeIds.Compressor,
-            UiSnapshotContext.Equalizer => StateNodeIds.Equalizer,
-            UiSnapshotContext.Output => StateNodeIds.OutputGain,
+            ProcessorId.Input => StateNodeIds.InputGain,
+            ProcessorId.Saturator => StateNodeIds.Saturator,
+            ProcessorId.Compressor => StateNodeIds.Compressor,
+            ProcessorId.Equalizer => StateNodeIds.Equalizer,
+            ProcessorId.Output => StateNodeIds.OutputGain,
             _ => throw new ArgumentOutOfRangeException(nameof(snapshotContext))
         };
         if (path.Nodes[1] != expectedDevice)

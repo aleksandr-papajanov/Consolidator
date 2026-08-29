@@ -5,12 +5,12 @@ namespace Consolidator.Managed.Core.Commands.Results;
 
 public sealed record UiInitializationResult(
     ulong InstanceId,
-    UiSnapshotContext SnapshotContext);
+    ProcessorId SnapshotContext);
 
 public sealed record TargetStateSnapshotResult(
     ulong InstanceId,
     int BankId,
-    UiSnapshotContext SnapshotContext,
+    ProcessorId SnapshotContext,
     IReadOnlyList<TargetStateValue> Values);
 
 public sealed record TargetStateValue(

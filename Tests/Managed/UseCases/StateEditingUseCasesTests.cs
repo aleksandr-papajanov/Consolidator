@@ -68,8 +68,9 @@ public sealed class StateEditingUseCasesTests
         Assert.Equal(6.0F, instance.Dsp.Latest.Gain);
         Assert.True(instance.Dsp.PublishCount > initialPublishCount);
         Assert.Equal(1, instance.Output.Single("action_done").Atoms[^1].Integer);
-        var change = instance.Output.Messages
-            .Last(message => message.Selector == "state_changed" &&
+        var change = Assert.Single(
+            instance.Output.Messages,
+            message => message.Selector == "state_changed" &&
                 message.Atoms[1].Symbol == "input_gain.gain");
         Assert.Equal("input_gain.gain", change.Atoms[1].Symbol);
         Assert.Equal(6.0, change.Atoms[2].Float);
@@ -226,13 +227,15 @@ public sealed class StateEditingUseCasesTests
             Float(-18.0));
 
         Assert.True(SpinWait.SpinUntil(
-            () => first.Dsp.PublishCount > firstPublishCount,
+            () => first.Dsp.PublishCount > firstPublishCount &&
+                second.Dsp.PublishCount > secondPublishCount,
             TimeSpan.FromSeconds(1)));
         Assert.Equal(-18.0F, first.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(-18.0F, second.Dsp.Latest.CompressorThresholdDb);
     }
 
     [Fact]
-    public void AddingPeerDoesNotPublishAStateChangeToExistingControl()
+    public void AddingAndRemovingPeerPublishChangedEffectiveRangeToExistingControl()
     {
         using var application = new ManagedApplicationFixture();
         var first = application.RegisterInstance();
@@ -258,9 +261,13 @@ public sealed class StateEditingUseCasesTests
 
         var second = application.RegisterInstance();
 
-        Assert.DoesNotContain(
+        var rangeChange = Assert.Single(
             first.Output.Messages,
-            message => message.Selector == "state_changed");
+            message => message.Selector == "state_changed" &&
+                message.Atoms[1].Symbol == "compressor.threshold");
+        Assert.Equal(-1.0, rangeChange.Atoms[2].Float);
+        Assert.Equal(-97.0, rangeChange.Atoms[6].Float);
+        Assert.Equal(0.0, rangeChange.Atoms[7].Float);
 
         second.Output.Clear();
         application.Send(
@@ -274,8 +281,19 @@ public sealed class StateEditingUseCasesTests
             message => message.Selector == "target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)threshold.Atoms[6].Integer)
             .Single(index => threshold.Atoms[7 + index * 6].Symbol == "compressor.threshold");
-        Assert.Equal(-120.0, threshold.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(-97.0, threshold.Atoms[11 + thresholdIndex * 6].Float);
         Assert.Equal(0.0, threshold.Atoms[12 + thresholdIndex * 6].Float);
+
+        first.Output.Clear();
+        application.UnregisterInstance(second);
+
+        var restoredRange = Assert.Single(
+            first.Output.Messages,
+            message => message.Selector == "state_changed" &&
+                message.Atoms[1].Symbol == "compressor.threshold");
+        Assert.Equal(-1.0, restoredRange.Atoms[2].Float);
+        Assert.Equal(-120.0, restoredRange.Atoms[6].Float);
+        Assert.Equal(0.0, restoredRange.Atoms[7].Float);
     }
 
     [Fact]
@@ -320,7 +338,7 @@ public sealed class StateEditingUseCasesTests
             message => message.Selector == "target_state_snapshot" &&
                 Enumerable.Range(0, (int)message.Atoms[6].Integer).Any(index =>
                     message.Atoms[7 + index * 6].Symbol == "compressor.threshold" &&
-                    message.Atoms[11 + index * 6].Float == -120.0 &&
+                    message.Atoms[11 + index * 6].Float == -97.0 &&
                     message.Atoms[12 + index * 6].Float == 0.0));
     }
 
@@ -364,7 +382,7 @@ public sealed class StateEditingUseCasesTests
         var localChanges = localObserver.Output.Messages
             .Where(message => message.Selector == "state_changed")
             .ToArray();
-        Assert.Equal(2, localChanges.Length);
+        Assert.Single(localChanges);
         var localChange = localChanges[0];
         Assert.DoesNotContain(
             target.Output.Messages,
@@ -384,7 +402,7 @@ public sealed class StateEditingUseCasesTests
         var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
             .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
                 "compressor.threshold");
-        Assert.Equal(-120.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(-97.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
         Assert.Equal(0.0, snapshot.Atoms[12 + thresholdIndex * 6].Float);
     }
 
@@ -468,7 +486,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("frequency"));
 
-        Assert.Equal(1000.0, second.Output.Single("state_done").Atoms[^1].Float);
+        Assert.Equal(2000.0, second.Output.Single("state_done").Atoms[^1].Float);
     }
 
     [Fact]
@@ -614,14 +632,17 @@ public sealed class StateEditingUseCasesTests
                 Float(finalValue));
         }
         Assert.True(SpinWait.SpinUntil(
-            () => editor.Dsp.Latest.Gain == (float)finalValue,
+            () => instances.All(instance =>
+                instance.Dsp.Latest.Gain == (float)finalValue),
             TimeSpan.FromSeconds(5)),
-            "The final gesture value did not reach the targeted DSP snapshot.");
+            "The final gesture value did not reach every DSP snapshot.");
         startedAt.Stop();
 
         _output.WriteLine(
             $"40-instance input-gain gesture latency: {startedAt.Elapsed.TotalMilliseconds:F3} ms");
-        Assert.Equal((float)finalValue, editor.Dsp.Latest.Gain);
+        Assert.All(
+            instances,
+            instance => Assert.Equal((float)finalValue, instance.Dsp.Latest.Gain));
         Assert.DoesNotContain(
             editor.Output.Messages,
             message => message.Selector == "action_done");

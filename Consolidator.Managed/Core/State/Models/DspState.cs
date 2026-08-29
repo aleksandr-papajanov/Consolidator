@@ -63,8 +63,8 @@ public sealed class DspState
             value => runtime.OutputGain = value,
             value =>
             {
-                runtime.OutputGainBypass = value;
-                runtime.OutputGainActive = !value;
+            runtime.OutputGainBypass = value;
+            runtime.OutputGainActive = !value;
             });
     }
 
@@ -74,6 +74,7 @@ public sealed class DspState
     public EqualizerState Equalizer { get; }
     public EqualizerBankState[] EqualizerBanks { get; }
     public GainState OutputGain { get; }
+
 
 }
 

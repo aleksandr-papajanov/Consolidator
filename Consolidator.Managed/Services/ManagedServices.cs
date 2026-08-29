@@ -11,7 +11,6 @@ using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Native;
@@ -92,6 +91,8 @@ public static class ManagedServices
         services.AddSingleton<RegistryChangePublisher>();
         services.AddSingleton<IBankEffectStatusSink>(serviceProvider =>
             serviceProvider.GetRequiredService<RegistryChangePublisher>());
+        services.AddSingleton<IProcessorStatusSink>(serviceProvider =>
+            serviceProvider.GetRequiredService<RegistryChangePublisher>());
         services.AddSingleton<IStateChangeSink>(serviceProvider =>
             serviceProvider.GetRequiredService<StateChangePublisher>());
         services.AddSingleton<StatePeerObserver>();
@@ -118,7 +119,8 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<IOperationGate>(),
                 serviceProvider.GetRequiredService<RegistryChangePublisher>(),
-                serviceProvider.GetRequiredService<FftAnalyzer>()));
+                serviceProvider.GetRequiredService<FftAnalyzer>(),
+                serviceProvider.GetRequiredService<IProcessorStatusSink>()));
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
         services.AddSingleton<IStateWritePolicy, BankGroupWritePolicy>();
         services.AddSingleton<IStateWritePolicy, InstanceControlWritePolicy>();
@@ -133,6 +135,8 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, SetInstanceActiveCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceMuteCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceSoloCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetProcessorSoloCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -147,6 +151,8 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, SetInstanceActiveInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceMuteInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceSoloInputCodec>();
+        services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
+        services.AddSingleton<IInputCodec, SetProcessorSoloInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -164,6 +170,12 @@ public static class ManagedServices
         services.AddCommandEndpoint<SetInstanceSoloCommand, StateWriteStatus>(
             "set_instance_solo",
             "action_done");
+        services.AddCommandEndpoint<SetProcessorBypassCommand, StateWriteStatus>(
+            "set_processor_bypass",
+            "action_done");
+        services.AddCommandEndpoint<SetProcessorSoloCommand, StateWriteStatus>(
+            "set_processor_solo",
+            "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>
             new CommandExecutor(
@@ -175,7 +187,8 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
                 serviceProvider.GetRequiredService<TopologyIndex>(),
                 serviceProvider.GetRequiredService<CommandExecutor>(),
-                serviceProvider.GetRequiredService<IOperationGate>()));
+                serviceProvider.GetRequiredService<IOperationGate>(),
+                serviceProvider.GetRequiredService<StatePeerObserver>()));
         services.AddSingleton<CommandDecoder>();
         services.AddSingleton<ProtocolService>(serviceProvider =>
             new ProtocolService(

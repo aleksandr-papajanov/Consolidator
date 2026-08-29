@@ -287,8 +287,9 @@ no second broadcast-write path in the command executor. Each target instance has
 its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
-`ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute` and
-`set_instance_solo` as explicit Max messages. It forwards their encoded target
+`ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute`,
+`set_instance_solo`, `set_processor_bypass` and `set_processor_solo` as
+explicit Max messages. It forwards their encoded target
 unchanged: instance scope carries only the target instance, while group scope
 also carries the selected bank. Solo additionally carries exclusive or
 additive selection mode. Exact group resolution and all instance-state

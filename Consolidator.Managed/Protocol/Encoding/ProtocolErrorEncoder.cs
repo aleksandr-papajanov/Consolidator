@@ -1,5 +1,4 @@
 using Consolidator.Managed.Protocol.Messages;
-using Consolidator.Managed.Protocol;
 
 namespace Consolidator.Managed.Protocol.Encoding;
 

@@ -20,6 +20,8 @@ class RegistryClient
         protocol.on("registry_label_changed", this.handleDelta.bind(this, "registry_label_changed"));
         protocol.on("registry_instance_mute_changed", this.handleDelta.bind(this, "registry_instance_mute_changed"));
         protocol.on("registry_instance_solo_changed", this.handleDelta.bind(this, "registry_instance_solo_changed"));
+        protocol.on("registry_processor", this.handleProcessor.bind(this));
+        protocol.on("registry_processor_changed", this.handleDelta.bind(this, "registry_processor_changed"));
         protocol.on("registry_bank_group_changed", this.handleDelta.bind(this, "registry_bank_group_changed"));
         protocol.on("registry_bank_effect_changed", this.handleDelta.bind(this, "registry_bank_effect_changed"));
         protocol.on("error", this.handleError.bind(this));
@@ -67,6 +69,8 @@ class RegistryClient
             this.applyInstanceBooleanChanged(args, "mute");
         } else if (selector === "registry_instance_solo_changed") {
             this.applyInstanceBooleanChanged(args, "solo");
+        } else if (selector === "registry_processor_changed") {
+            this.applyProcessorChanged(args);
         } else if (selector === "registry_bank_group_changed") {
             this.applyBankGroupChanged(args);
         } else if (selector === "registry_bank_effect_changed") {
@@ -86,11 +90,22 @@ class RegistryClient
             label: String(args[4]),
             mute: Number(args[5]) !== 0,
             solo: Number(args[6]) !== 0,
+            processors: [],
             banks: []
         };
-        let count = Number(args[7]);
+        let processorCount = Number(args[7]);
+        for (let index = 0; index < processorCount; index += 1) {
+            let position = 8 + index * 4;
+            instance.processors.push({
+                processorId: String(args[position]),
+                effectActive: Number(args[position + 1]) !== 0,
+                bypassed: Number(args[position + 2]) !== 0,
+                soloed: Number(args[position + 3]) !== 0
+            });
+        }
+        let count = Number(args[8 + processorCount * 4]);
         for (let index = 0; index < count; index += 1) {
-            let position = 8 + index * 3;
+            let position = 9 + processorCount * 4 + index * 3;
             instance.banks.push({
                 bankId: args[position],
                 groupId: args[position + 1] === "none" ? null : args[position + 1],
@@ -151,6 +166,22 @@ class RegistryClient
             if (String(instance.instanceId) !== instanceId) return;
             instance.banks.forEach((bank) => {
                 if (Number(bank.bankId) === bankId) bank.effectActive = effectActive;
+            });
+        });
+    }
+
+    applyProcessorChanged(args)
+    {
+        let instanceId = String(args[3]);
+        let processorId = String(args[4]);
+        this.snapshot.instances.forEach((instance) => {
+            if (String(instance.instanceId) !== instanceId) return;
+            instance.processors.forEach((processor) => {
+                if (processor.processorId === processorId) {
+                    processor.effectActive = Number(args[5]) !== 0;
+                    processor.bypassed = Number(args[6]) !== 0;
+                    processor.soloed = Number(args[7]) !== 0;
+                }
             });
         });
     }
@@ -216,12 +247,27 @@ class RegistryClient
             label: String(args[4]),
             mute: Number(args[5]) !== 0,
             solo: Number(args[6]) !== 0,
+            processors: [],
             banks: []
         };
         response.instances.push(instance);
         response.instancesById[String(instance.instanceId)] = instance;
     }
     
+    handleProcessor(args)
+    {
+        let response = this.responses[String(args[2])];
+        if (!response) return;
+        let instance = response.instancesById[String(args[3])];
+        if (!instance) return;
+        instance.processors.push({
+            processorId: String(args[4]),
+            effectActive: Number(args[5]) !== 0,
+            bypassed: Number(args[6]) !== 0,
+            soloed: Number(args[7]) !== 0
+        });
+    }
+
     handleBank(args)
     {
         let response = this.responses[String(args[2])];

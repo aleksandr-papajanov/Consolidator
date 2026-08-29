@@ -83,6 +83,12 @@ function testRegistrySnapshotRoundTrip() {
     "7",
     "Kick",
   ]);
+  client.handleControl("registry_processor", [
+    1, "ui.main", "1", "7", "input", 1, 0, 0,
+  ]);
+  client.handleControl("registry_processor", [
+    1, "ui.main", "1", "7", "equalizer", 1, 0, 1,
+  ]);
   client.handleControl("registry_bank", [1, "ui.main", "1", "7", 1, "none"]);
   client.handleControl("registry_bank", [1, "ui.main", "1", "7", 2, 0]);
   client.handleControl("registry_group", [1, "ui.main", "1", 0]);
@@ -91,7 +97,38 @@ function testRegistrySnapshotRoundTrip() {
 
   assert.strictEqual(client.registry.get().revision, 20);
   assert.strictEqual(client.registry.get().instances[0].banks[1].groupId, 0);
+  assert.strictEqual(client.registry.get().instances[0].processors[1].soloed, true);
   assert.strictEqual(snapshots.length, 1);
+}
+
+function testRegistryProcessorDeltaPatchesOneRow() {
+  var protocol = new NativeProtocolClient("ui.main", function () {});
+  var registry = new RegistryClient(protocol);
+  registry.snapshot = {
+    revision: 4,
+    instances: [{
+      instanceId: "1",
+      label: "One",
+      processors: [{
+        processorId: "saturator",
+        effectActive: false,
+        bypassed: true,
+        soloed: false,
+      }],
+      banks: [],
+    }],
+    groups: [],
+  };
+  var viewModel = new BankManagerViewModel(registry, "1");
+  viewModel.applyRegistrySnapshot(registry.snapshot);
+  viewModel.applyRegistryUpdate(registry.snapshot, {
+    selector: "registry_processor_changed",
+    args: [1, 4, 5, "1", "saturator", 1, 0, 1],
+  });
+  assert.strictEqual(viewModel.rows[0].processors[0].effectActive, true);
+  assert.strictEqual(viewModel.rows[0].processors[0].bypassed, false);
+  assert.strictEqual(viewModel.rows[0].processors[0].soloed, true);
+  viewModel.destroy();
 }
 function testRegistryDeltaDuringFetchIsRetained() {
   var sent = [];
@@ -407,6 +444,16 @@ function testBankManagerControllerSendsExplicitInstanceAndGroupControls() {
     ["set_instance_solo", ["remote", "group", 5, 1, "additive"]],
   ]);
 }
+
+function testBankManagerControllerSendsProcessorControls() {
+  var fixture = makeBankManagerControllerFixture();
+  fixture.controller.handleIntent("processorBypassChanged", ["remote", "compressor", 1, 0]);
+  fixture.controller.handleIntent("processorSoloChanged", ["remote", "equalizer", 1, 1, 1]);
+  assert.deepStrictEqual(fixture.calls.requests, [
+    ["set_processor_bypass", ["compressor", "remote", "instance", 1]],
+    ["set_processor_solo", ["equalizer", "remote", "group", 5, 1, "additive"]],
+  ]);
+}
 function testBankManagerShiftExtendsGroupingSelection() {
   var protocol = new NativeProtocolClient("ui.main", function () {});
   var registry = new RegistryClient(protocol);
@@ -499,6 +546,7 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
   controller.destroy();
 }
 testRegistrySnapshotRoundTrip();
+testRegistryProcessorDeltaPatchesOneRow();
 testRegistryDeltaDuringFetchIsRetained();
 testRegistryDoesNotPublishStaleSnapshotOverLabelDelta();
 testRegistryDeltaFetchesWhenIdle();
@@ -515,6 +563,7 @@ testBankManagerKeepsOneFocusedBankAcrossInstances();
 testBankManagerControllerLocalAndRemoteSelection();
 testBankManagerControllerShiftOnlyTogglesSelection();
 testBankManagerControllerSendsExplicitInstanceAndGroupControls();
+testBankManagerControllerSendsProcessorControls();
 testBankManagerShiftExtendsGroupingSelection();
 testBankManagerControllerClearRequiresConfirmation();
 testBankManagerWritesSelectedGroupsForEveryInstance();

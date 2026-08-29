@@ -42,11 +42,14 @@ public sealed class StateValueFactory
         params IStateValueObserver<TValue>[] observers)
     {
         ValidatePath(path);
+        var scope = path.Nodes[0] == StateNodeIds.Instance
+            ? StateValueEditScope.Local
+            : StateValueEditScope.BankGroup;
         return Create(
             instanceId,
             path,
             initialValue,
-            StateValueEditScope.Local,
+            scope,
             editMode,
             physicalRange,
             StateValueOwnership.InstanceOwned,

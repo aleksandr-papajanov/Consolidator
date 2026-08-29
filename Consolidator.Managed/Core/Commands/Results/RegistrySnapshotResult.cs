@@ -1,3 +1,5 @@
+using Consolidator.Managed.Core.State;
+
 namespace Consolidator.Managed.Core.Commands.Results;
 
 public sealed record RegistrySnapshotResult(
@@ -10,6 +12,7 @@ public sealed record RegistryInstanceSnapshot(
     string Label,
     bool Mute,
     bool Solo,
+    IReadOnlyList<ProcessorStatus> Processors,
     IReadOnlyList<RegistryBankSnapshot> Banks);
 
 public sealed record RegistryBankSnapshot(

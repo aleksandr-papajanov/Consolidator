@@ -1,4 +1,3 @@
-using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
@@ -61,7 +60,9 @@ public sealed class CommandExecutor
         var stateChanged = command is ResetStateCommand ||
             (command is WriteStateCommand ||
                 command is SetInstanceMuteCommand ||
-                command is SetInstanceSoloCommand) &&
+                command is SetInstanceSoloCommand ||
+                command is SetProcessorBypassCommand ||
+                command is SetProcessorSoloCommand) &&
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {

@@ -45,13 +45,16 @@ internal sealed class StateChangePublisher : IStateChangeSink
             var targets = _router.ResolveTargets(change);
             var bank = _topology.ResolveBankAddress(change.InstanceId, change.Path);
             var metadata = _metadata.Get(change.InstanceId, change.Path);
-            if (targets.Count > 0)
+            foreach (var targetGroup in targets.GroupBy(targetId =>
+                metadata.GetEffectiveRange(
+                    _topology.ResolveFocusedBankAddress(
+                        new InstanceId(targetId)))))
             {
                 _transport.Send(StateChangeEncoder.Encode(
                     change,
-                    targets,
+                    targetGroup.ToArray(),
                     metadata,
-                    metadata.EffectiveRange,
+                    targetGroup.Key,
                     bank?.BankIndex));
             }
             if (change.IsValueChange &&

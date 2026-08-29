@@ -12,6 +12,10 @@ function panelDebug(message) {
     if (typeof post === "function") post("[panel-debug] control " + message + "\\n");
 }
 
+function processorIdSupportsSolo(processorId) {
+    return processorId !== "input" && processorId !== "output";
+}
+
 const BankManagerControlOptions = {
     background: [0.08, 0.08, 0.08, 1],
     text: [0.8, 0.8, 0.8, 1],
@@ -26,12 +30,18 @@ const BankManagerControlOptions = {
     bankSize: 16,
     bankGap: 0,
     deviceColumnGap: 5,
+    processorMarkerSize: 7,
+    processorMarkerGap: 2,
+    processorMarkerX: 82,
     actionPanelHeight: 18,
     historyPanelHeight: 18,
     outerPadding: 4,
     sectionGap: 3,
     actionGap: 3,
-    panelNavigationWidth: 32,
+    panelNavigationWidth: 48,
+    panelDeviceWidth: 32,
+    panelBypassWidth: 16,
+    panelSoloWidth: 16,
     panelNavigationGap: 6,
     panelButtonHeight: 32,
     panelButtonGap: 0,
@@ -339,6 +349,8 @@ class BankManagerControl
             mgraphics.move_to(2, y + 12);
             mgraphics.show_text(row.label);
 
+            this.paintProcessorMarkers(row, y);
+
             for (let bankIndex = 0; bankIndex < row.banks.length; bankIndex += 1) {
                 this.paintBank(
                     row.banks[bankIndex],
@@ -381,26 +393,30 @@ class BankManagerControl
             let y = index * (BankManagerControlOptions.panelButtonHeight +
                 BankManagerControlOptions.panelButtonGap);
             let active = panelKeys[index] === selected;
+            let processor = (this.presentation.rows || []).filter((row) => row.local)[0];
+            let status = processor && (processor.processors || []).filter((item) => {
+                return item.processorId === panelKeys[index];
+            })[0];
             let color = BankManagerControlOptions.panelButtonColors[index];
             mgraphics.set_source_rgba.apply(mgraphics,
                 active ? color : BankManagerControlOptions.background);
             mgraphics.rectangle(x, y,
-                BankManagerControlOptions.panelNavigationWidth,
+                BankManagerControlOptions.panelDeviceWidth,
                 BankManagerControlOptions.panelButtonHeight);
             mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics,
                 color);
             mgraphics.rectangle(x, y,
-                BankManagerControlOptions.panelNavigationWidth,
+                BankManagerControlOptions.panelDeviceWidth,
                 1);
             mgraphics.fill();
             mgraphics.rectangle(x, y + BankManagerControlOptions.panelButtonHeight - 1,
-                BankManagerControlOptions.panelNavigationWidth, 1);
+                BankManagerControlOptions.panelDeviceWidth, 1);
             mgraphics.fill();
             mgraphics.rectangle(x, y, 1,
                 BankManagerControlOptions.panelButtonHeight);
             mgraphics.fill();
-            mgraphics.rectangle(x + BankManagerControlOptions.panelNavigationWidth - 1,
+            mgraphics.rectangle(x + BankManagerControlOptions.panelDeviceWidth - 1,
                 y, 1, BankManagerControlOptions.panelButtonHeight);
             mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics,
@@ -410,12 +426,74 @@ class BankManagerControl
             mgraphics.set_font_size(9);
             let textSize = mgraphics.text_measure(label);
             let fontExtents = mgraphics.font_extents();
-            mgraphics.move_to(x + (BankManagerControlOptions.panelNavigationWidth -
+            mgraphics.move_to(x + (BankManagerControlOptions.panelDeviceWidth -
                 textSize[0]) / 2,
                 y + (BankManagerControlOptions.panelButtonHeight - fontExtents[2]) / 2 +
                     fontExtents[0]);
             mgraphics.show_text(label);
+            let controlX = x + BankManagerControlOptions.panelDeviceWidth;
+            let controlHalf = BankManagerControlOptions.panelButtonHeight / 2;
+            let bypassActive = status && status.bypassed;
+            let soloActive = processorIdSupportsSolo(panelKeys[index]) &&
+                status && status.soloed;
+            [
+                { label: "B", active: bypassActive, enabled: Boolean(status) },
+                { label: "S", active: soloActive,
+                    enabled: processorIdSupportsSolo(panelKeys[index]) && Boolean(status) }
+            ].forEach((button, buttonIndex) => {
+                let buttonY = y + buttonIndex * controlHalf;
+                mgraphics.set_source_rgba.apply(mgraphics,
+                    button.enabled && button.active
+                        ? color : BankManagerControlOptions.background);
+                mgraphics.rectangle(controlX, buttonY,
+                    BankManagerControlOptions.panelBypassWidth, controlHalf);
+                mgraphics.fill();
+                mgraphics.set_source_rgba.apply(mgraphics,
+                    button.enabled
+                        ? button.active ? BankManagerControlOptions.background :
+                            BankManagerControlOptions.separator
+                        : BankManagerControlOptions.disabled);
+                mgraphics.select_font_face("Arial");
+                mgraphics.set_font_size(8);
+                let buttonTextSize = mgraphics.text_measure(button.label);
+                let buttonFontExtents = mgraphics.font_extents();
+                mgraphics.move_to(controlX + (BankManagerControlOptions.panelBypassWidth -
+                    buttonTextSize[0]) / 2,
+                    buttonY + (controlHalf - buttonFontExtents[2]) / 2 +
+                        buttonFontExtents[0]);
+                mgraphics.show_text(button.label);
+            });
+            mgraphics.set_source_rgba.apply(mgraphics,
+                status && status.effectActive
+                    ? color : BankManagerControlOptions.disabled);
+            mgraphics.rectangle(x + 2, y + 2, 3, 3);
+            mgraphics.fill();
         });
+    }
+
+    paintProcessorMarkers(row, y)
+    {
+        let processorIds = ["input", "saturator", "compressor", "equalizer", "output"];
+        processorIds.forEach((processorId, index) => {
+            let processor = (row.processors || []).filter((candidate) => {
+                return candidate.processorId === processorId;
+            })[0] || { effectActive: false };
+            let x = this.processorMarkerX(index);
+            let color = BankManagerControlOptions.panelButtonColors[index];
+            mgraphics.set_source_rgba.apply(mgraphics,
+                processor.effectActive ? color : BankManagerControlOptions.disabled);
+            mgraphics.rectangle(x, y + 5,
+                BankManagerControlOptions.processorMarkerSize,
+                BankManagerControlOptions.processorMarkerSize);
+            mgraphics.fill();
+        });
+    }
+
+    processorMarkerX(index)
+    {
+        return BankManagerControlOptions.processorMarkerX + index *
+            (BankManagerControlOptions.processorMarkerSize +
+                BankManagerControlOptions.processorMarkerGap);
     }
 
     panelAt(x, y)
@@ -429,6 +507,39 @@ class BankManagerControl
         let index = Math.floor(y / (BankManagerControlOptions.panelButtonHeight +
             BankManagerControlOptions.panelButtonGap));
         return ["input", "saturator", "compressor", "equalizer", "output"][index] || null;
+    }
+
+    panelControlAt(x, y)
+    {
+        let navigationX = this.primaryWidth() +
+            BankManagerControlOptions.panelNavigationGap;
+        if (x < navigationX || x >= navigationX +
+                BankManagerControlOptions.panelNavigationWidth) return null;
+        let index = Math.floor(y / (BankManagerControlOptions.panelButtonHeight +
+            BankManagerControlOptions.panelButtonGap));
+        if (index < 0 || index >= 5) return null;
+        let localRow = (this.presentation.rows || []).filter((row) => row.local)[0];
+        if (!localRow) return null;
+        let processorId = ["input", "saturator", "compressor", "equalizer", "output"][index];
+        let status = (localRow.processors || []).filter((item) => {
+            return item.processorId === processorId;
+        })[0];
+        let relativeX = x - navigationX;
+        let relativeY = y % (BankManagerControlOptions.panelButtonHeight +
+            BankManagerControlOptions.panelButtonGap);
+        if (relativeX >= BankManagerControlOptions.panelDeviceWidth &&
+                relativeX < BankManagerControlOptions.panelDeviceWidth +
+                    BankManagerControlOptions.panelBypassWidth &&
+                relativeY < BankManagerControlOptions.panelButtonHeight / 2) {
+            return { type: "bypass", processorId: processorId,
+                value: !(status && status.bypassed) };
+        }
+        if (relativeX >= BankManagerControlOptions.panelDeviceWidth &&
+                relativeY >= BankManagerControlOptions.panelButtonHeight / 2) {
+            return { type: "solo", processorId: processorId,
+                value: !(status && status.soloed) };
+        }
+        return null;
     }
 
     paintBankGrid(rows, offset)
@@ -707,6 +818,30 @@ class BankManagerControl
         }
 
         let panel = this.panelAt(x, y);
+        let panelControl = this.panelControlAt(x, y);
+        panelDebug("select x=" + x + " y=" + y + " panel=" + panel +
+            " control=" + (panelControl ? panelControl.type + "/" +
+                panelControl.processorId : "none") + " group=" + groupControl);
+        if (panelControl) {
+            if (panelControl.type === "bypass") {
+                this.emit("processorBypassChanged", [
+                    (this.presentation.rows || []).filter((row) => row.local)[0].instanceId,
+                    panelControl.processorId,
+                    panelControl.value ? 1 : 0,
+                    groupControl ? 1 : 0
+                ]);
+            } else if (panelControl.processorId !== "input" &&
+                    panelControl.processorId !== "output") {
+                this.emit("processorSoloChanged", [
+                    (this.presentation.rows || []).filter((row) => row.local)[0].instanceId,
+                    panelControl.processorId,
+                    panelControl.value ? 1 : 0,
+                    extendSelection ? 1 : 0,
+                    groupControl ? 1 : 0
+                ]);
+            }
+            return;
+        }
         if (panel) {
             panelDebug("click panel=" + panel);
             this.emit("panelSelected", [panel]);
@@ -940,8 +1075,29 @@ class BankManagerControl
             local: Number(local) !== 0,
             solo: Number(solo) !== 0,
             mute: Number(mute) !== 0,
+            processors: [],
             banks: []
         };
+    }
+
+    addProcessor(rowIndex,
+    processorId,
+    effectActive,
+    bypassed,
+    soloed)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+
+        let row = this.pendingPresentation.rows[Number(rowIndex)];
+        if (!row) return;
+        row.processors.push({
+            processorId: String(processorId),
+            effectActive: Number(effectActive) !== 0,
+            bypassed: Number(bypassed) !== 0,
+            soloed: Number(soloed) !== 0
+        });
     }
 
     addBank(rowIndex,
@@ -1103,6 +1259,28 @@ class BankManagerControl
         row.local = Number(local) !== 0;
         row.solo = Number(solo) !== 0;
         row.mute = Number(mute) !== 0;
+        if (!row.processors) row.processors = [];
+    }
+
+    patchProcessor(rowIndex,
+    processorId,
+    effectActive,
+    bypassed,
+    soloed)
+    {
+        let row = this.presentation.rows[Number(rowIndex)];
+        if (!row) return;
+        if (!row.processors) row.processors = [];
+        let processor = row.processors.filter((candidate) => {
+            return candidate.processorId === String(processorId);
+        })[0];
+        if (!processor) {
+            processor = { processorId: String(processorId) };
+            row.processors.push(processor);
+        }
+        processor.effectActive = Number(effectActive) !== 0;
+        processor.bypassed = Number(bypassed) !== 0;
+        processor.soloed = Number(soloed) !== 0;
     }
 
     removeRow(index)
@@ -1182,6 +1360,10 @@ function row(...args) {
     bankManagerControl.addRow(...args);
 }
 
+function processor(...args) {
+    bankManagerControl.addProcessor(...args);
+}
+
 function bank(...args) {
     bankManagerControl.addBank(...args);
 }
@@ -1218,6 +1400,10 @@ function presentation_patch_begin(enabled) {
 
 function row_patch(...args) {
     bankManagerControl.patchRow(...args);
+}
+
+function processor_patch(...args) {
+    bankManagerControl.patchProcessor(...args);
 }
 
 function row_remove(index) {

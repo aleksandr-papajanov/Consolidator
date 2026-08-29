@@ -12,7 +12,7 @@ internal sealed class StateValueMetadataRegistry
         InstanceId instanceId,
         StatePath path,
         FloatRange? physicalRange,
-        Func<FloatRange?> effectiveRange)
+        Func<BankAddress?, FloatRange?> effectiveRange)
     {
         return new MetadataObserver<TValue>(
             this,
@@ -36,7 +36,7 @@ internal sealed class StateValueMetadataRegistry
     private void Attach(
         StateValueAddress address,
         FloatRange? physicalRange,
-        Func<FloatRange?> effectiveRange)
+        Func<BankAddress?, FloatRange?> effectiveRange)
     {
         lock (_lock)
         {
@@ -63,13 +63,13 @@ internal sealed class StateValueMetadataRegistry
         private readonly StateValueMetadataRegistry _owner;
         private readonly StateValueAddress _address;
         private readonly FloatRange? _physicalRange;
-        private readonly Func<FloatRange?> _effectiveRange;
+        private readonly Func<BankAddress?, FloatRange?> _effectiveRange;
 
         public MetadataObserver(
             StateValueMetadataRegistry owner,
             StateValueAddress address,
             FloatRange? physicalRange,
-            Func<FloatRange?> effectiveRange)
+            Func<BankAddress?, FloatRange?> effectiveRange)
         {
             _owner = owner;
             _address = address;
@@ -98,11 +98,11 @@ internal sealed class StateValueMetadataRegistry
 
 internal sealed class StateValueMetadata
 {
-    private readonly Func<FloatRange?>? _effectiveRange;
+    private readonly Func<BankAddress?, FloatRange?>? _effectiveRange;
 
     public StateValueMetadata(
         FloatRange? physicalRange,
-        Func<FloatRange?>? effectiveRange)
+        Func<BankAddress?, FloatRange?>? effectiveRange)
     {
         PhysicalRange = physicalRange;
         _effectiveRange = effectiveRange;
@@ -110,5 +110,6 @@ internal sealed class StateValueMetadata
 
     public FloatRange? PhysicalRange { get; }
 
-    public FloatRange? EffectiveRange => _effectiveRange?.Invoke();
+    public FloatRange? GetEffectiveRange(BankAddress? focusedBank) =>
+        _effectiveRange?.Invoke(focusedBank);
 }

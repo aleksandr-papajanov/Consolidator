@@ -37,6 +37,7 @@ class BankManagerControlBinding extends ControlBinding
                 row.solo ? 1 : 0,
                 row.mute ? 1 : 0
             ]);
+            this.sendProcessors("processor", row, rowIndex);
             (row.banks || []).forEach((bank) => {
                 this.send("bank", [
                     rowIndex,
@@ -121,7 +122,10 @@ class BankManagerControlBinding extends ControlBinding
             if (row) {
                 this.sendRow("row_patch", row, rowIndex);
                 if (delta.selector === "registry_instance_added") {
+                    this.sendProcessors("processor_patch", row, rowIndex);
                     this.sendBanks("bank_patch", row, rowIndex);
+                } else if (delta.selector === "registry_processor_changed") {
+                    this.sendProcessors("processor_patch", row, rowIndex);
                 } else if (delta.selector === "registry_bank_group_changed" ||
                         delta.selector === "registry_bank_effect_changed") {
                     let bankId = Number(delta.args[4]);
@@ -193,6 +197,32 @@ class BankManagerControlBinding extends ControlBinding
             this.colorArguments(bank.color),
             this.colorArguments(bank.textColor)
         ));
+    }
+
+    sendProcessor(
+        selector,
+        processor,
+        rowIndex
+    )
+    {
+        this.send(selector, [
+            rowIndex,
+            processor.processorId,
+            processor.effectActive ? 1 : 0,
+            processor.bypassed ? 1 : 0,
+            processor.soloed ? 1 : 0
+        ]);
+    }
+
+    sendProcessors(
+        selector,
+        row,
+        rowIndex
+    )
+    {
+        (row.processors || []).forEach((processor) => {
+            this.sendProcessor(selector, processor, rowIndex);
+        });
     }
     
     sendBanks(

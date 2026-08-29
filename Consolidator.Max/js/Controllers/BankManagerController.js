@@ -248,6 +248,14 @@ class BankManagerController
                 Number(values[2]) !== 0
             );
             break;
+        case "processorBypassChanged":
+            this.setProcessorBypass(values[0], values[1], Number(values[2]) !== 0,
+                Number(values[3]) !== 0);
+            break;
+        case "processorSoloChanged":
+            this.setProcessorSolo(values[0], values[1], Number(values[2]) !== 0,
+                Number(values[3]) !== 0, Number(values[4]) !== 0);
+            break;
         }
     }
 
@@ -274,6 +282,30 @@ class BankManagerController
             "set_instance_mute",
             target.concat([value ? 1 : 0])
         );
+    }
+
+    setProcessorBypass(instanceId, processorId, value, groupControl)
+    {
+        let target = this.instanceControlTarget(instanceId, groupControl);
+        panelDebug("processor-bypass instance=" + instanceId + " processor=" +
+            processorId + " value=" + value + " group=" + groupControl +
+            " target=" + (target ? target.join("/") : "none"));
+        if (!target) return;
+        this.context.protocol.request("set_processor_bypass",
+            [processorId].concat(target, [value ? 1 : 0]));
+    }
+
+    setProcessorSolo(instanceId, processorId, value, additive, groupControl)
+    {
+        let target = this.instanceControlTarget(instanceId, groupControl);
+        panelDebug("processor-solo instance=" + instanceId + " processor=" +
+            processorId + " value=" + value + " additive=" + additive +
+            " group=" + groupControl + " target=" +
+            (target ? target.join("/") : "none"));
+        if (!target) return;
+        this.context.protocol.request("set_processor_solo",
+            [processorId].concat(target, [value ? 1 : 0,
+                additive ? "additive" : "exclusive"]));
     }
 
     setSolo(instanceId, value, additive, groupControl)

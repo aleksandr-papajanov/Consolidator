@@ -2,7 +2,6 @@ using System;
 using System.Runtime.InteropServices;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Native;
-using Consolidator.Managed.Protocol.Messages;
 using Xunit;
 
 namespace Consolidator.Managed.Tests.Contracts;

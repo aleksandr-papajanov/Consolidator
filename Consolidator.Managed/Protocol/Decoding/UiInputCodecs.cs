@@ -53,7 +53,7 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
             new ObserveTargetCommand(
                 new InstanceId(instanceId),
                 (BankId)atoms[header.Position + 1].Integer,
-                UiSnapshotContexts.Parse(atoms[header.Position + 2].Symbol)));
+                ProcessorIds.Parse(atoms[header.Position + 2].Symbol)));
     }
 }
 
@@ -138,6 +138,70 @@ internal sealed class SetInstanceSoloInputCodec : IInputCodec
                 target,
                 atoms[valuePosition].Integer == 1,
                 mode));
+    }
+}
+
+internal sealed class SetProcessorBypassInputCodec : IInputCodec
+{
+    public string Selector => "set_processor_bypass";
+
+    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
+    {
+        var processor = ProcessorControlInputCodecSupport.ReadProcessor(atoms, header);
+        var target = InstanceControlInputCodecSupport.ReadTarget(
+            atoms, header with { Position = header.Position + 1 }, out var valuePosition);
+        if (atoms.Length != valuePosition + 1 ||
+            atoms[valuePosition].Type != AtomType.Integer ||
+            atoms[valuePosition].Integer is < 0 or > 1)
+        {
+            throw new FormatException("Invalid set_processor_bypass frame.");
+        }
+
+        return CommandCodecSupport.Success(header, new SetProcessorBypassCommand(
+            processor, target, atoms[valuePosition].Integer == 1));
+    }
+}
+
+internal sealed class SetProcessorSoloInputCodec : IInputCodec
+{
+    public string Selector => "set_processor_solo";
+
+    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
+    {
+        var processor = ProcessorControlInputCodecSupport.ReadProcessor(atoms, header);
+        var target = InstanceControlInputCodecSupport.ReadTarget(
+            atoms, header with { Position = header.Position + 1 }, out var valuePosition);
+        if (atoms.Length != valuePosition + 2 ||
+            atoms[valuePosition].Type != AtomType.Integer ||
+            atoms[valuePosition].Integer is < 0 or > 1 ||
+            atoms[valuePosition + 1].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid set_processor_solo frame.");
+        }
+
+        var mode = atoms[valuePosition + 1].Symbol switch
+        {
+            "exclusive" => SoloSelectionMode.Exclusive,
+            "additive" => SoloSelectionMode.Additive,
+            _ => throw new FormatException("Invalid solo selection mode.")
+        };
+        return CommandCodecSupport.Success(header, new SetProcessorSoloCommand(
+            processor, target, atoms[valuePosition].Integer == 1, mode));
+    }
+}
+
+internal static class ProcessorControlInputCodecSupport
+{
+    public static ProcessorId ReadProcessor(
+        ReadOnlySpan<Atom> atoms,
+        CommandFrameHeader header)
+    {
+        if (atoms.Length <= header.Position || atoms[header.Position].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid processor ID.");
+        }
+
+        return ProcessorIds.Parse(atoms[header.Position].Symbol);
     }
 }
 

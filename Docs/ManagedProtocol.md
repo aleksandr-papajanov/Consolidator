@@ -254,6 +254,14 @@ set_instance_solo targetInstanceId instance 0|1 exclusive|additive
 set_instance_solo targetInstanceId group bankId 0|1 exclusive|additive
 ```
 
+Each registry instance also carries five instance-owned processor statuses.
+Managed derives `effectActive` from processor state and publishes
+`registry_processor_changed` only when the complete status changes. Processor
+bypass and solo use explicit `set_processor_bypass` and `set_processor_solo`
+commands. Direct writes to instance-owned processor bypass or solo values are
+rejected. The full contract is documented in
+[ProcessorActivity.md](ProcessorActivity.md).
+
 `bankId` is zero-based everywhere and uses the range `0..6`. The protocol,
 JavaScript clients, codecs, registry messages, state paths, and internal
 `BankId` all use this same value without index conversion.

@@ -158,6 +158,11 @@ internal sealed class TopologyIndex
         return GetFocusedBank(sourceInstanceId)?.InstanceId;
     }
 
+    public BankAddress? ResolveFocusedBankAddress(InstanceId instanceId)
+    {
+        return GetFocusedBank(instanceId);
+    }
+
     public IReadOnlyList<BankAddress> GetConnectedBankPeers(BankAddress bank)
     {
         lock (_lock)
