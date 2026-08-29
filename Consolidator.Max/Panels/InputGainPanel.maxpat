@@ -15,10 +15,8 @@
       1000,
       780
     ],
-    "gridsize": [
-      8,
-      8
-    ],
+    "openinpresentation" : 1,
+    "gridsize" : [ 13.0, 13.0 ],
     "boxes": [
       {
         "box": {

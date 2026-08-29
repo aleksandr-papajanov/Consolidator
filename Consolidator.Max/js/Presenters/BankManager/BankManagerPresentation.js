@@ -3,6 +3,7 @@ class BankManagerPresentation
     constructor()
     {
         this.enabled = true;
+        this.selectedPanel = "input";
         this.rows = [];
         this.groupAction = null;
         this.ungroupAction = null;

@@ -259,7 +259,7 @@ function testStateClientAddressesRemoteTopologyWrites() {
     1,
     "entry",
     "bank",
-    4,
+    3,
     "group",
     "value",
     5,
@@ -275,7 +275,7 @@ function testStateClientEncodesZeroBasedBankPath() {
   state.setFor("7", "bank.0.group", 5);
 
   assert.deepStrictEqual(sent[0].slice(7, 12), [
-    "entry", "bank", 1, "group", "value",
+    "entry", "bank", 0, "group", "value",
   ]);
 }
 function testBankManagerUsesRegistryAndLocalInstance() {
@@ -289,25 +289,25 @@ function testBankManagerUsesRegistryAndLocalInstance() {
         instanceId: 7,
         label: "Kick",
         banks: [
-          { bankId: 1, groupId: null },
-          { bankId: 2, groupId: 0 },
+          { bankId: 0, groupId: null },
+          { bankId: 1, groupId: 1 },
         ],
       },
     ],
-    groups: [{ groupId: 0, members: [{ instanceId: 7, bankId: 2 }] }],
+    groups: [{ groupId: 1, members: [{ instanceId: 7, bankId: 1 }] }],
   };
   vm.applyRegistrySnapshot(registry.snapshot);
   assert.strictEqual(vm.rows[0].local, true);
-  assert.strictEqual(vm.rows[0].banks[0].bankId, 1);
-  assert.strictEqual(vm.rows[0].banks[0].label, "1");
+  assert.strictEqual(vm.rows[0].banks[0].bankId, 0);
+  assert.strictEqual(vm.rows[0].banks[0].label, "0");
   assert.strictEqual(vm.rows[0].banks[0].system, false);
   assert.strictEqual(vm.rows[0].banks[1].system, false);
-  assert.strictEqual(vm.rows[0].banks[1].groupId, 0);
+  assert.strictEqual(vm.rows[0].banks[1].groupId, 1);
   assert.strictEqual(vm.rows[0].banks[1].active, false);
   assert.strictEqual(vm.rows[0].banks[1].system, false);
   assert.strictEqual(vm.ungroupAction.enabled, false);
   assert.strictEqual(vm.clearAction.enabled, true);
-  vm.setFocusedBank(7, 2);
+  vm.setFocusedBank(7, 1);
   assert.strictEqual(vm.rows[0].banks[1].focused, true);
   assert.strictEqual(vm.ungroupAction.enabled, true);
   vm.destroy();
@@ -373,7 +373,6 @@ function testBankManagerControllerLocalAndRemoteSelection() {
   assert.deepStrictEqual(fixture.calls.toggled, [
     ["local", 3, false],
     ["remote", 4, false],
-    ["remote", 5, false],
   ]);
 
   fixture.controller.selectRow("remote");
@@ -437,6 +436,8 @@ function testBankManagerShiftExtendsGroupingSelection() {
 }
 function testBankManagerControllerClearRequiresConfirmation() {
   var fixture = makeBankManagerControllerFixture(false);
+  fixture.viewModel.rows[0].local = true;
+  fixture.viewModel.rows[0].banks[0].groupId = 1;
   var realSetTimeout = setTimeout;
   setTimeout = function () {
     return null;
@@ -454,6 +455,7 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
   var writes = [];
   var viewModel = {
     clearAction: { enabled: true, armed: false },
+    nextGroupId: function () { return 7; },
     getSelectedBanks: function () {
       return [
         { instanceId: "local", bankId: 2 },

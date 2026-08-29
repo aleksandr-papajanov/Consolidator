@@ -12,6 +12,7 @@
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
 | [`UiPerformance.md`](UiPerformance.md) | Batching target snapshots и правила снижения Max JavaScript UI scheduler work. |
 | [`ManagedProtocol.md`](ManagedProtocol.md) | Граница Managed protocol: atom decoding, command types, relative paths, routing scopes и response encoding. |
+| [`BankIndexContract.md`](BankIndexContract.md) | Единый zero-based контракт индексов банков `0..6`. |
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
 | [`DspStatePipeline.md`](DspStatePipeline.md) | DSP snapshot publication, local JavaScript curves, analyzer configuration и FFT capture. |
 | [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |

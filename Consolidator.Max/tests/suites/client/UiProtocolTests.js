@@ -37,9 +37,9 @@ function testTargetSnapshotAndPushUpdateUseSemanticPaths() {
     values.push(entry.value);
   });
   client.uiTarget.show("4", 2);
-  assert.deepStrictEqual(frames[0], ["observe_target", 1, "ui", "1", "4", 3]);
+  assert.deepStrictEqual(frames[0], ["observe_target", 1, "ui", "1", "4", 2]);
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 3, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
   client.handleControl("state_changed", [
@@ -56,7 +56,7 @@ function testUiTargetReportsSnapshotCompletion() {
     response = result;
   });
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 3, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
 
@@ -76,7 +76,7 @@ function testObservedEqualizerPathsAreExpandedForWrites() {
     target.set("equalizer.filter.2.gain", 4.5);
     assert.deepStrictEqual(frames[0], [
       "write", 1, "ui", "1", "8", "0", 1,
-      "entry", "equalizer", "bank", 4, "filter", 2, "gain", "value", 4.5,
+      "entry", "equalizer", "bank", 3, "filter", 2, "gain", "value", 4.5,
     ]);
 }
 
@@ -92,7 +92,7 @@ function testTargetSnapshotNotifiesStateValueOnceAfterCompletion() {
   notifications = 0;
 
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 3, 1, "compressor.threshold", -24,
+    1, "9", "1", "4", 2, 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
   assert.strictEqual(notifications, 1);
@@ -126,7 +126,7 @@ function testStaleTargetSnapshotDoesNotResumeLatestTransition() {
     -60, 0, -60, 0,
   ]);
   assert.deepStrictEqual(transitions, ["begin", "begin", "done"]);
-  assert.strictEqual(client.targetState.target.bankId, 2);
+  assert.strictEqual(client.targetState.target.bankId, 3);
   assert.strictEqual(client.targetState.cache["compressor.threshold"].value, -18);
   client.destroy();
 }

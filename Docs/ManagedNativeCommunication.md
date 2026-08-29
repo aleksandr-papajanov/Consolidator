@@ -83,6 +83,11 @@ target_state_snapshot 1 source requestId instanceId bankId entryCount
     path value physicalMin physicalMax effectiveMin effectiveMax × entryCount
 ```
 
+Every bank index in this protocol is zero-based. `bankId` is always in the
+range `0..6` in Max, JavaScript, Native, Managed, registry messages, state
+paths, target snapshots, and group targets. No layer adds or subtracts one
+when forwarding a bank index.
+
 Changing the focused bank updates the active source and capture demand and
 publishes one small `analyzer_configuration` presentation containing the
 source's prepared sample rate. `observe_target` also publishes one atomic

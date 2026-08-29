@@ -29,7 +29,11 @@ internal sealed class StatePathDecoder : IStatePathDecoder
 
         if (first == "bank")
         {
-            var bank = ReadIndex(atoms, ref position, DspConstants.BankCount);
+            var bank = ReadIndex(
+                atoms,
+                ref position,
+                DspConstants.BankCount,
+                wireBase: 0);
             path = path
                 .Append(StateNodeIds.Bank)
                 .Append(StateNodeIds.BankAt(bank));
@@ -68,7 +72,11 @@ internal sealed class StatePathDecoder : IStatePathDecoder
                 var filterCount = path.Nodes.Contains(StateNodeIds.Detector)
                     ? DspConstants.DetectorFilterCount
                     : DspConstants.EqualizerFilterCount;
-                var filter = ReadIndex(atoms, ref position, filterCount);
+                var filter = ReadIndex(
+                    atoms,
+                    ref position,
+                    filterCount,
+                    wireBase: 1);
                 path = path
                     .Append(StateNodeIds.Filter)
                     .Append(StateNodeIds.FilterAt(filter));
@@ -77,7 +85,11 @@ internal sealed class StatePathDecoder : IStatePathDecoder
 
             if (segment == "bank")
             {
-                var bank = ReadIndex(atoms, ref position, DspConstants.BankCount);
+                var bank = ReadIndex(
+                    atoms,
+                    ref position,
+                    DspConstants.BankCount,
+                    wireBase: 0);
                 path = path
                     .Append(StateNodeIds.EqualizerBank)
                     .Append(StateNodeIds.BankAt(bank));
@@ -132,7 +144,8 @@ internal sealed class StatePathDecoder : IStatePathDecoder
     private static int ReadIndex(
         ReadOnlySpan<Atom> atoms,
         ref int position,
-        int count)
+        int count,
+        int wireBase)
     {
         if (position >= atoms.Length || atoms[position].Type != AtomType.Integer)
         {
@@ -140,12 +153,12 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         }
 
         var value = atoms[position++].Integer;
-        if (value < 1 || value > count)
+        if (value < wireBase || value >= count + wireBase)
         {
             throw new FormatException("State path index is out of range.");
         }
 
-        return (int)value - 1;
+        return (int)value - wireBase;
     }
 
     private static NodeId ToNode(string value) => value switch

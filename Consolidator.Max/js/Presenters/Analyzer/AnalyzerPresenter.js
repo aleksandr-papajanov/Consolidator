@@ -49,6 +49,7 @@ class AnalyzerPresenter extends PresentationObservable
         this.lastPublishedCombined = null;
         this.lastPublishedAllBanks = null;
         this.curvePreview = {};
+        this.previewGestureActive = false;
         this.subscribeParameters();
         this.subscribeStatus();
         this.rebuild();
@@ -72,7 +73,9 @@ class AnalyzerPresenter extends PresentationObservable
                 return;
             }
             subscribePresentationBinding(source, () => {
-                this.curvePreview = {};
+                if (!this.previewGestureActive) {
+                    this.curvePreview = {};
+                }
                 if (this.ready) {
                     this.requestRebuild();
                 }
@@ -564,6 +567,23 @@ class AnalyzerPresenter extends PresentationObservable
         this.requestRebuild();
     }
 
+    beginPreviewGesture()
+    {
+        this.curvePreview = {};
+        this.previewGestureActive = true;
+    }
+
+    endPreviewGesture()
+    {
+        if (!this.previewGestureActive &&
+                Object.keys(this.curvePreview).length === 0) {
+            return;
+        }
+        this.previewGestureActive = false;
+        this.curvePreview = {};
+        this.requestRebuild();
+    }
+
     toNormalizedDecibels(decibels)
     {
         return Math.max(0, Math.min(1, 1 - (decibels + 24) / 48));
@@ -693,6 +713,8 @@ class AnalyzerPresenter extends PresentationObservable
         this.equalizerState = null;
         this.otherBanksDecibels = null;
         this.sourceInstanceId = null;
+        this.previewGestureActive = false;
+        this.curvePreview = {};
         super.destroy();
     }
 }

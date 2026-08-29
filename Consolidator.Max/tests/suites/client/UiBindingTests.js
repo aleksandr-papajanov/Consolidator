@@ -606,6 +606,37 @@ function testAnalyzerParameterUpdatesRecalculateLocalCurves() {
   assert.notDeepStrictEqual(presenter.curves[0].values, previous);
   presenter.destroy();
 }
+function testAnalyzerGestureKeepsPreviewUntilFinalWriteCompletes() {
+  var parameterListeners = [];
+  var frequency = {
+    value: 1000,
+    subscribe: function (callback) {
+      parameterListeners.push(callback);
+      return function () {};
+    },
+  };
+  var presenter = new AnalyzerPresenter({
+    parameters: [{
+      frequency: frequency,
+      gain: { value: 0 },
+      q: { value: 1 },
+      enabled: true,
+    }],
+  });
+
+  presenter.beginPreviewGesture();
+  presenter.previewMoved(1, 0.75, 0.25);
+  var previewCurve = presenter.curves[0].values.slice(0);
+  frequency.value = 1200;
+  parameterListeners[0]();
+
+  assert.ok(presenter.curvePreview[1]);
+  assert.deepStrictEqual(presenter.curves[0].values, previewCurve);
+  presenter.endPreviewGesture();
+  assert.strictEqual(presenter.curvePreview[1], undefined);
+  assert.notDeepStrictEqual(presenter.curves[0].values, previewCurve);
+  presenter.destroy();
+}
 function testAnalyzerConfigurationRecalculatesCurvesForSampleRate() {
   var protocolHandlers = {};
   var presenter = new AnalyzerPresenter({
@@ -809,11 +840,12 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   var calls = [];
   var transactionCalls = [];
   var beginCallback = null;
+  var commitCallback = null;
   var controller = {
     handle: function (intent, payload, transactionId, callback) {
       calls.push([intent, payload, transactionId]);
       if (intent === "filterCommit") {
-        callback({ status: "accepted", error: null });
+        commitCallback = callback;
       }
     },
   };
@@ -845,14 +877,24 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   binding.handleIntent("gestureEnded", [1]);
   beginCallback(12, { status: "accepted" });
 
+  assert.deepStrictEqual(calls, [
+    ["gestureBegan", [1], null],
+    ["filterMoved", [1, 0.4, 0.6], 12],
+    ["filterMoved", [1, 0.5, 0.7], 12],
+    ["filterCommit", [1], 12],
+  ]);
+  commitCallback({ status: "accepted", error: null });
+
   assert.deepStrictEqual(transactionCalls, [
     ["begin"],
     ["end", 12],
   ]);
   assert.deepStrictEqual(calls, [
+    ["gestureBegan", [1], null],
     ["filterMoved", [1, 0.4, 0.6], 12],
     ["filterMoved", [1, 0.5, 0.7], 12],
     ["filterCommit", [1], 12],
+    ["gestureEnded", [], 12],
   ]);
   binding.destroy();
 }
@@ -1093,6 +1135,23 @@ function testFilterPositionUsesOneStateBatch() {
   ]);
   filter.destroy();
 }
+function testEqualizerPositionForwardsFinalWriteCallback() {
+  var received = null;
+  var callback = function () {};
+  var parameters = EqualizerController.prototype.createBankParameters.call({}, [{
+    frequency: {},
+    gain: {},
+    q: {},
+    bypass: null,
+    setPosition: function () {
+      received = Array.prototype.slice.call(arguments);
+    },
+  }]);
+
+  parameters[0].setPosition(750, 3, 12, callback);
+
+  assert.deepStrictEqual(received, [750, 3, 12, callback]);
+}
 function testDetectorPositionUsesOneStateBatch() {
   var state = makeStateFixture();
   var filter = new DetectorFilterViewModel(state, "compressor", 2);
@@ -1158,7 +1217,7 @@ function testMessageControlsConstructCompletePresentation() {
   var bankManagerControl = new BankManagerControl();
   bankManagerControl.beginPresentation(1);
   bankManagerControl.addRow(0, "instance.1", "Local", 1);
-  bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0, 0.75, 1, 1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
+  bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0, 0.75, 1, 1, 1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
   bankManagerControl.setGroupAction(1, 0);
   bankManagerControl.setUngroupAction(0, 0);
   bankManagerControl.setClearAction(1, 1);
@@ -1284,7 +1343,11 @@ function testBankManagerForwardsShiftSelection() {
   };
 
   global.mgraphics.size = [800, 400];
-  bankManagerControl.selectAt(105, 5, true);
+  bankManagerControl.selectAt(
+    bankManagerControl.bankGridX(presentation.rows) + 12,
+    5,
+    true,
+  );
   assert.deepStrictEqual(intents, [[
     "bankSelected",
     ["instance.1", 1, 1],
@@ -1307,8 +1370,10 @@ function testBankManagerForwardsInstanceControlModifiers() {
   };
 
   global.mgraphics.size = [800, 400];
-  bankManagerControl.selectAt(121, 5, true, true);
-  bankManagerControl.selectAt(137, 5, true, true);
+  var instanceButtonsX = bankManagerControl.bankGridRight(presentation.rows) +
+    4 + 4;
+  bankManagerControl.selectAt(instanceButtonsX + 8, 5, true, true);
+  bankManagerControl.selectAt(instanceButtonsX + 24, 5, true, true);
   assert.deepStrictEqual(intents, [
     ["instanceSoloChanged", ["instance.1", 1, 1, 1]],
     ["instanceMuteChanged", ["instance.1", 1, 1]],
@@ -1333,7 +1398,8 @@ function testBankManagerPresentsGroupingSelectionAsActive() {
   };
   var presenter = new BankManagerPresenter(viewModel);
 
-  assert.strictEqual(presenter.presentation.rows[0].banks[0].active, true);
+  assert.strictEqual(presenter.presentation.rows[0].banks[0].selected, true);
+  assert.strictEqual(presenter.presentation.rows[0].banks[0].active, false);
   presenter.destroy();
 }
 testControlBindingsDispatchByControlId();
@@ -1350,6 +1416,7 @@ testAnalyzerHandlesPublishOnlyAfterTargetSnapshotIsReady();
 testAnalyzerPublishesOneSpectrumNotificationPerFftFrame();
 testAnalyzerDragClampsToEffectivePeerRanges();
 testAnalyzerParameterUpdatesRecalculateLocalCurves();
+testAnalyzerGestureKeepsPreviewUntilFinalWriteCompletes();
 testAnalyzerConfigurationRecalculatesCurvesForSampleRate();
 testEqualizerPresenterBuildsAllBanksCurveFromRawState();
 testDetectorPresenterBuildsFilterCurves();
@@ -1368,6 +1435,7 @@ testPresentationObservableBatchesOneRebuildAndStopsAfterDestroy();
 testDialDisplayScaleDoesNotChangePhysicalValue();
 testConsolidatorInitializesDetectorState();
 testFilterPositionUsesOneStateBatch();
+testEqualizerPositionForwardsFinalWriteCallback();
 testDetectorPositionUsesOneStateBatch();
 testDetectorBypassIsInvertedForPresentation();
 testMessageControlsConstructCompletePresentation();

@@ -10,33 +10,10 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 134.0, 134.0, 1180.0, 760.0 ],
+		"rect" : [ 183.0, 176.0, 865.0, 760.0 ],
 		"openinpresentation" : 1,
-		"gridsize" : [ 8.0, 8.0 ],
+		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
-				"box" : 				{
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"id" : "history-panel-legacy",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "comment",
-					"text" : "History is integrated into BankManagerPanel",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 354.0, 583.0, 286.0, 192.0 ],
-					"presentation" : 0,
-					"presentation_rect" : [ 0.0, 0.0, 224.0, 168.0 ],
-					"viewvisibility" : 0
-				}
-
-			}
-, 			{
 				"box" : 				{
 					"comment" : "Native control outlet",
 					"id" : "native-control-in",
@@ -45,7 +22,7 @@
 					"numinlets" : 0,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 30.0, 30.0, 30.0, 30.0 ]
+					"patching_rect" : [ 39.0, 182.0, 30.0, 30.0 ]
 				}
 
 			}
@@ -58,26 +35,26 @@
 					"numinlets" : 0,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 70.0, 30.0, 30.0, 30.0 ]
+					"patching_rect" : [ 79.0, 182.0, 30.0, 30.0 ]
 				}
 
 			}
 , 			{
 				"box" : 				{
-					"filename" : "ConsolidatorUiHost.js",
+					"filename" : "Project:/js/ConsolidatorUiHost.js",
 					"id" : "host",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 220.0, 30.0, 310.0, 22.0 ],
+					"patching_rect" : [ 221.0, 338.0, 319.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"parameter_enable" : 0
 					}
 ,
 					"text" : "v8 Project:/js/ConsolidatorUiHost.js bridge.local",
 					"textfile" : 					{
-						"filename" : "ConsolidatorUiHost.js",
+						"filename" : "Project:/js/ConsolidatorUiHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -93,7 +70,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 3,
 					"outlettype" : [ "bang", "int", "int" ],
-					"patching_rect" : [ 30.0, 190.0, 105.0, 22.0 ],
+					"patching_rect" : [ 118.0, 182.0, 105.0, 22.0 ],
 					"text" : "live.thisdevice"
 				}
 
@@ -105,27 +82,27 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 150.0, 190.0, 75.0, 22.0 ],
+					"patching_rect" : [ 326.0, 234.0, 75.0, 22.0 ],
 					"text" : "live_ready"
 				}
 
 			}
 , 			{
 				"box" : 				{
-					"filename" : "LiveInstanceHost.js",
+					"filename" : "Project:/js/LiveInstanceHost.js",
 					"id" : "live-instance-host",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 560.0, 30.0, 250.0, 22.0 ],
+					"patching_rect" : [ 118.0, 234.0, 195.0, 22.0 ],
 					"saved_object_attributes" : 					{
 						"parameter_enable" : 0
 					}
 ,
 					"text" : "v8 Project:/js/LiveInstanceHost.js",
 					"textfile" : 					{
-						"filename" : "LiveInstanceHost.js",
+						"filename" : "Project:/js/LiveInstanceHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -141,7 +118,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 6,
 					"outlettype" : [ "", "", "", "", "", "" ],
-					"patching_rect" : [ 220.0, 160.0, 120.0, 22.0 ],
+					"patching_rect" : [ 521.0, 442.0, 149.0, 22.0 ],
 					"text" : "t l l l l l l"
 				}
 
@@ -163,9 +140,10 @@
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 30.0, 230.0, 220.0, 220.0 ],
+					"patching_rect" : [ 521.0, 481.0, 27.0, 26.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 304.0, 0.0, 280.0, 186.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 351.0, 169.0 ],
+					"varname" : "bank-panel",
 					"viewvisibility" : 1
 				}
 
@@ -178,6 +156,7 @@
 					"clickthrough" : 0,
 					"enablehscroll" : 0,
 					"enablevscroll" : 0,
+					"hidden" : 1,
 					"id" : "eq-panel",
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
@@ -187,9 +166,10 @@
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 270.0, 230.0, 430.0, 300.0 ],
+					"patching_rect" : [ 547.0, 481.0, 26.0, 26.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 584.0, 0.0, 432.0, 168.0 ],
+					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
+					"varname" : "eq-panel",
 					"viewvisibility" : 1
 				}
 
@@ -202,6 +182,7 @@
 					"clickthrough" : 0,
 					"enablehscroll" : 0,
 					"enablevscroll" : 0,
+					"hidden" : 1,
 					"id" : "compressor-panel",
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
@@ -211,9 +192,10 @@
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 720.0, 230.0, 210.0, 315.0 ],
+					"patching_rect" : [ 573.0, 481.0, 26.0, 26.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 1016.0, 0.0, 376.0, 168.0 ],
+					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
+					"varname" : "compressor-panel",
 					"viewvisibility" : 1
 				}
 
@@ -226,6 +208,7 @@
 					"clickthrough" : 0,
 					"enablehscroll" : 0,
 					"enablevscroll" : 0,
+					"hidden" : 1,
 					"id" : "saturator-panel",
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
@@ -235,9 +218,10 @@
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 950.0, 230.0, 210.0, 300.0 ],
+					"patching_rect" : [ 599.0, 481.0, 26.0, 26.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 1392.0, 0.0, 288.0, 168.0 ],
+					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
+					"varname" : "saturator-panel",
 					"viewvisibility" : 1
 				}
 
@@ -259,9 +243,10 @@
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 30.0, 560.0, 110.0, 80.0 ],
+					"patching_rect" : [ 625.0, 481.0, 26.0, 26.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 224.0, 0.0, 80.0, 80.0 ],
+					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
+					"varname" : "input-panel",
 					"viewvisibility" : 1
 				}
 
@@ -274,6 +259,7 @@
 					"clickthrough" : 0,
 					"enablehscroll" : 0,
 					"enablevscroll" : 0,
+					"hidden" : 1,
 					"id" : "output-panel",
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
@@ -283,9 +269,10 @@
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 150.0, 560.0, 110.0, 80.0 ],
+					"patching_rect" : [ 651.0, 481.0, 26.0, 26.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 224.0, 88.0, 80.0, 72.0 ],
+					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
+					"varname" : "output-panel",
 					"viewvisibility" : 1
 				}
 
@@ -298,7 +285,7 @@
 					"maxclass" : "outlet",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 1000.0, 650.0, 30.0, 30.0 ]
+					"patching_rect" : [ 221.0, 377.0, 30.0, 30.0 ]
 				}
 
 			}
@@ -310,7 +297,7 @@
 					"maxclass" : "outlet",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 1050.0, 650.0, 30.0, 30.0 ]
+					"patching_rect" : [ 495.0, 377.0, 30.0, 30.0 ]
 				}
 
 			}
@@ -321,7 +308,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 560.0, 70.0, 80.0, 22.0 ],
+					"patching_rect" : [ 39.0, 286.0, 80.0, 22.0 ],
 					"text" : "prepend 0"
 				}
 
@@ -333,8 +320,67 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 650.0, 70.0, 80.0, 22.0 ],
+					"patching_rect" : [ 677.0, 702.0, 80.0, 22.0 ],
 					"text" : "prepend 0"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "bank-manager-route",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 521.0, 637.0, 120.0, 22.0 ],
+					"text" : "route bank_manager"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "panel-selection-route",
+					"maxclass" : "newobj",
+					"numinlets" : 2,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 521.0, 663.0, 120.0, 22.0 ],
+					"text" : "route panelSelected"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"filename" : "Project:/js/PanelSelector.js",
+					"id" : "panel-selector",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 521.0, 741.0, 180.0, 22.0 ],
+					"saved_object_attributes" : 					{
+						"parameter_enable" : 0
+					}
+,
+					"text" : "v8 Project:/js/PanelSelector.js",
+					"textfile" : 					{
+						"filename" : "Project:/js/PanelSelector.js",
+						"flags" : 0,
+						"embed" : 0,
+						"autowatch" : 1
+					}
+
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "bank-manager-intent-prefix",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 330.0, 690.0, 150.0, 22.0 ],
+					"text" : "prepend bank_manager"
 				}
 
 			}
@@ -345,7 +391,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 220.0, 120.0, 80.0, 22.0 ],
+					"patching_rect" : [ 521.0, 416.0, 80.0, 22.0 ],
 					"text" : "prepend 0"
 				}
 
@@ -361,6 +407,20 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "intent-list-normalizer", 0 ],
+					"source" : [ "bank-manager-route", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "panel-selection-route", 0 ],
+					"source" : [ "bank-manager-route", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "bank-manager-route", 0 ],
 					"source" : [ "bank-panel", 0 ]
 				}
 
@@ -389,7 +449,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "outlet-diagnostic", 0 ],
-					"order" : 0,
+					"order" : 1,
 					"source" : [ "host", 1 ]
 				}
 
@@ -404,7 +464,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "presentation-list-normalizer", 0 ],
-					"order" : 1,
+					"order" : 0,
 					"source" : [ "host", 1 ]
 				}
 
@@ -419,6 +479,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "host", 1 ],
+					"midpoints" : [ 686.5, 734.0, 768.5, 734.0, 768.5, 328.0, 530.5, 328.0 ],
 					"source" : [ "intent-list-normalizer", 0 ]
 				}
 
@@ -433,7 +494,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "live-instance-host", 0 ],
-					"order" : 0,
+					"order" : 1,
 					"source" : [ "live-ready", 0 ]
 				}
 
@@ -441,7 +502,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "live-ready-message", 0 ],
-					"order" : 1,
+					"order" : 0,
 					"source" : [ "live-ready", 0 ]
 				}
 
@@ -506,6 +567,27 @@
 				"patchline" : 				{
 					"destination" : [ "saturator-panel", 0 ],
 					"source" : [ "panel-broadcast", 3 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "bank-manager-intent-prefix", 0 ],
+					"source" : [ "panel-selection-route", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "intent-list-normalizer", 0 ],
+					"source" : [ "bank-manager-intent-prefix", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "panel-selector", 0 ],
+					"source" : [ "panel-selection-route", 0 ]
 				}
 
 			}

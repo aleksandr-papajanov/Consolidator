@@ -71,11 +71,25 @@ function visitPatcherValue(value, sourceFile)
     {
         var scriptPath = value.text.split(/\s+/)[1];
         assertProjectPath(scriptPath, sourceFile);
-        assert.strictEqual(value.saved_object_attributes.filename, scriptPath);
+        var metadataFilename = value.textfile
+            ? value.textfile.filename
+            : value.saved_object_attributes.filename;
+        assert.strictEqual(metadataFilename, scriptPath);
     }
     if (value.maxclass === "bpatcher")
     {
-        assertProjectPath(value.name, sourceFile);
+        var panelPath = [
+            path.join(environment.root, "Panels", value.name),
+            path.join(environment.root, "patchers", value.name),
+            path.join(environment.root, value.name)
+        ];
+        assert.ok(
+            value.name.indexOf("Project:/") === 0
+                ? resolveProjectPath(value.name)
+                : panelPath.some(function (candidate) {
+                    return fs.existsSync(candidate);
+                }),
+            sourceFile + " references a missing panel resource: " + value.name);
     }
 
     Object.keys(value).forEach(function (key)

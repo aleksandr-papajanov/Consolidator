@@ -10,9 +10,9 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 236.0, 105.0, 1180.0, 720.0 ],
+		"rect" : [ 236.0, 105.0, 865.0, 720.0 ],
 		"openinpresentation" : 1,
-		"gridsize" : [ 15.0, 15.0 ],
+		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
 					"id" : "plugin",
@@ -20,7 +20,7 @@
 					"numinlets" : 4,
 					"numoutlets" : 4,
 					"outlettype" : [ "signal", "signal", "signal", "signal" ],
-					"patching_rect" : [ 35.0, 35.0, 105.0, 22.0 ],
+					"patching_rect" : [ 113.0, 157.0, 212.0, 22.0 ],
 					"text" : "plugin~ 1 2 3 4"
 				}
 
@@ -32,7 +32,7 @@
 					"numinlets" : 5,
 					"numoutlets" : 6,
 					"outlettype" : [ "", "", "signal", "signal", "signal", "signal" ],
-					"patching_rect" : [ 250.0, 35.0, 160.0, 22.0 ],
+					"patching_rect" : [ 48.0, 200.0, 277.0, 22.0 ],
 					"text" : "ConsolidatorExternal"
 				}
 
@@ -53,9 +53,9 @@
 					"numoutlets" : 2,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 35.0, 100.0, 1690.0, 185.0 ],
+					"patching_rect" : [ 52.0, 286.0, 754.0, 169.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 1120.0, 520.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 754.0, 169.0 ],
 					"viewvisibility" : 1
 				}
 
@@ -67,7 +67,7 @@
 					"numinlets" : 2,
 					"numoutlets" : 2,
 					"outlettype" : [ "signal", "signal" ],
-					"patching_rect" : [ 250.0, 680.0, 60.0, 22.0 ],
+					"patching_rect" : [ 150.800000000000011, 247.0, 71.0, 22.0 ],
 					"text" : "plugout~"
 				}
 
@@ -76,6 +76,7 @@
 		"lines" : [ 			{
 				"patchline" : 				{
 					"destination" : [ "external", 0 ],
+					"midpoints" : [ 61.5, 495.0, 15.5, 495.0, 15.5, 175.0, 57.5, 175.0 ],
 					"source" : [ "bridge", 0 ]
 				}
 

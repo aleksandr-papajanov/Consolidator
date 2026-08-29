@@ -26,9 +26,12 @@ There is one production curve path. Managed does not publish
 
 Drag interaction is optimistic. `filterPreview` updates the presenter
 immediately, while authoritative writes continue at the bounded gesture rate.
-On rejection the preview is cleared and the presentation is rebuilt from the
-accepted state. A committed state notification likewise clears the preview and
-rebuilds the curve.
+Committed notifications received during the active gesture update the
+authoritative bindings without clearing its newer local preview. Gesture end
+sends one non-coalesced final position write; the preview is cleared after that
+write's response, which follows its state notifications in the lossless control
+FIFO. A rejected transaction or final write also clears the preview and rebuilds
+the presentation from accepted state.
 
 The analyzer frequency response uses the prepared sample rate of the observed
 source. Managed publishes this infrequent configuration as:

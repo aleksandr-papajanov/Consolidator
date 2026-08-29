@@ -36,7 +36,7 @@ class TargetStateClient
         this.notifyStatus();
         let requestId = this.protocol.request(
             "observe_target",
-            [String(instanceId), Number(bankId) + 1],
+            [String(instanceId), Number(bankId)],
             (response) => {
                 let current = this.pendingTarget &&
                     this.pendingTarget.generation === generation;
@@ -200,7 +200,7 @@ class TargetStateClient
         let entryCount = Number(args[5]);
         let entrySize = 6;
         let snapshot = {
-            instanceId: String(args[3]), bankId: Number(args[4]) - 1,
+                instanceId: String(args[3]), bankId: Number(args[4]),
             expected: entryCount, entries: []
         };
         if (!isFinite(entryCount) || entryCount < 0 ||

@@ -33,8 +33,12 @@ class EqualizerController
                         read: (value) => { return !value; },
                         write: (value) => { return !value; }
                     } : undefined,
-                    setPosition: (frequency, gain, transactionId) => {
-                        filter.setPosition(frequency, gain, transactionId);
+                    setPosition: (frequency, gain, transactionId, callback) => {
+                        filter.setPosition(
+                            frequency,
+                            gain,
+                            transactionId,
+                            callback);
                     }
                 };
             });

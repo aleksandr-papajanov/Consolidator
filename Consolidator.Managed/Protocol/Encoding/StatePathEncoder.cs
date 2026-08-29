@@ -19,7 +19,7 @@ internal static class StatePathEncoder
                 parts.Add("bank");
                 if (node == StateNodeIds.Bank || observedBankId != bank)
                 {
-                    parts.Add((bank + 1).ToString());
+                    parts.Add(bank.ToString());
                 }
                 continue;
             }

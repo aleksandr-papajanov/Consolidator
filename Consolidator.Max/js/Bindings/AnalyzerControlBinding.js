@@ -11,6 +11,7 @@ class AnalyzerControlBinding extends ControlBinding
         this.transactionReady = false;
         this.pendingEnd = false;
         this.lastMove = null;
+        this.gestureActive = false;
         this.connectPresentation();
         if (presenter && typeof presenter.subscribeSpectrum === "function") {
             this.unsubscribers.push(presenter.subscribeSpectrum((
@@ -96,6 +97,8 @@ class AnalyzerControlBinding extends ControlBinding
     handleIntent(name, values)
     {
         if (name === "gestureBegan") {
+            this.gestureActive = true;
+            this.controller.handle(name, values, this.activeTransactionId);
             this.beginTransaction();
             return;
         }
@@ -134,10 +137,7 @@ class AnalyzerControlBinding extends ControlBinding
             return;
         }
         if (!response || response.status !== "accepted") {
-            if (this.controller && this.controller.presenter) {
-                this.controller.presenter.curvePreview = {};
-                this.controller.presenter.requestRebuild();
-            }
+            this.endPreviewGesture(id);
             this.send("transactionRejected");
             this.clearTransaction();
             return;
@@ -162,10 +162,6 @@ class AnalyzerControlBinding extends ControlBinding
             transactionId,
             (response) => {
                 if (!response || response.error || response.status !== "accepted") {
-                    if (this.controller && this.controller.presenter) {
-                        this.controller.presenter.curvePreview = {};
-                        this.controller.presenter.requestRebuild();
-                    }
                     this.send("transactionRejected");
                 }
                 this.finishTransaction();
@@ -174,11 +170,23 @@ class AnalyzerControlBinding extends ControlBinding
     
     finishTransaction()
     {
+        this.endPreviewGesture(this.activeTransactionId);
         if (this.transactions && this.activeTransactionId !== null &&
                 this.transactionReady) {
             this.transactions.end(this.activeTransactionId);
         }
         this.clearTransaction();
+    }
+
+    endPreviewGesture(transactionId)
+    {
+        if (!this.gestureActive) {
+            return;
+        }
+        this.gestureActive = false;
+        if (this.controller) {
+            this.controller.handle("gestureEnded", [], transactionId);
+        }
     }
     
     clearTransaction()

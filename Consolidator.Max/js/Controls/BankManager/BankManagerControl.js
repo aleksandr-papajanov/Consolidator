@@ -21,14 +21,25 @@ const BankManagerControlOptions = {
     rowHeight: 16,
     bankSize: 16,
     bankGap: 0,
+    deviceColumnGap: 5,
     actionPanelHeight: 18,
     historyPanelHeight: 18,
-    historySlotCount: 10,
-    scrollbarWidth: 8,
-    scrollbarGap: 2,
-    scrollbarTrack: [0.14, 0.14, 0.14, 1],
-    scrollbarThumb: [0.38, 0.38, 0.38, 1],
-    scrollbarThumbActive: [0.55, 0.55, 0.55, 1],
+    outerPadding: 4,
+    sectionGap: 3,
+    actionGap: 3,
+    panelNavigationWidth: 32,
+    panelNavigationGap: 6,
+    panelButtonHeight: 32,
+    panelButtonGap: 0,
+    panelButtonText: [0.85, 0.85, 0.85, 1],
+    panelButtonColors: [
+        [0.18, 0.48, 0.72, 1],
+        [0.72, 0.38, 0.18, 1],
+        [0.52, 0.28, 0.68, 1],
+        [0.18, 0.58, 0.42, 1],
+        [0.68, 0.24, 0.28, 1]
+    ],
+    historySlotCount: 32,
     fontSize: 11
 };
 
@@ -42,12 +53,11 @@ class BankManagerControl
         this.pointerDown = false;
         this.pointerX = 0;
         this.pointerY = 0;
+        this.pointerClickHandled = false;
         this.pointerShift = false;
         this.pointerGroup = false;
         this.dragging = false;
         this.lastY = 0;
-        this.scrollbarDragging = false;
-        this.scrollbarDragOffset = 0;
     }
 
     applyPresentation(presentation)
@@ -59,7 +69,6 @@ class BankManagerControl
         this.presentation = presentation;
         if (!presentation.enabled) {
             this.dragging = false;
-            this.scrollbarDragging = false;
         }
 
         mgraphics.redraw();
@@ -84,72 +93,78 @@ class BankManagerControl
 
     contentHeight()
     {
-        return Math.max(0, mgraphics.size[1] -
+        return Math.max(0, this.layoutHeight() -
             BankManagerControlOptions.actionPanelHeight -
-            BankManagerControlOptions.historyPanelHeight);
+            BankManagerControlOptions.historyPanelHeight -
+            BankManagerControlOptions.sectionGap * 2);
     }
 
-    scrollbarGeometry()
+    actionPanelY()
     {
-        let width = mgraphics.size[0];
-        let height = this.contentHeight();
-        let maximumOffset = this.maximumScrollOffset();
-        if (maximumOffset <= 0 || height <= 0) {
-            return null;
-        }
-
-        let contentHeight = (this.presentation.rows || []).length *
-            BankManagerControlOptions.rowHeight;
-        let thumbHeight = Math.max(
-            24,
-            height * height / contentHeight
-        );
-        thumbHeight = Math.min(height, thumbHeight);
-        let trackHeight = height - thumbHeight;
-        let thumbY = trackHeight <= 0
-            ? 0
-            : this.scrollOffset() / maximumOffset * trackHeight;
-
-        return {
-            x: width - BankManagerControlOptions.scrollbarGap -
-                BankManagerControlOptions.scrollbarWidth,
-            y: 0,
-            width: BankManagerControlOptions.scrollbarWidth,
-            height: height,
-            thumbY: thumbY,
-            thumbHeight: thumbHeight
-        };
+        return this.contentHeight() + BankManagerControlOptions.sectionGap;
     }
 
-    scrollbarAt(x, y)
+    historyPanelY()
     {
-        let geometry = this.scrollbarGeometry();
-        return geometry &&
-            x >= geometry.x &&
-            x < geometry.x + geometry.width &&
-            y >= geometry.y &&
-            y <= geometry.y + geometry.height;
+        return this.actionPanelY() +
+            BankManagerControlOptions.actionPanelHeight +
+            BankManagerControlOptions.sectionGap;
     }
 
-    updateScrollFromScrollbar(y)
+    primaryWidth()
     {
-        let geometry = this.scrollbarGeometry();
-        if (!geometry) {
-            return;
-        }
+        return Math.max(0, this.layoutWidth() -
+            BankManagerControlOptions.panelNavigationWidth -
+            BankManagerControlOptions.panelNavigationGap);
+    }
 
-        let trackHeight = geometry.height - geometry.thumbHeight;
-        let thumbY = Math.max(
+    layoutWidth()
+    {
+        return Math.max(0, mgraphics.size[0] -
+            BankManagerControlOptions.outerPadding * 2);
+    }
+
+    layoutHeight()
+    {
+        return Math.max(0, mgraphics.size[1] -
+            BankManagerControlOptions.outerPadding * 2);
+    }
+
+    bankCount(rows)
+    {
+        return (rows || []).reduce((count, row) => {
+            return Math.max(count, (row.banks || []).length);
+        }, 0);
+    }
+
+    bankGridX(rows)
+    {
+        let gridWidth = this.bankCount(rows) * BankManagerControlOptions.bankSize;
+        let instanceButtonWidth = BankManagerControlOptions.bankSize * 2;
+        return Math.max(0, this.primaryWidth() - gridWidth -
+            instanceButtonWidth - BankManagerControlOptions.deviceColumnGap);
+    }
+
+    historyLayout()
+    {
+        let history = this.presentation.history || {};
+        let cursor = Number(history.cursor) || 0;
+        let entryCount = Number(history.entryCount) || 0;
+        let slotSize = BankManagerControlOptions.bankSize;
+        let windowStart = Math.max(
             0,
-            Math.min(
-                trackHeight,
-                y - this.scrollbarDragOffset - geometry.y
-            )
+            cursor - Math.floor(BankManagerControlOptions.historySlotCount / 2)
         );
-        this.scrollPosition = trackHeight <= 0
-            ? 0
-            : thumbY / trackHeight * this.maximumScrollOffset();
-        mgraphics.redraw();
+        let cursorSlot = cursor - windowStart;
+        let originX = (this.primaryWidth() - slotSize) / 2 -
+            cursorSlot * slotSize;
+        return {
+            cursor: cursor,
+            entryCount: entryCount,
+            windowStart: windowStart,
+            originX: originX,
+            slotSize: slotSize
+        };
     }
 
     scrollBy(delta)
@@ -262,8 +277,8 @@ class BankManagerControl
 
     paint()
     {
-        let width = mgraphics.size[0];
-        let height = mgraphics.size[1];
+        let width = this.layoutWidth();
+        let height = this.layoutHeight();
         let rows = this.presentation.rows || [];
         let offset = this.scrollOffset();
         let highlightedGroups = {};
@@ -282,15 +297,24 @@ class BankManagerControl
             mgraphics,
             BankManagerControlOptions.background
         );
+        mgraphics.rectangle(0, 0, mgraphics.size[0], mgraphics.size[1]);
+        mgraphics.fill();
+        mgraphics.translate(
+            BankManagerControlOptions.outerPadding,
+            BankManagerControlOptions.outerPadding
+        );
+        mgraphics.set_source_rgba.apply(
+            mgraphics,
+            BankManagerControlOptions.background
+        );
         mgraphics.rectangle(0, 0, width, height);
         mgraphics.fill();
         mgraphics.select_font_face("Arial");
         mgraphics.set_font_size(BankManagerControlOptions.fontSize);
 
         let contentHeight = this.contentHeight();
-        this.paintActions(width, contentHeight);
-        this.paintHistory(width, contentHeight +
-            BankManagerControlOptions.actionPanelHeight);
+        this.paintActions(this.primaryWidth(), this.actionPanelY());
+        this.paintHistory(this.primaryWidth(), this.historyPanelY());
         this.paintBankGrid(rows, offset);
 
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
@@ -314,7 +338,7 @@ class BankManagerControl
             for (let bankIndex = 0; bankIndex < row.banks.length; bankIndex += 1) {
                 this.paintBank(
                     row.banks[bankIndex],
-                    100 + bankIndex * (
+                    this.bankGridX(rows) + bankIndex * (
                         BankManagerControlOptions.bankSize +
                         BankManagerControlOptions.bankGap
                     ),
@@ -322,11 +346,85 @@ class BankManagerControl
                     highlightedGroups[String(row.banks[bankIndex].groupId)] === true
                 );
             }
-            this.paintInstanceButtons(row, this.bankGridRight(rows) + 4, y);
+            this.paintInstanceButtons(
+                row,
+                this.bankGridRight(rows) +
+                    BankManagerControlOptions.deviceColumnGap,
+                y
+            );
         }
 
-        this.paintScrollbar();
+        this.paintPanelNavigation();
+        mgraphics.translate(
+            -BankManagerControlOptions.outerPadding,
+            -BankManagerControlOptions.outerPadding
+        );
 
+    }
+
+    paintPanelNavigation()
+    {
+        let x = this.primaryWidth() +
+            BankManagerControlOptions.panelNavigationGap;
+        let labels = ["IN", "SAT", "COMP", "EQ", "OUT"];
+        let panelKeys = ["input", "saturator", "compressor", "equalizer", "output"];
+        let selected = String(this.presentation.selectedPanel || "").toLowerCase();
+        mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.background);
+        mgraphics.rectangle(x, 0, BankManagerControlOptions.panelNavigationWidth,
+            mgraphics.size[1]);
+        mgraphics.fill();
+        labels.forEach((label, index) => {
+            let y = index * (BankManagerControlOptions.panelButtonHeight +
+                BankManagerControlOptions.panelButtonGap);
+            let active = panelKeys[index] === selected;
+            let color = BankManagerControlOptions.panelButtonColors[index];
+            mgraphics.set_source_rgba.apply(mgraphics,
+                active ? color : BankManagerControlOptions.background);
+            mgraphics.rectangle(x, y,
+                BankManagerControlOptions.panelNavigationWidth,
+                BankManagerControlOptions.panelButtonHeight);
+            mgraphics.fill();
+            mgraphics.set_source_rgba.apply(mgraphics,
+                color);
+            mgraphics.rectangle(x, y,
+                BankManagerControlOptions.panelNavigationWidth,
+                1);
+            mgraphics.fill();
+            mgraphics.rectangle(x, y + BankManagerControlOptions.panelButtonHeight - 1,
+                BankManagerControlOptions.panelNavigationWidth, 1);
+            mgraphics.fill();
+            mgraphics.rectangle(x, y, 1,
+                BankManagerControlOptions.panelButtonHeight);
+            mgraphics.fill();
+            mgraphics.rectangle(x + BankManagerControlOptions.panelNavigationWidth - 1,
+                y, 1, BankManagerControlOptions.panelButtonHeight);
+            mgraphics.fill();
+            mgraphics.set_source_rgba.apply(mgraphics,
+                active ? BankManagerControlOptions.background :
+                    color);
+            mgraphics.select_font_face("Arial");
+            mgraphics.set_font_size(9);
+            let textSize = mgraphics.text_measure(label);
+            let fontExtents = mgraphics.font_extents();
+            mgraphics.move_to(x + (BankManagerControlOptions.panelNavigationWidth -
+                textSize[0]) / 2,
+                y + (BankManagerControlOptions.panelButtonHeight - fontExtents[2]) / 2 +
+                    fontExtents[0]);
+            mgraphics.show_text(label);
+        });
+    }
+
+    panelAt(x, y)
+    {
+        let navigationX = this.primaryWidth() +
+            BankManagerControlOptions.panelNavigationGap;
+        if (x < navigationX || x >= this.layoutWidth() || y < 0 ||
+                y >= this.layoutHeight()) {
+            return null;
+        }
+        let index = Math.floor(y / (BankManagerControlOptions.panelButtonHeight +
+            BankManagerControlOptions.panelButtonGap));
+        return ["input", "saturator", "compressor", "equalizer", "output"][index] || null;
     }
 
     paintBankGrid(rows, offset)
@@ -339,7 +437,7 @@ class BankManagerControl
             return;
         }
 
-        let gridX = 100;
+        let gridX = this.bankGridX(rows);
         let gridWidth = bankCount * BankManagerControlOptions.bankSize;
         let gridHeight = rows.length * BankManagerControlOptions.rowHeight;
         let gridTop = Math.max(0, -offset);
@@ -370,7 +468,8 @@ class BankManagerControl
             mgraphics.fill();
         }
 
-        let buttonsX = this.bankGridRight(rows) + 4;
+        let buttonsX = this.bankGridRight(rows) +
+            BankManagerControlOptions.deviceColumnGap;
         for (let buttonIndex = 0; buttonIndex <= 2; buttonIndex += 1) {
             mgraphics.rectangle(
                 buttonsX + buttonIndex * BankManagerControlOptions.bankSize,
@@ -401,7 +500,8 @@ class BankManagerControl
         let bankCount = rows.reduce((count, row) => {
             return Math.max(count, row.banks.length);
         }, 0);
-        return 100 + bankCount * BankManagerControlOptions.bankSize;
+        return this.bankGridX(rows) +
+            bankCount * BankManagerControlOptions.bankSize;
     }
 
     paintInstanceButtons(row, x, y)
@@ -441,40 +541,6 @@ class BankManagerControl
         });
     }
 
-    paintScrollbar()
-    {
-        let geometry = this.scrollbarGeometry();
-        if (!geometry) {
-            return;
-        }
-
-        mgraphics.set_source_rgba.apply(
-            mgraphics,
-            BankManagerControlOptions.scrollbarTrack
-        );
-        mgraphics.rectangle(
-            geometry.x,
-            geometry.y,
-            geometry.width,
-            geometry.height
-        );
-        mgraphics.fill();
-
-        mgraphics.set_source_rgba.apply(
-            mgraphics,
-            this.scrollbarDragging
-                ? BankManagerControlOptions.scrollbarThumbActive
-                : BankManagerControlOptions.scrollbarThumb
-        );
-        mgraphics.rectangle(
-            geometry.x,
-            geometry.thumbY,
-            geometry.width,
-            geometry.thumbHeight
-        );
-        mgraphics.fill();
-    }
-
     paintActions(width, contentHeight)
     {
         let group = this.presentation.groupAction || {};
@@ -485,25 +551,45 @@ class BankManagerControl
             { label: "Ungroup", action: ungroup },
             { label: clear.armed ? "Sure?" : "Clear", action: clear }
         ];
-        let buttonWidth = width / actions.length;
+        let buttonWidth = (width - BankManagerControlOptions.actionGap *
+            (actions.length - 1)) / actions.length;
         let y = contentHeight;
         mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.background);
         mgraphics.rectangle(0, y, width, BankManagerControlOptions.actionPanelHeight);
         mgraphics.fill();
         actions.forEach((entry, index) => {
-            let x = index * buttonWidth;
+            let x = Math.round(index * (buttonWidth +
+                BankManagerControlOptions.actionGap));
+            let right = Math.round(x + buttonWidth);
+            let actualWidth = right - x;
             let borderColor = BankManagerControlOptions.separator;
             let textColor = entry.action.enabled
                 ? BankManagerControlOptions.actionText
                 : BankManagerControlOptions.separator;
+            mgraphics.set_source_rgba.apply(
+                mgraphics,
+                BankManagerControlOptions.background
+            );
+            mgraphics.rectangle(x, y, actualWidth,
+                BankManagerControlOptions.actionPanelHeight);
+            mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics, borderColor);
-            mgraphics.rectangle(x + 1, y + 1, buttonWidth - 2, 16);
-            mgraphics.stroke();
+            mgraphics.rectangle(x, y, actualWidth, 1);
+            mgraphics.fill();
+            mgraphics.rectangle(x, y + BankManagerControlOptions.actionPanelHeight - 1,
+                actualWidth, 1);
+            mgraphics.fill();
+            mgraphics.rectangle(x, y, 1,
+                BankManagerControlOptions.actionPanelHeight);
+            mgraphics.fill();
+            mgraphics.rectangle(right - 1, y, 1,
+                BankManagerControlOptions.actionPanelHeight);
+            mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics, textColor);
             mgraphics.select_font_face("Arial");
             mgraphics.set_font_size(9);
             let textSize = mgraphics.text_measure(entry.label);
-            mgraphics.move_to(x + (buttonWidth - textSize[0]) / 2, y + 12);
+            mgraphics.move_to(x + (actualWidth - textSize[0]) / 2, y + 12);
             mgraphics.show_text(entry.label);
         });
     }
@@ -511,94 +597,78 @@ class BankManagerControl
     paintHistory(width, y)
     {
         let history = this.presentation.history || {};
-        let cursor = Number(history.cursor) || 0;
-        let entryCount = Number(history.entryCount) || 0;
-        let cellSize = BankManagerControlOptions.bankSize;
-        let gridX = 100;
+        let layout = this.historyLayout();
+        let cursor = layout.cursor;
+        let entryCount = layout.entryCount;
+        let cellSize = layout.slotSize;
+        let gridX = layout.originX;
         let historyHeight = BankManagerControlOptions.historyPanelHeight;
 
         mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.background);
         mgraphics.rectangle(0, y, width, historyHeight);
         mgraphics.fill();
-        mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.remote);
-        mgraphics.select_font_face("Arial");
-        mgraphics.set_font_size(9);
-        mgraphics.move_to(2, y + 12);
-        mgraphics.show_text("History");
-
         for (let slot = 0;
                 slot < BankManagerControlOptions.historySlotCount;
                 slot += 1) {
             let x = gridX + slot * cellSize;
-            let available = slot <= entryCount;
-            let current = slot === cursor;
-            let applied = available && slot < cursor;
+            let historyIndex = layout.windowStart + slot;
+            let available = historyIndex <= entryCount;
+            if (!available) {
+                continue;
+            }
+            let current = historyIndex === cursor;
             let fillColor = current
                 ? BankManagerControlOptions.focused
-                : applied
-                    ? BankManagerControlOptions.remote
-                    : null;
+                : null;
             if (fillColor) {
                 mgraphics.set_source_rgba.apply(mgraphics, fillColor);
                 mgraphics.rectangle(x, y, cellSize, historyHeight);
                 mgraphics.fill();
             }
-        }
-
-        mgraphics.set_source_rgba.apply(mgraphics,
-            BankManagerControlOptions.separator);
-        for (let slot = 0;
-                slot <= BankManagerControlOptions.historySlotCount;
-                slot += 1) {
-            let x = gridX + slot * cellSize;
+            mgraphics.set_source_rgba.apply(mgraphics,
+                BankManagerControlOptions.separator);
             mgraphics.rectangle(x, y, 1, historyHeight);
             mgraphics.fill();
-        }
-        mgraphics.rectangle(
-            gridX,
-            y,
-            BankManagerControlOptions.historySlotCount * cellSize,
-            1
-        );
-        mgraphics.fill();
-        mgraphics.rectangle(
-            gridX,
-            y + historyHeight - 1,
-            BankManagerControlOptions.historySlotCount * cellSize,
-            1
-        );
-        mgraphics.fill();
-
-        for (let slot = 0;
-                slot < BankManagerControlOptions.historySlotCount;
-                slot += 1) {
-            let x = gridX + slot * cellSize;
-            let available = slot <= entryCount;
-            let current = slot === cursor;
+            mgraphics.rectangle(x, y, cellSize, 1);
+            mgraphics.fill();
+            mgraphics.rectangle(x, y + historyHeight - 1, cellSize, 1);
+            mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics,
-                current || available
+                current
                     ? BankManagerControlOptions.background
-                    : BankManagerControlOptions.disabled);
+                    : BankManagerControlOptions.separator);
             mgraphics.set_font_size(8);
-            let label = String(slot);
+            let label = String(historyIndex);
             let textSize = mgraphics.text_measure(label);
             mgraphics.move_to(x + (cellSize - textSize[0]) / 2, y + 12);
             mgraphics.show_text(label);
+        }
+
+        let lastAvailableSlot = Math.min(
+            BankManagerControlOptions.historySlotCount - 1,
+            entryCount - layout.windowStart
+        );
+        if (lastAvailableSlot >= 0) {
+            let rightX = gridX + (lastAvailableSlot + 1) * cellSize - 1;
+            mgraphics.set_source_rgba.apply(mgraphics,
+                BankManagerControlOptions.separator);
+            mgraphics.rectangle(rightX, y, 1, historyHeight);
+            mgraphics.fill();
         }
     }
 
     historyAt(x, y)
     {
-        let historyY = this.contentHeight() +
-            BankManagerControlOptions.actionPanelHeight;
+        let historyY = this.historyPanelY();
         if (y < historyY || y >= historyY +
-                BankManagerControlOptions.historyPanelHeight || x < 100) {
+                BankManagerControlOptions.historyPanelHeight) {
             return -1;
         }
-        let slot = Math.floor((x - 100) / BankManagerControlOptions.bankSize);
-        let entryCount = Number((this.presentation.history || {}).entryCount) || 0;
-        return slot >= 0 && slot <= entryCount &&
-            slot < BankManagerControlOptions.historySlotCount ? slot : -1;
+        let layout = this.historyLayout();
+        let slot = Math.floor((x - layout.originX) / layout.slotSize);
+        let historyIndex = layout.windowStart + slot;
+        return slot >= 0 && slot < BankManagerControlOptions.historySlotCount &&
+            historyIndex <= layout.entryCount ? historyIndex : -1;
     }
 
     rowAt(y)
@@ -611,7 +681,7 @@ class BankManagerControl
     bankAt(row, x)
     {
         let index = Math.floor(
-            (x - 100) /
+            (x - this.bankGridX(this.presentation.rows || [])) /
             (BankManagerControlOptions.bankSize + BankManagerControlOptions.bankGap)
         );
 
@@ -620,11 +690,23 @@ class BankManagerControl
 
     selectAt(x, y, extendSelection, groupControl)
     {
+        if (x < BankManagerControlOptions.outerPadding ||
+                y < BankManagerControlOptions.outerPadding ||
+                x >= mgraphics.size[0] - BankManagerControlOptions.outerPadding ||
+                y >= mgraphics.size[1] - BankManagerControlOptions.outerPadding) {
+            return;
+        }
+        x -= BankManagerControlOptions.outerPadding;
+        y -= BankManagerControlOptions.outerPadding;
         if (!this.presentation.enabled) {
             return;
         }
 
-        if (this.scrollbarAt(x, y)) {
+        let panel = this.panelAt(x, y);
+        if (panel) {
+            this.presentation.selectedPanel = panel;
+            this.emit("panelSelected", [panel]);
+            mgraphics.redraw();
             return;
         }
 
@@ -634,9 +716,15 @@ class BankManagerControl
             return;
         }
 
-        if (y >= this.contentHeight() &&
-                y < this.contentHeight() + BankManagerControlOptions.actionPanelHeight) {
-            let buttonIndex = Math.floor(x / (mgraphics.size[0] / 3));
+        if (y >= this.actionPanelY() &&
+                y < this.actionPanelY() + BankManagerControlOptions.actionPanelHeight) {
+            let actionWidth = (this.primaryWidth() - BankManagerControlOptions.actionGap * 2) / 3;
+            let actionStep = actionWidth + BankManagerControlOptions.actionGap;
+            let buttonIndex = Math.floor(x / actionStep);
+            if (buttonIndex < 0 || buttonIndex >= 3 ||
+                    x >= buttonIndex * actionStep + actionWidth) {
+                return;
+            }
             let actions = [
                 this.presentation.groupAction,
                 this.presentation.ungroupAction,
@@ -660,7 +748,8 @@ class BankManagerControl
             return;
         }
 
-        let instanceButtonsX = this.bankGridRight(rows) + 4;
+        let instanceButtonsX = this.bankGridRight(rows) +
+            BankManagerControlOptions.deviceColumnGap;
         if (x >= instanceButtonsX &&
                 x < instanceButtonsX + BankManagerControlOptions.bankSize * 2) {
             let buttonIndex = Math.floor(
@@ -716,33 +805,17 @@ class BankManagerControl
         }
 
         this.pointerDown = true;
+        this.pointerClickHandled = false;
         this.pointerX = x;
         this.pointerY = y;
         this.pointerShift = Number(shift) !== 0;
         this.pointerGroup = Number(groupControl) !== 0;
         this.dragging = false;
-        this.scrollbarDragging = this.scrollbarAt(x, y);
-        if (this.scrollbarDragging) {
-            let geometry = this.scrollbarGeometry();
-            this.scrollbarDragOffset = Math.max(
-                0,
-                Math.min(
-                    geometry.thumbHeight,
-                    y - geometry.thumbY
-                )
-            );
-            this.updateScrollFromScrollbar(y);
-        }
     }
 
     movePointer(x, y)
     {
         if (!this.pointerDown) {
-            return;
-        }
-
-        if (this.scrollbarDragging) {
-            this.updateScrollFromScrollbar(y);
             return;
         }
 
@@ -768,21 +841,19 @@ class BankManagerControl
 
         if (this.dragging) {
             this.endGesture();
-        } else {
-            if (!this.scrollbarDragging) {
-                this.selectAt(
-                    x,
-                    y,
-                    this.pointerShift,
-                    this.pointerGroup
-                );
-            }
+        } else if (!this.pointerClickHandled) {
+            this.selectAt(
+                x,
+                y,
+                this.pointerShift,
+                this.pointerGroup
+            );
         }
 
         this.pointerDown = false;
         this.pointerShift = false;
         this.pointerGroup = false;
-        this.scrollbarDragging = false;
+        this.pointerClickHandled = false;
     }
 
     cancelPointer()
@@ -794,7 +865,7 @@ class BankManagerControl
         this.pointerDown = false;
         this.pointerShift = false;
         this.pointerGroup = false;
-        this.scrollbarDragging = false;
+        this.pointerClickHandled = false;
     }
 
     drag(y)
@@ -1168,8 +1239,18 @@ function onresize() {
     mgraphics.redraw();
 }
 
-function onclick(x, y, button, modifier1, shift) {
-    bankManagerControl.beginPointer(x, y, shift, modifier1);
+function onclick(x, y, button, modifier1, shift, caps, option, modifier2,
+    pointerevent) {
+    let modifier1Value = Number(modifier1);
+    let modifier2Value = Number(modifier2);
+    let pointerControl = Boolean(pointerevent &&
+        (pointerevent.ctrlKey || pointerevent.metaKey));
+    let groupControl = pointerControl ||
+        (isFinite(modifier1Value) && modifier1Value !== 0) ||
+        (isFinite(modifier2Value) && modifier2Value !== 0);
+    bankManagerControl.beginPointer(x, y, shift, groupControl);
+    bankManagerControl.selectAt(x, y, shift, groupControl);
+    bankManagerControl.pointerClickHandled = true;
 }
 
 function ondrag(x, y, button) {

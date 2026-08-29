@@ -11,6 +11,12 @@ class AnalyzerController
             return;
         }
         switch (intent) {
+        case "gestureBegan":
+            this.presenter.beginPreviewGesture();
+            break;
+        case "gestureEnded":
+            this.presenter.endPreviewGesture();
+            break;
         case "filterPreview":
             this.presenter.previewMoved(payload[0], payload[1], payload[2]);
             break;

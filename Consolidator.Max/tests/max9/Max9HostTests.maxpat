@@ -51,10 +51,10 @@
             220,
             22
           ],
-          "text": "v8 ../../js/PanelBindingHostV8.js",
+          "text": "v8 ../Project:/js/PanelBindingHostV8.js",
           "varname": "panel_router",
           "saved_object_attributes": {
-            "filename": "../../js/PanelBindingHostV8.js",
+            "filename": "../Project:/js/PanelBindingHostV8.js",
             "parameter_enable": 0
           }
         }

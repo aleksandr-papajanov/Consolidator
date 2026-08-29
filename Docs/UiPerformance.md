@@ -27,10 +27,10 @@ objects in all panels.
 ## BankManager scrolling
 
 `BankManagerControl` keeps track scrolling local to the Max UI control. When
-the rows exceed the control height, it draws a scrollbar in the content area;
-the thumb can be dragged and the mouse wheel moves by one row per wheel step.
-Scrolling is clamped to the available content range and does not create
-Managed protocol traffic.
+the rows exceed the control height, the content can be dragged directly inside
+the control; the mouse wheel moves by one row per wheel step. Scrolling is
+clamped to the available content range and does not create Managed protocol
+traffic.
 
 Track names are rendered with the control's fixed track-name size on every
 row. Bank cells do not display their bank ID; only banks assigned to a group
@@ -49,7 +49,7 @@ group ID to the selected banks, `Ungroup` clears the focused bank's group, and
 `Clear` clears local groups with confirmation. The former link-group panel is
 not part of the presentation.
 
-The BankManager also renders the 10-slot history timeline directly below its
+The BankManager also renders the 32-slot history timeline directly below its
 action buttons. Filled slots show the applied portion of the timeline, the
 current cursor is highlighted, and clicking an available slot sends one
 `jump_history` request. History state is delivered through the same complete

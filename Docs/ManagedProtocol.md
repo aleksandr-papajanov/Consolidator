@@ -250,5 +250,6 @@ set_instance_solo targetInstanceId instance 0|1 exclusive|additive
 set_instance_solo targetInstanceId group bankId 0|1 exclusive|additive
 ```
 
-`bankId` uses the public one-based range `1..7` and is converted to the internal
-zero-based `BankId` only by the protocol codec.
+`bankId` is zero-based everywhere and uses the range `0..6`. The protocol,
+JavaScript clients, codecs, registry messages, state paths, and internal
+`BankId` all use this same value without index conversion.

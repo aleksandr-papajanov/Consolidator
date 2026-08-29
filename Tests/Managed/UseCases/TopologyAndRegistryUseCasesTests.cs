@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 using Consolidator.Managed.Tests.Support;
@@ -36,23 +37,23 @@ public sealed class TopologyAndRegistryUseCasesTests
         first.Output.Clear();
         second.Output.Clear();
 
-        WriteGroup(application, first, first, 1, 7);
-        WriteGroup(application, first, second, 2, 7);
+        WriteGroup(application, first, first, 0, 7);
+        WriteGroup(application, first, second, 1, 7);
         application.Send(
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(0));
         application.Send(
             second,
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
-            Integer(2));
+            Integer(1));
         application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
         second.Output.Clear();
 
-        WriteFilterGain(application, first, first, 1, 4.5);
+        WriteFilterGain(application, first, first, 0, 4.5);
 
         Assert.Contains(
             first.Output.Messages,
@@ -67,7 +68,7 @@ public sealed class TopologyAndRegistryUseCasesTests
             Symbol("query"),
             Symbol("equalizer"),
             Symbol("bank"),
-            Integer(2),
+            Integer(1),
             Symbol("filter"),
             Integer(1),
             Symbol("gain"));
@@ -99,18 +100,18 @@ public sealed class TopologyAndRegistryUseCasesTests
         var second = application.RegisterInstance();
         var third = application.RegisterInstance();
 
-        WriteGroup(application, first, first, 1, 7);
-        WriteGroup(application, first, second, 2, 7);
+        WriteGroup(application, first, first, 0, 7);
+        WriteGroup(application, first, second, 1, 7);
         application.Send(
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(0));
         application.Send(
             second,
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
-            Integer(2));
+            Integer(1));
         application.Send(
             third,
             "observe_target",
@@ -124,7 +125,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         second.Output.Clear();
         third.Output.Clear();
 
-        SendSolo(application, first, first, 1, true, false, true);
+        SendSolo(application, first, first, 0, true, false, true);
 
         AssertSolo(application, first, true);
         AssertSolo(application, second, true);
@@ -142,7 +143,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         first.Output.Clear();
         second.Output.Clear();
         third.Output.Clear();
-        SendSolo(application, first, first, 1, true, true, true);
+        SendSolo(application, first, first, 0, true, true, true);
 
         AssertSolo(application, first, true);
         AssertSolo(application, second, true);
@@ -151,7 +152,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         first.Output.Clear();
         second.Output.Clear();
         third.Output.Clear();
-        SendSolo(application, first, first, 1, false, true, true);
+        SendSolo(application, first, first, 0, false, true, true);
 
         AssertSolo(application, first, false);
         AssertSolo(application, second, false);
@@ -163,26 +164,26 @@ public sealed class TopologyAndRegistryUseCasesTests
     {
         using var application = new ManagedApplicationFixture();
         var first = application.RegisterInstance();
-        WriteGroup(application, first, first, 1, 7);
+        WriteGroup(application, first, first, 0, 7);
 
         var newTrack = application.RegisterInstance();
-        WriteGroup(application, first, newTrack, 2, 7);
+        WriteGroup(application, first, newTrack, 1, 7);
         application.Send(
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(0));
         application.Send(
             newTrack,
             "observe_target",
             Symbol(newTrack.InstanceId.Value.ToString()),
-            Integer(2));
+            Integer(1));
         application.Send(first, "registry");
         application.Send(newTrack, "registry");
         first.Output.Clear();
         newTrack.Output.Clear();
 
-        SendSolo(application, first, first, 1, true, false, true);
+        SendSolo(application, first, first, 0, true, false, true);
 
         AssertSolo(application, first, true);
         AssertSolo(application, newTrack, true);
@@ -201,7 +202,7 @@ public sealed class TopologyAndRegistryUseCasesTests
             track4,
             "observe_target",
             Symbol(track4.InstanceId.Value.ToString()),
-            Integer(7));
+            Integer(6));
         foreach (var instance in new[] { track1, track2, track3, track4 })
         {
             application.Send(instance, "registry");
@@ -215,7 +216,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         AssertSolo(application, track3, false);
         AssertSolo(application, track4, false);
 
-        SendMute(application, track4, track2, 7, true, true);
+        SendMute(application, track4, track2, 6, true, true);
 
         AssertMute(application, track1, true);
         AssertMute(application, track2, true);
@@ -231,12 +232,12 @@ public sealed class TopologyAndRegistryUseCasesTests
         var bridge = application.RegisterInstance();
         var third = application.RegisterInstance();
 
-        WriteGroup(application, first, first, 1, 7);
-        WriteGroup(application, first, bridge, 2, 7);
-        WriteGroup(application, first, bridge, 3, 8);
-        WriteGroup(application, first, third, 4, 8);
+        WriteGroup(application, first, first, 0, 7);
+        WriteGroup(application, first, bridge, 1, 7);
+        WriteGroup(application, first, bridge, 2, 8);
+        WriteGroup(application, first, third, 3, 8);
 
-        SendSolo(application, first, first, 1, true, false, true);
+        SendSolo(application, first, first, 0, true, false, true);
 
         AssertSolo(application, first, true);
         AssertSolo(application, bridge, true);
@@ -249,7 +250,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         using var application = new ManagedApplicationFixture();
         var instance = application.RegisterInstance();
 
-        SendMute(application, instance, instance, 1, true, true);
+        SendMute(application, instance, instance, 0, true, true);
 
         AssertMute(application, instance, false);
     }
@@ -261,11 +262,11 @@ public sealed class TopologyAndRegistryUseCasesTests
         var first = application.RegisterInstance();
         var second = application.RegisterInstance();
 
-        WriteGroup(application, first, first, 1, 7);
-        WriteGroup(application, first, second, 2, 7);
-        SendMute(application, first, first, 1, true, true);
+        WriteGroup(application, first, first, 0, 7);
+        WriteGroup(application, first, second, 1, 7);
+        SendMute(application, first, first, 0, true, true);
 
-        WriteGroup(application, first, second, 2, null);
+        WriteGroup(application, first, second, 1, null);
 
         AssertMute(application, first, true);
         AssertMute(application, second, true);

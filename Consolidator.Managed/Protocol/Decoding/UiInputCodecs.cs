@@ -38,7 +38,7 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
 
         var instanceId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
         if (atoms[header.Position + 1].Type != AtomType.Integer ||
-            atoms[header.Position + 1].Integer is < 1 or > 7)
+            atoms[header.Position + 1].Integer is < 0 or >= 7)
         {
             throw new FormatException("Observed bank is out of range.");
         }
@@ -47,7 +47,7 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
             header,
             new ObserveTargetCommand(
                 new InstanceId(instanceId),
-                (BankId)(atoms[header.Position + 1].Integer - 1)));
+                (BankId)atoms[header.Position + 1].Integer));
     }
 }
 
@@ -165,7 +165,7 @@ internal static class InstanceControlInputCodecSupport
         if (atoms[header.Position + 1].Symbol != "group" ||
             atoms.Length < header.Position + 4 ||
             atoms[header.Position + 2].Type != AtomType.Integer ||
-            atoms[header.Position + 2].Integer is < 1 or > DspConstants.BankCount)
+            atoms[header.Position + 2].Integer is < 0 or >= DspConstants.BankCount)
         {
             throw new FormatException("Invalid instance control group target.");
         }
@@ -174,6 +174,6 @@ internal static class InstanceControlInputCodecSupport
         return new InstanceControlTarget(
             new InstanceId(targetId),
             InstanceControlScope.BankGroup,
-            (BankId)(atoms[header.Position + 2].Integer - 1));
+            (BankId)atoms[header.Position + 2].Integer);
     }
 }

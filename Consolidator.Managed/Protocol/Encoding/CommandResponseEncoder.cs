@@ -46,7 +46,7 @@ internal sealed class CommandResponseEncoder
         var atoms = new List<Atom>(6 + snapshot.Values.Count * 6);
         atoms.AddRange(Header(target, requestId));
         atoms.Add(Symbol(snapshot.InstanceId.ToString()));
-        atoms.Add(Integer(snapshot.BankId + 1));
+        atoms.Add(Integer(snapshot.BankId));
         atoms.Add(Integer(snapshot.Values.Count));
         for (var index = 0; index < snapshot.Values.Count; index++)
         {

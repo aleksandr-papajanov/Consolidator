@@ -142,7 +142,7 @@ class ConsolidatorUiHost
             }
             const target = this.client.targetState.target || {
                 instanceId: this.instanceId,
-                bankId: 1
+                bankId: 0
             };
             this.client.uiTarget.show(
                 target.instanceId,

@@ -58,10 +58,8 @@ class StateClient
     encodePath(path)
     {
         let parts = Array.isArray(path) ? path : path.split(".");
-        return parts.map((part, index) => {
-            if (!/^\d+$/.test(String(part))) return part;
-            let value = parseInt(part, 10);
-            return index > 0 && parts[index - 1] === "bank" ? value + 1 : value;
+        return parts.map((part) => {
+            return /^\d+$/.test(String(part)) ? parseInt(part, 10) : part;
         });
     }
     

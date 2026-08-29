@@ -5,23 +5,24 @@ These panels are the first message-based bridge composition for
 
 ## Path contract
 
-The root patcher references panels with the `Project:/` prefix:
+The root patcher references panels from the Max Project. JavaScript files use
+the project-root alias:
 
 ```text
 Project:/Panels/EqualizerPanel.maxpat
 Project:/Panels/BankManagerPanel.maxpat
 ```
 
-Panel-local JS objects must reference files relative to the `Panels/` folder
-using the `Project:/` prefix:
+Panel-local JS objects reference files through the Max Project:
 
 ```text
 Project:/js/Controls/Analyzer/AnalyzerControl.js
 Project:/js/PanelBindingHostV8.js
 ```
 
-These paths are resolved relative to the patcher containing the object. They
-remain reliable even when a panel is opened directly or saved from Max.
+These paths are resolved from the Max Project root. The panels must be opened
+through the project, not as standalone patchers, so that the `Project:/` alias
+is available when Max reloads or saves them.
 
 The parent patch sends presentation messages in this form:
 
@@ -44,9 +45,16 @@ starts a new grouping selection, while Shift-click extends that selection
 across banks and instances. Selected banks remain visibly active until a group
 is applied or edit mode is closed.
 
-The bank manager includes the 10-slot history timeline below its action
-buttons. Available slots are clickable and navigate the shared history cursor
-through the existing `jump_history` protocol command.
+The bank manager includes a 32-slot history timeline below its action buttons.
+Slots keep the standard cell size and may be clipped by the available width.
+The current cursor is kept in the center when possible; clicking a visible slot
+navigates the shared history cursor through the existing `jump_history` command
+and shifts the visible timeline window.
+
+The Bank Manager also provides a vertical panel selector on its right side.
+Selecting Input, Saturator, Compressor, EQ or Output shows that panel beside
+the manager and hides the other effect panels. This is a Max presentation
+concern; it does not create protocol traffic or change Managed state.
 
 The first bank-manager snapshot uses a complete presentation. Later registry
 additions, removals, label changes and bank-group changes use row, bank and
