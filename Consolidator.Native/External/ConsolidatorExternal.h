@@ -133,6 +133,16 @@ public:
         }
     };
 
+    c74::min::message<> clearTopology{
+        this,
+        "clear_topology",
+        MIN_FUNCTION
+        {
+            ForwardMessage("clear_topology", args);
+            return {};
+        }
+    };
+
     c74::min::message<> reset{
         this,
         "reset",
