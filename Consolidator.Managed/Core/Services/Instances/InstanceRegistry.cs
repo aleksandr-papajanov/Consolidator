@@ -15,7 +15,6 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
 {
     private readonly Dictionary<InstanceId, ManagedInstance> _instances = new();
     private readonly object _lock = new();
-    private readonly IManagedLogger _logger;
     private readonly StateRegistry<InstanceId> _stateRegistry;
     private readonly StateValueFactory _stateValueFactory;
     private readonly StateTopologyObserver _topologyObserver;
@@ -25,10 +24,9 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private ulong _nextInstanceId;
     private readonly RegistryChangePublisher _registryChanges;
     private readonly FftAnalyzer _fftAnalyzer;
-    private readonly IProcessorStatusSink _processorStatusSink;
+    private readonly IActivityStatusSink _activityStatusSink;
 
     internal InstanceRegistry(
-        IManagedLogger logger,
         StateRegistry<InstanceId> stateRegistry,
         StateValueFactory stateValueFactory,
         StateTopologyObserver topologyObserver,
@@ -37,9 +35,8 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         IOperationGate operationGate,
         RegistryChangePublisher registryChanges,
         FftAnalyzer fftAnalyzer,
-        IProcessorStatusSink processorStatusSink)
+        IActivityStatusSink activityStatusSink)
     {
-        _logger = logger;
         _stateRegistry = stateRegistry;
         _stateValueFactory = stateValueFactory;
         _topologyObserver = topologyObserver;
@@ -48,7 +45,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         _operationGate = operationGate;
         _registryChanges = registryChanges;
         _fftAnalyzer = fftAnalyzer;
-        _processorStatusSink = processorStatusSink;
+        _activityStatusSink = activityStatusSink;
     }
 
     public InstanceId RegisterInstance(
@@ -76,14 +73,12 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 .Where(changedInstanceId => changedInstanceId != instanceId)
                 .ToArray());
 
-            _logger.Info($"Registered instance {instanceId}");
-
             _registryChanges.InstanceAdded(
                 instanceId.Value,
                 state.Instance.Label.Value,
                 state.Instance.Mute.Value,
                 state.Instance.Solo.Value,
-                state.ProcessorActivity.Snapshot(),
+                state.Activity.Snapshot(),
                 state.Instance.Banks
                     .Select(bank => (
                         (int)bank.Id,
@@ -117,8 +112,6 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
 
         instance.Dispose();
 
-        _logger.Info($"Unregistered instance {instanceId}");
-        
         _registryChanges.UnregisterObserver(instanceId.Value);
         _registryChanges.InstanceRemoved(instanceId.Value);
     }
@@ -160,7 +153,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             {
                 if (_instances.TryGetValue(instanceId, out var instance))
                 {
-                    instance.State.ProcessorActivity.Refresh();
+                    instance.State.Activity.Refresh();
                     instance.PublishDspState();
                 }
             }
@@ -201,6 +194,11 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     internal RegistrySnapshotResult CreateSnapshot()
     {
         RuntimeMetrics.Shared.RecordRegistrySnapshot();
+        return CaptureSnapshot();
+    }
+
+    internal RegistrySnapshotResult CaptureSnapshot()
+    {
         ManagedInstance[] instances;
         lock (_lock)
         {
@@ -214,7 +212,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 instance.State.Instance.Label.Value,
                 instance.State.Instance.Mute.Value,
                 instance.State.Instance.Solo.Value,
-                instance.State.ProcessorActivity.Snapshot(),
+                instance.State.Activity.Snapshot(),
                 instance.State.Instance.Banks
                     .Select(bank => new RegistryBankSnapshot(
                         (int)bank.Id,
@@ -238,7 +236,11 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 group.Key,
                 group.Select(entry => entry.Member).ToArray()))
             .ToArray();
-        return new RegistrySnapshotResult(_registryChanges.Revision, snapshots, groups);
+        return new RegistrySnapshotResult(
+            _registryChanges.Revision,
+            snapshots,
+            groups,
+            Array.Empty<RegistryProcessorMarkerSnapshot>());
     }
 
     public void Dispose()
@@ -302,17 +304,13 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 instanceId,
                 _stateValueFactory,
                 runtime,
-                _stateValueFactory.BankEffectStatusSink);
-            var processorActivity = new ProcessorActivityObserver(
-                instanceId,
-                dsp,
-                _processorStatusSink);
+                _activityStatusSink);
             var root = _stateRegistry.GetRoot(instanceId);
             var state = new ManagedState(
                 instance,
                 transient,
                 dsp,
-                processorActivity,
+                dsp.Activity,
                 runtime,
                 root);
             _topologyObserver.AddState(state.Instance, state.Transient);

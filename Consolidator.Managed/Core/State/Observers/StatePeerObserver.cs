@@ -17,8 +17,7 @@ internal sealed class StatePeerObserver
     private readonly Dictionary<BankValueAddress, IObservedValue> _bankValuesByAddress = new();
     private readonly Dictionary<ContextualPeerSetKey, PeerSet> _contextualPeerSets = new();
     private readonly Dictionary<IObservedValue, HashSet<PeerSet>> _peerSetsByValue = new();
-    private readonly Dictionary<ContextualPeerSetKey, FloatRange?>
-        _detachedContextualRanges = new();
+    private readonly Dictionary<ContextualPeerSetKey, FloatRange?> _detachedContextualRanges = new();
     private BankAddress? _editingBank;
     private bool _isEditing;
 

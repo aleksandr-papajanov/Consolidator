@@ -85,6 +85,27 @@ class BankManagerViewModel
     
     applyRegistryDelta(snapshot, delta)
     {
+        if (delta.selector === "registry_processor_markers_changed") {
+            delta.rowIndices = [];
+            (delta.instanceIds || []).forEach((instanceId) => {
+                let rowIndex = this.findRowIndex(instanceId);
+                let instance = snapshot.instances.filter((candidate) => {
+                    return String(candidate.instanceId) === String(instanceId);
+                })[0];
+                if (rowIndex < 0 || !instance) return;
+                let markers = {};
+                (instance.processors || []).forEach((processor) => {
+                    markers[processor.processorId] = Boolean(processor.markerActive);
+                });
+                this.rows[rowIndex].processors.forEach((processor) => {
+                    processor.markerActive = Boolean(markers[processor.processorId]);
+                });
+                delta.rowIndices.push(rowIndex);
+            });
+            this.notify(delta);
+            return true;
+        }
+
         let args = delta.args;
         let instanceId = String(args[3]);
         let rowIndex;
@@ -179,6 +200,7 @@ class BankManagerViewModel
             processors: (instance.processors || []).map((processor) => ({
                 processorId: processor.processorId,
                 effectActive: Boolean(processor.effectActive),
+                markerActive: Boolean(processor.markerActive),
                 bypassed: Boolean(processor.bypassed),
                 soloed: Boolean(processor.soloed)
             })),
@@ -232,6 +254,7 @@ class BankManagerViewModel
                 processors: (instance.processors || []).map((processor) => ({
                     processorId: processor.processorId,
                     effectActive: Boolean(processor.effectActive),
+                    markerActive: Boolean(processor.markerActive),
                     bypassed: Boolean(processor.bypassed),
                     soloed: Boolean(processor.soloed)
                 })),
@@ -267,7 +290,7 @@ class BankManagerViewModel
         this.refreshActions();
         this.notify();
     }
-    
+
     refreshActions()
     {
         let localRow = this.rows.filter((row) => { return row.local; })[0];

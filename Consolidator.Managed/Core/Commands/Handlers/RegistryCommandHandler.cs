@@ -11,13 +11,16 @@ internal sealed class ReadRegistryCommandHandler
 {
     private readonly InstanceRegistry _registry;
     private readonly RegistryChangePublisher _registryChanges;
+    private readonly ProcessorMarkerPublisher _processorMarkers;
 
     public ReadRegistryCommandHandler(
         InstanceRegistry registry,
-        RegistryChangePublisher registryChanges)
+        RegistryChangePublisher registryChanges,
+        ProcessorMarkerPublisher processorMarkers)
     {
         _registry = registry;
         _registryChanges = registryChanges;
+        _processorMarkers = processorMarkers;
     }
 
     public override ValueTask<RegistrySnapshotResult> HandleAsync(
@@ -26,7 +29,10 @@ internal sealed class ReadRegistryCommandHandler
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var snapshot = _processorMarkers.Initialize(
+            context.InstanceId,
+            _registry.CreateSnapshot());
         _registryChanges.RegisterObserver(context.InstanceId.Value);
-        return ValueTask.FromResult(_registry.CreateSnapshot());
+        return ValueTask.FromResult(snapshot);
     }
 }

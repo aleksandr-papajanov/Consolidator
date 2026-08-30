@@ -84,10 +84,10 @@ function testRegistrySnapshotRoundTrip() {
     "Kick",
   ]);
   client.handleControl("registry_processor", [
-    1, "ui.main", "1", "7", "input", 1, 0, 0,
+    1, "ui.main", "1", "7", "input", 1, 1, 0, 0,
   ]);
   client.handleControl("registry_processor", [
-    1, "ui.main", "1", "7", "equalizer", 1, 0, 1,
+    1, "ui.main", "1", "7", "equalizer", 1, 0, 0, 1,
   ]);
   client.handleControl("registry_bank", [1, "ui.main", "1", "7", 1, "none"]);
   client.handleControl("registry_bank", [1, "ui.main", "1", "7", 2, 0]);
@@ -98,7 +98,21 @@ function testRegistrySnapshotRoundTrip() {
   assert.strictEqual(client.registry.get().revision, 20);
   assert.strictEqual(client.registry.get().instances[0].banks[1].groupId, 0);
   assert.strictEqual(client.registry.get().instances[0].processors[1].soloed, true);
+  assert.strictEqual(client.registry.get().instances[0].processors[0].markerActive, true);
+  assert.strictEqual(client.registry.get().instances[0].processors[1].markerActive, false);
   assert.strictEqual(snapshots.length, 1);
+
+  client.handleControl("registry_processor_markers_changed", [
+    1, 1, "7", 1, "equalizer", 1,
+  ]);
+  assert.strictEqual(client.registry.get().instances[0].processors[1].markerActive, true);
+  assert.strictEqual(snapshots.length, 2);
+
+  client.handleControl("registry_processor_markers_changed", [
+    1, 1, "7", 1, "equalizer",
+  ]);
+  assert.strictEqual(client.registry.get().instances[0].processors[1].markerActive, true);
+  assert.strictEqual(snapshots.length, 2);
 }
 
 function testRegistryProcessorDeltaPatchesOneRow() {
@@ -129,6 +143,170 @@ function testRegistryProcessorDeltaPatchesOneRow() {
   assert.strictEqual(viewModel.rows[0].processors[0].bypassed, false);
   assert.strictEqual(viewModel.rows[0].processors[0].soloed, true);
   viewModel.destroy();
+}
+function testEqualizerGainRoundTripUpdatesBankActivityMarker() {
+  var sent = [];
+  var client = new ConsolidatorClient("ui.main", function (frame) {
+    sent.push(frame);
+  });
+  var vm = new BankManagerViewModel(client.registry, "7");
+  client.registry.subscribe(function (snapshot, delta) {
+    vm.applyRegistryUpdate(snapshot, delta);
+  });
+  client.registry.snapshot = {
+    revision: 10,
+    instances: [{
+      instanceId: "7",
+      label: "Track",
+      processors: [],
+      banks: [{ bankId: 0, groupId: null, effectActive: false }],
+    }],
+    groups: [],
+  };
+  vm.applyRegistrySnapshot(client.registry.snapshot);
+
+  client.state.setFor(
+    "7",
+    "equalizer.bank.0.filter.1.gain",
+    4.5,
+  );
+  assert.deepStrictEqual(sent[0].slice(0, 9), [
+    "write", 1, "ui.main", "1", "7", "0", 1,
+    "entry", "equalizer",
+  ]);
+
+  client.handleControl("registry_bank_effect_changed", [
+    1, 10, 11, "7", 0, 1,
+  ]);
+  assert.strictEqual(vm.rows[0].banks[0].effectActive, true);
+
+  client.handleControl("registry_bank_effect_changed", [
+    1, 11, 12, "7", 0, 0,
+  ]);
+  assert.strictEqual(vm.rows[0].banks[0].effectActive, false);
+  vm.destroy();
+}
+function testBankEffectDeltaSendsInactiveBankPatchToControl() {
+  var sent = [];
+  var binding = new BankManagerControlBinding(
+    {},
+    { subscribe: function () { return function () {}; } },
+    function (selector, args) {
+      sent.push([selector, args]);
+    },
+  );
+  binding.hasPresentation = true;
+
+  var presentation = {
+    enabled: true,
+    rows: [{
+      instanceId: "7",
+      label: "Track",
+      local: true,
+      mute: false,
+      solo: false,
+      processors: [],
+      banks: [{
+        bankId: 0,
+        label: "0",
+        system: false,
+        visible: true,
+        enabled: true,
+        active: false,
+        selected: false,
+        opacity: 1,
+        groupId: null,
+        effectActive: false,
+      }],
+    }],
+    delta: {
+      selector: "registry_bank_effect_changed",
+      args: [1, 11, 12, "7", 0, 0],
+      rowIndex: 0,
+    },
+  };
+  binding.applyDelta(presentation, presentation.delta);
+
+  var bankPatch = sent.filter(function (message) {
+    return message[0] === "bank_patch";
+  })[0];
+  assert.ok(bankPatch);
+  assert.strictEqual(bankPatch[1][0], 0);
+  assert.strictEqual(bankPatch[1][1], 0);
+  assert.strictEqual(bankPatch[1][10], 0);
+  assert.deepStrictEqual(sent[sent.length - 1], ["presentation_patch_end", []]);
+  binding.destroy();
+}
+
+function testViewModelUsesManagedProcessorMarkers() {
+  var registry = { subscribe: function () { return function () {}; }, fetch: function () {} };
+  var vm = new BankManagerViewModel(registry, "local");
+  var snapshot = {
+    revision: 1,
+    instances: [{
+      instanceId: "local",
+      label: "Local",
+      processors: [
+        { processorId: "saturator", effectActive: false, markerActive: false, bypassed: false, soloed: false },
+        { processorId: "equalizer", effectActive: false, markerActive: true, bypassed: false, soloed: false },
+      ],
+      banks: [
+        { bankId: 1, groupId: null, effectActive: true },
+        { bankId: 2, groupId: 4, effectActive: false },
+      ],
+    }, {
+      instanceId: "remote",
+      label: "Remote",
+      processors: [
+        { processorId: "saturator", effectActive: true, markerActive: true, bypassed: false, soloed: false },
+        { processorId: "equalizer", effectActive: true, markerActive: false, bypassed: false, soloed: false },
+      ],
+      banks: [
+        { bankId: 1, groupId: null, effectActive: false },
+        { bankId: 2, groupId: 4, effectActive: true },
+      ],
+    }],
+    groups: [],
+  };
+  vm.applyRegistrySnapshot(snapshot);
+
+  vm.setFocusedBank("local", 1);
+  assert.strictEqual(vm.rows[0].processors.filter(function (item) {
+    return item.processorId === "equalizer";
+  })[0].markerActive, true);
+  assert.strictEqual(vm.rows[1].processors.filter(function (item) {
+    return item.processorId === "equalizer";
+  })[0].markerActive, false);
+
+  vm.setFocusedBank("local", 2);
+  assert.strictEqual(vm.rows[0].processors.filter(function (item) {
+    return item.processorId === "equalizer";
+  })[0].markerActive, true);
+  assert.strictEqual(vm.rows[1].processors.filter(function (item) {
+    return item.processorId === "equalizer";
+  })[0].markerActive, false);
+
+  var topologyDelta = {
+    selector: "registry_bank_group_changed",
+    args: [1, 1, 2, "remote", 2, "none"],
+  };
+  vm.applyRegistryUpdate(null, topologyDelta);
+  assert.strictEqual(vm.rows[0].processors.filter(function (item) {
+    return item.processorId === "equalizer";
+  })[0].markerActive, true);
+
+  var markerDelta = {
+    selector: "registry_processor_markers_changed",
+    args: [1, 1, "local", 1, "equalizer", 0],
+    instanceIds: ["local"],
+  };
+  snapshot.instances[0].processors[1].markerActive = false;
+  vm.applyRegistryUpdate(snapshot, markerDelta);
+  assert.deepStrictEqual(markerDelta.rowIndices, [0]);
+  assert.strictEqual(vm.rows[0].processors.filter(function (item) {
+    return item.processorId === "equalizer";
+  })[0].markerActive, false);
+  vm.destroy();
 }
 function testRegistryDeltaDuringFetchIsRetained() {
   var sent = [];
@@ -193,14 +371,42 @@ function testRegistrySameRevisionDoesNotNotifyAgain() {
   });
 
   client.registry.fetch();
-  client.handleControl("registry_begin", [1, "ui.main", "1", "20", 0, 0]);
+  client.handleControl("registry_begin", [1, "ui.main", "1", "20", 1, 0]);
+  client.handleControl("registry_instance", [
+    1, "ui.main", "1", "7", "Track", 0, 0,
+  ]);
+  client.handleControl("registry_processor", [
+    1, "ui.main", "1", "7", "equalizer", 1, 0, 0, 0,
+  ]);
   client.handleControl("registry_done", [1, "ui.main", "1"]);
   client.registry.fetch();
-  client.handleControl("registry_begin", [1, "ui.main", "2", "20", 0, 0]);
+  client.handleControl("registry_begin", [1, "ui.main", "2", "20", 1, 0]);
+  client.handleControl("registry_instance", [
+    1, "ui.main", "2", "7", "Track", 0, 0,
+  ]);
+  client.handleControl("registry_processor", [
+    1, "ui.main", "2", "7", "equalizer", 1, 0, 0, 0,
+  ]);
   client.handleControl("registry_done", [1, "ui.main", "2"]);
 
   assert.strictEqual(notifications, 1);
   assert.strictEqual(client.registry.get().revision, 20);
+
+  client.registry.fetch();
+  client.handleControl("registry_begin", [1, "ui.main", "3", "20", 1, 0]);
+  client.handleControl("registry_instance", [
+    1, "ui.main", "3", "7", "Track", 0, 0,
+  ]);
+  client.handleControl("registry_processor", [
+    1, "ui.main", "3", "7", "equalizer", 1, 1, 0, 0,
+  ]);
+  client.handleControl("registry_done", [1, "ui.main", "3"]);
+
+  assert.strictEqual(notifications, 2);
+  assert.strictEqual(
+    client.registry.get().instances[0].processors[0].markerActive,
+    true,
+  );
 }
 
 function testRegistryDeltaUpdatesOnlyTheAffectedRow() {
@@ -547,6 +753,9 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
 }
 testRegistrySnapshotRoundTrip();
 testRegistryProcessorDeltaPatchesOneRow();
+testEqualizerGainRoundTripUpdatesBankActivityMarker();
+testBankEffectDeltaSendsInactiveBankPatchToControl();
+testViewModelUsesManagedProcessorMarkers();
 testRegistryDeltaDuringFetchIsRetained();
 testRegistryDoesNotPublishStaleSnapshotOverLabelDelta();
 testRegistryDeltaFetchesWhenIdle();

@@ -13,7 +13,7 @@ public sealed class StateValueFactory
     private readonly StateValueMetadataRegistry _metadata;
     private readonly IStateChangeSink _stateChangeSink;
     private readonly DspStateChangeTracker _dspChanges;
-    private readonly IBankEffectStatusSink _bankEffectStatusSink;
+    private readonly IActivityStatusSink _activityStatusSink;
 
     internal StateValueFactory(
         StateRegistry<InstanceId> registry,
@@ -21,17 +21,17 @@ public sealed class StateValueFactory
         StateValueMetadataRegistry metadata,
         IStateChangeSink stateChangeSink,
         DspStateChangeTracker dspChanges,
-        IBankEffectStatusSink bankEffectStatusSink)
+        IActivityStatusSink activityStatusSink)
     {
         _registry = registry;
         _peerObserver = peerObserver;
         _metadata = metadata;
         _stateChangeSink = stateChangeSink;
         _dspChanges = dspChanges;
-        _bankEffectStatusSink = bankEffectStatusSink;
+        _activityStatusSink = activityStatusSink;
     }
 
-    public IBankEffectStatusSink BankEffectStatusSink => _bankEffectStatusSink;
+    public IActivityStatusSink ActivityStatusSink => _activityStatusSink;
 
     public StateValue<TValue> CreateValue<TValue>(
         InstanceId instanceId,

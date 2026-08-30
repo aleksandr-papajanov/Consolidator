@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Dsp;
-using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.State;
@@ -8,27 +7,27 @@ namespace Consolidator.Managed.Core.State.Models;
 
 public sealed class EqualizerBankState
 {
-    public EqualizerBankState(
+    private readonly ActivityObserver _activity;
+    private readonly int _bankIndex;
+
+    internal EqualizerBankState(
         InstanceId instanceId,
         StatePath path,
         StateValueFactory values,
         DspRuntimeState runtime,
         int bankIndex,
-        IBankEffectStatusSink effectStatusSink)
+        ActivityObserver activity)
     {
-        var effectObserver = new EqualizerBankEffectObserver(
-            instanceId,
-            bankIndex,
-            effectStatusSink);
+        _activity = activity;
+        _bankIndex = bankIndex;
         Bypass = values.CreateBankValue(
             instanceId,
             path.Append(StateNodeIds.Bypass),
             false,
             StateValueEditMode.CopyValue,
             observers: [
-                new StateProjectionObserver<bool>(
-                    value => runtime.SetEqualizerBankActive(bankIndex, !value)),
-                effectObserver.ObserveBankBypass()
+                new StateProjectionObserver<bool>(value => runtime.SetEqualizerBankActive(bankIndex, !value)),
+                activity.ObserveBankBypass(bankIndex)
             ]);
         Solo = values.CreateBankValue(instanceId, path.Append(StateNodeIds.Solo), false, StateValueEditMode.CopyValue);
         Filters = Enumerable.Range(0, DspConstants.EqualizerFilterCount)
@@ -38,26 +37,17 @@ public sealed class EqualizerBankState
                 values,
                 true,
                 bypass => runtime.SetEqualizerFilterActive(bankIndex, index, !bypass),
-                effectObserver,
+                activity,
+                bankIndex,
                 index))
             .ToArray();
-
-        effectObserver.Initialize(
-            Bypass.Value,
-            Filters.Select(filter => filter.Bypass.Value).ToArray(),
-            Filters.Select(filter => filter.GainDb.Value).ToArray());
     }
 
     public StateValue<bool> Bypass { get; }
     public StateValue<bool> Solo { get; }
     public FilterState[] Filters { get; }
-    public bool EffectActive => !Bypass.Value && Filters.Any(filter =>
-        !filter.Bypass.Value && MathF.Abs(filter.GainDb.Value) > 0.0001F);
+    public bool EffectActive => _activity.BankActivity(_bankIndex);
 
 }
-
-
-
-
 
 

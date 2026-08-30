@@ -10,21 +10,21 @@ public sealed class ManagedState
         InstanceState instance,
         InstanceTransientState transient,
         DspState dsp,
-        ProcessorActivityObserver processorActivity,
+        ActivityObserver activity,
         DspRuntimeState runtime,
         StateNode root)
     {
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentNullException.ThrowIfNull(transient);
         ArgumentNullException.ThrowIfNull(dsp);
-        ArgumentNullException.ThrowIfNull(processorActivity);
+        ArgumentNullException.ThrowIfNull(activity);
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(root);
 
         Instance = instance;
         Transient = transient;
         Dsp = dsp;
-        ProcessorActivity = processorActivity;
+        Activity = activity;
         Runtime = runtime;
         Root = root;
     }
@@ -35,7 +35,7 @@ public sealed class ManagedState
 
     public DspState Dsp { get; }
 
-    internal ProcessorActivityObserver ProcessorActivity { get; }
+    internal ActivityObserver Activity { get; }
 
     public DspRuntimeState Runtime { get; }
 

@@ -48,7 +48,8 @@ public sealed class StateEditingUseCasesTests
             instance,
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("input"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
         var initialPublishCount = instance.Dsp.PublishCount;
@@ -112,7 +113,8 @@ public sealed class StateEditingUseCasesTests
             instance,
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("input"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
         var initial = instance.Dsp.Latest.Gain;
@@ -168,7 +170,8 @@ public sealed class StateEditingUseCasesTests
             instance,
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("compressor"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
 
@@ -207,7 +210,8 @@ public sealed class StateEditingUseCasesTests
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("compressor"));
         application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
         second.Output.Clear();
@@ -243,7 +247,8 @@ public sealed class StateEditingUseCasesTests
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("compressor"));
         application.Send(first, "set_instance_active", Integer(1));
 
         application.Send(
@@ -308,7 +313,8 @@ public sealed class StateEditingUseCasesTests
             source,
             "observe_target",
             Symbol(source.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         application.Send(source, "set_instance_active", Integer(1));
         application.Send(
             source,
@@ -452,7 +458,8 @@ public sealed class StateEditingUseCasesTests
             second,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("compressor"));
         second.Output.Clear();
         application.Send(
             second,
@@ -473,7 +480,8 @@ public sealed class StateEditingUseCasesTests
             second,
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("compressor"));
         second.Output.Clear();
         application.Send(
             second,
@@ -597,7 +605,8 @@ public sealed class StateEditingUseCasesTests
             editor,
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("input"));
         application.Send(
             editor,
             "write",

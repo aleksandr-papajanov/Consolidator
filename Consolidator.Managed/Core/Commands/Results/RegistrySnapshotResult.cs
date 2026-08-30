@@ -5,7 +5,13 @@ namespace Consolidator.Managed.Core.Commands.Results;
 public sealed record RegistrySnapshotResult(
     ulong Revision,
     IReadOnlyList<RegistryInstanceSnapshot> Instances,
-    IReadOnlyList<RegistryGroupSnapshot> Groups);
+    IReadOnlyList<RegistryGroupSnapshot> Groups,
+    IReadOnlyList<RegistryProcessorMarkerSnapshot> ProcessorMarkers);
+
+public sealed record RegistryProcessorMarkerSnapshot(
+    ulong InstanceId,
+    ProcessorId ProcessorId,
+    bool Active);
 
 public sealed record RegistryInstanceSnapshot(
     ulong InstanceId,

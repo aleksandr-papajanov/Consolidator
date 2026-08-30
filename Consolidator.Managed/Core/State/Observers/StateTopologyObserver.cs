@@ -19,6 +19,7 @@ internal sealed class StateTopologyObserver
     }
 
     public event Action<InstanceId, BankAddress?>? FocusedBankChangedEvent;
+    public event Action? TopologyChangedEvent;
 
     public IStateValueObserver<GroupId?> ObserveBankGroup(BankAddress bank)
     {
@@ -46,6 +47,7 @@ internal sealed class StateTopologyObserver
                 .Distinct()
                 .ToArray();
             _peers.Refresh(affectedInstances);
+            TopologyChangedEvent?.Invoke();
         }
         catch
         {
@@ -60,6 +62,7 @@ internal sealed class StateTopologyObserver
         var affectedInstances = _topology.RemoveInstance(instanceId);
         FocusedBankChangedEvent?.Invoke(instanceId, null);
         _peers.Refresh(affectedInstances);
+        TopologyChangedEvent?.Invoke();
     }
 
     public void FocusedBankChanged(
@@ -76,6 +79,7 @@ internal sealed class StateTopologyObserver
     {
         var affectedInstances = _topology.UpdateBankGroup(bank, groupId);
         _peers.Refresh(affectedInstances);
+        TopologyChangedEvent?.Invoke();
     }
 
     private sealed class BankGroupObserver : IStateValueObserver<GroupId?>

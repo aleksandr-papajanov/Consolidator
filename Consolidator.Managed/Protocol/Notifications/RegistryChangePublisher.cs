@@ -6,7 +6,7 @@ using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Protocol.Notifications;
 
-internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcessorStatusSink
+internal sealed class RegistryChangePublisher : IActivityStatusSink
 {
     private readonly IPresentationTransport _transport;
     private readonly IProtocolOutputRegistry _outputs;
@@ -23,6 +23,9 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcesso
 
     public ulong Revision => (ulong)Interlocked.Read(ref _revision);
 
+    public event Action<string>? RegistryChangedEvent;
+    public event Action<ulong>? ObserverUnregisteredEvent;
+
     public void RegisterObserver(ulong instanceId)
     {
         _observers[instanceId] = 1;
@@ -30,7 +33,10 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcesso
 
     public void UnregisterObserver(ulong instanceId)
     {
-        _observers.TryRemove(instanceId, out _);
+        if (_observers.TryRemove(instanceId, out _))
+        {
+            ObserverUnregisteredEvent?.Invoke(instanceId);
+        }
     }
 
     public IReadOnlyList<ulong> GetObserverIds() =>
@@ -90,7 +96,7 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcesso
             Integer(bankId),
             groupId is { } group ? Integer(group) : Symbol("none"));
 
-    public void BankEffectStatusChanged(
+    public void BankActivityChanged(
         Consolidator.Managed.Core.State.InstanceId instanceId,
         int bankId,
         bool effectActive) =>
@@ -100,7 +106,7 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcesso
             Integer(bankId),
             Integer(effectActive ? 1 : 0));
 
-    public void ProcessorStatusChanged(InstanceId instanceId, ProcessorStatus status) =>
+    public void ProcessorActivityChanged(InstanceId instanceId, ProcessorStatus status) =>
         Publish(
             "registry_processor_changed",
             Symbol(instanceId.Value.ToString()),
@@ -126,6 +132,7 @@ internal sealed class RegistryChangePublisher : IBankEffectStatusSink, IProcesso
             selector,
             atoms,
             DeliverySemantics.Lossless));
+        RegistryChangedEvent?.Invoke(selector);
     }
 
     private static Atom Integer(long value) => new(AtomType.Integer, value, 0, null);

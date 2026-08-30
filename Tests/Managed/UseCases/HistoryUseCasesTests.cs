@@ -53,7 +53,8 @@ public sealed class HistoryUseCasesTests
             observer,
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("compressor"));
         application.Send(
             editor,
             "observe_target",

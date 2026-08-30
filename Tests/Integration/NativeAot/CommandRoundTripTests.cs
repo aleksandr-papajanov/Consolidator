@@ -28,7 +28,8 @@ public sealed class CommandRoundTripTests
             Symbol("ui"),
             Symbol("100"),
             Symbol(instance.InstanceId.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         instance.WaitForResponse("100");
         instance.ClearFrames();
         _library.Send(
@@ -82,6 +83,105 @@ public sealed class CommandRoundTripTests
         var response = instance.Single("state_done");
         Assert.Equal("102", response.Atoms[2].SymbolValue);
         Assert.Equal(5.5, response.Atoms[^1].FloatValue);
+    }
+
+    [Fact]
+    public void NativeAtomsDriveEqualizerBankActivityOffNotificationToNativeCallback()
+    {
+        using var instance = _library.Register();
+
+        _library.Send(
+            instance,
+            "registry",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("1"));
+        instance.WaitForResponse("1");
+        instance.ClearFrames();
+
+        _library.Send(
+            instance,
+            "write",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("2"),
+            Symbol(instance.InstanceId.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(0),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(4.5));
+        instance.WaitForResponse("2");
+
+        var activeNotification = Assert.Single(
+            instance.Frames,
+            frame => frame.Selector == "registry_bank_effect_changed");
+        Assert.Equal(6, activeNotification.Atoms.Count);
+        Assert.Equal(1, activeNotification.Atoms[0].IntegerValue);
+        Assert.True(activeNotification.Atoms[1].IntegerValue <
+            activeNotification.Atoms[2].IntegerValue);
+        Assert.Equal(instance.InstanceId.ToString(), activeNotification.Atoms[3].SymbolValue);
+        Assert.Equal(0, activeNotification.Atoms[4].IntegerValue);
+        Assert.Equal(1, activeNotification.Atoms[5].IntegerValue);
+
+        var activeProcessorNotification = Assert.Single(
+            instance.Frames,
+            frame => frame.Selector == "registry_processor_changed" &&
+                frame.Atoms[4].SymbolValue == "equalizer");
+        Assert.Equal(8, activeProcessorNotification.Atoms.Count);
+        Assert.Equal(instance.InstanceId.ToString(), activeProcessorNotification.Atoms[3].SymbolValue);
+        Assert.Equal(1, activeProcessorNotification.Atoms[5].IntegerValue);
+        Assert.Equal(0, activeProcessorNotification.Atoms[6].IntegerValue);
+        Assert.Equal(0, activeProcessorNotification.Atoms[7].IntegerValue);
+
+        var activeRevision = activeNotification.Atoms[2].IntegerValue;
+
+        instance.ClearFrames();
+        _library.Send(
+            instance,
+            "write",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("3"),
+            Symbol(instance.InstanceId.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(0),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(0));
+        instance.WaitForResponse("3");
+
+        var notification = Assert.Single(
+            instance.Frames,
+            frame => frame.Selector == "registry_bank_effect_changed");
+        Assert.Equal(6, notification.Atoms.Count);
+        Assert.Equal(1, notification.Atoms[0].IntegerValue);
+        Assert.True(activeRevision < notification.Atoms[1].IntegerValue);
+        Assert.True(notification.Atoms[1].IntegerValue <
+            notification.Atoms[2].IntegerValue);
+        Assert.Equal(instance.InstanceId.ToString(), notification.Atoms[3].SymbolValue);
+        Assert.Equal(0, notification.Atoms[4].IntegerValue);
+        Assert.Equal(0, notification.Atoms[5].IntegerValue);
+
+        var processorNotification = Assert.Single(
+            instance.Frames,
+            frame => frame.Selector == "registry_processor_changed" &&
+                frame.Atoms[4].SymbolValue == "equalizer");
+        Assert.Equal(0, processorNotification.Atoms[5].IntegerValue);
+        Assert.Equal(0, processorNotification.Atoms[6].IntegerValue);
+        Assert.Equal(0, processorNotification.Atoms[7].IntegerValue);
     }
 
     [Fact]

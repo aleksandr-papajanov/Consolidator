@@ -1,6 +1,7 @@
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Settings;
+using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.State.Models;
@@ -11,7 +12,7 @@ public sealed class DspState
         InstanceId instanceId,
         StateValueFactory values,
         DspRuntimeState runtime,
-        IBankEffectStatusSink effectStatusSink)
+        IActivityStatusSink activitySink)
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(runtime);
@@ -43,6 +44,7 @@ public sealed class DspState
             dspPath.Append(StateNodeIds.Equalizer),
             values,
             runtime);
+        Activity = new ActivityObserver(instanceId, activitySink);
         EqualizerBanks = Enumerable.Range(0, DspConstants.BankCount)
             .Select(index => new EqualizerBankState(
                 instanceId,
@@ -53,7 +55,7 @@ public sealed class DspState
                 values,
                 runtime,
                 index,
-                effectStatusSink))
+                Activity))
             .ToArray();
         OutputGain = new GainState(
             instanceId,
@@ -63,9 +65,10 @@ public sealed class DspState
             value => runtime.OutputGain = value,
             value =>
             {
-            runtime.OutputGainBypass = value;
-            runtime.OutputGainActive = !value;
+                runtime.OutputGainBypass = value;
+                runtime.OutputGainActive = !value;
             });
+        Activity.Initialize(this);
     }
 
     public GainState InputGain { get; }
@@ -73,9 +76,9 @@ public sealed class DspState
     public CompressorState Compressor { get; }
     public EqualizerState Equalizer { get; }
     public EqualizerBankState[] EqualizerBanks { get; }
+    internal ActivityObserver Activity { get; }
+
     public GainState OutputGain { get; }
-
-
 }
 
 

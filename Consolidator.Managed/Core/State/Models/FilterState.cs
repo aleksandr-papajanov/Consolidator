@@ -13,7 +13,8 @@ public sealed class FilterState
         StateValueFactory values,
         bool bankOwned,
         Action<bool> bypassProjection,
-        EqualizerBankEffectObserver? effectObserver = null,
+        ActivityObserver? activity = null,
+        int bankId = -1,
         int filterId = -1)
     {
         FrequencyHz = CreateValue(
@@ -37,20 +38,20 @@ public sealed class FilterState
             bankOwned,
             0.0F,
             DspParameterRanges.FilterGainDb,
-            effectObserver is null
+            activity is null
                 ? Array.Empty<IStateValueObserver<float>>()
-                : [effectObserver.ObserveFilterGain(filterId)]);
+                : [activity.ObserveFilterGain(bankId, filterId)]);
         Bypass = CreateValue(
             instanceId,
             path.Append(StateNodeIds.Bypass),
             values,
             bankOwned,
             false,
-            effectObserver is null
+            activity is null
                 ? [new StateProjectionObserver<bool>(bypassProjection)]
                 : [
                     new StateProjectionObserver<bool>(bypassProjection),
-                    effectObserver.ObserveFilterBypass(filterId)
+                    activity.ObserveFilterBypass(bankId, filterId)
                 ]);
         Solo = CreateValue(
             instanceId,

@@ -71,6 +71,9 @@ internal sealed class CommandResponseEncoder
         ulong requestId,
         RegistrySnapshotResult registry)
     {
+        var processorMarkers = registry.ProcessorMarkers.ToDictionary(
+            marker => (marker.InstanceId, marker.ProcessorId),
+            marker => marker.Active);
         var outputs = new List<ProtocolOutput>
         {
             Output(target, "registry_begin", Header(target, requestId)
@@ -84,10 +87,12 @@ internal sealed class CommandResponseEncoder
                     Integer(instance.Mute ? 1 : 0), Integer(instance.Solo ? 1 : 0)]).ToArray()));
             foreach (var processor in instance.Processors)
             {
+                var markerActive = processorMarkers[(instance.InstanceId, processor.ProcessorId)];
                 outputs.Add(Output(target, "registry_processor", Header(target, requestId)
                     .Concat([Symbol(instance.InstanceId.ToString()),
                         Symbol(ProcessorIds.Encode(processor.ProcessorId)),
                         Integer(processor.EffectActive ? 1 : 0),
+                        Integer(markerActive ? 1 : 0),
                         Integer(processor.Bypassed ? 1 : 0),
                         Integer(processor.Soloed ? 1 : 0)]).ToArray()));
             }

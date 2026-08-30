@@ -99,6 +99,20 @@ class BankManagerControlBinding extends ControlBinding
         this.send("presentation_patch_begin", [
             presentation.enabled ? 1 : 0
         ]);
+
+        if (delta.selector === "registry_processor_markers_changed") {
+            (delta.rowIndices || []).forEach((processorRowIndex) => {
+                let processorRow = (presentation.rows || [])[Number(processorRowIndex)];
+                if (processorRow) {
+                    this.sendProcessors(
+                        "processor_patch",
+                        processorRow,
+                        Number(processorRowIndex));
+                }
+            });
+            this.send("presentation_patch_end");
+            return;
+        }
     
         if (delta.selector === "bank_focus_changed") {
             this.sendFocusedBankPatch(
@@ -209,6 +223,7 @@ class BankManagerControlBinding extends ControlBinding
             rowIndex,
             processor.processorId,
             processor.effectActive ? 1 : 0,
+            processor.markerActive ? 1 : 0,
             processor.bypassed ? 1 : 0,
             processor.soloed ? 1 : 0
         ]);
@@ -224,7 +239,7 @@ class BankManagerControlBinding extends ControlBinding
             this.sendProcessor(selector, processor, rowIndex);
         });
     }
-    
+
     sendBanks(
         selector,
         row,

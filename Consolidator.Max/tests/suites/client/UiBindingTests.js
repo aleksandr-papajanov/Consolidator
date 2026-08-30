@@ -277,6 +277,10 @@ function testBankManagerBindingPatchesRegistryAddition() {
     instanceId: "1",
     label: "First",
     local: true,
+    processors: [{
+      processorId: "equalizer", effectActive: false,
+      markerActive: false, bypassed: false, soloed: false,
+    }],
     banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
     }],
     clearAction: null,
@@ -302,6 +306,10 @@ function testBankManagerBindingPatchesRegistryAddition() {
       instanceId: "2",
       label: "Second",
       local: false,
+      processors: [{
+        processorId: "equalizer", effectActive: true,
+        markerActive: true, bypassed: false, soloed: false,
+      }],
       banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
     }]),
     clearAction: null,
@@ -326,6 +334,8 @@ function testBankManagerBindingPatchesRegistryAddition() {
   messages = [];
   updated.rows[0].banks[0].active = false;
   updated.rows[1].banks[0].active = true;
+  updated.rows[0].processors[0].markerActive = false;
+  updated.rows[1].processors[0].markerActive = true;
   updated.delta = {
     selector: "bank_focus_changed",
     previousRowIndex: 0,
@@ -337,10 +347,38 @@ function testBankManagerBindingPatchesRegistryAddition() {
   assert.strictEqual(messages.filter(function (message) {
     return message[0] === "bank_patch";
   }).length, 2);
+  assert.deepStrictEqual(messages.filter(function (message) {
+    return message[0] === "processor_patch";
+  }), []);
   assert.strictEqual(messages.filter(function (message) {
     return message[0] === "row_patch" ||
       message[0] === "presentation_begin";
   }).length, 0);
+
+  messages = [];
+  updated.delta = {
+    selector: "registry_bank_group_changed",
+    args: [1, 1, 2, "1", 1, 4],
+    rowIndex: 0,
+  };
+  listener(updated);
+  assert.deepStrictEqual(messages.filter(function (message) {
+    return message[0] === "processor_patch";
+  }), []);
+
+  messages = [];
+  updated.rows[0].processors[0].markerActive = true;
+  updated.delta = {
+    selector: "registry_processor_markers_changed",
+    args: [1, 1, "1", 1, "equalizer", 1],
+    rowIndices: [0],
+  };
+  listener(updated);
+  assert.deepStrictEqual(messages.filter(function (message) {
+    return message[0] === "processor_patch";
+  }).map(function (message) {
+    return message[1].slice(0, 4);
+  }), [[0, "equalizer", 0, 1]]);
 
   messages = [];
   binding.setPresentationActive(false);
@@ -1220,6 +1258,7 @@ function testMessageControlsConstructCompletePresentation() {
   var bankManagerControl = new BankManagerControl();
   bankManagerControl.beginPresentation(1);
   bankManagerControl.addRow(0, "instance.1", "Local", 1);
+  bankManagerControl.addProcessor(0, "equalizer", 1, 0, 0, 0);
   bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0, 0.75, 1, 1, 1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
   bankManagerControl.setGroupAction(1, 0);
   bankManagerControl.setUngroupAction(0, 0);
@@ -1242,9 +1281,18 @@ function testMessageControlsConstructCompletePresentation() {
   );
   assert.strictEqual(bankManagerControl.presentation.groupAction.enabled, true);
   assert.strictEqual(bankManagerControl.presentation.clearAction.armed, true);
+  assert.strictEqual(
+    bankManagerControl.presentation.rows[0].processors[0].markerActive,
+    false,
+  );
+  assert.strictEqual(
+    bankManagerControl.presentation.rows[0].processors[0].effectActive,
+    true,
+  );
 
   bankManagerControl.beginPresentationPatch(1);
   bankManagerControl.patchRow(0, "instance.1", "Renamed", 1);
+  bankManagerControl.patchProcessor(0, "equalizer", 1, 0, 0, 0);
   bankManagerControl.patchBank(0, 1, "1", 0, 1, 1, 0, 0, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
   bankManagerControl.endPresentationPatch();
@@ -1254,6 +1302,10 @@ function testMessageControlsConstructCompletePresentation() {
   );
   assert.strictEqual(
     bankManagerControl.presentation.rows[0].banks[0].active,
+    false,
+  );
+  assert.strictEqual(
+    bankManagerControl.presentation.rows[0].processors[0].markerActive,
     false,
   );
 }
@@ -1444,6 +1496,67 @@ function testBankManagerPresentsGroupingSelectionAsActive() {
   assert.strictEqual(presenter.presentation.rows[0].banks[0].active, false);
   presenter.destroy();
 }
+function testManagedMarkerReachesBankManagerControlBinding() {
+  var registry = {
+    subscribe: function () { return function () {}; },
+    fetch: function () {},
+    get: function () { return null; },
+  };
+  var snapshot = {
+    revision: 1,
+    instances: [{
+      instanceId: "instance.1",
+      label: "Local",
+      mute: false,
+      solo: false,
+      processors: [{
+        processorId: "equalizer",
+        effectActive: true,
+        markerActive: true,
+        bypassed: false,
+        soloed: false,
+      }],
+      banks: [{ bankId: 0, groupId: null, effectActive: true }],
+    }],
+    groups: [],
+  };
+  var viewModel = new BankManagerViewModel(registry, "instance.1");
+  viewModel.applyRegistrySnapshot(snapshot);
+  var presenter = new BankManagerPresenter(viewModel);
+  var messages = [];
+  var binding = new BankManagerControlBinding(
+    { handleIntent: function () {} },
+    presenter,
+    function (selector, args) { messages.push([selector, args]); },
+  );
+
+  var initialProcessor = messages.filter(function (message) {
+    return message[0] === "processor";
+  })[0];
+  assert.deepStrictEqual(
+    initialProcessor[1].slice(0, 4),
+    [0, "equalizer", 1, 1],
+  );
+
+  messages = [];
+  snapshot.instances[0].processors[0].markerActive = false;
+  viewModel.applyRegistryUpdate(snapshot, {
+    selector: "registry_processor_markers_changed",
+    args: [1, 1, "instance.1", 1, "equalizer", 0],
+    instanceIds: ["instance.1"],
+  });
+  var processorPatch = messages.filter(function (message) {
+    return message[0] === "processor_patch";
+  })[0];
+  assert.deepStrictEqual(
+    processorPatch[1].slice(0, 4),
+    [0, "equalizer", 1, 0],
+  );
+
+  binding.destroy();
+  presenter.destroy();
+  viewModel.destroy();
+}
 testControlBindingsDispatchByControlId();
 testDialBindingUsesMessageTransportAndIntents();
 testDialBindingResumesOnlyTheLatestPresentation();
@@ -1486,4 +1599,5 @@ testBankManagerPanelClickWaitsForSnapshot();
 testPanelTransitionAppliesSelectionAfterSnapshot();
 testBankManagerForwardsInstanceControlModifiers();
 testBankManagerPresentsGroupingSelectionAsActive();
+testManagedMarkerReachesBankManagerControlBinding();
 console.log("UiBindingTests passed");

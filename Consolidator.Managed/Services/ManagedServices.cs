@@ -89,9 +89,9 @@ public static class ManagedServices
         services.AddSingleton<StateChangePublisher>();
         services.AddSingleton<HistoryStatePublisher>();
         services.AddSingleton<RegistryChangePublisher>();
-        services.AddSingleton<IBankEffectStatusSink>(serviceProvider =>
-            serviceProvider.GetRequiredService<RegistryChangePublisher>());
-        services.AddSingleton<IProcessorStatusSink>(serviceProvider =>
+        services.AddSingleton<ProcessorMarkerProjection>();
+        services.AddSingleton<ProcessorMarkerPublisher>();
+        services.AddSingleton<IActivityStatusSink>(serviceProvider =>
             serviceProvider.GetRequiredService<RegistryChangePublisher>());
         services.AddSingleton<IStateChangeSink>(serviceProvider =>
             serviceProvider.GetRequiredService<StateChangePublisher>());
@@ -108,10 +108,9 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<StateValueMetadataRegistry>(),
                 serviceProvider.GetRequiredService<IStateChangeSink>(),
                 serviceProvider.GetRequiredService<DspStateChangeTracker>(),
-                serviceProvider.GetRequiredService<IBankEffectStatusSink>()));
+                serviceProvider.GetRequiredService<IActivityStatusSink>()));
         services.AddSingleton(serviceProvider =>
             new InstanceRegistry(
-                serviceProvider.GetRequiredService<IManagedLogger>(),
                 serviceProvider.GetRequiredService<StateRegistry<InstanceId>>(),
                 serviceProvider.GetRequiredService<StateValueFactory>(),
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
@@ -120,7 +119,7 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<IOperationGate>(),
                 serviceProvider.GetRequiredService<RegistryChangePublisher>(),
                 serviceProvider.GetRequiredService<FftAnalyzer>(),
-                serviceProvider.GetRequiredService<IProcessorStatusSink>()));
+                serviceProvider.GetRequiredService<IActivityStatusSink>()));
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
         services.AddSingleton<IStateWritePolicy, BankGroupWritePolicy>();
         services.AddSingleton<IStateWritePolicy, InstanceControlWritePolicy>();

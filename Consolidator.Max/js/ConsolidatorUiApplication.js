@@ -15,10 +15,6 @@ const { BankManagerControlBinding } = require("./Bindings/BankManagerControlBind
 const { DialControlBinding } = require("./Bindings/DialControlBinding.js");
 const { ButtonControlBinding } = require("./Bindings/ButtonControlBinding.js");
 
-function panelDebug(message) {
-    if (typeof post === "function") post("[panel-debug] host " + message + "\\n");
-}
-
 const ConsolidatorControlMapping = {
     inputGain: "input_gain",
     outputGain: "output_gain",
@@ -193,10 +189,6 @@ class ConsolidatorUiHost
         values
     )
     {
-        if (controlName === "bank_manager") {
-            panelDebug("intent=" + intent + " values=" +
-                (values || []).join(","));
-        }
         if (intent === "gestureBegan") {
             this.metricsGestureActive = true;
             this.sendMetrics();
@@ -293,7 +285,7 @@ class ConsolidatorUiHost
             this.viewModel.instanceId = this.instanceId;
             this.bankManager.context.instanceId = this.instanceId;
             this.bankManagerViewModel.setLocalInstanceId(this.instanceId);
-            this.bankManagerViewModel.setFocusedBank(this.instanceId, 1);
+            this.bankManagerViewModel.setFocusedBank(this.instanceId, 0);
             if (this.trackName !== null) {
                 this.client.state.setFor(
                     this.instanceId,

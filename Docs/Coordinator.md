@@ -14,6 +14,7 @@ ManagedServices
   -> TopologyIndex
   -> StatePeerObserver
   -> StateTopologyObserver
+  -> ProcessorMarkerProjection
   -> AudibilityObserver
   -> InstanceControlTargetResolver
   -> FftAnalyzer
@@ -36,6 +37,8 @@ Responsibilities are intentionally narrow:
   ranges;
 - `StateTopologyObserver` reacts to bank-group and instance lifecycle events;
 - `TopologyIndex` stores derived group/focus indexes and serves queries;
+- `ProcessorMarkerProjection` combines activity snapshots, exact bank-group
+  membership and per-viewer focus into device marker presentation values;
 - `AudibilityObserver` observes mute/solo values and projects audibility;
 - `FftAnalyzer` owns the demanded source's bounded audio capture, prepared
   sample rate, worker-side FFT, focused-viewer configuration and spectrum

@@ -1,9 +1,5 @@
 const { BankManagerContext } = require("./BankManagerContext.js");
 
-function panelDebug(message) {
-    if (typeof post === "function") post("[panel-debug] controller " + message + "\\n");
-}
-
 class BankManagerController
 {
     constructor(context)
@@ -76,8 +72,6 @@ class BankManagerController
     selectPanel(panel)
     {
         let target = this.context.uiTarget.targetState.target;
-        panelDebug("selectPanel panel=" + panel + " target=" +
-            (target ? target.instanceId + "/" + target.bankId : "none"));
         if (!target) return;
         this.context.uiTarget.show(
             target.instanceId,
@@ -88,9 +82,6 @@ class BankManagerController
 
     acceptSnapshot(response)
     {
-        panelDebug("snapshot response context=" +
-            (response && response.snapshotContext) + " error=" +
-            (response && response.error));
         if (response && !response.error && response.snapshotContext) {
             this.context.viewModel.setSelectedPanel(response.snapshotContext);
             this.context.onSnapshotAccepted(response.snapshotContext);
@@ -287,9 +278,6 @@ class BankManagerController
     setProcessorBypass(instanceId, processorId, value, groupControl)
     {
         let target = this.instanceControlTarget(instanceId, groupControl);
-        panelDebug("processor-bypass instance=" + instanceId + " processor=" +
-            processorId + " value=" + value + " group=" + groupControl +
-            " target=" + (target ? target.join("/") : "none"));
         if (!target) return;
         this.context.protocol.request("set_processor_bypass",
             [processorId].concat(target, [value ? 1 : 0]));
@@ -298,10 +286,6 @@ class BankManagerController
     setProcessorSolo(instanceId, processorId, value, additive, groupControl)
     {
         let target = this.instanceControlTarget(instanceId, groupControl);
-        panelDebug("processor-solo instance=" + instanceId + " processor=" +
-            processorId + " value=" + value + " additive=" + additive +
-            " group=" + groupControl + " target=" +
-            (target ? target.join("/") : "none"));
         if (!target) return;
         this.context.protocol.request("set_processor_solo",
             [processorId].concat(target, [value ? 1 : 0,

@@ -1,7 +1,3 @@
-function panelDebug(message) {
-    if (typeof post === "function") post("[panel-debug] target " + message + "\\n");
-}
-
 class TargetStateClient
 {
     constructor(protocol, state)
@@ -27,8 +23,6 @@ class TargetStateClient
     
     selectTarget(instanceId, bankId, snapshotContext, callback)
     {
-        panelDebug("request instance=" + instanceId + " bank=" + bankId +
-            " context=" + snapshotContext);
         let generation = this.generation + 1;
         this.generation = generation;
         this.beginTargetTransition();
@@ -211,9 +205,6 @@ class TargetStateClient
                 instanceId: String(args[3]), bankId: Number(args[4]),
                 snapshotContext: snapshotContext, expected: entryCount, entries: []
         };
-        panelDebug("received request=" + requestId + " instance=" +
-            snapshot.instanceId + " bank=" + snapshot.bankId + " context=" +
-            snapshot.snapshotContext);
         if (!isFinite(entryCount) || entryCount < 0 ||
                 args.length !== 7 + entryCount * entrySize) {
             snapshot.invalid = true;
@@ -242,7 +233,6 @@ class TargetStateClient
             return;
         }
         if (!current) {
-            panelDebug("stale snapshot request=" + requestId);
             this.protocol.complete(requestId, { stale: true, error: null });
             return;
         }

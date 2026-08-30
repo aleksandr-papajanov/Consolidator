@@ -256,7 +256,13 @@ set_instance_solo targetInstanceId group bankId 0|1 exclusive|additive
 
 Each registry instance also carries five instance-owned processor statuses.
 Managed derives `effectActive` from processor state and publishes
-`registry_processor_changed` only when the complete status changes. Processor
+`registry_processor_changed` only when the complete status changes. Each
+`registry_processor` snapshot frame additionally carries the
+viewer-specific `markerActive` value after `effectActive`. Managed recalculates
+that value from exact topology and focused-bank changes and publishes targeted
+`registry_processor_markers_changed` batches containing the changed processors
+grouped by instance. Marker frames do not advance the global registry revision because the
+projection can differ between viewers at the same revision. Processor
 bypass and solo use explicit `set_processor_bypass` and `set_processor_solo`
 commands. Direct writes to instance-owned processor bypass or solo values are
 rejected. The full contract is documented in

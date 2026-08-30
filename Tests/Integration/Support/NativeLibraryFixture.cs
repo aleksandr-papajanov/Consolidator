@@ -290,7 +290,7 @@ public sealed class NativeInstance : IDisposable
         {
             return _frames.Any(frame =>
                 (frame.Selector is "action_done" or "error" or "state_done" or
-                    "target_state_snapshot") &&
+                    "target_state_snapshot" or "registry_done") &&
                 frame.Atoms.Count > 2 &&
                 frame.Atoms[2].SymbolValue == requestId);
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 using Consolidator.Managed.Tests.Support;
@@ -44,12 +45,14 @@ public sealed class TopologyAndRegistryUseCasesTests
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("equalizer"));
         application.Send(
             second,
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
         second.Output.Clear();
@@ -94,6 +97,64 @@ public sealed class TopologyAndRegistryUseCasesTests
     }
 
     [Fact]
+    public void ProcessorMarkersFollowExactTopologyAndViewerFocus()
+    {
+        using var application = new ManagedApplicationFixture();
+        var viewer = application.RegisterInstance();
+        var remote = application.RegisterInstance();
+
+        WriteFilterGain(application, remote, remote, 1, 4.5);
+        application.Send(
+            viewer,
+            "observe_target",
+            Symbol(viewer.InstanceId.Value.ToString()),
+            Integer(0),
+            Symbol("equalizer"));
+        application.Send(viewer, "registry");
+
+        var initialMarker = viewer.Output.Messages.Single(message =>
+            message.Selector == "registry_processor" &&
+            message.Atoms[3].Symbol == viewer.InstanceId.Value.ToString() &&
+            message.Atoms[4].Symbol == "equalizer");
+        Assert.Equal(0, initialMarker.Atoms[6].Integer);
+
+        viewer.Output.Clear();
+        WriteGroup(application, viewer, viewer, 0, 7);
+        WriteGroup(application, viewer, remote, 1, 7);
+
+        Assert.Contains(
+            viewer.Output.Messages,
+            message => IsProcessorMarkerChange(
+                message,
+                viewer.InstanceId.Value,
+                "equalizer",
+                true));
+
+        viewer.Output.Clear();
+        application.Send(
+            viewer,
+            "observe_target",
+            Symbol(remote.InstanceId.Value.ToString()),
+            Integer(1),
+            Symbol("equalizer"));
+
+        Assert.Contains(
+            viewer.Output.Messages,
+            message => IsProcessorMarkerChange(
+                message,
+                viewer.InstanceId.Value,
+                "equalizer",
+                false));
+        Assert.Contains(
+            viewer.Output.Messages,
+            message => IsProcessorMarkerChange(
+                message,
+                remote.InstanceId.Value,
+                "equalizer",
+                true));
+    }
+
+    [Fact]
     public void SoloUsesExplicitBankGroupForExclusiveAndAdditiveSelection()
     {
         using var application = new ManagedApplicationFixture();
@@ -107,17 +168,20 @@ public sealed class TopologyAndRegistryUseCasesTests
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("equalizer"));
         application.Send(
             second,
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         application.Send(
             third,
             "observe_target",
             Symbol(third.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("equalizer"));
 
         application.Send(first, "registry");
         application.Send(second, "registry");
@@ -173,12 +237,14 @@ public sealed class TopologyAndRegistryUseCasesTests
             first,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
-            Integer(0));
+            Integer(0),
+            Symbol("equalizer"));
         application.Send(
             newTrack,
             "observe_target",
             Symbol(newTrack.InstanceId.Value.ToString()),
-            Integer(1));
+            Integer(1),
+            Symbol("equalizer"));
         application.Send(first, "registry");
         application.Send(newTrack, "registry");
         first.Output.Clear();
@@ -203,7 +269,8 @@ public sealed class TopologyAndRegistryUseCasesTests
             track4,
             "observe_target",
             Symbol(track4.InstanceId.Value.ToString()),
-            Integer(6));
+            Integer(6),
+            Symbol("equalizer"));
         foreach (var instance in new[] { track1, track2, track3, track4 })
         {
             application.Send(instance, "registry");
@@ -453,4 +520,38 @@ public sealed class TopologyAndRegistryUseCasesTests
         message.Selector == "state_changed" &&
         message.Atoms[1].Symbol == "equalizer.filter.1.gain" &&
         message.Atoms[2].Float == expected;
+
+    private static bool IsProcessorMarkerChange(
+        Consolidator.Managed.Protocol.Messages.ProtocolOutput message,
+        ulong instanceId,
+        string processorId,
+        bool active) =>
+        message.Selector == "registry_processor_markers_changed" &&
+        ContainsProcessorMarker(message.Atoms, instanceId, processorId, active);
+
+    private static bool ContainsProcessorMarker(
+        IReadOnlyList<Consolidator.Managed.Protocol.Messages.Atom> atoms,
+        ulong instanceId,
+        string processorId,
+        bool active)
+    {
+        var position = 2;
+        for (var instanceIndex = 0; instanceIndex < atoms[1].Integer; instanceIndex++)
+        {
+            var currentInstanceId = atoms[position].Symbol;
+            var processorCount = (int)atoms[position + 1].Integer;
+            position += 2;
+            for (var processorIndex = 0; processorIndex < processorCount; processorIndex++)
+            {
+                if (currentInstanceId == instanceId.ToString() &&
+                    atoms[position].Symbol == processorId &&
+                    atoms[position + 1].Integer == (active ? 1 : 0))
+                {
+                    return true;
+                }
+                position += 2;
+            }
+        }
+        return false;
+    }
 }
