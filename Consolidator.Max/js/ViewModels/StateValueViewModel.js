@@ -88,12 +88,12 @@ class StateValueViewModel
             this.status === entry.status && this.instanceId === entry.instanceId;
     }
     
-    reset(transactionId, scope)
+    reset(transactionId)
     {
         if (!this.enabled) {
             return;
         }
-        this.state.reset(this.path, undefined, transactionId, scope);
+        this.state.reset(this.path, undefined, transactionId);
     }
     
     subscribe(callback, immediate)

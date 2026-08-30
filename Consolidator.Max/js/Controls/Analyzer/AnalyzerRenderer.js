@@ -1,8 +1,10 @@
+const { UiColors } = require("../../Theme/UiColors.js");
+
 class AnalyzerRenderer
 {
     paint(graphics, presentation, layout, state)
     {
-        graphics.set_source_rgba(0.06, 0.06, 0.07, 1);
+        graphics.set_source_rgba.apply(graphics, UiColors.analyzer.background);
         graphics.rectangle(0, 0, graphics.size[0], graphics.size[1]);
         graphics.fill();
         if (!presentation || !presentation.enabled) return;
@@ -20,9 +22,9 @@ class AnalyzerRenderer
             }
             graphics.stroke();
         };
-        drawSpectrum(presentation.spectrum, [0.85, 0.85, 0.9, 0.7]);
-        drawSpectrum(presentation.referenceSpectrum, [0.55, 0.65, 0.8, 0.55]);
-        drawSpectrum(presentation.differenceSpectrum, [0.9, 0.45, 0.35, 0.65]);
+        drawSpectrum(presentation.spectrum, UiColors.analyzer.spectrum);
+        drawSpectrum(presentation.referenceSpectrum, UiColors.analyzer.referenceSpectrum);
+        drawSpectrum(presentation.differenceSpectrum, UiColors.analyzer.differenceSpectrum);
         const drawCurve = (values, color) => {
             if (!values || values.length === 0) return;
             graphics.set_source_rgba.apply(graphics, color);
@@ -39,25 +41,17 @@ class AnalyzerRenderer
         let allBanks = presentation.allBanksCurve;
         drawCurve(allBanks && allBanks.values,
             allBanks && allBanks.active === false
-                ? [0.25, 0.25, 0.3, 0.45] : [0.45, 0.5, 0.6, 0.65]);
+                ? UiColors.analyzer.allBanksInactive : UiColors.analyzer.allBanks);
         (presentation.curves || []).forEach((curve) => {
-            let filterColors = [
-                [0.95, 0.4, 0.35, 0.8],
-                [0.95, 0.65, 0.25, 0.8],
-                [0.75, 0.85, 0.3, 0.8],
-                [0.3, 0.8, 0.55, 0.8],
-                [0.3, 0.7, 0.95, 0.8],
-                [0.5, 0.45, 0.95, 0.8],
-                [0.85, 0.4, 0.8, 0.8]
-            ];
+            let filterColors = UiColors.analyzer.filterCurves;
             let color = filterColors[(Number(curve.id) - 1) % filterColors.length];
             drawCurve(curve.values, curve.active === false
-                ? [0.3, 0.3, 0.35, 0.5] : color);
+                ? UiColors.analyzer.filterInactive : color);
         });
         let combined = presentation.combinedCurve;
         drawCurve(combined && combined.values,
             combined && combined.active === false
-                ? [0.35, 0.35, 0.4, 0.6] : [0.2, 0.8, 1, 1]);
+                ? UiColors.analyzer.combinedInactive : UiColors.analyzer.combined);
         (presentation.handles || []).forEach((handle) => {
             if (!handle.enabled) return;
             let preview = state && state.preview[handle.id];
@@ -65,7 +59,10 @@ class AnalyzerRenderer
             let gain = preview ? preview.y : handle.gain;
             let x = layout.left + layout.width * frequency;
             let y = layout.top + layout.height * gain;
-            graphics.set_source_rgba(handle.selected ? 1 : 0.95, 0.75, 0.25, 1);
+            graphics.set_source_rgba.apply(graphics,
+                presentation.scopeColor
+                    ? presentation.scopeColor
+                    : handle.selected ? UiColors.analyzer.selectedHandle : UiColors.analyzer.handle);
             graphics.ellipse(x - 4, y - 4, 8, 8);
             graphics.fill();
         });

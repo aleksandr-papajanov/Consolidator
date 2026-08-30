@@ -4,9 +4,9 @@ const { FeaturePresenterSet } = require("./FeaturePresenterSet.js");
 
 class CompressorController
 {
-    constructor(viewModel)
+    constructor(viewModel, scope)
     {
-        this.presenters = new FeaturePresenterSet();
+        this.presenters = new FeaturePresenterSet(scope);
         this.presenters.addDial("threshold", viewModel.compressor.threshold,
             { decimals: 1, suffix: " dB" });
         this.presenters.addDial("ratio", viewModel.compressor.ratio,
@@ -26,6 +26,7 @@ class CompressorController
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,
+            scope: scope,
             parameters: viewModel.compressor.detectorFilters
         }));
     }

@@ -16,6 +16,7 @@ class DialControlBinding extends ControlBinding
     applyPresentation(presentation)
     {
         if (this.hasPresentation && !this.requiresFullPresentation(presentation)) {
+            this.sendScope(presentation);
             this.send("presentation_begin");
             (presentation.rings || []).forEach((ring, index) => {
                 let previous = this.presentation.rings[index];
@@ -30,6 +31,7 @@ class DialControlBinding extends ControlBinding
         this.send("presentation_begin");
         this.send("enabled", [presentation.enabled ? 1 : 0]);
         this.send("active", [presentation.active ? 1 : 0]);
+        this.sendScope(presentation);
         this.send("activeIndex", [presentation.activeIndex || 0]);
         this.send("displayIndex", [presentation.displayIndex || 0]);
         this.send("ringCount", [(presentation.rings || []).length]);
@@ -40,6 +42,16 @@ class DialControlBinding extends ControlBinding
         this.send("presentation_end");
         this.presentation = presentation;
         this.hasPresentation = true;
+    }
+
+    sendScope(presentation)
+    {
+        let color = presentation.scopeColor;
+        let args = [presentation.scopeActive ? 1 : 0,
+            color && color.length >= 4 ? 1 : 0];
+        args = args.concat(color && color.length >= 4
+            ? color : [0, 0, 0, 0]);
+        this.send("scope", args);
     }
     
     requiresFullPresentation(presentation)

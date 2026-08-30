@@ -8,6 +8,8 @@ class ButtonPresentation
         this.value = false;
         this.mode = "toggle";
         this.label = "";
+        this.scopeActive = false;
+        this.scopeColor = null;
     }
 }
 

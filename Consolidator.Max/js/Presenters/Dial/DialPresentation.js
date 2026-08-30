@@ -8,6 +8,8 @@ class DialPresentation
         this.activeIndex = 0;
         this.displayIndex = 0;
         this.rings = [];
+        this.scopeActive = false;
+        this.scopeColor = null;
     }
 }
 

@@ -78,9 +78,13 @@ class BankManagerPresenter extends PresentationObservable
             enabled: false,
             active: false
         });
-        presentation.clearAction = this.read(viewModel.clearAction, {
+        presentation.scopeAction = this.read(viewModel.scopeAction, {
             enabled: false,
-            armed: false
+            active: false,
+            color: null
+        });
+        presentation.clearAction = this.read(viewModel.clearAction, {
+            enabled: false
         });
         let history = this.read(viewModel.history, {});
         presentation.history = {

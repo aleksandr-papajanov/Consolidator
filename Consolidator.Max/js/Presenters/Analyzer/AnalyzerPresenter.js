@@ -50,6 +50,9 @@ class AnalyzerPresenter extends PresentationObservable
         this.lastPublishedAllBanks = null;
         this.curvePreview = {};
         this.previewGestureActive = false;
+        this.scope = this.options.scope || null;
+        this.scopeUnsubscriber = this.scope && typeof this.scope.subscribe === "function"
+            ? this.scope.subscribe(() => { this.requestRebuild(); }) : null;
         this.subscribeParameters();
         this.subscribeStatus();
         this.rebuild();
@@ -388,6 +391,8 @@ class AnalyzerPresenter extends PresentationObservable
         let presentation = new AnalyzerPresentation();
         presentation.mode = this.options.mode || "equalizer";
         presentation.enabled = this.ready;
+        presentation.scopeActive = Boolean(this.scope && this.scope.isGroup());
+        presentation.scopeColor = presentation.scopeActive ? this.scope.color : null;
         presentation.spectrum = this.spectrum;
         presentation.referenceSpectrum = this.referenceSpectrum;
         presentation.combinedCurve = this.combinedCurve;
@@ -651,7 +656,8 @@ class AnalyzerPresenter extends PresentationObservable
         }
         presentationBindingWrite(
             parameter.frequency, preview.frequency, transactionId);
-        presentationBindingWrite(parameter.gain, preview.gain, transactionId);
+        presentationBindingWrite(
+            parameter.gain, preview.gain, transactionId);
         if (callback) callback({ status: "accepted", error: null });
     }
     
@@ -714,6 +720,7 @@ class AnalyzerPresenter extends PresentationObservable
     
     destroy()
     {
+        if (this.scopeUnsubscriber) this.scopeUnsubscriber();
         this.unsubscribers.forEach((unsubscribe) => {
             unsubscribe();
         });

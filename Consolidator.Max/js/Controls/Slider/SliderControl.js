@@ -7,12 +7,13 @@ mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
 const { SliderPresentation } = require("../../Presenters/Slider/SliderPresentation.js");
+const { UiColors } = require("../../Theme/UiColors.js");
 
 const SliderControlOptions = {
-    background: [0.08, 0.08, 0.08, 1],
-    track: [0.3, 0.3, 0.3, 1],
-    value: [0.35, 0.7, 1, 1],
-    disabled: [0.2, 0.2, 0.2, 1],
+    background: UiColors.base.background,
+    track: UiColors.controls.track,
+    value: UiColors.controls.active,
+    disabled: UiColors.base.disabled,
     padding: 5,
     trackWidth: 3,
     thumbRadius: 5,

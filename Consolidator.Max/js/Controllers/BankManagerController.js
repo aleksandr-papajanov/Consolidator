@@ -5,39 +5,6 @@ class BankManagerController
     constructor(context)
     {
         this.context = context;
-        this.clearConfirmationArmed = false;
-        this.clearConfirmationTimer = null;
-    }
-    
-    updateClearAction(armed)
-    {
-        this.clearConfirmationArmed = armed;
-        this.context.viewModel.apply({
-            clearAction: {
-                enabled: Boolean(this.context.viewModel.clearAction.enabled),
-                armed: armed
-            }
-        });
-    }
-    
-    disarmClearConfirmation()
-    {
-        this.clearConfirmationTimer = null;
-        this.updateClearAction(false);
-    }
-    
-    armClearConfirmation()
-    {
-        this.updateClearAction(true);
-        if (this.clearConfirmationTimer !== null &&
-                typeof clearTimeout === "function") {
-            clearTimeout(this.clearConfirmationTimer);
-        }
-        if (typeof setTimeout === "function") {
-            this.clearConfirmationTimer = setTimeout(() => {
-                this.disarmClearConfirmation();
-            }, 3000);
-        }
     }
     
     selectBank(
@@ -130,7 +97,7 @@ class BankManagerController
         let focusedBank = context.viewModel.focusedBank();
         if (!focusedBank || focusedBank.groupId === null ||
                 focusedBank.groupId === undefined ||
-                Number(focusedBank.groupId) <= 0) {
+                Number(focusedBank.groupId) < 0) {
             return;
         }
 
@@ -189,24 +156,9 @@ class BankManagerController
         });
     }
     
-    clearLocalGroups()
+    clearGroups()
     {
-        if (!this.clearConfirmationArmed) {
-            this.armClearConfirmation();
-            return;
-        }
-        this.disarmClearConfirmation();
-        let row = this.context.viewModel.rows.filter((candidate) => {
-            return candidate.local;
-        })[0];
-        let entries = (row ? row.banks : []).filter((bank) => {
-            return bank.groupId !== undefined && bank.groupId !== null &&
-                Number(bank.groupId) > 0;
-        }).map((bank) => {
-            return { path: "bank." + bank.bankId + ".group", value: null };
-        });
-        if (entries.length === 0) return;
-        this.context.state.setManyTopologyFor(this.context.instanceId, entries);
+        this.context.protocol.request("clear_topology", []);
     }
     
     handleIntent(name, values)
@@ -220,36 +172,36 @@ class BankManagerController
         case "rowSelected": this.selectRow(values[0]); break;
         case "groupRequested": this.groupSelectedBanks(); break;
         case "ungroupRequested": this.ungroupFocusedBank(); break;
-        case "clearRequested": this.clearLocalGroups(); break;
+        case "clearRequested": this.clearGroups(); break;
+        case "scopeToggled":
+            this.context.viewModel.toggleScope();
+            break;
         case "historySelected":
             this.jumpHistory(values[0]);
             break;
         case "instanceSoloChanged":
             this.setSolo(
                 Number(values[0]) !== 0,
-                Number(values[1]) !== 0,
-                Number(values[2]) !== 0
+                Number(values[1]) !== 0
             );
             break;
         case "instanceMuteChanged":
             this.setMute(
-                Number(values[0]) !== 0,
-                Number(values[1]) !== 0
+                Number(values[0]) !== 0
             );
             break;
         case "instanceResetRequested":
-            this.resetInstance(Number(values[0]) !== 0);
+            this.resetInstance();
             break;
         case "processorBypassChanged":
-            this.setProcessorBypass(values[0], Number(values[1]) !== 0,
-                Number(values[2]) !== 0);
+            this.setProcessorBypass(values[0], Number(values[1]) !== 0);
             break;
         case "processorSoloChanged":
             this.setProcessorSolo(values[0], Number(values[1]) !== 0,
-                Number(values[2]) !== 0, Number(values[3]) !== 0);
+                Number(values[2]) !== 0);
             break;
         case "processorResetRequested":
-            this.resetProcessor(values[0], Number(values[1]) !== 0);
+            this.resetProcessor(values[0]);
             break;
         }
     }
@@ -267,38 +219,38 @@ class BankManagerController
         this.context.transactions.jumpHistory(target);
     }
 
-    setMute(value, groupControl)
+    setMute(value)
     {
         this.context.protocol.request(
             "set_instance_mute",
-            [groupControl ? "group" : "local", value ? 1 : 0]
+            [this.context.scope.mode, value ? 1 : 0]
         );
     }
 
-    resetInstance(groupControl)
+    resetInstance()
     {
         this.context.state.reset(
             "dsp",
             undefined,
             0,
-            groupControl ? "group_instance" : "local"
+            this.context.scope.mode === "group" ? "group_instance" : "local"
         );
     }
 
-    setProcessorBypass(processorId, value, groupControl)
+    setProcessorBypass(processorId, value)
     {
         this.context.protocol.request("set_processor_bypass",
-            [processorId, groupControl ? "group" : "local", value ? 1 : 0]);
+            [processorId, this.context.scope.mode, value ? 1 : 0]);
     }
 
-    setProcessorSolo(processorId, value, additive, groupControl)
+    setProcessorSolo(processorId, value, additive)
     {
         this.context.protocol.request("set_processor_solo",
-            [processorId, groupControl ? "group" : "local", value ? 1 : 0,
+            [processorId, this.context.scope.mode, value ? 1 : 0,
                 additive ? "additive" : "exclusive"]);
     }
 
-    resetProcessor(processorId, groupControl)
+    resetProcessor(processorId)
     {
         let paths = {
             input: "input_gain",
@@ -313,15 +265,15 @@ class BankManagerController
             path,
             undefined,
             0,
-            groupControl ? "group" : "local"
+            this.context.scope.mode
         );
     }
 
-    setSolo(value, additive, groupControl)
+    setSolo(value, additive)
     {
         this.context.protocol.request(
             "set_instance_solo",
-            [groupControl ? "group" : "local",
+            [this.context.scope.mode,
                 value ? 1 : 0,
                 additive ? "additive" : "exclusive"
             ]
@@ -331,11 +283,6 @@ class BankManagerController
     
     destroy()
     {
-        if (this.clearConfirmationTimer !== null &&
-                typeof clearTimeout === "function") {
-            clearTimeout(this.clearConfirmationTimer);
-        }
-        this.clearConfirmationTimer = null;
         this.context = null;
     }
 }

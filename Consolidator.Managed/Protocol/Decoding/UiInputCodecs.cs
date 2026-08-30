@@ -23,6 +23,23 @@ internal sealed class InitializeInputCodec : IInputCodec
     }
 }
 
+internal sealed class ClearTopologyInputCodec : IInputCodec
+{
+    public string Selector => "clear_topology";
+
+    public DecodedCommand Decode(
+        ReadOnlySpan<Atom> atoms,
+        CommandFrameHeader header)
+    {
+        if (atoms.Length != header.Position)
+        {
+            throw new FormatException("Invalid clear_topology frame.");
+        }
+
+        return CommandCodecSupport.Success(header, new ClearTopologyCommand());
+    }
+}
+
 internal sealed class ObserveTargetInputCodec : IInputCodec
 {
     public string Selector => "observe_target";

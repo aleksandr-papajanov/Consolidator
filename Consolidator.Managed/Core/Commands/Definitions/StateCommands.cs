@@ -82,3 +82,9 @@ public sealed record SetInstanceActiveCommand(
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }
+
+public sealed record ClearTopologyCommand()
+    : IInstanceCommand<StateWriteStatus>
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}

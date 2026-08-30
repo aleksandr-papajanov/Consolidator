@@ -7,7 +7,12 @@ class BankManagerPresentation
         this.rows = [];
         this.groupAction = null;
         this.ungroupAction = null;
-        this.clearAction = null;
+        this.clearAction = { enabled: false };
+        this.scopeAction = {
+            enabled: false,
+            active: false,
+            color: null
+        };
         this.history = {
             cursor: 0,
             entryCount: 0,

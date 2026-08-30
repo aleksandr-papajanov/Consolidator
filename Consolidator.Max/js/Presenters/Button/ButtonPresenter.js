@@ -24,7 +24,7 @@ class ButtonPresenter extends PresentationObservable
     subscribeSources()
     {
         let sources = [this.options.value, this.options.enabled,
-            this.options.loading, this.options.active];
+            this.options.loading, this.options.active, this.options.scope];
         let subscribedSources = [];
         for (let index = 0; index < sources.length; index += 1) {
             let source = presentationBindingSource(sources[index]);
@@ -49,6 +49,10 @@ class ButtonPresenter extends PresentationObservable
             ? "momentary" : "toggle";
         presentation.label = this.options.label === undefined
             ? "" : String(this.options.label);
+        let scope = this.options.scope;
+        presentation.scopeActive = Boolean(scope && typeof scope.isGroup === "function" &&
+            scope.isGroup());
+        presentation.scopeColor = presentation.scopeActive ? scope.color : null;
         this.publish(presentation);
     }
     
@@ -57,11 +61,11 @@ class ButtonPresenter extends PresentationObservable
         presentationBindingWrite(this.options.value, value);
     }
     
-    resetValue(scope)
+    resetValue()
     {
         let source = presentationBindingSource(this.options.value);
         if (source && typeof source.reset === "function") {
-            source.reset(undefined, scope);
+            source.reset();
         }
     }
     

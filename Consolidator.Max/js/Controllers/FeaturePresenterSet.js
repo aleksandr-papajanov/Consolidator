@@ -4,9 +4,10 @@ const { bindPresentation } = require("../Presenters/Core/PresentationBinding.js"
 
 class FeaturePresenterSet
 {
-    constructor()
+    constructor(scope)
     {
         this.presenters = {};
+        this.scope = scope;
     }
     
     addDial(name, source, display)
@@ -16,6 +17,7 @@ class FeaturePresenterSet
                 value: source,
                 display: display || {}
             }],
+            scope: this.scope,
             enabled: this.sourceProperty(source, "enabled", true),
             loading: this.sourceProperty(source, "loading", false)
         });
@@ -28,6 +30,7 @@ class FeaturePresenterSet
         let presenter = new ButtonPresenter({
             value: source,
             label: label || "",
+            scope: this.scope,
             enabled: this.sourceProperty(source, "enabled", true),
             loading: this.sourceProperty(source, "loading", false)
         });
@@ -67,4 +70,3 @@ class FeaturePresenterSet
 module.exports = {
     FeaturePresenterSet: FeaturePresenterSet
 };
-

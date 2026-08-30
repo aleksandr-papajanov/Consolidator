@@ -88,6 +88,7 @@ class DialPresenter extends PresentationObservable
         subscribe(this.options.enabled);
         subscribe(this.options.loading);
         subscribe(this.options.active);
+        subscribe(this.options.scope);
     }
     
     read(source, fallback)
@@ -231,6 +232,11 @@ class DialPresenter extends PresentationObservable
         presentation.enabled = this.read(this.options.enabled, true);
         presentation.loading = this.read(this.options.loading, false);
         presentation.active = this.read(this.options.active, true);
+        let scope = this.options.scope;
+        presentation.groupScope = Boolean(scope &&
+            typeof scope.isGroup === "function" && scope.isGroup());
+        presentation.scopeActive = presentation.groupScope;
+        presentation.scopeColor = presentation.groupScope ? scope.color : null;
     
         let rings = this.options.rings || [];
         this.ringMappings = [];
@@ -292,7 +298,8 @@ class DialPresenter extends PresentationObservable
         physicalValue = clampPresentationValue(
             physicalValue, physicalMinimum, physicalMaximum
         );
-        presentationBindingWrite(configuration.value, physicalValue, transactionId);
+        presentationBindingWrite(
+            configuration.value, physicalValue, transactionId);
     }
     
     resetValue(ringIndex, transactionId)

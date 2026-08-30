@@ -72,3 +72,37 @@ Dragging updates the local preview immediately and sends the latest position at
 a bounded live rate. Curves are calculated locally from the focused parameter
 presentation, the raw all-bank equalizer projection and the observed source's
 prepared sample rate; spectrum and curve redraws are independently coalesced.
+
+All Max UI RGBA colors are defined in `js/Theme/UiColors.js`. The config is
+organized by semantic role: base colors, reusable control colors, bank-group
+colors, device colors and analyzer colors. Controls and presenters consume
+the shared config; new UI colors should be added there instead of being
+embedded in a control or renderer.
+
+State controls use the current global edit scope. Local scope writes the
+selected control locally, while group scope writes it to the focused bank's
+group. This applies to dials, filter handles, filter Q wheel edits, resets and
+feature buttons.
+
+The current edit scope is now a single UI-wide state owned by the client. The
+Bank Manager Action Panel exposes a Scope toggle.
+The toggle is disabled unless the focused bank belongs to a group; when group
+scope is active, it is filled with the focused bank's group color. All regular
+state writes and processor actions read this shared scope directly.
+
+Selecting a grouped bank highlights all members of its group only while group
+scope is active. In local scope, other group members are not highlighted;
+explicitly selected banks remain highlighted for grouping.
+
+Dial tracks use their normal full range for display and local editing. During
+group scope, the track switches to the ring's effective minimum-to-maximum
+range so group limits are visible while editing.
+
+Controls that write through group scope show the same group color from
+`UiEditScope`: feature buttons and Bank Manager S/M/R/B controls receive a
+small marker, dial tracks use the group color, and analyzer filter handles
+use the group color.
+
+The Bank Manager Clear action sends the `clear_topology` command. Managed
+clears all non-default topology groups (`groupId > 0`) atomically across the
+registry. The default group `0` is preserved.

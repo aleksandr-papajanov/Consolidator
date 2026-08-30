@@ -4,10 +4,10 @@ const { FeaturePresenterSet } = require("./FeaturePresenterSet.js");
 
 class EqualizerController
 {
-    constructor(viewModel)
+    constructor(viewModel, scope)
     {
         this.viewModel = viewModel;
-        this.presenters = new FeaturePresenterSet();
+        this.presenters = new FeaturePresenterSet(scope);
         this.presenters.addButton("bypass", viewModel.equalizer.bankBypass,
             "BYPASS");
         this.presenters.addButton("solo", viewModel.equalizer.bankSolo, "SOLO");
@@ -16,6 +16,7 @@ class EqualizerController
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,
+            scope: scope,
             bankBypass: viewModel.equalizer.bankBypass,
             parameters: this.createBankParameters(viewModel.equalizer.filters)
         }));

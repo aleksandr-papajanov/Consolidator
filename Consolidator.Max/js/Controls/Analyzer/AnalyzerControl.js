@@ -88,6 +88,8 @@ class AnalyzerControl
             curves: (current.curves || []).slice(0),
             combinedCurve: current.combinedCurve || null,
             allBanksCurve: current.allBanksCurve || null,
+            scopeActive: current.scopeActive || false,
+            scopeColor: current.scopeColor || null,
             handles: []
         };
     }
@@ -188,6 +190,16 @@ class AnalyzerControl
             }
         }
         presentation.handles.push(handle);
+    }
+
+    setScope(active, hasColor, red, green, blue, alpha)
+    {
+        let presentation = this.pendingPresentation || this.presentation;
+        if (!presentation) return;
+        presentation.scopeActive = Number(active) !== 0;
+        presentation.scopeColor = Number(hasColor) !== 0
+            ? [Number(red), Number(green), Number(blue), Number(alpha)] : null;
+        this.requestRedraw();
     }
 
     paint()
@@ -338,7 +350,7 @@ function ondrag(x, y, button) {
     analyzerControl.requestRedraw();
 }
 
-function onwheel(x, y, delta, mod1, shift, caps, opt, mod2) {
+function onwheel(x, y, delta) {
     let id = analyzerControl.hitTest(x, y);
     if (!id || !analyzerControl.canChangeQ(id)) return;
     analyzerControl.emitIntent("filterQChanged", [id, Number(delta) * 0.05]);
@@ -411,6 +423,10 @@ function presentation_end() {
 function transactionRejected() {
     analyzerControl.resetInteractionState();
     mgraphics.redraw();
+}
+
+function scope(active, hasColor, red, green, blue, alpha) {
+    analyzerControl.setScope(active, hasColor, red, green, blue, alpha);
 }
 
 function notifydeleted() {

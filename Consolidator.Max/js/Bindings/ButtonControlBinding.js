@@ -14,6 +14,10 @@ class ButtonControlBinding extends ControlBinding
         this.send("set", [presentation.value ? 1 : 0]);
         this.send("enabled", [presentation.enabled ? 1 : 0]);
         this.send("active", [presentation.active ? 1 : 0]);
+        let color = presentation.scopeColor;
+        this.send("scope", [presentation.scopeActive ? 1 : 0,
+            color && color.length >= 4 ? 1 : 0].concat(
+            color && color.length >= 4 ? color : [0, 0, 0, 0]));
         this.send("mode", [presentation.mode || "toggle"]);
         this.send("label", [presentation.label || ""]);
         this.send("presentation_end");
@@ -25,7 +29,7 @@ class ButtonControlBinding extends ControlBinding
             this.presenter.setValue(Number(values[0]) !== 0);
         }
         else if (name === "reset") {
-            this.presenter.resetValue(values[0] || "group");
+            this.presenter.resetValue();
         }
     }
 }

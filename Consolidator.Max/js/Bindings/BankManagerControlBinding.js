@@ -61,9 +61,12 @@ class BankManagerControlBinding extends ControlBinding
         let group = presentation.groupAction || {};
         let ungroup = presentation.ungroupAction || {};
         let clear = presentation.clearAction || {};
+        let scope = presentation.scopeAction || {};
         this.send("group_action", [group.enabled ? 1 : 0, group.active ? 1 : 0]);
         this.send("ungroup_action", [ungroup.enabled ? 1 : 0, ungroup.active ? 1 : 0]);
-        this.send("clear_action", [clear.enabled ? 1 : 0, clear.armed ? 1 : 0]);
+        this.send("clear_action", [clear.enabled ? 1 : 0]);
+        this.send("scope_action", [scope.enabled ? 1 : 0,
+            scope.active ? 1 : 0].concat(this.colorArguments(scope.color)));
         let history = presentation.history || {};
         this.send("history", [
             Number(history.cursor) || 0,
@@ -123,6 +126,7 @@ class BankManagerControlBinding extends ControlBinding
                 presentation,
                 delta.rowIndex,
                 delta.bankId);
+            this.sendActions(presentation);
             this.send("presentation_patch_end");
             return;
         }
@@ -256,6 +260,7 @@ class BankManagerControlBinding extends ControlBinding
         let group = presentation.groupAction || {};
         let ungroup = presentation.ungroupAction || {};
         let clear = presentation.clearAction || {};
+        let scope = presentation.scopeAction || {};
         this.send("group_action_patch", [
             group.enabled ? 1 : 0,
             group.active ? 1 : 0
@@ -264,10 +269,9 @@ class BankManagerControlBinding extends ControlBinding
             ungroup.enabled ? 1 : 0,
             ungroup.active ? 1 : 0
         ]);
-        this.send("clear_action_patch", [
-            clear.enabled ? 1 : 0,
-            clear.armed ? 1 : 0
-        ]);
+        this.send("clear_action_patch", [clear.enabled ? 1 : 0]);
+        this.send("scope_action_patch", [scope.enabled ? 1 : 0,
+            scope.active ? 1 : 0].concat(this.colorArguments(scope.color)));
         let history = presentation.history || {};
         this.send("history_patch", [
             Number(history.cursor) || 0,

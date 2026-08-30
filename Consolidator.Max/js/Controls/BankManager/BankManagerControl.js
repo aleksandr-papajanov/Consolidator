@@ -7,21 +7,22 @@ mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
 const { BankManagerPresentation } = require("../../Presenters/BankManager/BankManagerPresentation.js");
+const { UiColors } = require("../../Theme/UiColors.js");
 
 function processorIdSupportsSolo(processorId) {
     return processorId !== "input" && processorId !== "output";
 }
 
 const BankManagerControlOptions = {
-    background: [0.08, 0.08, 0.08, 1],
-    text: [0.8, 0.8, 0.8, 1],
-    actionText: [1, 1, 1, 1],
-    focused: [0.35, 0.7, 1, 1],
-    remote: [0.55, 0.55, 0.55, 1],
-    solo: [0.35, 0.7, 1, 1],
-    mute: [0.95, 0.45, 0.35, 1],
-    disabled: [0.25, 0.25, 0.25, 1],
-    separator: [0.25, 0.25, 0.25, 1],
+    background: UiColors.base.background,
+    text: UiColors.base.text,
+    actionText: UiColors.base.actionText,
+    focused: UiColors.controls.active,
+    remote: UiColors.devices.remote,
+    solo: UiColors.devices.solo,
+    mute: UiColors.devices.mute,
+    disabled: UiColors.devices.disabled,
+    separator: UiColors.base.separator,
     rowHeight: 16,
     bankSize: 16,
     bankGap: 0,
@@ -42,14 +43,8 @@ const BankManagerControlOptions = {
     panelButtonHeight: 32,
     panelButtonGap: 0,
     resetFlashDurationMs: 180,
-    panelButtonText: [0.85, 0.85, 0.85, 1],
-    panelButtonColors: [
-        [0.18, 0.48, 0.72, 1],
-        [0.72, 0.38, 0.18, 1],
-        [0.52, 0.28, 0.68, 1],
-        [0.18, 0.58, 0.42, 1],
-        [0.68, 0.24, 0.28, 1]
-    ],
+    panelButtonText: UiColors.devices.panelText,
+    deviceColors: UiColors.devices.processors,
     historySlotCount: 32,
     fontSize: 11
 };
@@ -66,7 +61,6 @@ class BankManagerControl
         this.pointerY = 0;
         this.pointerClickHandled = false;
         this.pointerShift = false;
-        this.pointerGroup = false;
         this.dragging = false;
         this.lastY = 0;
         this.resetFlash = {};
@@ -120,6 +114,15 @@ class BankManagerControl
         let rows = this.presentation.rows || [];
         let contentHeight = rows.length * BankManagerControlOptions.rowHeight;
         return Math.max(0, contentHeight - this.contentHeight());
+    }
+
+    paintScopeMarker(x, y, size)
+    {
+        let scope = this.presentation.scopeAction || {};
+        if (!scope.active || !scope.color) return;
+        mgraphics.set_source_rgba.apply(mgraphics, scope.color);
+        mgraphics.rectangle(x + size - 4, y + 2, 3, 3);
+        mgraphics.fill();
     }
 
     contentHeight()
@@ -243,6 +246,15 @@ class BankManagerControl
         return label;
     }
 
+    isGroupedBank(bank)
+    {
+        if (!bank || bank.groupId === undefined || bank.groupId === null) {
+            return false;
+        }
+        let groupId = Number(bank.groupId);
+        return isFinite(groupId) && groupId >= 0;
+    }
+
     paintBank(bank, x, y, highlighted)
     {
         if (!bank.visible) {
@@ -295,7 +307,7 @@ class BankManagerControl
         mgraphics.set_source_rgba.apply(mgraphics, textColor);
         mgraphics.select_font_face("Arial");
         mgraphics.set_font_size(9);
-        if (bank.groupId >= 0) {
+        if (this.isGroupedBank(bank)) {
             let label = this.groupLabel(bank.groupId);
             let textSize = mgraphics.text_measure(label);
             let fontExtents = mgraphics.font_extents();
@@ -312,13 +324,15 @@ class BankManagerControl
         let height = this.layoutHeight();
         let rows = this.presentation.rows || [];
         let offset = this.scrollOffset();
+        let groupScope = Boolean((this.presentation.scopeAction || {}).active);
         let highlightedGroups = {};
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
             for (let bankIndex = 0;
                     bankIndex < rows[rowIndex].banks.length;
                     bankIndex += 1) {
                 let bank = rows[rowIndex].banks[bankIndex];
-                if ((bank.active || bank.selected) && bank.groupId >= 0) {
+                if (groupScope && (bank.active || bank.selected) &&
+                        this.isGroupedBank(bank)) {
                     highlightedGroups[String(bank.groupId)] = true;
                 }
             }
@@ -376,7 +390,9 @@ class BankManagerControl
                         BankManagerControlOptions.bankGap
                     ),
                     y,
-                    highlightedGroups[String(row.banks[bankIndex].groupId)] === true
+                    groupScope
+                        ? highlightedGroups[String(row.banks[bankIndex].groupId)] === true
+                        : Boolean(row.banks[bankIndex].active)
                 );
             }
             this.paintInstanceButtons(
@@ -444,7 +460,7 @@ class BankManagerControl
             let status = processor && (processor.processors || []).filter((item) => {
                 return item.processorId === panelKeys[index];
             })[0];
-            let color = BankManagerControlOptions.panelButtonColors[index];
+            let color = BankManagerControlOptions.deviceColors[panelKeys[index]];
             mgraphics.set_source_rgba.apply(mgraphics,
                 active ? color : BankManagerControlOptions.background);
             let panelInset = active ? 0 : 1;
@@ -488,7 +504,7 @@ class BankManagerControl
                 {
                     label: "R",
                     active: Boolean(this.resetFlash[
-                        String(localRow.instanceId) + ":" + panelKeys[index]
+                        localRow && String(localRow.instanceId) + ":" + panelKeys[index]
                     ]),
                     enabled: Boolean(status),
                     x: controlX + BankManagerControlOptions.panelBypassWidth,
@@ -520,6 +536,7 @@ class BankManagerControl
                     button.y + (buttonHeight - buttonFontExtents[2]) / 2 +
                         buttonFontExtents[0]);
                 mgraphics.show_text(button.label);
+                this.paintScopeMarker(button.x, button.y, button.width);
             });
             if (status && status.markerActive) {
                 mgraphics.set_source_rgba.apply(mgraphics,
@@ -538,7 +555,7 @@ class BankManagerControl
                 return candidate.processorId === processorId;
             })[0] || { effectActive: false };
             let x = this.processorMarkerX(index);
-            let color = BankManagerControlOptions.panelButtonColors[index];
+            let color = BankManagerControlOptions.deviceColors[processorId];
             mgraphics.set_source_rgba.apply(mgraphics,
                 processor.effectActive ? color : BankManagerControlOptions.disabled);
             mgraphics.rectangle(x, y + 5,
@@ -694,7 +711,7 @@ class BankManagerControl
         [
             { label: "S", active: Boolean(row.solo), color: BankManagerControlOptions.solo },
             { label: "M", active: Boolean(row.mute), color: BankManagerControlOptions.mute },
-            { label: "R", active: Boolean(this.resetFlash["instance:" + row.instanceId]), color: BankManagerControlOptions.focused }
+            { label: "R", active: Boolean(this.resetFlash["instance:" + row.instanceId]), color: UiColors.devices.reset }
         ].forEach((button, index) => {
             let buttonX = x + index * BankManagerControlOptions.bankSize;
             if (button.active) {
@@ -724,6 +741,7 @@ class BankManagerControl
                 y + 12
             );
             mgraphics.show_text(button.label);
+            this.paintScopeMarker(buttonX, y, BankManagerControlOptions.bankSize);
         });
     }
 
@@ -732,10 +750,12 @@ class BankManagerControl
         let group = this.presentation.groupAction || {};
         let ungroup = this.presentation.ungroupAction || {};
         let clear = this.presentation.clearAction || {};
+        let scope = this.presentation.scopeAction || {};
         let actions = [
             { label: "Group", action: group },
             { label: "Ungroup", action: ungroup },
-            { label: clear.armed ? "Sure?" : "Clear", action: clear }
+            { label: "Clear", action: clear },
+            { label: "Scope", action: scope }
         ];
         let buttonWidth = (width - BankManagerControlOptions.actionGap *
             (actions.length - 1)) / actions.length;
@@ -752,10 +772,9 @@ class BankManagerControl
             let textColor = entry.action.enabled
                 ? BankManagerControlOptions.actionText
                 : BankManagerControlOptions.separator;
-            mgraphics.set_source_rgba.apply(
-                mgraphics,
-                BankManagerControlOptions.background
-            );
+            let fillColor = entry.action.active && entry.action.color
+                ? entry.action.color : BankManagerControlOptions.background;
+            mgraphics.set_source_rgba.apply(mgraphics, fillColor);
             mgraphics.rectangle(x, y, actualWidth,
                 BankManagerControlOptions.actionPanelHeight);
             mgraphics.fill();
@@ -771,7 +790,8 @@ class BankManagerControl
             mgraphics.rectangle(right - 1, y, 1,
                 BankManagerControlOptions.actionPanelHeight);
             mgraphics.fill();
-            mgraphics.set_source_rgba.apply(mgraphics, textColor);
+            mgraphics.set_source_rgba.apply(mgraphics,
+                entry.action.active ? BankManagerControlOptions.background : textColor);
             mgraphics.select_font_face("Arial");
             mgraphics.set_font_size(9);
             let textSize = mgraphics.text_measure(entry.label);
@@ -874,7 +894,7 @@ class BankManagerControl
         return index >= 0 && row && row.banks[index] ? index : -1;
     }
 
-    selectAt(x, y, extendSelection, groupControl)
+    selectAt(x, y, extendSelection)
     {
         if (x < BankManagerControlOptions.outerPadding ||
                 y < BankManagerControlOptions.outerPadding ||
@@ -894,24 +914,23 @@ class BankManagerControl
             if (panelControl.type === "bypass") {
                 this.emit("processorBypassChanged", [
                     panelControl.processorId,
-                    panelControl.value ? 1 : 0,
-                    groupControl ? 1 : 0
+                    panelControl.value ? 1 : 0
                 ]);
             } else if (panelControl.type === "solo") {
                 this.emit("processorSoloChanged", [
                     panelControl.processorId,
                     panelControl.value ? 1 : 0,
-                    extendSelection ? 1 : 0,
-                    groupControl ? 1 : 0
+                    extendSelection ? 1 : 0
                 ]);
             } else {
                 let localRow = (this.presentation.rows || []).filter((row) => row.local)[0];
-                this.flashReset(
-                    String(localRow.instanceId) + ":" + panelControl.processorId
-                );
+                if (localRow) {
+                    this.flashReset(
+                        String(localRow.instanceId) + ":" + panelControl.processorId
+                    );
+                }
                 this.emit("processorResetRequested", [
-                    panelControl.processorId,
-                    groupControl ? 1 : 0
+                    panelControl.processorId
                 ]);
             }
             return;
@@ -929,24 +948,26 @@ class BankManagerControl
 
         if (y >= this.actionPanelY() &&
                 y < this.actionPanelY() + BankManagerControlOptions.actionPanelHeight) {
-            let actionWidth = (this.primaryWidth() - BankManagerControlOptions.actionGap * 2) / 3;
+            let actionWidth = (this.primaryWidth() - BankManagerControlOptions.actionGap * 3) / 4;
             let actionStep = actionWidth + BankManagerControlOptions.actionGap;
             let buttonIndex = Math.floor(x / actionStep);
-            if (buttonIndex < 0 || buttonIndex >= 3 ||
+            if (buttonIndex < 0 || buttonIndex >= 4 ||
                     x >= buttonIndex * actionStep + actionWidth) {
                 return;
             }
             let actions = [
                 this.presentation.groupAction,
                 this.presentation.ungroupAction,
-                this.presentation.clearAction
+                this.presentation.clearAction,
+                this.presentation.scopeAction
             ];
             let action = actions[buttonIndex];
             if (action && action.enabled) {
                 this.emit([
                     "groupRequested",
                     "ungroupRequested",
-                    "clearRequested"
+                    "clearRequested",
+                    "scopeToggled"
                 ][buttonIndex]);
             }
             return;
@@ -969,19 +990,15 @@ class BankManagerControl
             if (buttonIndex === 0) {
                 this.emit("instanceSoloChanged", [
                     row.solo ? 0 : 1,
-                    extendSelection ? 1 : 0,
-                    groupControl ? 1 : 0
+                    extendSelection ? 1 : 0
                 ]);
             } else if (buttonIndex === 1) {
                 this.emit("instanceMuteChanged", [
-                    row.mute ? 0 : 1,
-                    groupControl ? 1 : 0
+                    row.mute ? 0 : 1
                 ]);
             } else {
                 this.flashReset("instance:" + row.instanceId);
-                this.emit("instanceResetRequested", [
-                    groupControl ? 1 : 0
-                ]);
+                this.emit("instanceResetRequested");
             }
             return;
         }
@@ -1012,7 +1029,7 @@ class BankManagerControl
         this.emit("gestureBegan");
     }
 
-    beginPointer(x, y, shift, groupControl)
+    beginPointer(x, y, shift)
     {
         if (!this.presentation.enabled) {
             return;
@@ -1023,7 +1040,6 @@ class BankManagerControl
         this.pointerX = x;
         this.pointerY = y;
         this.pointerShift = Number(shift) !== 0;
-        this.pointerGroup = Number(groupControl) !== 0;
         this.dragging = false;
     }
 
@@ -1060,13 +1076,11 @@ class BankManagerControl
                 x,
                 y,
                 this.pointerShift,
-                this.pointerGroup
             );
         }
 
         this.pointerDown = false;
         this.pointerShift = false;
-        this.pointerGroup = false;
         this.pointerClickHandled = false;
     }
 
@@ -1078,7 +1092,6 @@ class BankManagerControl
 
         this.pointerDown = false;
         this.pointerShift = false;
-        this.pointerGroup = false;
         this.pointerClickHandled = false;
     }
 
@@ -1261,15 +1274,27 @@ class BankManagerControl
         };
     }
 
-    setClearAction(enabled, armed)
+    setClearAction(enabled)
     {
         if (!this.pendingPresentation) {
             return;
         }
 
         this.pendingPresentation.clearAction = {
+            enabled: Number(enabled) !== 0
+        };
+    }
+
+    setScopeAction(enabled, active, hasColor, red, green, blue, alpha)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+
+        this.pendingPresentation.scopeAction = {
             enabled: Number(enabled) !== 0,
-            armed: Number(armed) !== 0
+            active: Number(active) !== 0,
+            color: this.colorFromArguments(hasColor, red, green, blue, alpha)
         };
     }
 
@@ -1417,11 +1442,19 @@ class BankManagerControl
         };
     }
 
-    patchClearAction(enabled, armed)
+    patchClearAction(enabled)
     {
         this.presentation.clearAction = {
+            enabled: Number(enabled) !== 0
+        };
+    }
+
+    patchScopeAction(enabled, active, hasColor, red, green, blue, alpha)
+    {
+        this.presentation.scopeAction = {
             enabled: Number(enabled) !== 0,
-            armed: Number(armed) !== 0
+            active: Number(active) !== 0,
+            color: this.colorFromArguments(hasColor, red, green, blue, alpha)
         };
     }
 
@@ -1456,8 +1489,13 @@ function ungroup_action(enabled, active) {
     bankManagerControl.setUngroupAction(enabled, active);
 }
 
-function clear_action(enabled, armed) {
-    bankManagerControl.setClearAction(enabled, armed);
+function clear_action(enabled) {
+    bankManagerControl.setClearAction(enabled);
+}
+
+function scope_action(enabled, active, hasColor, red, green, blue, alpha) {
+    bankManagerControl.setScopeAction(
+        enabled, active, hasColor, red, green, blue, alpha);
 }
 
 function history(cursor, entryCount, canUndo, canRedo) {
@@ -1501,8 +1539,13 @@ function ungroup_action_patch(enabled, active) {
     bankManagerControl.patchUngroupAction(enabled, active);
 }
 
-function clear_action_patch(enabled, armed) {
-    bankManagerControl.patchClearAction(enabled, armed);
+function clear_action_patch(enabled) {
+    bankManagerControl.patchClearAction(enabled);
+}
+
+function scope_action_patch(enabled, active, hasColor, red, green, blue, alpha) {
+    bankManagerControl.patchScopeAction(
+        enabled, active, hasColor, red, green, blue, alpha);
 }
 
 function history_patch(cursor, entryCount, canUndo, canRedo) {
@@ -1523,15 +1566,8 @@ function onresize() {
 
 function onclick(x, y, button, modifier1, shift, caps, option, modifier2,
     pointerevent) {
-    let modifier1Value = Number(modifier1);
-    let modifier2Value = Number(modifier2);
-    let pointerControl = Boolean(pointerevent &&
-        (pointerevent.ctrlKey || pointerevent.metaKey));
-    let groupControl = pointerControl ||
-        (isFinite(modifier1Value) && modifier1Value !== 0) ||
-        (isFinite(modifier2Value) && modifier2Value !== 0);
-    bankManagerControl.beginPointer(x, y, shift, groupControl);
-    bankManagerControl.selectAt(x, y, shift, groupControl);
+    bankManagerControl.beginPointer(x, y, shift);
+    bankManagerControl.selectAt(x, y, shift);
     bankManagerControl.pointerClickHandled = true;
 }
 

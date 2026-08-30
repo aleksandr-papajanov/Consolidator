@@ -25,7 +25,8 @@ class AnalyzerController
                 payload[0], payload[1], payload[2], transactionId);
             break;
         case "filterCommit":
-            this.presenter.commitPreview(payload[0], transactionId, callback);
+            this.presenter.commitPreview(
+                payload[0], transactionId, callback);
             break;
         case "filterQChanged":
             this.presenter.filterQChanged(payload[0], payload[1]);

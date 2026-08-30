@@ -4,9 +4,10 @@ class StateClient
 {
     // Relative write/reset transport. Managed resolves the selected target and
     // bank from the source SelectionContext. Explicit targeting is topology-only.
-    constructor(protocol)
+    constructor(protocol, scope)
     {
         this.protocol = protocol;
+        this.scope = scope || { mode: "local" };
         this.responses = {};
     
         protocol.on("state_begin", this.handleResponseBegin.bind(this));
@@ -25,7 +26,7 @@ class StateClient
     
     setMany(entries, callback, transactionId, scope)
     {
-        return this.sendWrite(scope || "group", null, entries, callback,
+        return this.sendWrite(scope || this.scope.mode, null, entries, callback,
             transactionId);
     }
 
@@ -58,7 +59,7 @@ class StateClient
     
     reset(path, callback, transactionId, scope)
     {
-        let frame = [String(transactionId || 0), scope || "group"]
+        let frame = [String(transactionId || 0), scope || this.scope.mode]
             .concat(this.encodePath(path));
         return this.protocol.request(
             "reset",
@@ -154,6 +155,7 @@ class StateClient
     destroy()
     {
         this.protocol = null;
+        this.scope = null;
         this.responses = {};
     }
 }

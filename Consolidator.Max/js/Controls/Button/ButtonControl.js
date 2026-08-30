@@ -8,13 +8,14 @@ mgraphics.autofill = 0;
 
 const { ButtonPresentation } = require("../../Presenters/Button/ButtonPresentation.js");
 const { DoubleClickTracker } = require("../DoubleClickTracker.js");
+const { UiColors } = require("../../Theme/UiColors.js");
 
 const ButtonControlOptions = {
-    background: [0.08, 0.08, 0.08, 1],
-    active: [0.35, 0.7, 1, 1],
-    inactive: [0.35, 0.35, 0.35, 1],
-    disabled: [0.2, 0.2, 0.2, 1],
-    text: [0.9, 0.9, 0.9, 1],
+    background: UiColors.base.background,
+    active: UiColors.controls.active,
+    inactive: UiColors.controls.inactive,
+    disabled: UiColors.base.disabled,
+    text: UiColors.base.brightText,
     fontSize: 12
 };
 
@@ -96,6 +97,14 @@ class ButtonControl
         this.requestRedraw();
     }
 
+    setScope(active, hasColor, red, green, blue, alpha)
+    {
+        this.presentation.scopeActive = Number(active) !== 0;
+        this.presentation.scopeColor = Number(hasColor) !== 0
+            ? [Number(red), Number(green), Number(blue), Number(alpha)] : null;
+        this.requestRedraw();
+    }
+
     emit(name, payload)
     {
     if (payload === undefined) outlet(0, name);
@@ -123,7 +132,7 @@ class ButtonControl
     if (selected && presentation.enabled) mgraphics.fill();
     else mgraphics.stroke();
 
-    if (presentation.label) {
+        if (presentation.label) {
         mgraphics.select_font_face("Arial");
         mgraphics.set_font_size(ButtonControlOptions.fontSize);
         mgraphics.set_source_rgba.apply(mgraphics, ButtonControlOptions.text);
@@ -133,22 +142,27 @@ class ButtonControl
             Math.max(2, (width - textWidth) * 0.5),
             height * 0.5 + ButtonControlOptions.fontSize * 0.35
         );
-        mgraphics.show_text(String(presentation.label));
-    }
+            mgraphics.show_text(String(presentation.label));
+        }
+        if (presentation.scopeActive && presentation.scopeColor) {
+            mgraphics.set_source_rgba.apply(mgraphics, presentation.scopeColor);
+            mgraphics.arc(width - 4, 4, 2, 0, Math.PI * 2);
+            mgraphics.fill();
+        }
     }
 
     click()
     {
-    if (!this.presentation.enabled) return;
-    if (this.doubleClick.isDoubleClick("button")) {
+        if (!this.presentation.enabled) return;
+        if (this.doubleClick.isDoubleClick("button")) {
         this.emit("reset");
         return;
-    }
-    if (this.presentation.mode === "momentary") {
+        }
+        if (this.presentation.mode === "momentary") {
         this.pressed = true;
         this.emit("valueChanged", 1);
         return;
-    }
+        }
     this.emit("valueChanged", this.presentation.value ? 0 : 1);
     }
 
@@ -178,6 +192,10 @@ function onresize() {
 
 function onclick() {
     buttonControl.click();
+}
+
+function scope(active, hasColor, red, green, blue, alpha) {
+    buttonControl.setScope(active, hasColor, red, green, blue, alpha);
 }
 
 function ondrag(x, y, button) {

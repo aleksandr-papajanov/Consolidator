@@ -4,13 +4,15 @@ const { TransactionClient } = require("./TransactionClient.js");
 const { TargetStateClient } = require("./TargetStateClient.js");
 const { UiTarget } = require("./UiTarget.js");
 const { RegistryClient } = require("./RegistryClient.js");
+const { UiEditScope } = require("../ViewModels/UiEditScope.js");
 
 class ConsolidatorClient
 {
     constructor(source, send)
     {
         this.protocol = new NativeProtocolClient(source, send);
-        this.state = new StateClient(this.protocol);
+        this.scope = new UiEditScope();
+        this.state = new StateClient(this.protocol, this.scope);
         this.transactions = new TransactionClient(this.protocol);
         this.targetState = new TargetStateClient(this.protocol, this.state);
         this.uiTarget = new UiTarget(this.targetState);

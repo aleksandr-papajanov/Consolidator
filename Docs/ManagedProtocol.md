@@ -94,6 +94,10 @@ write topology targetInstanceId transactionId entryCount entries...
 `topology` is a separate explicit-address contract used only for bank-group
 membership changes over a user-selected bank set.
 
+The `clear_topology` command is a coordinator-scoped topology operation. It
+clears every non-default bank group (`groupId > 0`) in Managed state and keeps
+the default group `0` unchanged.
+
 ## Dispatch and responses
 
 `CommandEndpointRegistry` owns the command-type-to-endpoint map and also checks

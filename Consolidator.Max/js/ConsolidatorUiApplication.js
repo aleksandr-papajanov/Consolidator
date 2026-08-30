@@ -50,21 +50,22 @@ class ConsolidatorUiHost
         this.client = new ConsolidatorClient(source, this.sendNative);
         this.sendUi = sendUi || (() => {});
         this.viewModel = new ConsolidatorViewModel(this.client.uiTarget);
-        this.equalizer = new EqualizerController(this.viewModel);
-        this.compressor = new CompressorController(this.viewModel);
-        this.saturator = new SaturatorController(this.viewModel);
+        this.equalizer = new EqualizerController(this.viewModel, this.client.scope);
+        this.compressor = new CompressorController(this.viewModel, this.client.scope);
+        this.saturator = new SaturatorController(this.viewModel, this.client.scope);
         this.equalizer.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.compressor.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.saturator.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.equalizer.analyzer.presenter.connectConfiguration(this.client.protocol);
         this.compressor.analyzer.presenter.connectConfiguration(this.client.protocol);
         this.saturator.analyzer.presenter.connectConfiguration(this.client.protocol);
-        this.inputGain = new GainController(this.viewModel.inputGain);
-        this.outputGain = new GainController(this.viewModel.outputGain);
+        this.inputGain = new GainController(this.viewModel.inputGain, this.client.scope);
+        this.outputGain = new GainController(this.viewModel.outputGain, this.client.scope);
         this.bankManagerViewModel = new BankManagerViewModel(
             this.client.registry,
             source,
-            this.client.transactions
+            this.client.transactions,
+            this.client.scope
         );
         this.bankManagerPresenter = new BankManagerPresenter(
             this.bankManagerViewModel
@@ -76,7 +77,9 @@ class ConsolidatorUiHost
                 this.client.uiTarget,
                 source,
                 this.client.protocol,
-                this.client.transactions
+                this.client.transactions,
+                undefined,
+                this.client.scope
             )
         );
         this.bindings = new ControlBindings();

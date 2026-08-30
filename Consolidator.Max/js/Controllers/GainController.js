@@ -2,9 +2,9 @@ const { FeaturePresenterSet } = require("./FeaturePresenterSet.js");
 
 class GainController
 {
-    constructor(viewModel)
+    constructor(viewModel, scope)
     {
-        this.presenters = new FeaturePresenterSet();
+        this.presenters = new FeaturePresenterSet(scope);
         this.presenters.addDial("gain", viewModel.gain,
             { decimals: 1, suffix: " dB" });
     }
@@ -18,4 +18,3 @@ class GainController
 module.exports = {
     GainController: GainController
 };
-

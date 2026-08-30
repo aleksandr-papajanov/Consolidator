@@ -48,6 +48,10 @@ class AnalyzerControlBinding extends ControlBinding
             presentation.parameterRevision || 0,
             presentation.viewKey || ""
         ]);
+        let color = presentation.scopeColor;
+        this.send("scope", [presentation.scopeActive ? 1 : 0,
+            color && color.length >= 4 ? 1 : 0].concat(
+            color && color.length >= 4 ? color : [0, 0, 0, 0]));
         (presentation.handles || []).forEach((handle) => {
             let capabilities = handle.capabilities || {};
             this.send("handle", [

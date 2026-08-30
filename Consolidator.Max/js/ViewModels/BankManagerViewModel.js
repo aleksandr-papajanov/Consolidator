@@ -1,34 +1,27 @@
-let BANK_MANAGER_GROUP_COLORS = [
-    [0.4353, 0.8471, 0.7373, 1],
-    [0.4392, 0.7686, 0.7725, 1],
-    [0.4392, 0.6902, 0.8039, 1],
-    [0.4392, 0.6078, 0.8275, 1],
-    [0.4353, 0.5216, 0.8510, 1],
-    [0.4824, 0.4902, 0.8196, 1],
-    [0.5725, 0.5216, 0.7412, 1],
-    [0.6667, 0.5412, 0.6549, 1],
-    [0.7569, 0.5569, 0.5608, 1],
-    [0.8471, 0.5647, 0.4510, 1],
-    [0.9020, 0.6500, 0.4000, 1],
-    [0.8500, 0.7600, 0.3300, 1],
-    [0.6600, 0.8100, 0.3600, 1],
-    [0.3900, 0.8200, 0.5100, 1],
-    [0.3000, 0.7700, 0.6900, 1],
-    [0.8100, 0.4500, 0.7200, 1]
-];
+const { UiColors } = require("../Theme/UiColors.js");
 
 function bankManagerGroupColor(groupId) {
-    let index = Number(groupId) % BANK_MANAGER_GROUP_COLORS.length;
-    if (index < 0) index += BANK_MANAGER_GROUP_COLORS.length;
-    return BANK_MANAGER_GROUP_COLORS[index];
+    let colors = UiColors.groups.banks;
+    let index = Number(groupId) % colors.length;
+    if (index < 0) index += colors.length;
+    return colors[index];
+}
+
+function bankManagerIsGrouped(bank) {
+    if (!bank || bank.groupId === undefined || bank.groupId === null) {
+        return false;
+    }
+    let groupId = Number(bank.groupId);
+    return isFinite(groupId) && groupId >= 0;
 }
 
 class BankManagerViewModel
 {
-    constructor(registryClient, localInstanceId, historyClient)
+    constructor(registryClient, localInstanceId, historyClient, scope)
     {
         this.registryClient = registryClient;
         this.localInstanceId = localInstanceId;
+        this.scope = scope;
         this.enabled = true;
         this.selectedPanel = "equalizer";
         this.rows = [];
@@ -36,7 +29,8 @@ class BankManagerViewModel
         this.focusedSelection = null;
         this.groupAction = { enabled: false, active: false };
         this.ungroupAction = { enabled: false, active: false };
-        this.clearAction = { enabled: false, armed: false };
+        this.scopeAction = { enabled: false, active: false, color: null };
+        this.clearAction = { enabled: false };
         this.listeners = [];
         this.unsubscribeRegistry = null;
         this.registryActive = false;
@@ -67,6 +61,11 @@ class BankManagerViewModel
             this.unsubscribeRegistry = null;
         }
         if (!next) {
+            if (this.scope) {
+                this.scope.setGroupContext(false, null);
+            }
+            this.scopeAction = { enabled: false, active: false, color: null };
+            this.notify();
             if (callback) callback(null, { error: null });
             return;
         }
@@ -293,12 +292,14 @@ class BankManagerViewModel
 
     refreshActions()
     {
-        let localRow = this.rows.filter((row) => { return row.local; })[0];
-        let editableBanks = localRow ? localRow.banks.filter((bank) => {
-            return !bank.system;
-        }) : [];
         let selectedCount = this.getSelectedBanks().length;
         let focusedBank = this.focusedBank();
+        let groupContext = bankManagerIsGrouped(focusedBank);
+        if (this.scope) {
+            this.scope.setGroupContext(
+                groupContext,
+                groupContext ? focusedBank.color : null);
+        }
         let usedGroupIds = {};
         this.rows.forEach((row) => {
             row.banks.forEach((bank) => {
@@ -314,23 +315,27 @@ class BankManagerViewModel
                 break;
             }
         }
-        let clearEnabled = editableBanks.some((bank) => {
-            return bank.groupId !== undefined && bank.groupId !== null;
+        let clearEnabled = this.rows.some((row) => {
+            return row.banks.some((bank) => {
+                return bank.groupId !== undefined && bank.groupId !== null &&
+                    Number(bank.groupId) > 0;
+            });
         });
         this.groupAction = {
             enabled: selectedCount >= 2 && hasFreeGroup,
             active: false
         };
         this.ungroupAction = {
-            enabled: Boolean(focusedBank &&
-                focusedBank.groupId !== undefined &&
-                focusedBank.groupId !== null &&
-                Number(focusedBank.groupId) > 0),
+            enabled: bankManagerIsGrouped(focusedBank),
             active: false
         };
+        this.scopeAction = {
+            enabled: groupContext,
+            active: Boolean(this.scope && this.scope.isGroup()),
+            color: groupContext ? focusedBank.color : null
+        };
         this.clearAction = {
-            enabled: clearEnabled,
-            armed: clearEnabled && Boolean(this.clearAction.armed)
+            enabled: clearEnabled
         };
     }
     
@@ -344,6 +349,14 @@ class BankManagerViewModel
     setSelectedPanel(panel)
     {
         this.selectedPanel = String(panel);
+        this.notify();
+    }
+
+    toggleScope()
+    {
+        if (!this.scope) return;
+        this.scope.toggle();
+        this.refreshActions();
         this.notify();
     }
     
@@ -388,6 +401,10 @@ class BankManagerViewModel
         if (this.rows.length === 0) {
             let snapshot = this.registryClient.get();
             if (snapshot) this.applyRegistrySnapshot(snapshot);
+            else {
+                this.refreshActions();
+                this.notify();
+            }
             return true;
         }
         let rowIndex = this.findRowIndex(nextInstanceId);
@@ -537,6 +554,7 @@ class BankManagerViewModel
         if (state.enabled !== undefined) this.enabled = Boolean(state.enabled);
         if (state.groupAction !== undefined) this.groupAction = state.groupAction;
         if (state.ungroupAction !== undefined) this.ungroupAction = state.ungroupAction;
+        if (state.scopeAction !== undefined) this.scopeAction = state.scopeAction;
         if (state.clearAction !== undefined) this.clearAction = state.clearAction;
         this.notify();
     }

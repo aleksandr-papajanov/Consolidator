@@ -8,6 +8,7 @@ mgraphics.autofill = 0;
 
 const { DialPresentation } = require("../../Presenters/Dial/DialPresentation.js");
 const { DoubleClickTracker } = require("../DoubleClickTracker.js");
+const { UiColors } = require("../../Theme/UiColors.js");
 
 const DialControlOptions = {
     maximumRingCount: 3,
@@ -17,11 +18,11 @@ const DialControlOptions = {
     lineWidth: 3,
     indicatorWidth: 2,
     dragSensitivity: 0.007,
-    background: [0.08, 0.08, 0.08, 1],
-    ring: [0.55, 0.55, 0.55, 1],
-    active: [0.95, 0.95, 0.95, 1],
-    inactive: [0.35, 0.35, 0.35, 1],
-    visualization: [0.35, 0.7, 1, 1]
+    background: UiColors.base.background,
+    ring: UiColors.controls.ring,
+    active: UiColors.base.brightText,
+    inactive: UiColors.controls.inactive,
+    visualization: UiColors.controls.visualization
 };
 
 class DialControl
@@ -114,6 +115,15 @@ class DialControl
         this.requestRedraw();
     }
 
+    setScope(active, hasColor, red, green, blue, alpha)
+    {
+        this.presentation.groupScope = Number(active) !== 0;
+        this.presentation.scopeActive = Number(active) !== 0;
+        this.presentation.scopeColor = Number(hasColor) !== 0
+            ? [Number(red), Number(green), Number(blue), Number(alpha)] : null;
+        mgraphics.redraw();
+    }
+
     clamp(value, minimum, maximum)
     {
         return Math.max(minimum, Math.min(maximum, value));
@@ -154,12 +164,19 @@ class DialControl
 
     arc(centerX, centerY, radius, value, color, width)
     {
+        this.arcRange(centerX, centerY, radius, 0, value, color, width);
+    }
+
+    arcRange(centerX, centerY, radius, startValue, endValue, color, width)
+    {
         let start = DialControlOptions.startAngle;
-        let end = start + (DialControlOptions.endAngle - start) * value;
+        let angleRange = DialControlOptions.endAngle - start;
+        let begin = start + angleRange * this.clamp(startValue, 0, 1);
+        let end = start + angleRange * this.clamp(endValue, 0, 1);
         mgraphics.set_source_rgba.apply(mgraphics, color);
         mgraphics.set_line_width(width);
         mgraphics.new_path();
-        mgraphics.arc(centerX, centerY, radius, start, end);
+        mgraphics.arc(centerX, centerY, radius, begin, end);
         mgraphics.stroke();
     }
 
@@ -168,10 +185,27 @@ class DialControl
         let color = this.color(ring.color,
             this.presentation.enabled && this.presentation.active
             ? DialControlOptions.active : DialControlOptions.inactive);
-        this.arc(centerX, centerY, radius, 1, DialControlOptions.ring,
-            DialControlOptions.lineWidth);
-        this.arc(centerX, centerY, radius, value, color,
-            DialControlOptions.lineWidth);
+        if (this.presentation.scopeColor) {
+            color = this.presentation.scopeColor;
+        }
+        if (!this.presentation.groupScope) {
+            this.arc(centerX, centerY, radius, 1, DialControlOptions.ring,
+                DialControlOptions.lineWidth);
+            this.arc(centerX, centerY, radius, value, color,
+                DialControlOptions.lineWidth);
+            this.paintVisualization(ring.visualization, centerX, centerY, radius);
+            return;
+        }
+
+        let minimum = this.clamp(Number(ring.minimum), 0, 1);
+        let maximum = this.clamp(Number(ring.maximum), 0, 1);
+        let nextValue = this.clamp(Number(value), minimum, maximum);
+        if (maximum > minimum) {
+            this.arcRange(centerX, centerY, radius, minimum, maximum,
+                DialControlOptions.ring, DialControlOptions.lineWidth);
+            this.arcRange(centerX, centerY, radius, minimum, nextValue,
+                color, DialControlOptions.lineWidth);
+        }
 
         this.paintVisualization(ring.visualization, centerX, centerY, radius);
     }
@@ -327,7 +361,7 @@ function setValue(index, value) {
 }
 
 function resetValue(index) {
-    dialControl.resetValue(Number(index));
+    dialControl.resetValue(Number(index), "local");
 }
 
 function transactionRejected() {
@@ -352,6 +386,10 @@ function enabled(value) {
 function active(value) {
     dialControl.presentation.active = Number(value) !== 0;
     dialControl.requestRedraw();
+}
+
+function scope(active, hasColor, red, green, blue, alpha) {
+    dialControl.setScope(active, hasColor, red, green, blue, alpha);
 }
 
 function activeIndex(value) {

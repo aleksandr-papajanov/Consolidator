@@ -13,6 +13,8 @@ class AnalyzerPresentation
         this.handles = [];
         this.parameterRevision = 0;
         this.viewKey = "";
+        this.scopeActive = false;
+        this.scopeColor = null;
     }
 }
 

@@ -4,9 +4,9 @@ const { FeaturePresenterSet } = require("./FeaturePresenterSet.js");
 
 class SaturatorController
 {
-    constructor(viewModel)
+    constructor(viewModel, scope)
     {
-        this.presenters = new FeaturePresenterSet();
+        this.presenters = new FeaturePresenterSet(scope);
         this.presenters.addDial("drive", viewModel.saturator.drive,
             { decimals: 1, suffix: " dB" });
         this.presenters.addDial("gain", viewModel.saturator.gain,
@@ -22,6 +22,7 @@ class SaturatorController
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,
+            scope: scope,
             parameters: viewModel.saturator.detectorFilters
         }));
     }

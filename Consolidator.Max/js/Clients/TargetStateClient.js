@@ -124,19 +124,19 @@ class TargetStateClient
         };
     }
     
-    set(path, value, callback, transactionId)
+    set(path, value, callback, transactionId, scope)
     {
         if (!this.target) return;
         this.state.set(
-            this.relativePath(path), value, callback, transactionId);
+            this.relativePath(path), value, callback, transactionId, scope);
     }
     
-    setMany(entries, callback, transactionId)
+    setMany(entries, callback, transactionId, scope)
     {
         if (!this.target) return;
         this.state.setMany(entries.map((entry) => {
             return { path: this.relativePath(entry.path), value: entry.value };
-        }, this), callback, transactionId);
+        }, this), callback, transactionId, scope);
     }
     
     reset(path, callback, transactionId, scope)

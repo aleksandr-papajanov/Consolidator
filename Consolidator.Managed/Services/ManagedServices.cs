@@ -132,6 +132,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, InitializeUiCommandHandler>();
         services.AddSingleton<ICommandHandler, ObserveTargetCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceActiveCommandHandler>();
+        services.AddSingleton<ICommandHandler, ClearTopologyCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceMuteCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceSoloCommandHandler>();
         services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
@@ -148,6 +149,7 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, InitializeInputCodec>();
         services.AddSingleton<IInputCodec, ObserveTargetInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceActiveInputCodec>();
+        services.AddSingleton<IInputCodec, ClearTopologyInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceMuteInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceSoloInputCodec>();
         services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
@@ -163,6 +165,9 @@ public static class ManagedServices
         services.AddCommandEndpoint<InitializeUiCommand, UiInitializationResult>("initialize", "initialized");
         services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_snapshot");
         services.AddCommandEndpoint<SetInstanceActiveCommand, CommandAcknowledgement>("set_instance_active", "action_done");
+        services.AddCommandEndpoint<ClearTopologyCommand, StateWriteStatus>(
+            "clear_topology",
+            "action_done");
         services.AddCommandEndpoint<SetInstanceMuteCommand, StateWriteStatus>(
             "set_instance_mute",
             "action_done");

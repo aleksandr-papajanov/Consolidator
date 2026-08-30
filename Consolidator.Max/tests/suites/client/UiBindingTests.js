@@ -84,11 +84,11 @@ function testDialBindingUsesMessageTransportAndIntents() {
       if (immediate) callback(presentation);
       return function () {};
     },
-    setValue: function (index, value) {
-      intents.push(["setValue", index, value]);
+    setValue: function (index, value, scope) {
+      intents.push(["setValue", index, value, scope]);
     },
-    resetValue: function (index) {
-      intents.push(["resetValue", index]);
+    resetValue: function (index, transactionId, scope) {
+      intents.push(["resetValue", index, scope]);
     },
     beginGesture: function (index) {
       intents.push(["beginGesture", index]);
@@ -112,13 +112,13 @@ function testDialBindingUsesMessageTransportAndIntents() {
     ["set", [0, 0.5]],
     ["presentation_end", []],
   ]);
-  binding.handleIntent("valueChanged", [0, 0.75]);
-  binding.handleIntent("reset", [0]);
-  binding.handleIntent("gestureBegan", [0]);
-  binding.handleIntent("gestureEnded", [0]);
+  binding.handleIntent("valueChanged", [0, 0.75, "local"]);
+  binding.handleIntent("reset", [0, "group"]);
+  binding.handleIntent("gestureBegan", [0, "group"]);
+  binding.handleIntent("gestureEnded", [0, "group"]);
   assert.deepStrictEqual(intents, [
-    ["setValue", 0, 0.75],
-    ["resetValue", 0],
+    ["setValue", 0, 0.75, "local"],
+    ["resetValue", 0, "group"],
     ["beginGesture", 0],
     ["endGesture", 0],
   ]);
@@ -153,9 +153,9 @@ function testDialBindingWrapsGesturesInTransactions() {
   };
   var binding = new DialControlBinding(presenter, function () {}, transactions);
 
-  binding.handleIntent("gestureBegan", [0]);
-  binding.handleIntent("valueChanged", [0, 0.75]);
-  binding.handleIntent("gestureEnded", [0]);
+  binding.handleIntent("gestureBegan", [0, "local"]);
+  binding.handleIntent("valueChanged", [0, 0.75, "local"]);
+  binding.handleIntent("gestureEnded", [0, "local"]);
   beginCallback(9, { status: "accepted" });
 
   assert.deepStrictEqual(transactionCalls, [["begin"], ["end", 9]]);
@@ -923,17 +923,17 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
     transactions
   );
 
-  binding.handleIntent("gestureBegan", [1]);
-  binding.handleIntent("filterMoved", [1, 0.4, 0.6]);
-  binding.handleIntent("filterMoved", [1, 0.5, 0.7]);
-  binding.handleIntent("gestureEnded", [1]);
+  binding.handleIntent("gestureBegan", [1, "group"]);
+  binding.handleIntent("filterMoved", [1, 0.4, 0.6, "group"]);
+  binding.handleIntent("filterMoved", [1, 0.5, 0.7, "group"]);
+  binding.handleIntent("gestureEnded", [1, "group"]);
   beginCallback(12, { status: "accepted" });
 
   assert.deepStrictEqual(calls, [
     ["gestureBegan", [1], null],
-    ["filterMoved", [1, 0.4, 0.6], 12],
-    ["filterMoved", [1, 0.5, 0.7], 12],
-    ["filterCommit", [1], 12],
+    ["filterMoved", [1, 0.4, 0.6, "group"], 12],
+    ["filterMoved", [1, 0.5, 0.7, "group"], 12],
+    ["filterCommit", [1, "group"], 12],
   ]);
   commitCallback({ status: "accepted", error: null });
 
@@ -943,9 +943,9 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   ]);
   assert.deepStrictEqual(calls, [
     ["gestureBegan", [1], null],
-    ["filterMoved", [1, 0.4, 0.6], 12],
-    ["filterMoved", [1, 0.5, 0.7], 12],
-    ["filterCommit", [1], 12],
+    ["filterMoved", [1, 0.4, 0.6, "group"], 12],
+    ["filterMoved", [1, 0.5, 0.7, "group"], 12],
+    ["filterCommit", [1, "group"], 12],
     ["gestureEnded", [], 12],
   ]);
   binding.destroy();
