@@ -44,17 +44,17 @@
 			<description></description>
 		</method>
 
-		<method name='reset'>
-			<digest></digest>
-			<description></description>
-		</method>
-
 		<method name='registry'>
 			<digest></digest>
 			<description></description>
 		</method>
 
-		<method name='set_instance_mute'>
+		<method name='clear_topology'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='reset'>
 			<digest></digest>
 			<description></description>
 		</method>
@@ -65,6 +65,11 @@
 		</method>
 
 		<method name='set_instance_active'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='set_instance_mute'>
 			<digest></digest>
 			<description></description>
 		</method>
