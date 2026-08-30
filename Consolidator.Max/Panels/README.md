@@ -105,4 +105,5 @@ use the group color.
 
 The Bank Manager Clear action sends the `clear_topology` command. Managed
 clears all non-default topology groups (`groupId > 0`) atomically across the
-registry. The default group `0` is preserved.
+registry. The default group `0` is preserved. Group, Ungroup and Clear each
+create one history point for the complete topology operation.

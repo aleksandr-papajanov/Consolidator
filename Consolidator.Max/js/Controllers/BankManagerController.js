@@ -144,6 +144,14 @@ class BankManagerController
 
     writeEntries(entriesByInstance)
     {
+        this.context.transactions.begin((historyId) => {
+            this.writeEntriesNow(entriesByInstance);
+            this.context.transactions.end(historyId);
+        });
+    }
+
+    writeEntriesNow(entriesByInstance)
+    {
         let context = this.context;
         Object.keys(entriesByInstance).forEach((instanceId) => {
             let entries = entriesByInstance[instanceId];
@@ -158,7 +166,11 @@ class BankManagerController
     
     clearGroups()
     {
-        this.context.protocol.request("clear_topology", []);
+        this.context.transactions.begin((historyId) => {
+            this.context.protocol.request("clear_topology", [], () => {
+                this.context.transactions.end(historyId);
+            });
+        });
     }
     
     handleIntent(name, values)
