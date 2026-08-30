@@ -33,6 +33,9 @@ class AnalyzerController
         case "filterSelected":
             this.presenter.selectFilter(payload[0]);
             break;
+        case "filterReset":
+            this.presenter.resetFilter(payload[0], callback);
+            break;
         }
     }
 }

@@ -6,6 +6,7 @@ class FilterViewModel
     {
         this.state = state;
         let prefix = "equalizer.filter." + filterId;
+        this.path = prefix;
         this.filterId = filterId;
         this.frequency = new StateValueViewModel(state, prefix + ".frequency");
         this.q = new StateValueViewModel(state, prefix + ".q");
@@ -24,6 +25,11 @@ class FilterViewModel
             { path: this.frequency.path, value: frequency },
             { path: this.gain.path, value: gain }
         ], callback, transactionId);
+    }
+
+    reset(callback)
+    {
+        this.state.reset(this.path, callback);
     }
     
     destroy()

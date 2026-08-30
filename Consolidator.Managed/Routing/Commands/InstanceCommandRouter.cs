@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
+using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Execution;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services.Abstractions;
@@ -16,6 +17,7 @@ public sealed class InstanceCommandRouter
     private readonly CommandExecutor _executor;
     private readonly IOperationGate _operationGate;
     private readonly StatePeerObserver _peerObserver;
+    private readonly ContextualBankResolver _bankResolver;
 
     internal InstanceCommandRouter(
         InstanceRegistry instanceRegistry,
@@ -29,6 +31,7 @@ public sealed class InstanceCommandRouter
         _executor = executor;
         _operationGate = operationGate;
         _peerObserver = peerObserver;
+        _bankResolver = new ContextualBankResolver(topologyIndex);
     }
 
     public async ValueTask<CommandRoutingResult<TResult>> ExecuteAsync<TResult>(
@@ -51,19 +54,37 @@ public sealed class InstanceCommandRouter
                         $"Source instance was not found: {sourceInstanceId}."));
             }
 
-            var targetInstanceIds = command is ITargetedInstanceCommand
-                { TargetInstanceId: { } explicitTarget }
-                ? [explicitTarget]
-                : command.Scope is CommandScope.Coordinator
+            var requestedTargetInstanceIds = command is ITargetedInstanceCommand
+                    { TargetInstanceId: { } explicitTarget }
+                    ? [explicitTarget]
+                    : command.Scope is CommandScope.Coordinator
                     ? [sourceInstanceId]
                     : ResolveTargets(sourceInstanceId, command.Scope);
+            var bankTarget = command is ITargetedInstanceCommand
+                { TargetInstanceId: { } targetInstanceId }
+                    ? _bankResolver.Resolve(sourceInstanceId, targetInstanceId)
+                    : command is ResetStateCommand or WriteStateCommand
+                        ? ResolveSelectedBankTarget(sourceInstanceId)
+                        : null;
+            var targetInstanceIds = command is ResetStateCommand resetCommand &&
+                resetCommand.ResetMode is ResetScope.GroupInstance &&
+                bankTarget?.Group?.Members is { } members
+                    ? members
+                        .Select(member => member.InstanceId)
+                        .Distinct()
+                        .ToArray()
+                    : requestedTargetInstanceIds;
             _peerObserver.BeginEdit(
-                _topologyIndex.ResolveFocusedBankAddress(sourceInstanceId));
+                command is ITargetedInstanceCommand
+                    ? bankTarget?.TargetBank
+                    : _topologyIndex.ResolveFocusedBankAddress(sourceInstanceId),
+                UsesGroupPropagation(command));
             try
             {
                 var result = await _executor.ExecuteAsync(
                     targetInstanceIds,
                     command,
+                    bankTarget,
                     cancellationToken);
                 return new CommandRoutingResult<TResult>(targetInstanceIds, result);
             }
@@ -84,6 +105,26 @@ public sealed class InstanceCommandRouter
             CommandScope.Coordinator => Array.Empty<InstanceId>(),
             _ => throw new ArgumentOutOfRangeException(nameof(scope))
         };
+    }
+
+    private static bool IsScopedGroupReset(ResetStateCommand command) =>
+        command.ResetMode is ResetScope.Group;
+
+    private static bool UsesGroupPropagation<TResult>(IInstanceCommand<TResult> command) =>
+        command switch
+        {
+            ResetStateCommand reset => IsScopedGroupReset(reset),
+            WriteStateCommand write => write.WriteMode is WriteScope.Group,
+            _ => true
+        };
+
+    private ContextualBankTarget? ResolveSelectedBankTarget(InstanceId sourceInstanceId)
+    {
+        var selectedBank = _instanceRegistry.FindInstance(sourceInstanceId)?
+            .State.Transient.Selection.SelectedBank;
+        return selectedBank is { } bank
+            ? _bankResolver.Resolve(sourceInstanceId, bank.InstanceId)
+            : null;
     }
 
     private IReadOnlyList<InstanceId> ResolveFocusedTarget(InstanceId sourceInstanceId)

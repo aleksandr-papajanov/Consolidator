@@ -53,16 +53,21 @@ the complete marker state when a viewer subscribes again. The Max registry
 client stores both delivered values without deriving topology: registry rows
 render `effectActive`, while panel-selection markers render `markerActive`.
 
-Processor bypass and solo use the explicit commands:
+Processor bypass and solo use source-relative commands:
 
 ```text
-set_processor_bypass processorId targetInstanceId instance 0|1
-set_processor_bypass processorId targetInstanceId group bankId 0|1
-set_processor_solo processorId targetInstanceId instance 0|1 exclusive|additive
-set_processor_solo processorId targetInstanceId group bankId 0|1 exclusive|additive
+set_processor_bypass processorId local|group 0|1
+set_processor_solo processorId local|group 0|1 exclusive|additive
 ```
 
-Group targets are resolved by `InstanceControlTargetResolver`. An ungrouped
-bank is rejected without falling back to its instance. Processor control
+Managed resolves the selected target and bank from the source instance's
+`SelectionContext`; rendered row, instance, and bank IDs are not command
+addresses. Group targets are resolved by `InstanceControlTargetResolver`. An
+ungrouped bank is rejected without falling back to its instance. Processor control
 transactions do not create history points. Direct state writes to
 instance-owned processor bypass or solo values are rejected.
+
+The processor panel also exposes an `R` control. A regular click sends a local
+reset for the complete processor. Ctrl/Command-click sends the same reset with
+group scope, using the focused bank to resolve processor peers. Reset changes
+are history-backed and restore each addressed value to its own initial value.

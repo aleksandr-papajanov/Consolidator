@@ -620,6 +620,18 @@ class AnalyzerPresenter extends PresentationObservable
         presentationBindingWrite(parameter.gain, gain, transactionId);
     }
 
+    resetFilter(id, callback)
+    {
+        let parameter = (this.options.parameters || [])[Number(id) - 1];
+        if (!parameter || !this.ready || typeof parameter.reset !== "function") {
+            if (callback) callback({ status: "accepted", error: null });
+            return;
+        }
+        parameter.reset(callback);
+        this.curvePreview[Number(id)] = null;
+        this.requestRebuild();
+    }
+
     commitPreview(id, transactionId, callback)
     {
         let preview = this.curvePreview[Number(id)];

@@ -31,7 +31,7 @@ internal sealed class SetProcessorBypassCommandHandler
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_targets.TryResolve(command.Target, out var ids))
+        if (!_targets.TryResolve(command.TargetScope, context, out var ids))
         {
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }
@@ -75,7 +75,7 @@ internal sealed class SetProcessorSoloCommandHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (command.ProcessorId is ProcessorId.Input or ProcessorId.Output ||
-            !_targets.TryResolve(command.Target, out var targetIds))
+            !_targets.TryResolve(command.TargetScope, context, out var targetIds))
         {
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }

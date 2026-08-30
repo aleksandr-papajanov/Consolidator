@@ -52,7 +52,7 @@ ProtocolInput
 ```
 
 There is no synchronous execution path from the Native ABI entrypoint. Pending
-writes with the same source, target, ordered path shape, and transaction are
+writes with the same source, scope, ordered path shape, and transaction are
 coalesced at their existing FIFO position, preserving the final gesture values
 for both single-value and multi-value controls. The latest-value slot and the
 presence of its FIFO placeholder change under one short control-path lock, so a
@@ -81,9 +81,18 @@ selectors fail during service construction.
 `WriteInputCodec` additionally decodes and validates the value for the target
 path. Decoders do not select targets or mutate state.
 
-The source external ID is carried by `ProtocolInput`. UI writes also carry one
-explicit target instance ID outside their relative state paths, so editing a
-remote row does not change the observed view merely to address a command.
+The source external ID is carried by `ProtocolInput`. Ordinary UI writes do not
+carry a target instance or bank ID. Managed resolves both from the source
+instance's `SelectionContext`. Their request bodies begin with a propagation
+scope:
+
+```text
+write local|group transactionId entryCount entries...
+write topology targetInstanceId transactionId entryCount entries...
+```
+
+`topology` is a separate explicit-address contract used only for bank-group
+membership changes over a user-selected bank set.
 
 ## Dispatch and responses
 
@@ -95,9 +104,9 @@ the resulting frame or multipart frame sequence to the source external.
 
 All protocol command types implement `IInstanceCommand<TResult>`. Command
 definitions and results live in Core; they do not depend on Protocol.
-`CommandScope` determines whether routing resolves the observed target or a
-coordinator-wide operation. An explicit UI target takes precedence over derived
-target routing. Coordinator-scoped commands execute
+`CommandScope` determines whether routing resolves the selected target or a
+coordinator-wide operation. Explicit targets are limited to target observation,
+diagnostic/query commands, and topology membership writes. Coordinator-scoped commands execute
 once through the source instance command gate, while their state operation is
 shared globally by the injected coordinator service.
 
@@ -208,6 +217,27 @@ not participate in history or persistence, and never affects DSP. Later changes 
 `state_changed` with the same semantic paths and range metadata. Reset writes the target
 state subtree's initial values through one prepared transaction, so peer
 propagation remains authoritative and observers see only the complete reset.
+The reset frame carries an explicit `local`, `group`, or `group_instance` scope. Local reset
+prepares only the addressed state values. Group reset prepares every resolved
+peer with that peer's own initial value; it never applies a delta from the
+source value. `group_instance` resolves the exact group of the selected bank and
+resets the complete DSP tree of each member instance, including every equalizer
+bank.
+Its body is:
+
+```text
+reset transactionId local|group|group_instance statePath...
+```
+
+Processor-panel `R` uses `local` for a regular click and `group` for a
+Ctrl/Command-click. Managed resolves the focused-bank context for the source
+external and uses it during propagation.
+The reset selector uses the same relative path grammar as state writes. A leaf
+resets one value; `equalizer.filter.N` resets a complete filter;
+`equalizer.bank` resets the focused equalizer bank; a processor path such as
+`compressor` resets the complete processor, and `dsp` resets all DSP settings.
+The Max UI emits one `reset` intent for a double-click and never supplies the
+default value itself.
 Target selection suspends bindings before sending
 `observe_target`, then replaces the target cache and resumes after the complete
 snapshot. Instance activation keeps bindings inactive until this same target
@@ -235,10 +265,10 @@ when that derived status changes; instance mute and solo changes use their
 corresponding registry deltas. Instance controls use dedicated
 `set_instance_mute` and `set_instance_solo` commands; direct protocol writes to
 the instance `mute` and `solo` paths are rejected. Each command carries an
-explicit `instance` or `group` scope. A group target additionally carries the
-bank ID whose exact group membership is resolved under the shared operation
-gate. Group resolution never traverses another group on the same track and
-never falls back to the instance when the bank is ungrouped. Solo also carries
+explicit `local` or `group` scope. Managed obtains the target bank from the
+source `SelectionContext`; no row, instance, or bank address is present in the
+command body. Group resolution never traverses another group on the same track
+and never falls back to the instance when the bank is ungrouped. Solo also carries
 an `exclusive` or `additive` selection mode. Both handlers update the resolved
 local instance values in one atomic state transaction without creating a
 history point. Later topology changes do not migrate the stored mute or solo
@@ -248,10 +278,8 @@ mutation into codecs.
 After the common command-frame header, the request bodies are:
 
 ```text
-set_instance_mute targetInstanceId instance 0|1
-set_instance_mute targetInstanceId group bankId 0|1
-set_instance_solo targetInstanceId instance 0|1 exclusive|additive
-set_instance_solo targetInstanceId group bankId 0|1 exclusive|additive
+set_instance_mute local|group 0|1
+set_instance_solo local|group 0|1 exclusive|additive
 ```
 
 Each registry instance also carries five instance-owned processor statuses.
@@ -263,11 +291,12 @@ that value from exact topology and focused-bank changes and publishes targeted
 `registry_processor_markers_changed` batches containing the changed processors
 grouped by instance. Marker frames do not advance the global registry revision because the
 projection can differ between viewers at the same revision. Processor
-bypass and solo use explicit `set_processor_bypass` and `set_processor_solo`
+bypass and solo use dedicated `set_processor_bypass` and `set_processor_solo`
 commands. Direct writes to instance-owned processor bypass or solo values are
 rejected. The full contract is documented in
 [ProcessorActivity.md](ProcessorActivity.md).
 
-`bankId` is zero-based everywhere and uses the range `0..6`. The protocol,
+Where a `bankId` is part of an observation, topology, registry, or notification
+contract, it is zero-based and uses the range `0..6`. The protocol,
 JavaScript clients, codecs, registry messages, state paths, and internal
 `BankId` all use this same value without index conversion.

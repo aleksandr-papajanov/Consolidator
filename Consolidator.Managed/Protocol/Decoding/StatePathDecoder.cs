@@ -21,6 +21,16 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         var first = ReadSymbol(atoms, ref position);
         var path = new StatePath([StateNodeIds.Instance]);
 
+        if (first == "dsp")
+        {
+            if (!allowContainer || position != atoms.Length)
+            {
+                throw new FormatException("Unexpected DSP state path segment.");
+            }
+
+            return new StatePath([StateNodeIds.Dsp]);
+        }
+
         if (first is "label" or "mute" or "solo")
         {
             return path.Append(ToNode(first));
@@ -84,14 +94,21 @@ internal sealed class StatePathDecoder : IStatePathDecoder
 
             if (segment == "bank")
             {
-                var bank = ReadIndex(
-                    atoms,
-                    ref position,
-                    DspConstants.BankCount,
-                    wireBase: 0);
                 path = path
-                    .Append(StateNodeIds.EqualizerBank)
-                    .Append(StateNodeIds.BankAt(bank));
+                    .Append(StateNodeIds.EqualizerBank);
+                if (position < atoms.Length && atoms[position].Type == AtomType.Integer)
+                {
+                    var bank = ReadIndex(
+                        atoms,
+                        ref position,
+                        DspConstants.BankCount,
+                        wireBase: 0);
+                    path = path.Append(StateNodeIds.BankAt(bank));
+                }
+                else
+                {
+                    path = path.Append(StateNodeIds.FocusedBank);
+                }
                 continue;
             }
 

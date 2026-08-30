@@ -27,7 +27,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("ui"),
             Symbol("100"),
-            Symbol(instance.InstanceId.ToString()),
+            Symbol("group"),
             Integer(1),
             Symbol("equalizer"));
         instance.WaitForResponse("100");
@@ -48,7 +48,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("ui"),
             Symbol("101"),
-            Symbol(instance.InstanceId.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -105,7 +105,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("ui"),
             Symbol("2"),
-            Symbol(instance.InstanceId.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -149,7 +149,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("ui"),
             Symbol("3"),
-            Symbol(instance.InstanceId.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -182,6 +182,174 @@ public sealed class CommandRoundTripTests
         Assert.Equal(0, processorNotification.Atoms[5].IntegerValue);
         Assert.Equal(0, processorNotification.Atoms[6].IntegerValue);
         Assert.Equal(0, processorNotification.Atoms[7].IntegerValue);
+    }
+
+    [Fact]
+    public void NativeAtomsDriveGroupedEqualizerResetAcrossDifferentBanks()
+    {
+        using var source = _library.Register();
+        using var target = _library.Register();
+
+        SendBankGroup(source, source, 2, 6, "300");
+        SendBankGroup(source, target, 3, 6, "301");
+        SendFilterGain(source, source, 2, 6.0, "302");
+        SendFilterGain(source, target, 3, -6.0, "303");
+
+        _library.Send(
+            source,
+            "observe_target",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("304"),
+            Symbol(source.InstanceId.ToString()),
+            Integer(2),
+            Symbol("equalizer"));
+        source.WaitForResponse("304");
+
+        source.ClearFrames();
+        _library.Send(
+            source,
+            "reset",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("305"),
+            Symbol("0"),
+            Symbol("group"),
+            Symbol("equalizer"));
+        source.WaitForResponse("305");
+
+        AssertFilterGain(source, 2, 0.0, "306");
+        AssertFilterGain(target, 3, 0.0, "307");
+    }
+
+    [Fact]
+    public void NativeAtomsDriveGroupedDspResetAcrossAllEqualizerBanks()
+    {
+        using var source = _library.Register();
+        using var target = _library.Register();
+
+        SendBankGroup(source, source, 2, 6, "308");
+        SendBankGroup(source, target, 3, 6, "309");
+        SendFilterGain(source, source, 2, 6.0, "310");
+        SendFilterGain(source, target, 3, -6.0, "311");
+
+        _library.Send(
+            source,
+            "observe_target",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("312"),
+            Symbol(source.InstanceId.ToString()),
+            Integer(2),
+            Symbol("equalizer"));
+        source.WaitForResponse("312");
+
+        source.ClearFrames();
+        _library.Send(
+            source,
+            "reset",
+            Integer(1),
+            Symbol("ui"),
+            Symbol("313"),
+            Symbol("0"),
+            Symbol("group_instance"),
+            Symbol("dsp"));
+        source.WaitForResponse("313");
+
+        AssertFilterGain(source, 2, 0.0, "314");
+        AssertFilterGain(target, 3, 0.0, "315");
+    }
+
+    private void SendBankGroup(
+        NativeInstance source,
+        NativeInstance target,
+        int bank,
+        int group,
+        string requestId)
+    {
+        _library.Send(
+            source,
+            "write",
+            Integer(1),
+            Symbol("ui"),
+            Symbol(requestId),
+            Symbol("topology"),
+            Symbol(target.InstanceId.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("bank"),
+            Integer(bank),
+            Symbol("group"),
+            Symbol("value"),
+            Integer(group));
+        source.WaitForResponse(requestId);
+    }
+
+    private void SendFilterGain(
+        NativeInstance source,
+        NativeInstance target,
+        int bank,
+        double gain,
+        string requestId)
+    {
+        var selectionRequestId = (int.Parse(requestId) + 1000).ToString();
+        _library.Send(
+            source,
+            "observe_target",
+            Integer(1),
+            Symbol("ui"),
+            Symbol(selectionRequestId),
+            Symbol(target.InstanceId.ToString()),
+            Integer(bank),
+            Symbol("equalizer"));
+        source.WaitForResponse(selectionRequestId);
+
+        _library.Send(
+            source,
+            "write",
+            Integer(1),
+            Symbol("ui"),
+            Symbol(requestId),
+            Symbol("group"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(gain));
+        source.WaitForResponse(requestId);
+    }
+
+    private void AssertFilterGain(
+        NativeInstance source,
+        int bank,
+        double expected,
+        string requestId)
+    {
+        source.ClearFrames();
+        _library.Send(
+            source,
+            "read",
+            Integer(1),
+            Symbol("ui"),
+            Symbol(requestId),
+            Integer(1),
+            Symbol("query"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(bank),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"));
+        source.WaitForResponse(requestId);
+
+        var response = source.Single("state_done");
+        Assert.Equal(expected, response.Atoms[^1].FloatValue);
     }
 
     [Fact]

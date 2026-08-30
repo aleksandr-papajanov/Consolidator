@@ -14,13 +14,14 @@ public sealed class ReadStateCommandHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var node = context.State.Root.Find(command.Path)
+        var path = context.ResolvePath(command.Path);
+        var node = context.State.Root.Find(path)
             ?? throw new KeyNotFoundException(
-                $"State path was not found: {command.Path}.");
+                $"State path was not found: {path}.");
         if (node.IsContainer)
         {
             throw new InvalidOperationException(
-                $"State path points to a container: {command.Path}.");
+                $"State path points to a container: {path}.");
         }
 
         var reader = new ReadValueVisitor();

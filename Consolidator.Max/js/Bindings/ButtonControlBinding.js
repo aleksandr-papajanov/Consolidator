@@ -24,6 +24,9 @@ class ButtonControlBinding extends ControlBinding
         if (name === "valueChanged") {
             this.presenter.setValue(Number(values[0]) !== 0);
         }
+        else if (name === "reset") {
+            this.presenter.resetValue(values[0] || "group");
+        }
     }
 }
 

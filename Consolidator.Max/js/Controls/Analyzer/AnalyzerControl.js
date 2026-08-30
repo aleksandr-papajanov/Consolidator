@@ -9,6 +9,7 @@ mgraphics.autofill = 0;
 const { AnalyzerViewState } = require("./AnalyzerViewState.js");
 const { AnalyzerLayout } = require("./AnalyzerLayout.js");
 const { AnalyzerRenderer } = require("./AnalyzerRenderer.js");
+const { DoubleClickTracker } = require("../DoubleClickTracker.js");
 
 const ANALYZER_REDRAW_INTERVAL_MS = 16;
 const ANALYZER_MOVE_INTERVAL_MS = 33;
@@ -33,10 +34,15 @@ class AnalyzerControl
             this.moveScheduled = false;
             this.flushMove();
         }, this);
+        this.doubleClick = new DoubleClickTracker();
     }
 
     resetInteractionState()
     {
+        if (this.moveScheduled) {
+            this.moveTimer.cancel();
+            this.moveScheduled = false;
+        }
         this.state.preview = {};
         this.state.pendingMove = null;
         this.state.dragging = false;
@@ -281,6 +287,13 @@ function onresize() { mgraphics.redraw(); }
 function onclick(x, y) {
     let id = analyzerControl.hitTest(x, y);
     if (!id || !analyzerControl.canMove(id)) return;
+    if (analyzerControl.doubleClick.isDoubleClick(id)) {
+        analyzerControl.endGesture();
+        analyzerControl.resetInteractionState();
+        analyzerControl.emitIntent("filterReset", [id]);
+        analyzerControl.requestRedraw();
+        return;
+    }
     analyzerControl.state.selectedId = id;
     analyzerControl.state.dragging = true;
     analyzerControl.emitIntent("filterSelected", [id]);

@@ -127,35 +127,33 @@ class TargetStateClient
     set(path, value, callback, transactionId)
     {
         if (!this.target) return;
-        this.state.setFor(this.target.instanceId,
-            this.absolutePath(path), value, callback, transactionId);
+        this.state.set(
+            this.relativePath(path), value, callback, transactionId);
     }
     
     setMany(entries, callback, transactionId)
     {
         if (!this.target) return;
-        this.state.setManyFor(this.target.instanceId, entries.map((entry) => {
-            return { path: this.absolutePath(entry.path), value: entry.value };
+        this.state.setMany(entries.map((entry) => {
+            return { path: this.relativePath(entry.path), value: entry.value };
         }, this), callback, transactionId);
     }
     
-    reset(path, callback, transactionId)
+    reset(path, callback, transactionId, scope)
     {
         if (!this.target) return;
-        this.state.resetFor(this.target.instanceId,
-            this.absolutePath(path), callback, transactionId);
+        this.state.reset(
+            this.relativePath(path), callback, transactionId, scope);
     }
     
-    absolutePath(path)
+    relativePath(path)
     {
         if (path.indexOf("equalizer.bank.") === 0 &&
                 !/^equalizer\.bank\.\d+\./.test(path)) {
-            return "equalizer.bank." + this.target.bankId + "." +
-                path.substring("equalizer.bank.".length);
+            return path;
         }
         if (path.indexOf("equalizer.filter.") === 0) {
-            return "equalizer.bank." + this.target.bankId + "." +
-                path.substring("equalizer.".length);
+            return "equalizer.bank." + path.substring("equalizer.".length);
         }
         return path;
     }

@@ -57,11 +57,11 @@ class ButtonPresenter extends PresentationObservable
         presentationBindingWrite(this.options.value, value);
     }
     
-    resetValue()
+    resetValue(scope)
     {
         let source = presentationBindingSource(this.options.value);
         if (source && typeof source.reset === "function") {
-            source.reset();
+            source.reset(undefined, scope);
         }
     }
     

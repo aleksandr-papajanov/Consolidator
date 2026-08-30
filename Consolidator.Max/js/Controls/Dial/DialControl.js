@@ -7,6 +7,7 @@ mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
 const { DialPresentation } = require("../../Presenters/Dial/DialPresentation.js");
+const { DoubleClickTracker } = require("../DoubleClickTracker.js");
 
 const DialControlOptions = {
     maximumRingCount: 3,
@@ -33,6 +34,7 @@ class DialControl
         this.dragIndex = 0;
         this.lastY = 0;
         this.presentationBatch = false;
+        this.doubleClick = new DoubleClickTracker();
     }
 
     applyPresentation(presentation)
@@ -240,6 +242,13 @@ class DialControl
     {
         if (!this.presentation.enabled || !this.presentation.active ||
                 !this.presentation.rings[index]) return;
+        if (this.doubleClick.isDoubleClick(index)) {
+            this.endGesture();
+            this.previewValues = [];
+            this.emit("reset", index);
+            this.requestRedraw();
+            return;
+        }
         this.dragging = true;
         this.dragIndex = index;
         this.lastY = y;

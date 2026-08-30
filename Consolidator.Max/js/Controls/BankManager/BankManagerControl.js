@@ -34,13 +34,14 @@ const BankManagerControlOptions = {
     outerPadding: 4,
     sectionGap: 3,
     actionGap: 3,
-    panelNavigationWidth: 48,
+    panelNavigationWidth: 64,
     panelDeviceWidth: 32,
     panelBypassWidth: 16,
     panelSoloWidth: 16,
     panelNavigationGap: 6,
     panelButtonHeight: 32,
     panelButtonGap: 0,
+    resetFlashDurationMs: 180,
     panelButtonText: [0.85, 0.85, 0.85, 1],
     panelButtonColors: [
         [0.18, 0.48, 0.72, 1],
@@ -68,6 +69,8 @@ class BankManagerControl
         this.pointerGroup = false;
         this.dragging = false;
         this.lastY = 0;
+        this.resetFlash = {};
+        this.resetFlashTasks = {};
     }
 
     applyPresentation(presentation)
@@ -82,6 +85,24 @@ class BankManagerControl
         }
 
         mgraphics.redraw();
+    }
+
+    flashReset(processorId)
+    {
+        let key = String(processorId);
+        let previous = this.resetFlashTasks[key];
+        if (previous) {
+            previous.cancel();
+        }
+        this.resetFlash[key] = true;
+        mgraphics.redraw();
+        let task = new Task(() => {
+            delete this.resetFlash[key];
+            delete this.resetFlashTasks[key];
+            mgraphics.redraw();
+        }, this);
+        this.resetFlashTasks[key] = task;
+        task.schedule(BankManagerControlOptions.resetFlashDurationMs);
     }
 
     scrollOffset()
@@ -150,7 +171,7 @@ class BankManagerControl
     bankGridX(rows)
     {
         let gridWidth = this.bankCount(rows) * BankManagerControlOptions.bankSize;
-        let instanceButtonWidth = BankManagerControlOptions.bankSize * 2;
+        let instanceButtonWidth = BankManagerControlOptions.bankSize * 3;
         return Math.max(0, this.primaryWidth() - gridWidth -
             instanceButtonWidth - BankManagerControlOptions.deviceColumnGap);
     }
@@ -406,13 +427,10 @@ class BankManagerControl
         }
         let controlHalf = panelHeight / 2;
         for (let panelIndex = 0; panelIndex < panelKeys.length; panelIndex += 1) {
-            if (!processorIdSupportsSolo(panelKeys[panelIndex])) {
-                continue;
-            }
             mgraphics.rectangle(
                 x + BankManagerControlOptions.panelDeviceWidth,
                 panelIndex * panelHeight + controlHalf,
-                BankManagerControlOptions.panelBypassWidth,
+                BankManagerControlOptions.panelBypassWidth * 2,
                 1
             );
             mgraphics.fill();
@@ -422,6 +440,7 @@ class BankManagerControl
                 BankManagerControlOptions.panelButtonGap);
             let active = panelKeys[index] === selected;
             let processor = (this.presentation.rows || []).filter((row) => row.local)[0];
+            let localRow = processor;
             let status = processor && (processor.processors || []).filter((item) => {
                 return item.processorId === panelKeys[index];
             })[0];
@@ -450,24 +469,41 @@ class BankManagerControl
             let supportsSolo = processorIdSupportsSolo(panelKeys[index]);
             let bypassActive = status && status.bypassed;
             let buttons = [
-                { label: "B", active: bypassActive, enabled: Boolean(status) },
-            ];
-            if (supportsSolo) {
-                buttons.push({
+                {
+                    label: "B",
+                    active: bypassActive,
+                    enabled: Boolean(status),
+                    x: controlX,
+                    y: y,
+                    width: BankManagerControlOptions.panelBypassWidth
+                },
+                {
                     label: "S",
                     active: status && status.soloed,
-                    enabled: Boolean(status)
-                });
-            }
-            buttons.forEach((button, buttonIndex) => {
+                    enabled: Boolean(status) && supportsSolo,
+                    x: controlX,
+                    y: y + controlHalf,
+                    width: BankManagerControlOptions.panelSoloWidth
+                },
+                {
+                    label: "R",
+                    active: Boolean(this.resetFlash[
+                        String(localRow.instanceId) + ":" + panelKeys[index]
+                    ]),
+                    enabled: Boolean(status),
+                    x: controlX + BankManagerControlOptions.panelBypassWidth,
+                    y: y + controlHalf,
+                    width: BankManagerControlOptions.panelBypassWidth
+                }
+            ];
+            buttons.forEach((button) => {
                 let buttonHeight = controlHalf;
-                let buttonY = y + buttonIndex * buttonHeight;
                 mgraphics.set_source_rgba.apply(mgraphics,
                     button.enabled && button.active
                         ? color : BankManagerControlOptions.background);
                 let buttonInset = button.active ? 0 : 1;
-                mgraphics.rectangle(controlX + buttonInset, buttonY + buttonInset,
-                    BankManagerControlOptions.panelBypassWidth - buttonInset * 2,
+                mgraphics.rectangle(button.x + buttonInset, button.y + buttonInset,
+                    button.width - buttonInset * 2,
                     buttonHeight - buttonInset * 2);
                 mgraphics.fill();
                 mgraphics.set_source_rgba.apply(mgraphics,
@@ -479,9 +515,9 @@ class BankManagerControl
                 mgraphics.set_font_size(8);
                 let buttonTextSize = mgraphics.text_measure(button.label);
                 let buttonFontExtents = mgraphics.font_extents();
-                mgraphics.move_to(controlX + (BankManagerControlOptions.panelBypassWidth -
+                mgraphics.move_to(button.x + (button.width -
                     buttonTextSize[0]) / 2,
-                    buttonY + (buttonHeight - buttonFontExtents[2]) / 2 +
+                    button.y + (buttonHeight - buttonFontExtents[2]) / 2 +
                         buttonFontExtents[0]);
                 mgraphics.show_text(button.label);
             });
@@ -559,11 +595,19 @@ class BankManagerControl
             return { type: "bypass", processorId: processorId,
                 value: !(status && status.bypassed) };
         }
-        if (supportsSolo &&
-                relativeX >= BankManagerControlOptions.panelDeviceWidth &&
+        if (supportsSolo && relativeX >= BankManagerControlOptions.panelDeviceWidth &&
+                relativeX < BankManagerControlOptions.panelDeviceWidth +
+                    BankManagerControlOptions.panelBypassWidth &&
                 relativeY >= controlHalf) {
             return { type: "solo", processorId: processorId,
                 value: !(status && status.soloed) };
+        }
+        if (relativeX >= BankManagerControlOptions.panelDeviceWidth +
+                BankManagerControlOptions.panelBypassWidth &&
+                relativeX < BankManagerControlOptions.panelDeviceWidth +
+                    BankManagerControlOptions.panelBypassWidth * 2 &&
+                relativeY >= controlHalf) {
+            return { type: "reset", processorId: processorId };
         }
         return null;
     }
@@ -611,7 +655,7 @@ class BankManagerControl
 
         let buttonsX = this.bankGridRight(rows) +
             BankManagerControlOptions.deviceColumnGap;
-        for (let buttonIndex = 0; buttonIndex <= 2; buttonIndex += 1) {
+        for (let buttonIndex = 0; buttonIndex <= 3; buttonIndex += 1) {
             mgraphics.rectangle(
                 buttonsX + buttonIndex * BankManagerControlOptions.bankSize,
                 gridTop,
@@ -629,7 +673,7 @@ class BankManagerControl
             mgraphics.rectangle(
                 buttonsX,
                 y,
-                2 * BankManagerControlOptions.bankSize,
+                3 * BankManagerControlOptions.bankSize,
                 1
             );
             mgraphics.fill();
@@ -649,7 +693,8 @@ class BankManagerControl
     {
         [
             { label: "S", active: Boolean(row.solo), color: BankManagerControlOptions.solo },
-            { label: "M", active: Boolean(row.mute), color: BankManagerControlOptions.mute }
+            { label: "M", active: Boolean(row.mute), color: BankManagerControlOptions.mute },
+            { label: "R", active: Boolean(this.resetFlash["instance:" + row.instanceId]), color: BankManagerControlOptions.focused }
         ].forEach((button, index) => {
             let buttonX = x + index * BankManagerControlOptions.bankSize;
             if (button.active) {
@@ -848,18 +893,24 @@ class BankManagerControl
         if (panelControl) {
             if (panelControl.type === "bypass") {
                 this.emit("processorBypassChanged", [
-                    (this.presentation.rows || []).filter((row) => row.local)[0].instanceId,
                     panelControl.processorId,
                     panelControl.value ? 1 : 0,
                     groupControl ? 1 : 0
                 ]);
-            } else if (panelControl.processorId !== "input" &&
-                    panelControl.processorId !== "output") {
+            } else if (panelControl.type === "solo") {
                 this.emit("processorSoloChanged", [
-                    (this.presentation.rows || []).filter((row) => row.local)[0].instanceId,
                     panelControl.processorId,
                     panelControl.value ? 1 : 0,
                     extendSelection ? 1 : 0,
+                    groupControl ? 1 : 0
+                ]);
+            } else {
+                let localRow = (this.presentation.rows || []).filter((row) => row.local)[0];
+                this.flashReset(
+                    String(localRow.instanceId) + ":" + panelControl.processorId
+                );
+                this.emit("processorResetRequested", [
+                    panelControl.processorId,
                     groupControl ? 1 : 0
                 ]);
             }
@@ -911,21 +962,24 @@ class BankManagerControl
         let instanceButtonsX = this.bankGridRight(rows) +
             BankManagerControlOptions.deviceColumnGap;
         if (x >= instanceButtonsX &&
-                x < instanceButtonsX + BankManagerControlOptions.bankSize * 2) {
+                x < instanceButtonsX + BankManagerControlOptions.bankSize * 3) {
             let buttonIndex = Math.floor(
                 (x - instanceButtonsX) / BankManagerControlOptions.bankSize
             );
             if (buttonIndex === 0) {
                 this.emit("instanceSoloChanged", [
-                    row.instanceId,
                     row.solo ? 0 : 1,
                     extendSelection ? 1 : 0,
                     groupControl ? 1 : 0
                 ]);
-            } else {
+            } else if (buttonIndex === 1) {
                 this.emit("instanceMuteChanged", [
-                    row.instanceId,
                     row.mute ? 0 : 1,
+                    groupControl ? 1 : 0
+                ]);
+            } else {
+                this.flashReset("instance:" + row.instanceId);
+                this.emit("instanceResetRequested", [
                     groupControl ? 1 : 0
                 ]);
             }

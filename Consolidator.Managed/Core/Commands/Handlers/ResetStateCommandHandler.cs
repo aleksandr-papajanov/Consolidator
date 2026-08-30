@@ -10,7 +10,8 @@ public sealed class ResetStateCommandHandler
 {
     private readonly StateHistory _history;
 
-    public ResetStateCommandHandler(StateHistory history)
+    public ResetStateCommandHandler(
+        StateHistory history)
     {
         ArgumentNullException.ThrowIfNull(history);
         _history = history;
@@ -23,9 +24,10 @@ public sealed class ResetStateCommandHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var node = context.State.Root.Find(command.Target)
+        var path = context.ResolvePath(command.Target);
+        var node = context.State.Root.Find(path)
             ?? throw new InvalidOperationException(
-                $"Reset target was not found: {command.Target}.");
+                $"Reset target was not found: {path}.");
         using var transaction = _history.BeginTransaction();
         var resetCount = node.PrepareResetRecursive(transaction);
         if (resetCount == 0)

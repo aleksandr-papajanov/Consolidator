@@ -87,7 +87,7 @@ internal sealed class SetInstanceMuteInputCodec : IInputCodec
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header)
     {
-        var target = InstanceControlInputCodecSupport.ReadTarget(
+        var targetScope = InstanceControlInputCodecSupport.ReadScope(
             atoms,
             header,
             out var valuePosition);
@@ -101,7 +101,7 @@ internal sealed class SetInstanceMuteInputCodec : IInputCodec
         return CommandCodecSupport.Success(
             header,
             new SetInstanceMuteCommand(
-                target,
+                targetScope,
                 atoms[valuePosition].Integer == 1));
     }
 }
@@ -114,7 +114,7 @@ internal sealed class SetInstanceSoloInputCodec : IInputCodec
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header)
     {
-        var target = InstanceControlInputCodecSupport.ReadTarget(
+        var targetScope = InstanceControlInputCodecSupport.ReadScope(
             atoms,
             header,
             out var valuePosition);
@@ -135,7 +135,7 @@ internal sealed class SetInstanceSoloInputCodec : IInputCodec
         return CommandCodecSupport.Success(
             header,
             new SetInstanceSoloCommand(
-                target,
+                targetScope,
                 atoms[valuePosition].Integer == 1,
                 mode));
     }
@@ -148,7 +148,7 @@ internal sealed class SetProcessorBypassInputCodec : IInputCodec
     public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
     {
         var processor = ProcessorControlInputCodecSupport.ReadProcessor(atoms, header);
-        var target = InstanceControlInputCodecSupport.ReadTarget(
+        var targetScope = InstanceControlInputCodecSupport.ReadScope(
             atoms, header with { Position = header.Position + 1 }, out var valuePosition);
         if (atoms.Length != valuePosition + 1 ||
             atoms[valuePosition].Type != AtomType.Integer ||
@@ -158,7 +158,7 @@ internal sealed class SetProcessorBypassInputCodec : IInputCodec
         }
 
         return CommandCodecSupport.Success(header, new SetProcessorBypassCommand(
-            processor, target, atoms[valuePosition].Integer == 1));
+            processor, targetScope, atoms[valuePosition].Integer == 1));
     }
 }
 
@@ -169,7 +169,7 @@ internal sealed class SetProcessorSoloInputCodec : IInputCodec
     public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
     {
         var processor = ProcessorControlInputCodecSupport.ReadProcessor(atoms, header);
-        var target = InstanceControlInputCodecSupport.ReadTarget(
+        var targetScope = InstanceControlInputCodecSupport.ReadScope(
             atoms, header with { Position = header.Position + 1 }, out var valuePosition);
         if (atoms.Length != valuePosition + 2 ||
             atoms[valuePosition].Type != AtomType.Integer ||
@@ -186,7 +186,7 @@ internal sealed class SetProcessorSoloInputCodec : IInputCodec
             _ => throw new FormatException("Invalid solo selection mode.")
         };
         return CommandCodecSupport.Success(header, new SetProcessorSoloCommand(
-            processor, target, atoms[valuePosition].Integer == 1, mode));
+            processor, targetScope, atoms[valuePosition].Integer == 1, mode));
     }
 }
 
@@ -207,43 +207,28 @@ internal static class ProcessorControlInputCodecSupport
 
 internal static class InstanceControlInputCodecSupport
 {
-    public static InstanceControlTarget ReadTarget(
+    public static InstanceControlScope ReadScope(
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header,
         out int valuePosition)
     {
-        if (atoms.Length < header.Position + 3)
+        if (atoms.Length < header.Position + 2 ||
+            atoms[header.Position].Type != AtomType.Symbol)
         {
             throw new FormatException("Invalid instance control frame.");
         }
 
-        var targetId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
-        if (atoms[header.Position + 1].Type != AtomType.Symbol)
+        valuePosition = header.Position + 1;
+        if (atoms[header.Position].Symbol == "local")
         {
-            throw new FormatException("Invalid instance control scope.");
+            return InstanceControlScope.Instance;
         }
 
-        if (atoms[header.Position + 1].Symbol == "instance")
-        {
-            valuePosition = header.Position + 2;
-            return new InstanceControlTarget(
-                new InstanceId(targetId),
-                InstanceControlScope.Instance,
-                null);
-        }
-
-        if (atoms[header.Position + 1].Symbol != "group" ||
-            atoms.Length < header.Position + 4 ||
-            atoms[header.Position + 2].Type != AtomType.Integer ||
-            atoms[header.Position + 2].Integer is < 0 or >= DspConstants.BankCount)
+        if (atoms[header.Position].Symbol != "group")
         {
             throw new FormatException("Invalid instance control group target.");
         }
 
-        valuePosition = header.Position + 3;
-        return new InstanceControlTarget(
-            new InstanceId(targetId),
-            InstanceControlScope.BankGroup,
-            (BankId)atoms[header.Position + 2].Integer);
+        return InstanceControlScope.BankGroup;
     }
 }

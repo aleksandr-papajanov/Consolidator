@@ -5,6 +5,7 @@ using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Commands.Execution;
@@ -28,6 +29,7 @@ public sealed class CommandExecutor
     public async ValueTask<CommandExecutionResult<TResult>> ExecuteAsync<TResult>(
         IReadOnlyList<InstanceId> targetInstanceIds,
         IInstanceCommand<TResult> command,
+        ContextualBankTarget? bankTarget,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(targetInstanceIds);
@@ -56,6 +58,7 @@ public sealed class CommandExecutor
         var result = await ExecuteOnTargets(
             instances.Select(instance => instance!).ToArray(),
             command,
+            bankTarget,
             cancellationToken);
         var stateChanged = command is ResetStateCommand ||
             (command is WriteStateCommand ||
@@ -95,12 +98,14 @@ public sealed class CommandExecutor
     private async ValueTask<CommandExecutionResult<TResult>> ExecuteOnTargets<TResult>(
         IReadOnlyList<ManagedInstance> instances,
         IInstanceCommand<TResult> command,
+        ContextualBankTarget? bankTarget,
         CancellationToken cancellationToken)
     {
         var results = await Task.WhenAll(
             instances.Select(instance => ExecuteOnInstance<TResult>(
                 instance,
                 command,
+                bankTarget,
                 cancellationToken)
                 .AsTask()));
 
@@ -110,14 +115,18 @@ public sealed class CommandExecutor
     private async ValueTask<InstanceCommandExecution<TResult>> ExecuteOnInstance<TResult>(
         ManagedInstance instance,
         IInstanceCommand<TResult> command,
+        ContextualBankTarget? bankTarget,
         CancellationToken cancellationToken)
     {
         try
         {
             var value = await instance.ExecuteAsync(
-                state => _commandDispatcher.DispatchAsync(
+                    state => _commandDispatcher.DispatchAsync(
                     command,
-                    new InstanceCommandContext(instance.InstanceId, state),
+                    new InstanceCommandContext(
+                        instance.InstanceId,
+                        state,
+                        bankTarget),
                     cancellationToken),
                 cancellationToken);
             return new InstanceCommandExecution<TResult>(value, null);

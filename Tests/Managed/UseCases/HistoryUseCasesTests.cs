@@ -70,7 +70,7 @@ public sealed class HistoryUseCasesTests
         application.Enqueue(
             editor,
             "write",
-            Symbol(editor.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("41"),
             Integer(1),
             Symbol("entry"),

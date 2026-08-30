@@ -2,8 +2,8 @@ const MAX_BATCH_SIZE = 16;
 
 class StateClient
 {
-    // Absolute write/reset transport. Authoritative UI state belongs to
-    // TargetStateClient; this client deliberately has no state cache or readers.
+    // Relative write/reset transport. Managed resolves the selected target and
+    // bank from the source SelectionContext. Explicit targeting is topology-only.
     constructor(protocol)
     {
         this.protocol = protocol;
@@ -14,30 +14,40 @@ class StateClient
         protocol.on("state_done", this.handleResponseDone.bind(this));
     }
     
-    setFor(instanceId, path, value, callback, transactionId)
+    set(path, value, callback, transactionId, scope)
     {
-        return this.setManyFor(
-            instanceId,
+        return this.setMany(
             [{ path: path, value: value }],
             callback,
-            transactionId);
+            transactionId,
+            scope);
     }
     
-    setManyFor(instanceId, entries, callback, transactionId)
+    setMany(entries, callback, transactionId, scope)
+    {
+        return this.sendWrite(scope || "group", null, entries, callback,
+            transactionId);
+    }
+
+    setManyTopologyFor(instanceId, entries, callback, transactionId)
     {
         if (instanceId === undefined || instanceId === null) {
-            throw new Error("StateClient.setManyFor requires an instanceId.");
+            throw new Error("Topology write requires an instanceId.");
         }
+        return this.sendWrite("topology", instanceId, entries, callback,
+            transactionId);
+    }
+
+    sendWrite(scope, instanceId, entries, callback, transactionId)
+    {
         if (entries.length > MAX_BATCH_SIZE) {
             throw new Error("State batch cannot exceed 16 entries.");
         }
         let coalescingTransactionId = typeof callback === "function"
             ? 0 : transactionId || 0;
-        let body = [
-            String(instanceId),
-            String(coalescingTransactionId),
-            entries.length
-        ];
+        let body = [String(scope)];
+        if (scope === "topology") body.push(String(instanceId));
+        body.push(String(coalescingTransactionId), entries.length);
         entries.forEach((entry) => {
             body.push("entry");
             body = body.concat(this.encodePath(entry.path));
@@ -46,11 +56,13 @@ class StateClient
         return this.protocol.request("write", body, callback);
     }
     
-    resetFor(instanceId, path, callback, transactionId)
+    reset(path, callback, transactionId, scope)
     {
+        let frame = [String(transactionId || 0), scope || "group"]
+            .concat(this.encodePath(path));
         return this.protocol.request(
             "reset",
-            [String(instanceId), String(transactionId || 0)].concat(this.encodePath(path)),
+            frame,
             callback
         );
     }

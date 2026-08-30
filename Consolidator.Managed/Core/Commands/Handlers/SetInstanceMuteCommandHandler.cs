@@ -29,7 +29,7 @@ internal sealed class SetInstanceMuteCommandHandler
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_targets.TryResolve(command.Target, out var targetInstanceIds))
+        if (!_targets.TryResolve(command.TargetScope, context, out var targetInstanceIds))
         {
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }

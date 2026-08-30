@@ -34,14 +34,18 @@ public sealed class WriteStateCommandHandler
             return ValueTask.FromResult(StateWriteStatus.NotHandled);
         }
 
-        if (!AreWritesAllowed(command, context))
+        var entries = command.Entries
+            .Select(entry => entry with { Path = context.ResolvePath(entry.Path) })
+            .ToArray();
+        var resolvedCommand = command with { Entries = entries };
+        if (!AreWritesAllowed(resolvedCommand, context))
         {
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }
 
-        var writes = new List<(StateNode Node, StateWriteEntry Entry)>(command.Entries.Count);
+        var writes = new List<(StateNode Node, StateWriteEntry Entry)>(entries.Length);
         var paths = new HashSet<StatePath>();
-        foreach (var entry in command.Entries)
+        foreach (var entry in entries)
         {
             var node = context.State.Root.Find(entry.Path);
             if (node is null || node.IsContainer || !paths.Add(entry.Path))

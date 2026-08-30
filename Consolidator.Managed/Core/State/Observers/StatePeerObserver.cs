@@ -19,6 +19,7 @@ internal sealed class StatePeerObserver
     private readonly Dictionary<IObservedValue, HashSet<PeerSet>> _peerSetsByValue = new();
     private readonly Dictionary<ContextualPeerSetKey, FloatRange?> _detachedContextualRanges = new();
     private BankAddress? _editingBank;
+    private bool _groupEdit;
     private bool _isEditing;
 
     public StatePeerObserver(
@@ -99,7 +100,7 @@ internal sealed class StatePeerObserver
         RefreshContextualPeerSets(affectedInstanceIds);
     }
 
-    public void BeginEdit(BankAddress? focusedBank)
+    public void BeginEdit(BankAddress? focusedBank, bool groupEdit = true)
     {
         if (_isEditing)
         {
@@ -108,12 +109,14 @@ internal sealed class StatePeerObserver
         }
 
         _editingBank = focusedBank;
+        _groupEdit = groupEdit;
         _isEditing = true;
     }
 
     public void EndEdit()
     {
         _editingBank = null;
+        _groupEdit = false;
         _isEditing = false;
     }
 
@@ -252,9 +255,13 @@ internal sealed class StatePeerObserver
 
     private PeerSet ResolveMutationPeers(IObservedValue value)
     {
+        if (!_isEditing || !_groupEdit)
+        {
+            return new PeerSet([value], false);
+        }
+
         if (value.Scope is not StateValueEditScope.BankGroup ||
-            value.Bank is not null ||
-            !_isEditing)
+            value.Bank is not null)
         {
             return value.Peers;
         }
@@ -543,6 +550,7 @@ internal sealed class StatePeerObserver
         {
             _value = value;
             value.SetMutationHandler(Set, Prepare);
+            value.SetResetPreparationHandler(PrepareReset);
             _owner.Attach(this);
         }
 
@@ -692,6 +700,40 @@ internal sealed class StatePeerObserver
                         : value;
                 peer._value.Prepare(peerValue, transaction);
             }
+        }
+
+        private int PrepareReset(StateHistoryTransaction transaction)
+        {
+            ArgumentNullException.ThrowIfNull(transaction);
+            if (_value is null)
+            {
+                throw new ObjectDisposedException(nameof(StateValue<TValue>));
+            }
+
+            var peers = _owner.ResolveMutationPeers(this);
+            if (peers.Values.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No state peers are available for path {Path}.");
+            }
+
+            peers.ScheduleEffectiveRangeRefresh(transaction, this);
+            var resetCount = 0;
+            foreach (var peer in peers.Values.Cast<StatePeerValueObserver<TValue>>())
+            {
+                if (peer._value is null)
+                {
+                    throw new InvalidOperationException(
+                        $"A state peer was removed for path {Path}.");
+                }
+
+                if (peer._value.PrepareResetDirect(transaction))
+                {
+                    resetCount++;
+                }
+            }
+
+            return resetCount;
         }
 
         private static TValue Add(TValue left, TValue right) =>

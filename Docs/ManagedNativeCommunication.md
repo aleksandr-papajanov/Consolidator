@@ -258,15 +258,44 @@ report this telemetry; errors continue to use the native log sink.
 
 ## Managed Instance Commands
 
+### UI addressing invariant
+
+UI state mutations are relative commands. A control must not address a state
+mutation by copying an instance ID, row ID, or bank ID into the command body.
+The Native transport supplies the source instance ID, and Managed resolves the
+active bank, processor context, and bank group from that source instance's
+`SelectionContext`. This applies consistently to writes, resets, processor
+controls, analyzer/detector controls, markers, and bank-manager controls.
+
+Rows and bank cells are presentation and selection concerns; they are not an
+addressing layer for state mutations. A UI event may identify the semantic
+control (for example, `equalizer` or `filter`), its value, and its propagation
+scope, but must not reconstruct a Managed target address from the rendered row.
+The resulting protocol frame must contain only the relative command data.
+
+An explicit target is allowed only for a command whose purpose is explicitly
+to select or inspect another instance, such as `observe_target`, or to mutate
+topology membership for a user-selected set of banks. It must not be introduced
+as an implementation detail of an ordinary parameter, processor control, or
+reset.
+
+For reset specifically, the frame is `transactionId scope path`. `local` and
+`group` operate on the path resolved in the source selection context, while
+`group_instance` expands the source selection's bank group to instance IDs in
+Managed and recursively resets each complete DSP tree.
+
 The first managed command contract is intentionally separate from atom decoding
 and command construction. An external caller creates a `ReadStateCommand` or a
 `WriteStateCommand` and submits it through the registered command execution
-endpoint, which routes and executes it through `CommandExecutor`.
-with the source instance ID. A read and `WriteStateCommand` resolve exactly the
-instance explicitly addressed by the UI frame, or the source external's
-currently observed `BankAddress` for relative internal commands. The write
-is then propagated by the target StateValue's materialized peer registration
-when its scope requires it.
+endpoint with the source instance ID, which routes and executes it through
+`CommandExecutor`. A `WriteStateCommand` uses the source external's
+currently selected `BankAddress`; ordinary UI write frames contain no instance
+or bank address. The write is propagated by the target StateValue's
+materialized peer registration when its scope requires it.
+Equalizer paths use a relative `equalizer bank ...` segment without a numeric
+bank index. Managed replaces that segment with the bank from the source
+`SelectionContext` immediately before state-tree lookup. Numeric bank segments
+are reserved for topology and explicit diagnostic/query contracts.
 
 The command is data-only and implements `IInstanceCommand<TResult>`. The
 executor resolves a DI-registered
@@ -279,20 +308,20 @@ optional error. There is no public incoming or outgoing command queue.
 The shared operation gate covers one complete logical operation. Synchronous
 topology/history operations and async command batches use the same gate, so a
 command cannot interleave with a history jump or a topology mutation while it
-is suspended. `WriteStateCommand` does not broadcast through the command
-router. Bank-owned peers are materialized by bank address and prepare one
-grouped history transaction. Instance-owned values remain local; commands that
-intentionally operate on a group carry an explicit bank-group target. There is
-no second broadcast-write path in the command executor. Each target instance has
+is suspended. `WriteStateCommand` carries `local` or `group`; Managed resolves
+the selected target and bank from the source `SelectionContext`. Bank-owned
+peers are materialized by bank address and prepare one grouped history
+transaction. The `topology` write scope is reserved for explicit bank-group
+membership changes and may address a selected instance. Each target instance has
 its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
 `ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute`,
 `set_instance_solo`, `set_processor_bypass` and `set_processor_solo` as
-explicit Max messages. It forwards their encoded target
-unchanged: instance scope carries only the target instance, while group scope
-also carries the selected bank. Solo additionally carries exclusive or
-additive selection mode. Exact group resolution and all instance-state
+relative Max messages. They carry only `local` or `group`, the value, the
+processor ID when applicable, and the solo selection mode. Managed resolves
+the target instance and exact group from the source `SelectionContext`.
+Exact group resolution and all instance-state
 mutations are computed in Managed.
 
 ## Managed to Native: Output Callback

@@ -185,7 +185,6 @@ internal sealed class ProtocolService : IDisposable
         if (decoded.Command is not WriteStateCommand
             {
                 Entries.Count: > 0,
-                TargetInstanceId: { } target,
                 TransactionId: not 0
             } write)
         {
@@ -194,7 +193,7 @@ internal sealed class ProtocolService : IDisposable
 
         return new CoalesceKey(
             decoded.SourceInstanceId,
-            target.Value,
+            write.TargetInstanceId?.Value ?? decoded.SourceInstanceId,
             string.Join("|", write.Entries.Select(entry => entry.Path)),
             write.TransactionId);
     }

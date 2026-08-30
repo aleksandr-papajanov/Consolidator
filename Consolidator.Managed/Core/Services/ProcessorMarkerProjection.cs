@@ -6,11 +6,11 @@ namespace Consolidator.Managed.Core.Services;
 
 internal sealed class ProcessorMarkerProjection
 {
-    private readonly TopologyIndex _topology;
+    private readonly ContextualBankResolver _bankResolver;
 
     public ProcessorMarkerProjection(TopologyIndex topology)
     {
-        _topology = topology;
+        _bankResolver = new ContextualBankResolver(topology);
     }
 
     public RegistrySnapshotResult Project(
@@ -21,18 +21,24 @@ internal sealed class ProcessorMarkerProjection
 
         var instances = snapshot.Instances.ToDictionary(
             instance => new InstanceId(instance.InstanceId));
-        var focusedBank = _topology.ResolveFocusedBankAddress(viewerInstanceId);
         var markers = snapshot.Instances
-            .SelectMany(instance => ProjectInstance(instance, instances, focusedBank))
+            .SelectMany(instance => ProjectInstance(
+                viewerInstanceId,
+                instance,
+                instances))
             .ToArray();
         return snapshot with { ProcessorMarkers = markers };
     }
 
     private IEnumerable<RegistryProcessorMarkerSnapshot> ProjectInstance(
+        InstanceId viewerInstanceId,
         RegistryInstanceSnapshot instance,
-        IReadOnlyDictionary<InstanceId, RegistryInstanceSnapshot> instances,
-        BankAddress? focusedBank)
+        IReadOnlyDictionary<InstanceId, RegistryInstanceSnapshot> instances)
     {
+        var contextualBank = _bankResolver.Resolve(
+            viewerInstanceId,
+            new InstanceId(instance.InstanceId));
+        var focusedBank = contextualBank?.TargetBank;
         if (focusedBank is null)
         {
             return instance.Processors.Select(processor =>
@@ -45,7 +51,7 @@ internal sealed class ProcessorMarkerProjection
         var rowBank = new BankAddress(
             new InstanceId(instance.InstanceId),
             focusedBank.Value.BankIndex);
-        var members = _topology.GetConnectedBankPeers(rowBank);
+        var members = contextualBank?.Group?.Members ?? [rowBank];
         return instance.Processors.Select(processor =>
             new RegistryProcessorMarkerSnapshot(
                 instance.InstanceId,

@@ -33,9 +33,11 @@ internal sealed class StateTopologyObserver
         ArgumentNullException.ThrowIfNull(state);
         _topology.AddInstance(
             state.InstanceId,
-            transient.FocusedBank,
+            transient.Selection.SelectedBank,
             state.Banks.Select(bank => bank.Group.Value).ToArray());
-        FocusedBankChangedEvent?.Invoke(state.InstanceId, transient.FocusedBank);
+        FocusedBankChangedEvent?.Invoke(
+            state.InstanceId,
+            transient.Selection.SelectedBank);
         try
         {
             var affectedInstances = state.Banks

@@ -1,3 +1,4 @@
+using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
@@ -19,31 +20,31 @@ internal sealed class InstanceControlTargetResolver
     }
 
     public bool TryResolve(
-        InstanceControlTarget target,
+        InstanceControlScope scope,
+        InstanceCommandContext context,
         out IReadOnlyList<InstanceId> instanceIds)
     {
-        if (target.Scope is InstanceControlScope.Instance)
-        {
-            instanceIds = [target.InstanceId];
-            return target.BankId is null &&
-                _instances.Contains(target.InstanceId);
-        }
-
-        if (target.Scope is not InstanceControlScope.BankGroup ||
-            target.BankId is not { } bankId)
+        var selectedBank = context.State.Transient.Selection.SelectedBank;
+        if (selectedBank is null)
         {
             instanceIds = Array.Empty<InstanceId>();
             return false;
         }
 
-        if (!_instances.Contains(target.InstanceId))
+        if (scope is InstanceControlScope.Instance)
+        {
+            instanceIds = [selectedBank.Value.InstanceId];
+            return _instances.Contains(selectedBank.Value.InstanceId);
+        }
+
+        if (scope is not InstanceControlScope.BankGroup)
         {
             instanceIds = Array.Empty<InstanceId>();
             return false;
         }
 
         instanceIds = _topology.GetBankGroupInstanceIds(
-            new BankAddress(target.InstanceId, (int)bankId));
+            selectedBank.Value);
         return instanceIds.Count > 0;
     }
 }

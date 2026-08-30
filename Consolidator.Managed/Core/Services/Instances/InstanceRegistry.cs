@@ -185,7 +185,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 {
                     _fftAnalyzer.PublishEqualizerState(
                         instance.State,
-                    instance.State.Transient.SnapshotContext);
+                    instance.State.Transient.Selection.SelectedProcessor);
                 }
             }
         }

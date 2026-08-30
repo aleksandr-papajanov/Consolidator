@@ -96,6 +96,10 @@ class AnalyzerControlBinding extends ControlBinding
     
     handleIntent(name, values)
     {
+        if (name === "filterReset") {
+            this.controller.handle(name, values, null);
+            return;
+        }
         if (name === "gestureBegan") {
             this.gestureActive = true;
             this.controller.handle(name, values, this.activeTransactionId);

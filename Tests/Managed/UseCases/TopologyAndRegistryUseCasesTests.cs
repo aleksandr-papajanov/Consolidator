@@ -349,7 +349,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(2),
             Symbol("entry"),
@@ -401,6 +401,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         application.Send(
             source,
             "write",
+            Symbol("topology"),
             Symbol(target.InstanceId.Value.ToString()),
             Symbol("0"),
             Integer(1),
@@ -423,22 +424,18 @@ public sealed class TopologyAndRegistryUseCasesTests
         bool additive,
         bool group)
     {
-        var targetAtoms = group
-            ? new[]
-            {
-                Symbol(target.InstanceId.Value.ToString()),
-                Symbol("group"),
-                Integer(bankId ?? throw new ArgumentNullException(nameof(bankId)))
-            }
-            : new[]
-            {
-                Symbol(target.InstanceId.Value.ToString()),
-                Symbol("instance")
-            };
-        application.Send(source, "set_instance_solo", targetAtoms.Concat([
+        application.Send(
+            source,
+            "observe_target",
+            Symbol(target.InstanceId.Value.ToString()),
+            Integer(bankId ?? 0),
+            Symbol("equalizer"));
+        application.Send(source, "set_instance_solo", new[]
+        {
+            Symbol(group ? "group" : "local"),
             Integer(enabled ? 1 : 0),
             Symbol(additive ? "additive" : "exclusive")
-        ]).ToArray());
+        });
     }
 
     private static void SendMute(
@@ -449,21 +446,17 @@ public sealed class TopologyAndRegistryUseCasesTests
         bool muted,
         bool group)
     {
-        var targetAtoms = group
-            ? new[]
-            {
-                Symbol(target.InstanceId.Value.ToString()),
-                Symbol("group"),
-                Integer(bankId ?? throw new ArgumentNullException(nameof(bankId)))
-            }
-            : new[]
-            {
-                Symbol(target.InstanceId.Value.ToString()),
-                Symbol("instance")
-            };
-        application.Send(source, "set_instance_mute", targetAtoms
-            .Append(Integer(muted ? 1 : 0))
-            .ToArray());
+        application.Send(
+            source,
+            "observe_target",
+            Symbol(target.InstanceId.Value.ToString()),
+            Integer(bankId ?? 0),
+            Symbol("equalizer"));
+        application.Send(
+            source,
+            "set_instance_mute",
+            Symbol(group ? "group" : "local"),
+            Integer(muted ? 1 : 0));
     }
 
     private static void AssertSolo(
@@ -500,7 +493,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         application.Send(
             source,
             "write",
-            Symbol(target.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),

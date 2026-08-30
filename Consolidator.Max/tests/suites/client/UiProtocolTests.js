@@ -76,8 +76,8 @@ function testObservedEqualizerPathsAreExpandedForWrites() {
   target.target = { instanceId: "8", bankId: 3 };
     target.set("equalizer.filter.2.gain", 4.5);
     assert.deepStrictEqual(frames[0], [
-      "write", 1, "ui", "1", "8", "0", 1,
-      "entry", "equalizer", "bank", 3, "filter", 2, "gain", "value", 4.5,
+      "write", 1, "ui", "1", "group", "0", 1,
+      "entry", "equalizer", "bank", "filter", 2, "gain", "value", 4.5,
     ]);
 }
 
@@ -136,7 +136,7 @@ function testCallbacklessGestureWritesDoNotAccumulatePendingRequests() {
   var protocol = new NativeProtocolClient("ui", function () {});
   var state = new StateClient(protocol);
   for (var index = 0; index < 100; index += 1) {
-    state.setManyFor("8", [
+    state.setMany([
       { path: "compressor.detector.filter.1.frequency", value: 1000 + index },
       { path: "compressor.detector.filter.1.gain", value: index * 0.01 },
     ], undefined, 42);
@@ -152,10 +152,11 @@ function testWriteWithCallbackIsNotEligibleForGestureCoalescing() {
   });
   var state = new StateClient(protocol);
   var response;
-  state.setFor("8", "compressor.threshold", -18, function (value) {
+  state.set("compressor.threshold", -18, function (value) {
     response = value;
   }, 42);
 
+  assert.strictEqual(frames[0][4], "group");
   assert.strictEqual(frames[0][5], "0");
   assert.deepStrictEqual(Object.keys(protocol.pending), ["1"]);
   protocol.handleControl("action_done", [1, "ui", "1", 1]);

@@ -86,6 +86,14 @@ the changed `BankAddress`. Instance-owned notifications return to the owning
 instance. A write batch or recursive reset and every peer value reached by that
 operation commit in one transaction; each changed value then produces its own
 correctly addressed notification after the complete operation is visible.
+Reset propagation is not delta propagation: every peer reached by a grouped
+reset is prepared with that peer's own initial value. This allows peers that
+currently contain different values to return independently to their defaults.
+The reset protocol has a separate `group_instance` scope for a whole-instance
+reset. It resolves the selected bank group to instance IDs and recursively
+resets the complete DSP tree of every member, including all equalizer banks.
+The ordinary `group` scope remains path-scoped and is used for processor,
+equalizer-bank and filter resets.
 
 Target snapshots and `state_changed` entries publish both the physical range
 and the current effective absolute range. Analyzer and dial presenters clamp a
@@ -100,6 +108,17 @@ For instance-owned processor controls, target snapshots calculate the
 effective range in the context of the bank selected by the requesting UI. The
 same focused-bank context remains active for the complete write or reset, so
 validation and peer mutation use the exact group presented to the editor.
+Managed resolves that context from the source instance's selection state and
+maps it to peer instances internally. This keeps processor controls, resets,
+and marker presentation on the same bank-group resolution.
+
+The UI does not send row, instance, or bank addresses as part of a relative
+state mutation. Managed takes the source instance from the transport and uses
+its `SelectionContext` to resolve the selected bank and group. Rendered rows
+are presentation data only. Explicit instance targeting is reserved for
+commands whose purpose is to inspect or select another instance and for the
+separate topology-membership contract, where the selected bank set is the
+payload rather than an implicit editing target.
 
 ## Peers and constraints
 

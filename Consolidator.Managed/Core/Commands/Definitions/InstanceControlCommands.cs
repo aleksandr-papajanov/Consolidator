@@ -16,13 +16,8 @@ public enum SoloSelectionMode
     Additive
 }
 
-public sealed record InstanceControlTarget(
-    InstanceId InstanceId,
-    InstanceControlScope Scope,
-    BankId? BankId);
-
 public sealed record SetInstanceMuteCommand(
-    InstanceControlTarget Target,
+    InstanceControlScope TargetScope,
     bool Muted) :
     IInstanceCommand<StateWriteStatus>
 {
@@ -30,7 +25,7 @@ public sealed record SetInstanceMuteCommand(
 }
 
 public sealed record SetInstanceSoloCommand(
-    InstanceControlTarget Target,
+    InstanceControlScope TargetScope,
     bool Soloed,
     SoloSelectionMode Mode) :
     IInstanceCommand<StateWriteStatus>
@@ -40,7 +35,7 @@ public sealed record SetInstanceSoloCommand(
 
 public sealed record SetProcessorBypassCommand(
     ProcessorId ProcessorId,
-    InstanceControlTarget Target,
+    InstanceControlScope TargetScope,
     bool Bypassed) : IInstanceCommand<StateWriteStatus>
 {
     public CommandScope Scope => CommandScope.Coordinator;
@@ -48,7 +43,7 @@ public sealed record SetProcessorBypassCommand(
 
 public sealed record SetProcessorSoloCommand(
     ProcessorId ProcessorId,
-    InstanceControlTarget Target,
+    InstanceControlScope TargetScope,
     bool Soloed,
     SoloSelectionMode Mode) : IInstanceCommand<StateWriteStatus>
 {

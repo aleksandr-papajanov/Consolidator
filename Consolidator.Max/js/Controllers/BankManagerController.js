@@ -181,7 +181,7 @@ class BankManagerController
         Object.keys(entriesByInstance).forEach((instanceId) => {
             let entries = entriesByInstance[instanceId];
             for (let offset = 0; offset < entries.length; offset += 16) {
-                context.state.setManyFor(
+                context.state.setManyTopologyFor(
                     instanceId,
                     entries.slice(offset, offset + 16)
                 );
@@ -206,7 +206,7 @@ class BankManagerController
             return { path: "bank." + bank.bankId + ".group", value: null };
         });
         if (entries.length === 0) return;
-        this.context.state.setManyFor(this.context.instanceId, entries);
+        this.context.state.setManyTopologyFor(this.context.instanceId, entries);
     }
     
     handleIntent(name, values)
@@ -226,26 +226,30 @@ class BankManagerController
             break;
         case "instanceSoloChanged":
             this.setSolo(
-                values[0],
-                Number(values[1]) !== 0,
-                Number(values[2]) !== 0,
-                Number(values[3]) !== 0
-            );
-            break;
-        case "instanceMuteChanged":
-            this.setMute(
-                values[0],
+                Number(values[0]) !== 0,
                 Number(values[1]) !== 0,
                 Number(values[2]) !== 0
             );
             break;
+        case "instanceMuteChanged":
+            this.setMute(
+                Number(values[0]) !== 0,
+                Number(values[1]) !== 0
+            );
+            break;
+        case "instanceResetRequested":
+            this.resetInstance(Number(values[0]) !== 0);
+            break;
         case "processorBypassChanged":
-            this.setProcessorBypass(values[0], values[1], Number(values[2]) !== 0,
-                Number(values[3]) !== 0);
+            this.setProcessorBypass(values[0], Number(values[1]) !== 0,
+                Number(values[2]) !== 0);
             break;
         case "processorSoloChanged":
-            this.setProcessorSolo(values[0], values[1], Number(values[2]) !== 0,
-                Number(values[3]) !== 0, Number(values[4]) !== 0);
+            this.setProcessorSolo(values[0], Number(values[1]) !== 0,
+                Number(values[2]) !== 0, Number(values[3]) !== 0);
+            break;
+        case "processorResetRequested":
+            this.resetProcessor(values[0], Number(values[1]) !== 0);
             break;
         }
     }
@@ -263,61 +267,67 @@ class BankManagerController
         this.context.transactions.jumpHistory(target);
     }
 
-    setMute(instanceId, value, groupControl)
+    setMute(value, groupControl)
     {
-        let target = this.instanceControlTarget(instanceId, groupControl);
-        if (!target) {
-            return;
-        }
         this.context.protocol.request(
             "set_instance_mute",
-            target.concat([value ? 1 : 0])
+            [groupControl ? "group" : "local", value ? 1 : 0]
         );
     }
 
-    setProcessorBypass(instanceId, processorId, value, groupControl)
+    resetInstance(groupControl)
     {
-        let target = this.instanceControlTarget(instanceId, groupControl);
-        if (!target) return;
+        this.context.state.reset(
+            "dsp",
+            undefined,
+            0,
+            groupControl ? "group_instance" : "local"
+        );
+    }
+
+    setProcessorBypass(processorId, value, groupControl)
+    {
         this.context.protocol.request("set_processor_bypass",
-            [processorId].concat(target, [value ? 1 : 0]));
+            [processorId, groupControl ? "group" : "local", value ? 1 : 0]);
     }
 
-    setProcessorSolo(instanceId, processorId, value, additive, groupControl)
+    setProcessorSolo(processorId, value, additive, groupControl)
     {
-        let target = this.instanceControlTarget(instanceId, groupControl);
-        if (!target) return;
         this.context.protocol.request("set_processor_solo",
-            [processorId].concat(target, [value ? 1 : 0,
-                additive ? "additive" : "exclusive"]));
+            [processorId, groupControl ? "group" : "local", value ? 1 : 0,
+                additive ? "additive" : "exclusive"]);
     }
 
-    setSolo(instanceId, value, additive, groupControl)
+    resetProcessor(processorId, groupControl)
     {
-        let target = this.instanceControlTarget(instanceId, groupControl);
-        if (!target) {
-            return;
-        }
+        let paths = {
+            input: "input_gain",
+            saturator: "saturator",
+            compressor: "compressor",
+            equalizer: "equalizer",
+            output: "output_gain"
+        };
+        let path = paths[String(processorId)];
+        if (!path) return;
+        this.context.state.reset(
+            path,
+            undefined,
+            0,
+            groupControl ? "group" : "local"
+        );
+    }
+
+    setSolo(value, additive, groupControl)
+    {
         this.context.protocol.request(
             "set_instance_solo",
-            target.concat([
+            [groupControl ? "group" : "local",
                 value ? 1 : 0,
                 additive ? "additive" : "exclusive"
-            ])
+            ]
         );
     }
 
-    instanceControlTarget(instanceId, groupControl)
-    {
-        if (!groupControl) {
-            return [String(instanceId), "instance"];
-        }
-
-        let focusedBank = this.context.viewModel.focusedBank();
-        return focusedBank
-            ? [String(instanceId), "group", Number(focusedBank.bankId)]
-            : null;
-    }
     
     destroy()
     {

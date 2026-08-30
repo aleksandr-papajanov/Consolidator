@@ -33,6 +33,17 @@ var BankManagerControl = loadMaxClass(
   "BankManagerControl",
 );
 var bankManagerControl = new BankManagerControl();
+var DoubleClickTracker = require(
+  path.join(root, "js/Controls/DoubleClickTracker.js")
+).DoubleClickTracker;
+
+function testDoubleClickTrackerRecognizesOnlyTheSameControl() {
+  var tracker = new DoubleClickTracker();
+  assert.strictEqual(tracker.isDoubleClick("a"), false);
+  assert.strictEqual(tracker.isDoubleClick("a"), true);
+  assert.strictEqual(tracker.isDoubleClick("b"), false);
+}
+
 function testControlBindingsDispatchByControlId() {
   var calls = [];
   var bindings = new ControlBindings();
@@ -1024,19 +1035,11 @@ function testUiHostAcceptsTrackNameMessage() {
   host.instanceId = "7";
   ConsolidatorUiHost.prototype.setTrackName.call(host, ["Drums"]);
   assert.strictEqual(host.trackName, "Drums");
-  assert.deepStrictEqual(state.sets, [{
-    instanceId: "7",
-    path: "label",
-    value: "Drums",
-  }]);
+  assert.deepStrictEqual(state.sets, [["label", "Drums"]]);
 
   ConsolidatorUiHost.prototype.setTrackName.call(host, []);
   assert.strictEqual(host.trackName, "");
-  assert.deepStrictEqual(state.sets[1], {
-    instanceId: "7",
-    path: "label",
-    value: "",
-  });
+  assert.deepStrictEqual(state.sets[1], ["label", ""]);
 }
 function testUiApplicationLoadsAsCommonJsV8Module() {
   var hostModule = require(path.join(root, "js/ConsolidatorUiApplication.js"));
@@ -1427,6 +1430,7 @@ function testBankManagerPanelClickWaitsForSnapshot() {
 function testPanelTransitionAppliesSelectionAfterSnapshot() {
   var snapshotCallback = null;
   var context = {
+    instanceId: "instance.1",
     viewModel: {
       selectedPanel: "equalizer",
       setSelectedPanel: function (panel) { this.selectedPanel = panel; },
@@ -1469,9 +1473,52 @@ function testBankManagerForwardsInstanceControlModifiers() {
   bankManagerControl.selectAt(instanceButtonsX + 8, 5, true, true);
   bankManagerControl.selectAt(instanceButtonsX + 24, 5, true, true);
   assert.deepStrictEqual(intents, [
-    ["instanceSoloChanged", ["instance.1", 1, 1, 1]],
-    ["instanceMuteChanged", ["instance.1", 1, 1]],
+    ["instanceSoloChanged", [1, 1, 1]],
+    ["instanceMuteChanged", [1, 1]],
   ]);
+}
+function testBankManagerEqualizerResetReachesStateClient() {
+  var resetCalls = [];
+  var presentation = new BankManagerPresentation();
+  presentation.rows = [{
+    instanceId: "instance.1",
+    label: "Local",
+    local: true,
+    processors: [{
+      processorId: "equalizer",
+      bypassed: false,
+      soloed: false,
+    }],
+    banks: [{ bankId: 2, label: "2", visible: true, enabled: true }],
+  }];
+  presentation.enabled = true;
+  bankManagerControl.applyPresentation(presentation);
+
+  var context = {
+    instanceId: "instance.1",
+    viewModel: {
+      focusedBank: function () { return { bankId: 2 }; },
+    },
+    state: {
+      reset: function () {
+        resetCalls.push(Array.prototype.slice.call(arguments));
+      },
+    },
+  };
+  var controller = new BankManagerController(context);
+  bankManagerControl.emit = function (name, values) {
+    controller.handleIntent(name, values);
+  };
+  bankManagerControl.flashReset = function () {};
+
+  var x = bankManagerControl.primaryWidth(presentation.rows) +
+    6 + 32 + 16 + 1 + 4;
+  var y = 3 * 32 + 16 + 1 + 4;
+  bankManagerControl.selectAt(x, y, false, true);
+
+  assert.deepStrictEqual(resetCalls, [[
+    "equalizer", undefined, 0, "group",
+  ]]);
 }
 function testBankManagerPresentsGroupingSelectionAsActive() {
   var viewModel = {
@@ -1557,6 +1604,7 @@ function testManagedMarkerReachesBankManagerControlBinding() {
   presenter.destroy();
   viewModel.destroy();
 }
+testDoubleClickTrackerRecognizesOnlyTheSameControl();
 testControlBindingsDispatchByControlId();
 testDialBindingUsesMessageTransportAndIntents();
 testDialBindingResumesOnlyTheLatestPresentation();
@@ -1598,6 +1646,7 @@ testBankManagerForwardsShiftSelection();
 testBankManagerPanelClickWaitsForSnapshot();
 testPanelTransitionAppliesSelectionAfterSnapshot();
 testBankManagerForwardsInstanceControlModifiers();
+testBankManagerEqualizerResetReachesStateClient();
 testBankManagerPresentsGroupingSelectionAsActive();
 testManagedMarkerReachesBankManagerControlBinding();
 console.log("UiBindingTests passed");

@@ -14,6 +14,7 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
     private StateHistoryTransaction? _pendingTransaction;
     private Action<TValue>? _mutationHandler;
     private Action<TValue, StateHistoryTransaction>? _mutationPreparationHandler;
+    private Func<StateHistoryTransaction, int>? _resetPreparationHandler;
     private TValue _previousSlotValue = default!;
     private bool _disposed;
     private int _currentSlot;
@@ -72,6 +73,11 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(transaction);
+        if (_resetPreparationHandler is not null)
+        {
+            return _resetPreparationHandler(transaction) > 0;
+        }
+
         if (EqualityComparer<TValue>.Default.Equals(Value, _initialValue))
         {
             return false;
@@ -178,6 +184,26 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
         ArgumentNullException.ThrowIfNull(mutationPreparationHandler);
         _mutationHandler = mutationHandler;
         _mutationPreparationHandler = mutationPreparationHandler;
+    }
+
+    internal void SetResetPreparationHandler(
+        Func<StateHistoryTransaction, int> resetPreparationHandler)
+    {
+        ArgumentNullException.ThrowIfNull(resetPreparationHandler);
+        _resetPreparationHandler = resetPreparationHandler;
+    }
+
+    internal bool PrepareResetDirect(StateHistoryTransaction transaction)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (EqualityComparer<TValue>.Default.Equals(Value, _initialValue))
+        {
+            return false;
+        }
+
+        Prepare(_initialValue, transaction);
+        return true;
     }
 
     private void SetDirect(TValue value, bool notify = true)

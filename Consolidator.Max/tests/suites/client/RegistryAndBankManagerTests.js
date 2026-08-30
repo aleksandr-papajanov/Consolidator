@@ -33,11 +33,11 @@ function makeBankManagerControllerFixture() {
   };
   viewModel.clearBankSelection = function () {};
   var state = {
-    setManyFor: function () {
+    setManyTopologyFor: function () {
       calls.cleared += 1;
     },
-    setFor: function (instanceId, path, value) {
-      calls.selected.push([instanceId, path, value]);
+    set: function (path, value) {
+      calls.selected.push([path, value]);
     },
   };
   var uiTarget = {
@@ -165,13 +165,12 @@ function testEqualizerGainRoundTripUpdatesBankActivityMarker() {
   };
   vm.applyRegistrySnapshot(client.registry.snapshot);
 
-  client.state.setFor(
-    "7",
+  client.state.set(
     "equalizer.bank.0.filter.1.gain",
     4.5,
   );
   assert.deepStrictEqual(sent[0].slice(0, 9), [
-    "write", 1, "ui.main", "1", "7", "0", 1,
+    "write", 1, "ui.main", "1", "group", "0", 1,
     "entry", "equalizer",
   ]);
 
@@ -490,13 +489,14 @@ function testStateClientAddressesRemoteTopologyWrites() {
   });
   var state = new StateClient(protocol);
 
-  state.setFor("7", "bank.3.group", 5);
+  state.setManyTopologyFor("7", [{ path: "bank.3.group", value: 5 }]);
 
   assert.deepStrictEqual(sent[0], [
     "write",
     1,
     "ui.main",
     "1",
+    "topology",
     "7",
     "0",
     1,
@@ -515,9 +515,9 @@ function testStateClientEncodesZeroBasedBankPath() {
   });
   var state = new StateClient(protocol);
 
-  state.setFor("7", "bank.0.group", 5);
+  state.setManyTopologyFor("7", [{ path: "bank.0.group", value: 5 }]);
 
-  assert.deepStrictEqual(sent[0].slice(7, 12), [
+  assert.deepStrictEqual(sent[0].slice(8, 13), [
     "entry", "bank", 0, "group", "value",
   ]);
 }
@@ -635,29 +635,29 @@ function testBankManagerControllerShiftOnlyTogglesSelection() {
   assert.deepStrictEqual(fixture.calls.selected, []);
   assert.deepStrictEqual(fixture.calls.toggled, [["remote", 4, true]]);
 }
-function testBankManagerControllerSendsExplicitInstanceAndGroupControls() {
+function testBankManagerControllerSendsRelativeInstanceControlScopes() {
   var fixture = makeBankManagerControllerFixture();
 
-  fixture.controller.handleIntent("instanceMuteChanged", ["remote", 1, 0]);
-  fixture.controller.handleIntent("instanceMuteChanged", ["remote", 0, 1]);
-  fixture.controller.handleIntent("instanceSoloChanged", ["remote", 1, 0, 0]);
-  fixture.controller.handleIntent("instanceSoloChanged", ["remote", 1, 1, 1]);
+  fixture.controller.handleIntent("instanceMuteChanged", [1, 0]);
+  fixture.controller.handleIntent("instanceMuteChanged", [0, 1]);
+  fixture.controller.handleIntent("instanceSoloChanged", [1, 0, 0]);
+  fixture.controller.handleIntent("instanceSoloChanged", [1, 1, 1]);
 
   assert.deepStrictEqual(fixture.calls.requests, [
-    ["set_instance_mute", ["remote", "instance", 1]],
-    ["set_instance_mute", ["remote", "group", 5, 0]],
-    ["set_instance_solo", ["remote", "instance", 1, "exclusive"]],
-    ["set_instance_solo", ["remote", "group", 5, 1, "additive"]],
+    ["set_instance_mute", ["local", 1]],
+    ["set_instance_mute", ["group", 0]],
+    ["set_instance_solo", ["local", 1, "exclusive"]],
+    ["set_instance_solo", ["group", 1, "additive"]],
   ]);
 }
 
 function testBankManagerControllerSendsProcessorControls() {
   var fixture = makeBankManagerControllerFixture();
-  fixture.controller.handleIntent("processorBypassChanged", ["remote", "compressor", 1, 0]);
-  fixture.controller.handleIntent("processorSoloChanged", ["remote", "equalizer", 1, 1, 1]);
+  fixture.controller.handleIntent("processorBypassChanged", ["compressor", 1, 0]);
+  fixture.controller.handleIntent("processorSoloChanged", ["equalizer", 1, 1, 1]);
   assert.deepStrictEqual(fixture.calls.requests, [
-    ["set_processor_bypass", ["compressor", "remote", "instance", 1]],
-    ["set_processor_solo", ["equalizer", "remote", "group", 5, 1, "additive"]],
+    ["set_processor_bypass", ["compressor", "local", 1]],
+    ["set_processor_solo", ["equalizer", "group", 1, "additive"]],
   ]);
 }
 function testBankManagerShiftExtendsGroupingSelection() {
@@ -720,7 +720,7 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
   var controller = new BankManagerController(
     new BankManagerContext(
       viewModel,
-      { setManyFor: function (instanceId, entries) {
+      { setManyTopologyFor: function (instanceId, entries) {
           writes.push([instanceId, entries]);
         },
         setFor: function () {},
@@ -771,7 +771,7 @@ testBankManagerOffersNextGroupId();
 testBankManagerKeepsOneFocusedBankAcrossInstances();
 testBankManagerControllerLocalAndRemoteSelection();
 testBankManagerControllerShiftOnlyTogglesSelection();
-testBankManagerControllerSendsExplicitInstanceAndGroupControls();
+testBankManagerControllerSendsRelativeInstanceControlScopes();
 testBankManagerControllerSendsProcessorControls();
 testBankManagerShiftExtendsGroupingSelection();
 testBankManagerControllerClearRequiresConfirmation();

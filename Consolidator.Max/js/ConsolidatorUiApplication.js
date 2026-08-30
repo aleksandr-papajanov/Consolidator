@@ -172,7 +172,7 @@ class ConsolidatorUiHost
         }
         this.trackName = name;
         if (this.instanceId !== undefined) {
-            this.client.state.setFor(this.instanceId, "label", name);
+            this.client.state.set("label", name, undefined, 0, "local");
         }
     }
     
@@ -287,10 +287,12 @@ class ConsolidatorUiHost
             this.bankManagerViewModel.setLocalInstanceId(this.instanceId);
             this.bankManagerViewModel.setFocusedBank(this.instanceId, 0);
             if (this.trackName !== null) {
-                this.client.state.setFor(
-                    this.instanceId,
+                this.client.state.set(
                     "label",
-                    this.trackName
+                    this.trackName,
+                    undefined,
+                    0,
+                    "local"
                 );
             }
             const finishInitialization = () => {

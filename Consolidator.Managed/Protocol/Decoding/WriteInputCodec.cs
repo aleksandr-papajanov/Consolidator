@@ -21,15 +21,28 @@ internal sealed class WriteInputCodec : IInputCodec
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header)
     {
-        if (atoms.Length < header.Position + 4)
+        if (atoms.Length < header.Position + 4 ||
+            atoms[header.Position].Type != AtomType.Symbol)
         {
             throw new FormatException("Invalid write frame.");
         }
 
-        var targetInstanceId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
-        var transactionId = CommandCodecSupport.ReadWireId(atoms[header.Position + 1]);
-        var count = CommandCodecSupport.ReadCount(atoms[header.Position + 2]);
-        var position = header.Position + 3;
+        var scope = atoms[header.Position].Symbol switch
+        {
+            "local" => WriteScope.Local,
+            "group" => WriteScope.Group,
+            "topology" => WriteScope.Topology,
+            _ => throw new FormatException("Invalid write scope.")
+        };
+        var position = header.Position + 1;
+        InstanceId? targetInstanceId = null;
+        if (scope is WriteScope.Topology)
+        {
+            targetInstanceId = new InstanceId(
+                CommandCodecSupport.ReadWireId(atoms[position++]));
+        }
+        var transactionId = CommandCodecSupport.ReadWireId(atoms[position++]);
+        var count = CommandCodecSupport.ReadCount(atoms[position++]);
         var entries = new List<StateWriteEntry>(count);
         for (var index = 0; index < count; index++)
         {
@@ -60,8 +73,9 @@ internal sealed class WriteInputCodec : IInputCodec
             header,
             new WriteStateCommand(
                 entries,
-                new InstanceId(targetInstanceId),
-                transactionId));
+                transactionId,
+                scope,
+                targetInstanceId));
     }
 
     private static int FindValueMarker(ReadOnlySpan<Atom> atoms, int position)

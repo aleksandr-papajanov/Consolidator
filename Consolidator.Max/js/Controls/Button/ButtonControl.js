@@ -7,6 +7,7 @@ mgraphics.relative_coords = 0;
 mgraphics.autofill = 0;
 
 const { ButtonPresentation } = require("../../Presenters/Button/ButtonPresentation.js");
+const { DoubleClickTracker } = require("../DoubleClickTracker.js");
 
 const ButtonControlOptions = {
     background: [0.08, 0.08, 0.08, 1],
@@ -25,6 +26,7 @@ class ButtonControl
         this.pressed = false;
         this.presentationDepth = 0;
         this.presentationDirty = false;
+        this.doubleClick = new DoubleClickTracker();
     }
 
     requestRedraw()
@@ -138,6 +140,10 @@ class ButtonControl
     click()
     {
     if (!this.presentation.enabled) return;
+    if (this.doubleClick.isDoubleClick("button")) {
+        this.emit("reset");
+        return;
+    }
     if (this.presentation.mode === "momentary") {
         this.pressed = true;
         this.emit("valueChanged", 1);

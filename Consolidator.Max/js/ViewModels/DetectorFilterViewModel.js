@@ -6,6 +6,7 @@ class DetectorFilterViewModel
     {
         this.state = state;
         let prefix = device + ".detector.filter." + filterId;
+        this.path = prefix;
         this.frequency = new StateValueViewModel(state, prefix + ".frequency");
         this.q = new StateValueViewModel(state, prefix + ".q");
         this.gain = new StateValueViewModel(state, prefix + ".gain");
@@ -28,6 +29,11 @@ class DetectorFilterViewModel
             { path: this.frequency.path, value: frequency },
             { path: this.gain.path, value: gain }
         ], callback, transactionId);
+    }
+
+    reset(callback)
+    {
+        this.state.reset(this.path, callback);
     }
     
     destroy()

@@ -25,8 +25,16 @@ internal sealed class ResetInputCodec : IInputCodec
             throw new FormatException("Invalid reset frame.");
         }
 
-        var targetInstanceId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
-        var transactionId = CommandCodecSupport.ReadWireId(atoms[header.Position + 1]);
+        var transactionId = CommandCodecSupport.ReadWireId(atoms[header.Position]);
+        var scope = atoms[header.Position + 1].Type == AtomType.Symbol
+            ? atoms[header.Position + 1].Symbol switch
+            {
+                "local" => ResetScope.Local,
+                "group" => ResetScope.Group,
+                "group_instance" => ResetScope.GroupInstance,
+                _ => throw new FormatException("Invalid reset scope.")
+            }
+            : throw new FormatException("Reset scope must be a symbol.");
         var path = _pathDecoder.Decode(
             atoms[(header.Position + 2)..],
             allowContainer: true);
@@ -34,7 +42,7 @@ internal sealed class ResetInputCodec : IInputCodec
             header,
             new ResetStateCommand(
                 path,
-                new InstanceId(targetInstanceId),
-                transactionId));
+                transactionId,
+                scope));
     }
 }

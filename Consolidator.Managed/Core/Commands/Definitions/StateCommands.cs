@@ -16,8 +16,9 @@ public sealed record ReadStateCommand(
 
 public sealed record WriteStateCommand(
     IReadOnlyList<StateWriteEntry> Entries,
-    InstanceId? TargetInstanceId = null,
-    ulong TransactionId = 0) :
+    ulong TransactionId,
+    WriteScope WriteMode,
+    InstanceId? TargetInstanceId = null) :
     IInstanceCommand<StateWriteStatus>,
     ITargetedInstanceCommand
 {
@@ -28,8 +29,17 @@ public sealed record WriteStateCommand(
         TValue value)
     {
         return new WriteStateCommand(
-            [new StateWriteEntry(path, value, typeof(TValue))]);
+            [new StateWriteEntry(path, value, typeof(TValue))],
+            0,
+            WriteScope.Local);
     }
+}
+
+public enum WriteScope
+{
+    Local,
+    Group,
+    Topology
 }
 
 public sealed record StateWriteEntry(
@@ -39,12 +49,18 @@ public sealed record StateWriteEntry(
 
 public sealed record ResetStateCommand(
     StatePath Target,
-    InstanceId? TargetInstanceId,
-    ulong TransactionId) :
-    IInstanceCommand<CommandAcknowledgement>,
-    ITargetedInstanceCommand
+    ulong TransactionId,
+    ResetScope ResetMode) :
+    IInstanceCommand<CommandAcknowledgement>
 {
     public CommandScope Scope => CommandScope.FocusedBank;
+}
+
+public enum ResetScope
+{
+    Local,
+    Group,
+    GroupInstance
 }
 
 public sealed record InitializeUiCommand()

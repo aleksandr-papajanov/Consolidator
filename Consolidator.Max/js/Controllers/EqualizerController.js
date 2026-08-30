@@ -39,7 +39,8 @@ class EqualizerController
                             gain,
                             transactionId,
                             callback);
-                    }
+                    },
+                    reset: (callback) => filter.reset(callback)
                 };
             });
     }

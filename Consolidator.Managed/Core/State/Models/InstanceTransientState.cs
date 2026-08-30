@@ -6,7 +6,7 @@ public sealed class InstanceTransientState
 {
     private readonly object _selectionLock = new();
     private readonly StateTopologyObserver _topologyObserver;
-    private BankAddress? _focusedBank;
+    private InstanceSelectionContext _selection;
 
     internal InstanceTransientState(
         InstanceId instanceId,
@@ -14,34 +14,40 @@ public sealed class InstanceTransientState
     {
         InstanceId = instanceId;
         _topologyObserver = topologyObserver;
-        _focusedBank = new BankAddress(instanceId, 0);
+        _selection = new InstanceSelectionContext(
+            new BankAddress(instanceId, 0),
+            ProcessorId.Equalizer);
     }
 
     public InstanceId InstanceId { get; }
 
-    public BankAddress? FocusedBank
+    public InstanceSelectionContext Selection
     {
         get
         {
             lock (_selectionLock)
             {
-                return _focusedBank;
+                return _selection;
             }
-        }
-        set
-        {
-            lock (_selectionLock)
-            {
-                if (_focusedBank == value)
-                {
-                    return;
-                }
-                _focusedBank = value;
-            }
-
-            _topologyObserver.FocusedBankChanged(InstanceId, value);
         }
     }
 
-    public ProcessorId SnapshotContext { get; set; } = ProcessorId.Equalizer;
+    public void SelectTarget(
+        BankAddress selectedBank,
+        ProcessorId selectedProcessor)
+    {
+        lock (_selectionLock)
+        {
+            if (_selection.SelectedBank == selectedBank &&
+                _selection.SelectedProcessor == selectedProcessor)
+            {
+                return;
+            }
+            _selection = new InstanceSelectionContext(
+                selectedBank,
+                selectedProcessor);
+        }
+
+        _topologyObserver.FocusedBankChanged(InstanceId, selectedBank);
+    }
 }

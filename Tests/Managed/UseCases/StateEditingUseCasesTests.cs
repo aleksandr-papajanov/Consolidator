@@ -57,7 +57,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -91,8 +91,8 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "reset",
-            Symbol(instance.InstanceId.Value.ToString()),
             Symbol("0"),
+            Symbol("group"),
             Symbol("input_gain"));
 
         Assert.Equal(1.0F, instance.Dsp.Latest.Gain);
@@ -102,6 +102,29 @@ public sealed class StateEditingUseCasesTests
             message => message.Selector == "state_changed" &&
                 message.Atoms[1].Symbol == "input_gain.gain" &&
                 message.Atoms[2].Float == 1.0);
+
+        application.Send(
+            instance,
+            "write",
+            Symbol("group"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("compressor"),
+            Symbol("threshold"),
+            Symbol("value"),
+            Float(-18.0));
+        instance.Output.Clear();
+
+        application.Send(
+            instance,
+            "reset",
+            Symbol("0"),
+            Symbol("group"),
+            Symbol("dsp"));
+
+        Assert.Equal(1.0F, instance.Dsp.Latest.Gain);
+        Assert.Equal(-24.0F, instance.Dsp.Latest.CompressorThresholdDb);
     }
 
     [Fact]
@@ -123,7 +146,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -136,6 +159,194 @@ public sealed class StateEditingUseCasesTests
     }
 
     [Fact]
+    public void GroupedResetRestoresEachPeerOwnDefaultInsteadOfApplyingDelta()
+    {
+        using var application = new ManagedApplicationFixture();
+        var first = application.RegisterInstance();
+        var second = application.RegisterInstance();
+
+        WriteGroup(application, first, first, 0, 1);
+        WriteGroup(application, first, second, 0, 1);
+        WriteFilterGain(application, first, 0, 6.0);
+        WriteFilterGain(application, second, 0, -6.0);
+
+        application.Send(
+            first,
+            "observe_target",
+            Symbol(first.InstanceId.Value.ToString()),
+            Integer(0),
+            Symbol("equalizer"));
+        application.Send(
+            first,
+            "reset",
+            Symbol("0"),
+            Symbol("group"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(0),
+            Symbol("filter"),
+            Integer(1));
+
+        AssertFilterGain(application, first, 0, 0.0);
+        AssertFilterGain(application, second, 0, 0.0);
+    }
+
+    [Fact]
+    public void GroupedEqualizerResetClearsDifferentBanksInTheSameGroup()
+    {
+        using var application = new ManagedApplicationFixture();
+        var first = application.RegisterInstance();
+        var second = application.RegisterInstance();
+
+        WriteGroup(application, first, first, 2, 6);
+        WriteGroup(application, first, second, 3, 6);
+        WriteFilterGain(application, first, 2, 6.0);
+        WriteFilterGain(application, second, 3, -6.0);
+
+        application.Send(
+            first,
+            "observe_target",
+            Symbol(first.InstanceId.Value.ToString()),
+            Integer(2),
+            Symbol("equalizer"));
+        application.Send(
+            first,
+            "reset",
+            Symbol("0"),
+            Symbol("group"),
+            Symbol("equalizer"));
+
+        AssertFilterGain(application, first, 2, 0.0);
+        AssertFilterGain(application, second, 3, 0.0);
+    }
+
+    [Fact]
+    public void LocalEqualizerResetDoesNotResetTheBankGroupPeer()
+    {
+        using var application = new ManagedApplicationFixture();
+        var first = application.RegisterInstance();
+        var second = application.RegisterInstance();
+
+        WriteGroup(application, first, first, 2, 6);
+        WriteGroup(application, first, second, 3, 6);
+        WriteFilterGain(application, first, 2, 6.0);
+        WriteFilterGain(application, second, 3, -6.0);
+
+        application.Send(
+            first,
+            "observe_target",
+            Symbol(first.InstanceId.Value.ToString()),
+            Integer(2),
+            Symbol("equalizer"));
+        application.Send(
+            first,
+            "reset",
+            Symbol("0"),
+            Symbol("local"),
+            Symbol("equalizer"));
+
+        AssertFilterGain(application, first, 2, 0.0);
+        AssertFilterGain(application, second, 3, -6.0);
+    }
+
+    [Fact]
+    public void RelativeEqualizerWriteUsesTheManagedSelectionBank()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(2),
+            Symbol("equalizer"));
+        application.Send(
+            instance,
+            "write",
+            Symbol("local"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(6.0));
+
+        AssertFilterGain(application, instance, 0, 0.0);
+        AssertFilterGain(application, instance, 2, 6.0);
+    }
+
+    private static void WriteGroup(
+        ManagedApplicationFixture application,
+        ManagedApplicationFixture.TestInstance source,
+        ManagedApplicationFixture.TestInstance target,
+        int bank,
+        int group)
+    {
+        application.Send(
+            source,
+            "write",
+            Symbol("topology"),
+            Symbol(target.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("bank"),
+            Integer(bank),
+            Symbol("group"),
+            Symbol("value"),
+            Integer(group));
+    }
+
+    private static void WriteFilterGain(
+        ManagedApplicationFixture application,
+        ManagedApplicationFixture.TestInstance target,
+        int bank,
+        double value)
+    {
+        application.Send(
+            target,
+            "write",
+            Symbol("group"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(bank),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(value));
+    }
+
+    private static void AssertFilterGain(
+        ManagedApplicationFixture application,
+        ManagedApplicationFixture.TestInstance target,
+        int bank,
+        double expected)
+    {
+        application.Send(
+            target,
+            "read",
+            Integer(1),
+            Symbol("query"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(bank),
+            Symbol("filter"),
+            Integer(1),
+            Symbol("gain"));
+        Assert.Equal(expected, target.Output.Single("state_done").Atoms[^1].Float);
+        target.Output.Clear();
+    }
+
+    [Fact]
     public void RejectedCallbacklessGestureWriteRetainsItsErrorResponse()
     {
         using var application = new ManagedApplicationFixture();
@@ -145,7 +356,7 @@ public sealed class StateEditingUseCasesTests
         var requestId = application.Enqueue(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("42"),
             Integer(1),
             Symbol("entry"),
@@ -178,7 +389,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -221,7 +432,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             first,
             "write",
-            Symbol(first.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -254,7 +465,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             first,
             "write",
-            Symbol(first.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -319,7 +530,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             source,
             "write",
-            Symbol(source.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -376,7 +587,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             localObserver,
             "write",
-            Symbol(target.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -424,7 +635,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             first,
             "write",
-            Symbol(first.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -464,7 +675,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             second,
             "write",
-            Symbol(first.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -551,7 +762,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -575,7 +786,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -610,7 +821,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             editor,
             "write",
-            Symbol(editor.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
@@ -631,7 +842,7 @@ public sealed class StateEditingUseCasesTests
             application.Enqueue(
                 editor,
                 "write",
-                Symbol(editor.InstanceId.Value.ToString()),
+                Symbol("group"),
                 Symbol("42"),
                 Integer(1),
                 Symbol("entry"),
@@ -717,7 +928,7 @@ public sealed class StateEditingUseCasesTests
         application.Send(
             instance,
             "write",
-            Symbol(instance.InstanceId.Value.ToString()),
+            Symbol("group"),
             Symbol("0"),
             Integer(2),
             Symbol("entry"),

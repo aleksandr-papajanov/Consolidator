@@ -177,6 +177,14 @@ internal sealed class TopologyIndex
         }
     }
 
+    public bool TryGetBankGroup(BankAddress bank, out GroupId groupId)
+    {
+        lock (_lock)
+        {
+            return _bankGroups.TryGetValue(bank, out groupId);
+        }
+    }
+
     public IReadOnlyList<InstanceId> GetBankGroupInstanceIds(BankAddress bank)
     {
         lock (_lock)
