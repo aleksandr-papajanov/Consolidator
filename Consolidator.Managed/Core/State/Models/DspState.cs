@@ -18,17 +18,7 @@ public sealed class DspState
         ArgumentNullException.ThrowIfNull(runtime);
 
         var dspPath = new StatePath([StateNodeIds.Dsp]);
-        InputGain = new GainState(
-            instanceId,
-            dspPath.Append(StateNodeIds.InputGain),
-            values,
-            runtime.Gain,
-            value => runtime.Gain = value,
-            value =>
-            {
-                runtime.InputGainBypass = value;
-                runtime.InputGainActive = !value;
-            });
+        InputGain = new InputState(instanceId, dspPath.Append(StateNodeIds.InputGain), values, runtime);
         Saturator = new SaturatorState(
             instanceId,
             dspPath.Append(StateNodeIds.Saturator),
@@ -37,6 +27,11 @@ public sealed class DspState
         Compressor = new CompressorState(
             instanceId,
             dspPath.Append(StateNodeIds.Compressor),
+            values,
+            runtime);
+        Polish = new PolishState(
+            instanceId,
+            dspPath.Append(StateNodeIds.Polish),
             values,
             runtime);
         Equalizer = new EqualizerState(
@@ -57,28 +52,19 @@ public sealed class DspState
                 index,
                 Activity))
             .ToArray();
-        OutputGain = new GainState(
-            instanceId,
-            dspPath.Append(StateNodeIds.OutputGain),
-            values,
-            1.0F,
-            value => runtime.OutputGain = value,
-            value =>
-            {
-                runtime.OutputGainBypass = value;
-                runtime.OutputGainActive = !value;
-            });
+        OutputGain = new OutputState(instanceId, dspPath.Append(StateNodeIds.OutputGain), values, runtime);
         Activity.Initialize(this);
     }
 
-    public GainState InputGain { get; }
+    public InputState InputGain { get; }
     public SaturatorState Saturator { get; }
     public CompressorState Compressor { get; }
+    public PolishState Polish { get; }
     public EqualizerState Equalizer { get; }
     public EqualizerBankState[] EqualizerBanks { get; }
     internal ActivityObserver Activity { get; }
 
-    public GainState OutputGain { get; }
+    public OutputState OutputGain { get; }
 }
 
 

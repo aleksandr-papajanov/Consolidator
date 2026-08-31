@@ -23,18 +23,18 @@ bool RunDspParameterSmootherTests()
     smoother.Prepare(1000.0);
 
     auto target = smoother.Current();
-    target.gain = 2.0F;
+    target.inputLevel = 2.0F;
     target.saturatorDrive = 3.0F;
     target.saturatorOutputDb = 4.0F;
-    target.saturatorMix = 0.5F;
-    target.saturatorDetectorAmount = 0.25F;
-    target.compressorThresholdDb = -12.0F;
-    target.compressorRatio = 8.0F;
-    target.compressorAttackMs = 20.0F;
-    target.compressorReleaseMs = 200.0F;
+    target.saturatorCurve = 0.5F;
+    target.compressorAttack = 0.25F;
+    target.compressorSustain = 0.75F;
+    target.compressorCompression = 0.8F;
+    target.compressorCharacter = 2;
+    target.compressorParallel = 1;
     target.compressorOutputDb = 6.0F;
-    target.compressorMix = 0.75F;
-    target.outputGain = 1.5F;
+    target.polishThick = 0.75F;
+    target.outputLevel = 1.5F;
     target.saturatorBypass = 1;
 
     smoother.SetTarget(target);
@@ -42,7 +42,7 @@ bool RunDspParameterSmootherTests()
     auto succeeded = true;
     succeeded &= Expect(
         smoother.Current().saturatorBypass == 1 &&
-            IsClose(smoother.Current().gain, 1.0F),
+            IsClose(smoother.Current().inputLevel, 0.0F),
         "Discrete DSP parameters were ramped or a continuous parameter jumped.");
 
     for (auto sample = 0; sample < 10; ++sample)
@@ -52,45 +52,37 @@ bool RunDspParameterSmootherTests()
 
     const auto& completed = smoother.Current();
     succeeded &= Expect(
-        IsClose(completed.gain, target.gain) &&
+        IsClose(completed.inputLevel, target.inputLevel) &&
             IsClose(completed.saturatorDrive, target.saturatorDrive) &&
             IsClose(completed.saturatorOutputDb, target.saturatorOutputDb) &&
-            IsClose(completed.saturatorMix, target.saturatorMix) &&
-            IsClose(
-                completed.saturatorDetectorAmount,
-                target.saturatorDetectorAmount) &&
-            IsClose(
-                completed.compressorThresholdDb,
-                target.compressorThresholdDb) &&
-            IsClose(completed.compressorRatio, target.compressorRatio) &&
-            IsClose(
-                completed.compressorAttackMs,
-                target.compressorAttackMs) &&
-            IsClose(
-                completed.compressorReleaseMs,
-                target.compressorReleaseMs) &&
+            IsClose(completed.saturatorCurve, target.saturatorCurve) &&
+            IsClose(completed.compressorAttack, target.compressorAttack) &&
+            IsClose(completed.compressorSustain, target.compressorSustain) &&
+            IsClose(completed.compressorCompression, target.compressorCompression) &&
+            completed.compressorCharacter == target.compressorCharacter &&
+            completed.compressorParallel == target.compressorParallel &&
             IsClose(
                 completed.compressorOutputDb,
                 target.compressorOutputDb) &&
-            IsClose(completed.compressorMix, target.compressorMix) &&
-            IsClose(completed.outputGain, target.outputGain),
+            IsClose(completed.polishThick, target.polishThick) &&
+            IsClose(completed.outputLevel, target.outputLevel),
         "The timed DSP ramp did not reach every continuous target.");
 
-    target.gain = 4.0F;
+    target.inputLevel = 4.0F;
     smoother.SetTarget(target);
     for (auto sample = 0; sample < 5; ++sample)
     {
         smoother.Advance();
     }
 
-    const auto midpoint = smoother.Current().gain;
-    target.gain = 1.0F;
+    const auto midpoint = smoother.Current().inputLevel;
+    target.inputLevel = 1.0F;
     smoother.SetTarget(target);
     smoother.Advance();
 
     succeeded &= Expect(
-        smoother.Current().gain < midpoint &&
-            smoother.Current().gain > target.gain,
+        smoother.Current().inputLevel < midpoint &&
+            smoother.Current().inputLevel > target.inputLevel,
         "Retargeting did not continue smoothly from the current DSP value.");
 
     for (auto sample = 1; sample < 10; ++sample)
@@ -99,7 +91,7 @@ bool RunDspParameterSmootherTests()
     }
 
     succeeded &= Expect(
-        IsClose(smoother.Current().gain, target.gain),
+        IsClose(smoother.Current().inputLevel, target.inputLevel),
         "A retargeted DSP ramp did not reach its exact target.");
     return succeeded;
 }

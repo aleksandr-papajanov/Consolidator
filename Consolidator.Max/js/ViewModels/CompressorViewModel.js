@@ -6,14 +6,12 @@ class CompressorViewModel
 {
     constructor(state)
     {
-        this.threshold = new StateValueViewModel(state, "compressor.threshold");
-        this.ratio = new StateValueViewModel(state, "compressor.ratio");
         this.attack = new StateValueViewModel(state, "compressor.attack");
-        this.release = new StateValueViewModel(state, "compressor.release");
-        this.gain = new StateValueViewModel(state, "compressor.gain");
-        this.mix = new StateValueViewModel(state, "compressor.mix");
-        this.bypass = new StateValueViewModel(state, "compressor.bypass");
-        this.solo = new StateValueViewModel(state, "compressor.solo");
+        this.sustain = new StateValueViewModel(state, "compressor.sustain");
+        this.compression = new StateValueViewModel(state, "compressor.compression");
+        this.character = new StateValueViewModel(state, "compressor.character");
+        this.parallel = new StateValueViewModel(state, "compressor.parallel");
+        this.output = new StateValueViewModel(state, "compressor.output");
         this.detectorListen = new StateValueViewModel(
             state,
             "compressor.detector.listen"
@@ -27,14 +25,12 @@ class CompressorViewModel
     getStateValues()
     {
         return [
-            this.threshold,
-            this.ratio,
             this.attack,
-            this.release,
-            this.gain,
-            this.mix,
-            this.bypass,
-            this.solo,
+            this.sustain,
+            this.compression,
+            this.character,
+            this.parallel,
+            this.output,
             this.detectorListen
         ].concat(this.detectorFilters.reduce((values, filter) => {
             return values.concat(filter.getStateValues());
@@ -43,14 +39,12 @@ class CompressorViewModel
     
     destroy()
     {
-        this.threshold.destroy();
-        this.ratio.destroy();
         this.attack.destroy();
-        this.release.destroy();
-        this.gain.destroy();
-        this.mix.destroy();
-        this.bypass.destroy();
-        this.solo.destroy();
+        this.sustain.destroy();
+        this.compression.destroy();
+        this.character.destroy();
+        this.parallel.destroy();
+        this.output.destroy();
         this.detectorListen.destroy();
         this.detectorFilters.forEach((filter) => { filter.destroy(); });
     }

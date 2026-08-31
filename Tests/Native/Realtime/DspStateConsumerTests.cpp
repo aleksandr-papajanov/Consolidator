@@ -8,7 +8,7 @@ namespace consolidator::tests
 bool RunDspStateConsumerTests()
 {
     consolidator::max::SharedDspExchange exchange{};
-    exchange.snapshots[1].gain = 2.0F;
+    exchange.snapshots[1].inputLevel = 2.0F;
     exchange.publishedIndex = 1;
     std::uint32_t consumerIndex = 0;
     consolidator::max::DspSnapshot local{};
@@ -23,16 +23,16 @@ bool RunDspStateConsumerTests()
     succeeded &= Expect(
         consumerIndex == 1 &&
             exchange.consumerIndex == 1 &&
-            local.gain == 2.0F,
+            local.inputLevel == 2.0F,
         "DSP snapshot claim and copy were not completed as one consume operation.");
 
-    exchange.snapshots[1].gain = 5.0F;
+    exchange.snapshots[1].inputLevel = 5.0F;
     succeeded &= Expect(
         !consolidator::max::ConsumePublishedDspState(
             exchange,
             consumerIndex,
             local) &&
-            local.gain == 2.0F,
+            local.inputLevel == 2.0F,
         "An unchanged publication index was consumed twice.");
 
     exchange.publishedIndex = 7;
@@ -42,7 +42,7 @@ bool RunDspStateConsumerTests()
             consumerIndex,
             local) &&
             consumerIndex == 1 &&
-            local.gain == 2.0F,
+            local.inputLevel == 2.0F,
         "An invalid publication index changed native DSP state.");
     return succeeded;
 }

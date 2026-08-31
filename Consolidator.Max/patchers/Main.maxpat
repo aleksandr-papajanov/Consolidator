@@ -33,10 +33,24 @@
 					"numoutlets" : 6,
 					"outlettype" : [ "", "", "signal", "signal", "signal", "signal" ],
 					"patching_rect" : [ 48.0, 200.0, 277.0, 22.0 ],
+					"saved_attribute_attributes" : 					{
+						"valueof" : 						{
+							"parameter_invisible" : 1,
+							"parameter_longname" : "",
+							"parameter_modmode" : 0,
+							"parameter_shortname" : "",
+							"parameter_type" : 3
+						}
+
+					}
+,
+					"saved_object_attributes" : 					{
+						"parameter_enable" : 1,
+						"parameter_mappable" : 0
+					}
+,
 					"text" : "ConsolidatorExternal",
-					"parameter_enable" : 3,
-					"parameter_visibility" : 1,
-					"parameter_type" : "blob"
+					"varname" : "ConsolidatorExternal"
 				}
 
 			}
@@ -56,9 +70,9 @@
 					"numoutlets" : 2,
 					"offset" : [ 0.0, 0.0 ],
 					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 52.0, 286.0, 754.0, 169.0 ],
+					"patching_rect" : [ 52.0, 286.0, 1074.0, 169.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 754.0, 169.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 806.0, 169.0 ],
 					"viewvisibility" : 1
 				}
 

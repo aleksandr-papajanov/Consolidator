@@ -118,6 +118,7 @@
     <ClInclude Include="External\ManagedBridge.h" />
     <ClInclude Include="External\ManagedInterop.h" />
     <ClInclude Include="External\PersistenceBlobCodec.h" />
+    <ClInclude Include="External\PersistenceRestoreGate.h" />
     <ClInclude Include="External\SharedDspState.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

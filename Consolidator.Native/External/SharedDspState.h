@@ -8,37 +8,47 @@ namespace consolidator::max
 
 struct DspSnapshot
 {
-    float gain;
+    float inputLevel;
+    float inputTarget;
+    float inputWidth;
     std::uint32_t inputGainBypass;
+    std::uint32_t inputLeveler;
     float saturatorDrive;
     float saturatorOutputDb;
-    float saturatorMix;
-    float saturatorDetectorAmount;
+    float saturatorCurve;
+    std::uint32_t saturatorSplit;
     std::uint32_t saturatorBypass;
     std::uint32_t saturatorSolo;
-    float compressorThresholdDb;
-    float compressorRatio;
-    float compressorAttackMs;
-    float compressorReleaseMs;
+    float compressorAttack;
+    float compressorSustain;
+    float compressorCompression;
+    std::uint32_t compressorCharacter;
+    std::uint32_t compressorParallel;
     float compressorOutputDb;
-    float compressorMix;
     std::uint32_t compressorBypass;
     std::uint32_t compressorSolo;
     std::uint32_t equalizerBypass;
     std::uint32_t equalizerSolo;
-    float outputGain;
+    float polishThick;
+    float polishAir;
+    std::uint32_t polishBypass;
+    std::uint32_t polishSolo;
+    float outputLevel;
+    float outputTarget;
     std::uint32_t outputGainBypass;
+    std::uint32_t outputLimiter;
     std::uint32_t audible;
     std::uint32_t inputGainActive;
     std::uint32_t saturatorActive;
     std::uint32_t compressorActive;
     std::uint32_t equalizerActive;
     std::uint32_t outputGainActive;
+    std::uint32_t inputListen;
     std::uint32_t saturatorListen;
     std::uint32_t compressorListen;
     std::uint32_t equalizerBanksActive[7];
     std::uint32_t equalizerFiltersActive[49];
-    std::uint32_t detectorFiltersActive[4];
+    std::uint32_t detectorFiltersActive[6];
 };
 
 struct SharedDspExchange
@@ -48,10 +58,10 @@ struct SharedDspExchange
     std::uint32_t consumerIndex{};
 };
 
-static_assert(sizeof(DspSnapshot) == 352);
-static_assert(sizeof(SharedDspExchange) == 1064);
+static_assert(sizeof(DspSnapshot) == 400);
+static_assert(sizeof(SharedDspExchange) == 1208);
 static_assert(offsetof(SharedDspExchange, snapshots) == 0);
-static_assert(offsetof(SharedDspExchange, publishedIndex) == 1056);
-static_assert(offsetof(SharedDspExchange, consumerIndex) == 1060);
+static_assert(offsetof(SharedDspExchange, publishedIndex) == 1200);
+static_assert(offsetof(SharedDspExchange, consumerIndex) == 1204);
 
 } // namespace consolidator::max

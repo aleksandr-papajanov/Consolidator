@@ -32,9 +32,6 @@ class DialControlBinding extends ControlBinding
         this.send("enabled", [presentation.enabled ? 1 : 0]);
         this.send("active", [presentation.active ? 1 : 0]);
         this.sendScope(presentation);
-        this.send("activeIndex", [presentation.activeIndex || 0]);
-        this.send("displayIndex", [presentation.displayIndex || 0]);
-        this.send("ringCount", [(presentation.rings || []).length]);
         (presentation.rings || []).forEach((ring, index) => {
             this.send("limits", [index, ring.minimum, ring.maximum]);
             this.send("set", [index, ring.value]);
@@ -53,14 +50,12 @@ class DialControlBinding extends ControlBinding
             ? color : [0, 0, 0, 0]);
         this.send("scope", args);
     }
-    
+
     requiresFullPresentation(presentation)
     {
         let previous = this.presentation || {};
         if (Boolean(previous.enabled) !== Boolean(presentation.enabled) ||
-                Boolean(previous.active) !== Boolean(presentation.active) ||
-                Number(previous.activeIndex) !== Number(presentation.activeIndex) ||
-                Number(previous.displayIndex) !== Number(presentation.displayIndex)) {
+                Boolean(previous.active) !== Boolean(presentation.active)) {
             return true;
         }
         let previousRings = previous.rings || [];

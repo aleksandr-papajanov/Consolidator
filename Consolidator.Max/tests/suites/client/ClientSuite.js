@@ -1,6 +1,7 @@
 var suites = [
   "UiProtocolTests.js",
   "UiBindingTests.js",
+  "MultiValueToggleTests.js",
   "RegistryAndBankManagerTests.js",
   "LiveInstanceHostTests.js",
   "RuntimePathTests.js",

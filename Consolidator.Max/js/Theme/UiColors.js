@@ -1,7 +1,13 @@
 const UiColors = {
+    typography: {
+        controlLabelFontFamily: "Arial",
+        controlLabelFontSize: 9
+    },
+
     base: {
         background: [0.045, 0.047, 0.043, 1],
 
+        inactiveText: [0.44, 0.45, 0.41, 1],
         text: [0.68, 0.69, 0.64, 1],
         brightText: [0.90, 0.90, 0.83, 1],
         actionText: [0.97, 0.97, 0.90, 1],
@@ -14,7 +20,7 @@ const UiColors = {
         // Main identity of the whole UI.
         active: [0.72, 0.88, 0.28, 1],
 
-        inactive: [0.25, 0.26, 0.235, 1],
+        inactive: [0.27, 0.28, 0.255, 1],
         ring: [0.40, 0.41, 0.37, 1],
 
         visualization: [0.72, 0.88, 0.28, 1],
@@ -57,6 +63,8 @@ const UiColors = {
             compressor: [0.64, 0.44, 0.77, 1],
 
             equalizer: [0.64, 0.80, 0.31, 1],
+
+            polish: [0.78, 0.40, 0.58, 1],
 
             output: [0.86, 0.65, 0.27, 1]
         },

@@ -44,8 +44,7 @@ class StateClient
         if (entries.length > MAX_BATCH_SIZE) {
             throw new Error("State batch cannot exceed 16 entries.");
         }
-        let coalescingTransactionId = typeof callback === "function"
-            ? 0 : transactionId || 0;
+        let coalescingTransactionId = transactionId || 0;
         let body = [String(scope)];
         if (scope === "topology") body.push(String(instanceId));
         body.push(String(coalescingTransactionId), entries.length);

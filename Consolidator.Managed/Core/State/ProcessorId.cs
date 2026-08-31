@@ -6,6 +6,7 @@ public enum ProcessorId
     Saturator,
     Compressor,
     Equalizer,
+    Polish,
     Output
 }
 
@@ -17,6 +18,7 @@ public static class ProcessorIds
         "saturator" => ProcessorId.Saturator,
         "compressor" => ProcessorId.Compressor,
         "equalizer" => ProcessorId.Equalizer,
+        "polish" => ProcessorId.Polish,
         "output" => ProcessorId.Output,
         _ => throw new FormatException("Invalid processor ID.")
     };
@@ -27,11 +29,12 @@ public static class ProcessorIds
         ProcessorId.Saturator => "saturator",
         ProcessorId.Compressor => "compressor",
         ProcessorId.Equalizer => "equalizer",
+        ProcessorId.Polish => "polish",
         ProcessorId.Output => "output",
         _ => throw new ArgumentOutOfRangeException(nameof(processorId))
     };
 
     public static IReadOnlyList<ProcessorId> All { get; } =
         [ProcessorId.Input, ProcessorId.Saturator, ProcessorId.Compressor,
-            ProcessorId.Equalizer, ProcessorId.Output];
+            ProcessorId.Equalizer, ProcessorId.Polish, ProcessorId.Output];
 }

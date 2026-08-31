@@ -66,7 +66,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("value"),
             Float(6.0));
 
-        Assert.Equal(6.0F, instance.Dsp.Latest.Gain);
+        Assert.Equal(6.0F, instance.Dsp.Latest.InputLevel);
         Assert.True(instance.Dsp.PublishCount > initialPublishCount);
         Assert.Equal(1, instance.Output.Single("action_done").Atoms[^1].Integer);
         var change = Assert.Single(
@@ -95,7 +95,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("group"),
             Symbol("input_gain"));
 
-        Assert.Equal(1.0F, instance.Dsp.Latest.Gain);
+        Assert.Equal(0.0F, instance.Dsp.Latest.InputLevel);
         Assert.Equal(1, instance.Output.Single("action_done").Atoms[^1].Integer);
         Assert.Contains(
             instance.Output.Messages,
@@ -123,8 +123,8 @@ public sealed class StateEditingUseCasesTests
             Symbol("group"),
             Symbol("dsp"));
 
-        Assert.Equal(1.0F, instance.Dsp.Latest.Gain);
-        Assert.Equal(-24.0F, instance.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(0.0F, instance.Dsp.Latest.InputLevel);
+        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("input"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
-        var initial = instance.Dsp.Latest.Gain;
+        var initial = instance.Dsp.Latest.InputLevel;
         var publishCount = instance.Dsp.PublishCount;
 
         application.Send(
@@ -153,7 +153,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("input_gain"),
             Symbol("gain"));
 
-        Assert.Equal(initial, instance.Dsp.Latest.Gain);
+        Assert.Equal(initial, instance.Dsp.Latest.InputLevel);
         Assert.Equal(publishCount, instance.Dsp.PublishCount);
         Assert.Equal("error", Assert.Single(instance.Output.Messages).Selector);
     }
@@ -445,8 +445,8 @@ public sealed class StateEditingUseCasesTests
             () => first.Dsp.PublishCount > firstPublishCount &&
                 second.Dsp.PublishCount > secondPublishCount,
             TimeSpan.FromSeconds(1)));
-        Assert.Equal(-18.0F, first.Dsp.Latest.CompressorThresholdDb);
-        Assert.Equal(-18.0F, second.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(0.5F, first.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.5F, second.Dsp.Latest.CompressorAttack);
     }
 
     [Fact]
@@ -856,7 +856,7 @@ public sealed class StateEditingUseCasesTests
         }
         Assert.True(SpinWait.SpinUntil(
             () => instances.All(instance =>
-                instance.Dsp.Latest.Gain == (float)finalValue),
+                instance.Dsp.Latest.InputLevel == (float)finalValue),
             TimeSpan.FromSeconds(5)),
             "The final gesture value did not reach every DSP snapshot.");
         startedAt.Stop();
@@ -865,7 +865,7 @@ public sealed class StateEditingUseCasesTests
             $"40-instance input-gain gesture latency: {startedAt.Elapsed.TotalMilliseconds:F3} ms");
         Assert.All(
             instances,
-            instance => Assert.Equal((float)finalValue, instance.Dsp.Latest.Gain));
+            instance => Assert.Equal((float)finalValue, instance.Dsp.Latest.InputLevel));
         Assert.DoesNotContain(
             editor.Output.Messages,
             message => message.Selector == "action_done");

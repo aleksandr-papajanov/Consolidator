@@ -10,14 +10,28 @@ const { DialPresentation } = require("../../Presenters/Dial/DialPresentation.js"
 const { DoubleClickTracker } = require("../DoubleClickTracker.js");
 const { UiColors } = require("../../Theme/UiColors.js");
 
+function dialArgument(index, fallback)
+{
+    return jsarguments.length > index ? jsarguments[index] : fallback;
+}
+
+const DialControlConfiguration = {
+    label: String(dialArgument(1, "")),
+    minimum: Number(dialArgument(2, 0)),
+    maximum: Number(dialArgument(3, 1)),
+    logarithmic: Number(dialArgument(4, 0)) !== 0,
+    scale: Number(dialArgument(5, 1)),
+    decimals: Math.max(0, Math.floor(Number(dialArgument(6, 2)))),
+    suffix: String(dialArgument(7, ""))
+};
+
 const DialControlOptions = {
-    maximumRingCount: 3,
-    startAngle: Math.PI * 0.75,
-    endAngle: Math.PI * 2.25,
-    ringGap: 8,
+    startAngle: Math.PI * (5 / 6),
+    endAngle: Math.PI * (13 / 6),
     lineWidth: 3,
     indicatorWidth: 2,
     dragSensitivity: 0.007,
+    labelRestoreDelayMs: 500,
     background: UiColors.base.background,
     ring: UiColors.controls.ring,
     active: UiColors.base.brightText,
@@ -30,12 +44,34 @@ class DialControl
     constructor()
     {
         this.presentation = new DialPresentation();
+        this.presentation.rings.push({
+            value: 0,
+            minimum: 0,
+            maximum: 1,
+            visualization: null,
+            color: null,
+            display: {
+                minimum: DialControlConfiguration.minimum,
+                maximum: DialControlConfiguration.maximum,
+                logarithmic: DialControlConfiguration.logarithmic,
+                scale: DialControlConfiguration.scale,
+                decimals: DialControlConfiguration.decimals,
+                suffix: DialControlConfiguration.suffix === "dB"
+                    ? " dB" : DialControlConfiguration.suffix
+            }
+        });
+        this.presentation.label = DialControlConfiguration.label;
         this.previewValues = [];
         this.dragging = false;
         this.dragIndex = 0;
         this.lastY = 0;
         this.presentationBatch = false;
         this.doubleClick = new DoubleClickTracker();
+        this.showValueLabel = false;
+        this.labelRestoreTask = new Task(() => {
+            this.showValueLabel = false;
+            this.requestRedraw();
+        }, this);
     }
 
     applyPresentation(presentation)
@@ -82,27 +118,6 @@ class DialControl
         if (!this.dragging || this.dragIndex !== index) {
             delete this.previewValues[index];
         }
-        this.requestRedraw();
-    }
-
-    setRingCount(count)
-    {
-        count = Math.max(0, Math.min(
-            DialControlOptions.maximumRingCount,
-            Math.floor(Number(count))
-        ));
-        if (!isFinite(count)) return;
-        while (this.presentation.rings.length < count) {
-            this.presentation.rings.push({
-                value: 0,
-                minimum: 0,
-                maximum: 1,
-                visualization: null,
-                color: null
-            });
-        }
-        this.presentation.rings.length = count;
-        this.previewValues.length = count;
         this.requestRedraw();
     }
 
@@ -162,6 +177,27 @@ class DialControl
         return color && color.length >= 4 ? color : fallback;
     }
 
+    displayValue(ring, normalizedValue)
+    {
+        let display = ring.display || {};
+        let minimum = Number(display.minimum);
+        let maximum = Number(display.maximum);
+        let value = Number(normalizedValue);
+        if (!isFinite(minimum) || !isFinite(maximum) || !isFinite(value)) {
+            return display.value || "";
+        }
+        value = this.clamp(value, 0, 1);
+        let physicalValue = display.logarithmic && minimum > 0 && maximum > 0
+            ? minimum * Math.pow(maximum / minimum, value)
+            : minimum + (maximum - minimum) * value;
+        let scale = Number(display.scale);
+        let decimals = Number(display.decimals);
+        if (!isFinite(scale)) scale = 1;
+        if (!isFinite(decimals)) decimals = 2;
+        return (physicalValue * scale).toFixed(Math.max(0, Math.floor(decimals))) +
+            String(display.suffix || "");
+    }
+
     arc(centerX, centerY, radius, value, color, width)
     {
         this.arcRange(centerX, centerY, radius, 0, value, color, width);
@@ -169,6 +205,7 @@ class DialControl
 
     arcRange(centerX, centerY, radius, startValue, endValue, color, width)
     {
+        color = this.color(color, DialControlOptions.ring);
         let start = DialControlOptions.startAngle;
         let angleRange = DialControlOptions.endAngle - start;
         let begin = start + angleRange * this.clamp(startValue, 0, 1);
@@ -185,7 +222,8 @@ class DialControl
         let color = this.color(ring.color,
             this.presentation.enabled && this.presentation.active
             ? DialControlOptions.active : DialControlOptions.inactive);
-        if (this.presentation.scopeColor) {
+        if (this.presentation.scopeColor &&
+                this.presentation.scopeColor.length >= 4) {
             color = this.presentation.scopeColor;
         }
         if (!this.presentation.groupScope) {
@@ -253,6 +291,7 @@ class DialControl
         let width = mgraphics.size[0];
         let height = mgraphics.size[1];
         let centerX = width * 0.5;
+        let hasLabel = Boolean(this.presentation.label);
         let centerY = height * 0.55;
         let radius = Math.max(1, Math.min(width, height) * 0.38);
         let rings = this.presentation.rings || [];
@@ -260,15 +299,23 @@ class DialControl
         mgraphics.set_source_rgba.apply(mgraphics, DialControlOptions.background);
         mgraphics.rectangle(0, 0, width, height);
         mgraphics.fill();
-        for (let index = 0; index < Math.min(
-            rings.length, DialControlOptions.maximumRingCount
-        ); index += 1) {
-            let value = this.previewValues[index] === undefined
-                ? rings[index].value : this.previewValues[index];
-            this.paintRing(
-                rings[index], value, index, centerX, centerY,
-                radius - index * DialControlOptions.ringGap
-            );
+        let ring = rings[0];
+        if (!ring) return;
+        let value = this.previewValues[0] === undefined
+            ? ring.value : this.previewValues[0];
+        this.paintRing(ring, value, 0, centerX, centerY, radius);
+        if (hasLabel) {
+            mgraphics.select_font_face(
+                UiColors.typography.controlLabelFontFamily);
+            mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);
+            mgraphics.set_source_rgba.apply(mgraphics,
+                UiColors.base.inactiveText);
+            let label = this.showValueLabel && ring.display
+                ? this.displayValue(ring, value)
+                : String(this.presentation.label);
+            let textSize = mgraphics.text_measure(label);
+            mgraphics.move_to((width - textSize[0]) * 0.5, height - 7);
+            mgraphics.show_text(label);
         }
     }
 
@@ -286,6 +333,9 @@ class DialControl
         this.dragging = true;
         this.dragIndex = index;
         this.lastY = y;
+        this.labelRestoreTask.cancel();
+        this.showValueLabel = true;
+        this.requestRedraw();
         this.emit("gestureBegan", index);
     }
 
@@ -308,12 +358,15 @@ class DialControl
         if (!this.dragging) return;
         this.dragging = false;
         this.emit("gestureEnded", this.dragIndex);
+        this.labelRestoreTask.schedule(DialControlOptions.labelRestoreDelayMs);
     }
 
     rejectTransaction()
     {
         this.dragging = false;
         this.previewValues = [];
+        this.labelRestoreTask.cancel();
+        this.showValueLabel = false;
         this.requestRedraw();
     }
 }
@@ -343,8 +396,7 @@ function onresize() {
 }
 
 function onclick(x, y, button, mod1, shift, caps, opt, mod2) {
-    let index = dialControl.presentation.activeIndex || 0;
-    dialControl.beginGesture(index, y);
+    dialControl.beginGesture(0, y);
 }
 
 function ondrag(x, y, button) {
@@ -390,20 +442,6 @@ function active(value) {
 
 function scope(active, hasColor, red, green, blue, alpha) {
     dialControl.setScope(active, hasColor, red, green, blue, alpha);
-}
-
-function activeIndex(value) {
-    dialControl.presentation.activeIndex = Number(value);
-    dialControl.requestRedraw();
-}
-
-function displayIndex(value) {
-    dialControl.presentation.displayIndex = Number(value);
-    dialControl.requestRedraw();
-}
-
-function ringCount(value) {
-    dialControl.setRingCount(value);
 }
 
 const dialControl = new DialControl();

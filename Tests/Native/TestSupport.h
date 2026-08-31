@@ -21,6 +21,7 @@ inline bool Expect(
 
 bool RunAbiContractTests();
 bool RunPersistenceBlobCodecTests();
+bool RunPersistenceRestoreGateTests();
 bool RunDspParameterSmootherTests();
 bool RunDspStateConsumerTests();
 

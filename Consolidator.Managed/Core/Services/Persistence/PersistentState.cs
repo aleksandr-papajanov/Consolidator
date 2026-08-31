@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Consolidator.Managed.Core.Services.Persistence;
 
-internal sealed record PersistentStateV1(
+internal sealed record PersistentStateV2(
     int Schema,
     PersistentInstance Instance,
     PersistentBank[] Banks,
@@ -13,33 +13,37 @@ internal sealed record PersistentInstance(bool Mute, bool Solo);
 internal sealed record PersistentBank(uint? Group);
 
 internal sealed record PersistentDsp(
-    PersistentGain Input,
+    PersistentInput Input,
     PersistentSaturator Saturator,
     PersistentCompressor Compressor,
     PersistentEqualizer Equalizer,
-    PersistentGain Output);
+    PersistentPolish Polish,
+    PersistentOutput Output);
 
-internal sealed record PersistentGain(float GainDb, bool Bypass);
+internal sealed record PersistentInput(float Level, float Target, float Width, bool Leveler, bool Bypass);
+internal sealed record PersistentOutput(float Level, float Target, bool Limiter, bool Bypass);
 
 internal sealed record PersistentSaturator(
     float Drive,
-    float OutputDb,
-    float Mix,
-    float DetectorAmount,
+    float Curve,
+    bool Split,
+    float Output,
     bool Bypass,
     bool Solo,
     PersistentDetector Detector);
 
 internal sealed record PersistentCompressor(
-    float ThresholdDb,
-    float Ratio,
-    float AttackMs,
-    float ReleaseMs,
-    float OutputDb,
-    float Mix,
+    float Attack,
+    float Sustain,
+    float Compression,
+    int Character,
+    bool Parallel,
+    float Output,
     bool Bypass,
     bool Solo,
     PersistentDetector Detector);
+
+internal sealed record PersistentPolish(float Thick, float Air, bool Bypass, bool Solo);
 
 internal sealed record PersistentDetector(
     bool Listen,
@@ -67,7 +71,7 @@ internal sealed record PersistentFilter(
     NumberHandling = JsonNumberHandling.Strict,
     RespectRequiredConstructorParameters = true,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
-[JsonSerializable(typeof(PersistentStateV1))]
+[JsonSerializable(typeof(PersistentStateV2))]
 internal partial class PersistenceJsonContext : JsonSerializerContext
 {
 }

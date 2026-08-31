@@ -92,6 +92,7 @@ internal sealed class TargetStateProjector
             ProcessorId.Saturator => StateNodeIds.Saturator,
             ProcessorId.Compressor => StateNodeIds.Compressor,
             ProcessorId.Equalizer => StateNodeIds.Equalizer,
+            ProcessorId.Polish => StateNodeIds.Polish,
             ProcessorId.Output => StateNodeIds.OutputGain,
             _ => throw new ArgumentOutOfRangeException(nameof(snapshotContext))
         };

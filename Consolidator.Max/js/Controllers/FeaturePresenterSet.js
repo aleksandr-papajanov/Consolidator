@@ -1,5 +1,6 @@
 const { DialPresenter } = require("../Presenters/Dial/DialPresenter.js");
 const { ButtonPresenter } = require("../Presenters/Button/ButtonPresenter.js");
+const { MultiValueTogglePresenter } = require("../Presenters/MultiValueToggle/MultiValueTogglePresenter.js");
 const { bindPresentation } = require("../Presenters/Core/PresentationBinding.js");
 
 class FeaturePresenterSet
@@ -10,12 +11,11 @@ class FeaturePresenterSet
         this.scope = scope;
     }
     
-    addDial(name, source, display)
+    addDial(name, source)
     {
         let presenter = new DialPresenter({
             rings: [{
-                value: source,
-                display: display || {}
+                value: source
             }],
             scope: this.scope,
             enabled: this.sourceProperty(source, "enabled", true),
@@ -24,8 +24,8 @@ class FeaturePresenterSet
         this.presenters[name] = { type: "dial", presenter: presenter };
         return presenter;
     }
-    
-    addButton(name, source, label)
+
+    addToggle(name, source, label)
     {
         let presenter = new ButtonPresenter({
             value: source,
@@ -34,7 +34,20 @@ class FeaturePresenterSet
             enabled: this.sourceProperty(source, "enabled", true),
             loading: this.sourceProperty(source, "loading", false)
         });
-        this.presenters[name] = { type: "button", presenter: presenter };
+        this.presenters[name] = { type: "toggle", presenter: presenter };
+        return presenter;
+    }
+
+    addMultiValueToggle(name, source, values)
+    {
+        let presenter = new MultiValueTogglePresenter({
+            value: source,
+            values: values,
+            scope: this.scope,
+            enabled: this.sourceProperty(source, "enabled", true),
+            loading: this.sourceProperty(source, "loading", false)
+        });
+        this.presenters[name] = { type: "multiValueToggle", presenter: presenter };
         return presenter;
     }
     

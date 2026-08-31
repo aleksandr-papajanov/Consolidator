@@ -287,9 +287,11 @@ void ConsolidatorExternal::DrainManagedOutput()
 
     if (persistenceDirty_.exchange(false, std::memory_order_relaxed))
     {
+        persistenceRestoreGate_.BeginLocalChangeNotification();
         c74::max::object_parameter_value_changed(
             maxobj(),
             1);
+        persistenceRestoreGate_.EndLocalChangeNotification();
     }
 
     for (auto& frame : controlFrames)
@@ -420,13 +422,9 @@ void ConsolidatorExternal::ApplyDspRamp(
     double* mainRight,
     std::size_t frameCount) noexcept
 {
-    for (std::size_t index = 0; index < frameCount; ++index)
-    {
-        const auto& parameters = dspParameterSmoother_.Advance();
-
-        mainLeft[index] *= parameters.gain;
-        mainRight[index] *= parameters.gain;
-    }
+    (void)mainLeft;
+    (void)mainRight;
+    (void)frameCount;
 }
 
 

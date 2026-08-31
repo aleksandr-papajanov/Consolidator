@@ -44,7 +44,8 @@ class TransactionClient
 
     jumpHistory(cursor, callback)
     {
-        return this.protocol.request("jump_history", [Number(cursor)], callback);
+        let target = Number(cursor);
+        return this.protocol.request("jump_history", [target], callback);
     }
     
     handleHistoryState(args)

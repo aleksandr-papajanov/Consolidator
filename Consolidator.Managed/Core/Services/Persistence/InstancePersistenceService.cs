@@ -13,7 +13,7 @@ namespace Consolidator.Managed.Core.Services.Persistence;
 
 internal sealed class InstancePersistenceService
 {
-    private const int CurrentSchema = 1;
+    private const int CurrentSchema = 2;
     private readonly InstanceRegistry _instances;
     private readonly IOperationGate _operationGate;
     private readonly PersistenceChangePublisher _persistenceChanges;
@@ -40,7 +40,7 @@ internal sealed class InstancePersistenceService
                     "Instance is not registered.");
             return JsonSerializer.SerializeToUtf8Bytes(
                 CreateSnapshot(instance.State),
-                PersistenceJsonContext.Default.PersistentStateV1);
+                PersistenceJsonContext.Default.PersistentStateV2);
         }
     }
 
@@ -48,7 +48,7 @@ internal sealed class InstancePersistenceService
     {
         var snapshot = JsonSerializer.Deserialize(
             utf8Json,
-            PersistenceJsonContext.Default.PersistentStateV1)
+            PersistenceJsonContext.Default.PersistentStateV2)
             ?? throw new InvalidDataException("Persistence payload is empty.");
         Validate(snapshot);
         using (_operationGate.Enter())
@@ -62,7 +62,7 @@ internal sealed class InstancePersistenceService
         }
     }
 
-    private static PersistentStateV1 CreateSnapshot(ManagedState state) => new(
+    private static PersistentStateV2 CreateSnapshot(ManagedState state) => new(
         CurrentSchema,
         new PersistentInstance(
             state.Instance.Mute.Value,
@@ -71,24 +71,32 @@ internal sealed class InstancePersistenceService
             .Select(bank => new PersistentBank(bank.Group.Value?.Value))
             .ToArray(),
         new PersistentDsp(
-            CreateGain(state.Dsp.InputGain),
+            CreateInput(state.Dsp.InputGain),
             CreateSaturator(state.Dsp.Saturator),
             CreateCompressor(state.Dsp.Compressor),
             CreateEqualizer(state.Dsp.Equalizer, state.Dsp.EqualizerBanks),
-            CreateGain(state.Dsp.OutputGain)));
+            CreatePolish(state.Dsp.Polish),
+            CreateOutput(state.Dsp.OutputGain)));
 
-    private static PersistentGain CreateGain(GainState gain) =>
-        new(gain.GainDb.Value, gain.Bypass.Value);
+    private static PersistentInput CreateInput(InputState input) =>
+        new(input.Level.Value, input.Target.Value, input.Width.Value,
+            input.Leveler.Value, input.Bypass.Value);
 
     private static PersistentSaturator CreateSaturator(SaturatorState value) => new(
-        value.Drive.Value, value.OutputDb.Value, value.Mix.Value,
-        value.DetectorAmount.Value, value.Bypass.Value, value.Solo.Value,
+        value.Drive.Value, value.Curve.Value, value.Split.Value,
+        value.OutputDb.Value, value.Bypass.Value, value.Solo.Value,
         CreateDetector(value.Detector));
 
     private static PersistentCompressor CreateCompressor(CompressorState value) => new(
-        value.ThresholdDb.Value, value.Ratio.Value, value.AttackMs.Value,
-        value.ReleaseMs.Value, value.OutputDb.Value, value.Mix.Value,
+        value.Attack.Value, value.Sustain.Value, value.Compression.Value,
+        value.Character.Value, value.Parallel.Value, value.OutputDb.Value,
         value.Bypass.Value, value.Solo.Value, CreateDetector(value.Detector));
+
+    private static PersistentPolish CreatePolish(PolishState value) =>
+        new(value.Thick.Value, value.Air.Value, value.Bypass.Value, value.Solo.Value);
+
+    private static PersistentOutput CreateOutput(OutputState value) =>
+        new(value.Level.Value, value.Target.Value, value.Limiter.Value, value.Bypass.Value);
 
     private static PersistentDetector CreateDetector(DetectorState value) => new(
         value.Listen.Value, value.Filters.Select(CreateFilter).ToArray());
@@ -110,7 +118,7 @@ internal sealed class InstancePersistenceService
         value.Bypass.Value,
         value.Solo.Value);
 
-    private static void Apply(ManagedState state, PersistentStateV1 snapshot)
+    private static void Apply(ManagedState state, PersistentStateV2 snapshot)
     {
         using var transaction = new StateHistoryTransaction();
         state.Instance.Mute.PrepareBaseline(snapshot.Instance.Mute, transaction);
@@ -122,9 +130,13 @@ internal sealed class InstancePersistenceService
                 transaction);
         }
 
-        ApplyGain(state.Dsp.InputGain, snapshot.Dsp.Input, transaction);
+        ApplyInput(state.Dsp.InputGain, snapshot.Dsp.Input, transaction);
         ApplySaturator(state.Dsp.Saturator, snapshot.Dsp.Saturator, transaction);
         ApplyCompressor(state.Dsp.Compressor, snapshot.Dsp.Compressor, transaction);
+        state.Dsp.Polish.Thick.PrepareBaseline(snapshot.Dsp.Polish.Thick, transaction);
+        state.Dsp.Polish.Air.PrepareBaseline(snapshot.Dsp.Polish.Air, transaction);
+        state.Dsp.Polish.Bypass.PrepareBaseline(snapshot.Dsp.Polish.Bypass, transaction);
+        state.Dsp.Polish.Solo.PrepareBaseline(snapshot.Dsp.Polish.Solo, transaction);
         state.Dsp.Equalizer.Bypass.PrepareBaseline(
             snapshot.Dsp.Equalizer.Bypass,
             transaction);
@@ -139,16 +151,30 @@ internal sealed class InstancePersistenceService
             target.Solo.PrepareBaseline(source.Solo, transaction);
             ApplyFilters(target.Filters, source.Filters, transaction);
         }
-        ApplyGain(state.Dsp.OutputGain, snapshot.Dsp.Output, transaction);
+        ApplyOutput(state.Dsp.OutputGain, snapshot.Dsp.Output, transaction);
         transaction.Commit();
     }
 
-    private static void ApplyGain(
-        GainState target,
-        PersistentGain source,
+    private static void ApplyInput(
+        InputState target,
+        PersistentInput source,
         StateHistoryTransaction transaction)
     {
-        target.GainDb.PrepareBaseline(source.GainDb, transaction);
+        target.Level.PrepareBaseline(source.Level, transaction);
+        target.Target.PrepareBaseline(source.Target, transaction);
+        target.Width.PrepareBaseline(source.Width, transaction);
+        target.Leveler.PrepareBaseline(source.Leveler, transaction);
+        target.Bypass.PrepareBaseline(source.Bypass, transaction);
+    }
+
+    private static void ApplyOutput(
+        OutputState target,
+        PersistentOutput source,
+        StateHistoryTransaction transaction)
+    {
+        target.Level.PrepareBaseline(source.Level, transaction);
+        target.Target.PrepareBaseline(source.Target, transaction);
+        target.Limiter.PrepareBaseline(source.Limiter, transaction);
         target.Bypass.PrepareBaseline(source.Bypass, transaction);
     }
 
@@ -158,9 +184,9 @@ internal sealed class InstancePersistenceService
         StateHistoryTransaction transaction)
     {
         target.Drive.PrepareBaseline(source.Drive, transaction);
-        target.OutputDb.PrepareBaseline(source.OutputDb, transaction);
-        target.Mix.PrepareBaseline(source.Mix, transaction);
-        target.DetectorAmount.PrepareBaseline(source.DetectorAmount, transaction);
+        target.Curve.PrepareBaseline(source.Curve, transaction);
+        target.Split.PrepareBaseline(source.Split, transaction);
+        target.OutputDb.PrepareBaseline(source.Output, transaction);
         target.Bypass.PrepareBaseline(source.Bypass, transaction);
         target.Solo.PrepareBaseline(source.Solo, transaction);
         ApplyDetector(target.Detector, source.Detector, transaction);
@@ -171,12 +197,12 @@ internal sealed class InstancePersistenceService
         PersistentCompressor source,
         StateHistoryTransaction transaction)
     {
-        target.ThresholdDb.PrepareBaseline(source.ThresholdDb, transaction);
-        target.Ratio.PrepareBaseline(source.Ratio, transaction);
-        target.AttackMs.PrepareBaseline(source.AttackMs, transaction);
-        target.ReleaseMs.PrepareBaseline(source.ReleaseMs, transaction);
-        target.OutputDb.PrepareBaseline(source.OutputDb, transaction);
-        target.Mix.PrepareBaseline(source.Mix, transaction);
+        target.Attack.PrepareBaseline(source.Attack, transaction);
+        target.Sustain.PrepareBaseline(source.Sustain, transaction);
+        target.Compression.PrepareBaseline(source.Compression, transaction);
+        target.Character.PrepareBaseline(source.Character, transaction);
+        target.Parallel.PrepareBaseline(source.Parallel, transaction);
+        target.OutputDb.PrepareBaseline(source.Output, transaction);
         target.Bypass.PrepareBaseline(source.Bypass, transaction);
         target.Solo.PrepareBaseline(source.Solo, transaction);
         ApplyDetector(target.Detector, source.Detector, transaction);
@@ -230,7 +256,7 @@ internal sealed class InstancePersistenceService
         }
     }
 
-    private static void Validate(PersistentStateV1 snapshot)
+    private static void Validate(PersistentStateV2 snapshot)
     {
         if (snapshot.Schema != CurrentSchema || snapshot.Instance is null ||
             snapshot.Banks is null ||
@@ -238,7 +264,7 @@ internal sealed class InstancePersistenceService
             snapshot.Dsp is null || snapshot.Dsp.Input is null ||
             snapshot.Dsp.Saturator is null || snapshot.Dsp.Saturator.Detector is null ||
             snapshot.Dsp.Compressor is null || snapshot.Dsp.Compressor.Detector is null ||
-            snapshot.Dsp.Equalizer is null || snapshot.Dsp.Output is null ||
+            snapshot.Dsp.Equalizer is null || snapshot.Dsp.Polish is null || snapshot.Dsp.Output is null ||
             snapshot.Dsp.Equalizer.Banks is null ||
             snapshot.Dsp.Equalizer.Banks.Length != DspConstants.BankCount)
         {
@@ -265,22 +291,24 @@ internal sealed class InstancePersistenceService
         var equalizer = dsp.Equalizer!;
         var saturatorDetector = dsp.Saturator!.Detector!;
         var compressorDetector = dsp.Compressor!.Detector!;
-        ValidateRange(dsp.Input!.GainDb, DspParameterRanges.GainDb);
-        ValidateRange(dsp.Output!.GainDb, DspParameterRanges.GainDb);
+        ValidateRange(dsp.Input!.Level, DspParameterRanges.GainDb);
+        ValidateRange(dsp.Input.Target, DspParameterRanges.TargetDb);
+        ValidateRange(dsp.Input.Width, DspParameterRanges.Width);
+        ValidateRange(dsp.Output!.Level, DspParameterRanges.GainDb);
+        ValidateRange(dsp.Output.Target, DspParameterRanges.TargetDb);
         ValidateRange(dsp.Saturator.Drive, DspParameterRanges.Drive);
-        ValidateRange(dsp.Saturator.OutputDb, DspParameterRanges.OutputDb);
-        ValidateRange(dsp.Saturator.Mix, DspParameterRanges.Mix);
-        ValidateRange(
-            dsp.Saturator.DetectorAmount,
-            DspParameterRanges.DetectorAmount);
-        ValidateRange(
-            dsp.Compressor.ThresholdDb,
-            DspParameterRanges.ThresholdDb);
-        ValidateRange(dsp.Compressor.Ratio, DspParameterRanges.Ratio);
-        ValidateRange(dsp.Compressor.AttackMs, DspParameterRanges.AttackMs);
-        ValidateRange(dsp.Compressor.ReleaseMs, DspParameterRanges.ReleaseMs);
-        ValidateRange(dsp.Compressor.OutputDb, DspParameterRanges.OutputDb);
-        ValidateRange(dsp.Compressor.Mix, DspParameterRanges.Mix);
+        ValidateRange(dsp.Saturator.Curve, DspParameterRanges.Curve);
+        ValidateRange(dsp.Saturator.Output, DspParameterRanges.OutputDb);
+        ValidateRange(dsp.Compressor.Attack, DspParameterRanges.Macro);
+        ValidateRange(dsp.Compressor.Sustain, DspParameterRanges.Macro);
+        ValidateRange(dsp.Compressor.Compression, DspParameterRanges.Macro);
+        ValidateRange(dsp.Compressor.Output, DspParameterRanges.OutputDb);
+        if (dsp.Compressor.Character is < 0 or > 2)
+        {
+            throw new InvalidDataException("Invalid compressor character.");
+        }
+        ValidateRange(dsp.Polish.Thick, DspParameterRanges.Macro);
+        ValidateRange(dsp.Polish.Air, DspParameterRanges.Macro);
         if (equalizer.Banks.Any(bank => bank.Filters is null) ||
             saturatorDetector.Filters is null ||
             compressorDetector.Filters is null)

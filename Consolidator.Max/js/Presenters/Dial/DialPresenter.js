@@ -116,16 +116,22 @@ class DialPresenter extends PresentationObservable
             configuration.physicalMaximum,
             this.readNumber(valueModel.physicalMaximum, 1)
         );
-        let display = configuration.display || valueModel.display || {};
         let mapping = configuration.mapping || {};
         let logarithmic = mapping.type === "logarithmic";
+        let scope = this.options.scope;
+        let useGroupRange = Boolean(scope &&
+            typeof scope.isGroup === "function" && scope.isGroup());
         let minimum = this.readNumber(
             configuration.minimum,
-            this.readNumber(valueModel.minimum, physicalMinimum)
+            useGroupRange
+                ? this.readNumber(valueModel.minimum, physicalMinimum)
+                : physicalMinimum
         );
         let maximum = this.readNumber(
             configuration.maximum,
-            this.readNumber(valueModel.maximum, physicalMaximum)
+            useGroupRange
+                ? this.readNumber(valueModel.maximum, physicalMaximum)
+                : physicalMaximum
         );
         let value = this.readNumber(valueSource, physicalMinimum);
         let hasDefaultValue = configuration.defaultValue !== undefined
@@ -154,9 +160,6 @@ class DialPresenter extends PresentationObservable
             defaultValue: defaultValue === null ? null : normalizePresentationValue(
                 defaultValue, physicalMinimum, physicalMaximum, logarithmic
             ),
-            display: {
-                value: this.formatDisplayValue(value, display)
-            },
             visualization: this.buildVisualization(visualization),
             color: this.read(configuration.color, valueModel.color || null)
         };
@@ -170,17 +173,6 @@ class DialPresenter extends PresentationObservable
             logarithmic: logarithmic
         });
         return ring;
-    }
-    
-    formatDisplayValue(value, display)
-    {
-        let scale = display.scale === undefined ? 1 : Number(display.scale);
-        if (!isFinite(scale)) scale = 1;
-        value *= scale;
-        let decimals = display.decimals === undefined ? 2
-            : Math.max(0, Math.floor(Number(display.decimals)));
-        let suffix = display.suffix === undefined ? "" : String(display.suffix);
-        return Number(value).toFixed(decimals) + suffix;
     }
     
     buildVisualization(source)

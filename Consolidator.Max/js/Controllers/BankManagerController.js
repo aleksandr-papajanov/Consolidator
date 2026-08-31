@@ -1,10 +1,17 @@
 const { BankManagerContext } = require("./BankManagerContext.js");
-
 class BankManagerController
 {
     constructor(context)
     {
         this.context = context;
+        this.historyJumpPending = false;
+        this.unsubscribeHistory = context.transactions &&
+            typeof context.transactions.subscribeHistory === "function"
+            ? context.transactions.subscribeHistory((history) => {
+                if (!this.historyJumpPending) return;
+                this.historyJumpPending = false;
+                this.refreshHistoryTarget();
+            }, false) : null;
     }
     
     selectBank(
@@ -228,8 +235,34 @@ class BankManagerController
                 target > this.context.transactions.history.entryCount) {
             return;
         }
-        this.context.transactions.jumpHistory(target);
+        this.historyJumpPending = true;
+        let requestId = this.context.transactions.jumpHistory(target, (response) => {
+            if (response && response.error) {
+                this.historyJumpPending = false;
+                return;
+            }
+            if (this.historyJumpPending) {
+                this.historyJumpPending = false;
+                this.refreshHistoryTarget();
+            }
+        });
     }
+
+    refreshHistoryTarget()
+    {
+        let targetState = this.context.uiTarget &&
+            this.context.uiTarget.targetState;
+        let selectedTarget = targetState && targetState.target;
+        if (!selectedTarget) {
+            return;
+        }
+        this.context.uiTarget.show(
+            selectedTarget.instanceId,
+            selectedTarget.bankId,
+            selectedTarget.snapshotContext
+        );
+    }
+
 
     setMute(value)
     {
@@ -269,6 +302,7 @@ class BankManagerController
             saturator: "saturator",
             compressor: "compressor",
             equalizer: "equalizer",
+            polish: "polish",
             output: "output_gain"
         };
         let path = paths[String(processorId)];
@@ -295,6 +329,9 @@ class BankManagerController
     
     destroy()
     {
+        if (this.unsubscribeHistory) this.unsubscribeHistory();
+        this.unsubscribeHistory = null;
+        this.historyJumpPending = false;
         this.context = null;
     }
 }

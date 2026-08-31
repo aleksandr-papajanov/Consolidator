@@ -15,6 +15,120 @@ using static ManagedApplicationFixture;
 public sealed class HistoryUseCasesTests
 {
     [Fact]
+    public void CurrentDspParameterIsRestoredByHistoryJump()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0),
+            Symbol("polish"));
+        application.Send(instance, "begin_history", Symbol("7"));
+        application.Send(
+            instance,
+            "write",
+            Symbol("local"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("polish"),
+            Symbol("thick"),
+            Symbol("value"),
+            Float(0.75));
+        application.Send(instance, "end_history", Symbol("7"));
+
+        Assert.Equal(0.75F, instance.Dsp.Latest.PolishThick);
+
+        application.Send(instance, "jump_history", Integer(0));
+
+        Assert.Equal(0.0F, instance.Dsp.Latest.PolishThick);
+    }
+
+    [Fact]
+    public void CallbacklessGestureParameterIsRestoredByHistoryJump()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0),
+            Symbol("polish"));
+
+        application.Send(instance, "begin_history", Symbol("7"));
+        application.Enqueue(
+            instance,
+            "write",
+            Symbol("local"),
+            Symbol("7"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("polish"),
+            Symbol("thick"),
+            Symbol("value"),
+            Float(0.75));
+        Assert.True(System.Threading.SpinWait.SpinUntil(
+            () => instance.Dsp.Latest.PolishThick == 0.75F,
+            TimeSpan.FromSeconds(1)));
+        application.Send(instance, "end_history", Symbol("7"));
+
+        application.Send(instance, "jump_history", Integer(0));
+
+        Assert.Equal(0.0F, instance.Dsp.Latest.PolishThick);
+    }
+
+    [Fact]
+    public void EqualizerBankParameterIsRestoredByHistoryJump()
+    {
+        using var application = new ManagedApplicationFixture();
+        var instance = application.RegisterInstance();
+        application.Send(
+            instance,
+            "observe_target",
+            Symbol(instance.InstanceId.Value.ToString()),
+            Integer(0),
+            Symbol("equalizer"));
+
+        application.Send(instance, "begin_history", Symbol("7"));
+        application.Send(
+            instance,
+            "write",
+            Symbol("local"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(0),
+            Symbol("filter"),
+            Integer(3),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(9.0));
+        application.Send(instance, "end_history", Symbol("7"));
+        application.Send(instance, "jump_history", Integer(0));
+        instance.Output.Clear();
+
+        application.Send(
+            instance,
+            "read",
+            Integer(1),
+            Symbol("query"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Integer(0),
+            Symbol("filter"),
+            Integer(3),
+            Symbol("gain"));
+
+        Assert.Equal(0.0, instance.Output.Single("state_done").Atoms[^1].Float);
+    }
+
+    [Fact]
     public void RegistrationDoesNotCompareUnrelatedHistoryValues()
     {
         var history = new StateHistory();
@@ -135,7 +249,7 @@ public sealed class HistoryUseCasesTests
             Float(-18.0));
         application.Send(editor, "end_history", Symbol("41"));
 
-        Assert.Equal(-18.0F, editor.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(0.5F, editor.Dsp.Latest.CompressorAttack);
         Assert.Contains(
             observer.Output.Messages,
             message => message.Selector == "history_state" &&
@@ -146,7 +260,7 @@ public sealed class HistoryUseCasesTests
         observer.Output.Clear();
         application.Send(editor, "jump_history", Integer(0));
 
-        Assert.NotEqual(-18.0F, editor.Dsp.Latest.CompressorThresholdDb);
+        Assert.NotEqual(0.5F, editor.Dsp.Latest.CompressorAttack);
         Assert.Contains(
             observer.Output.Messages,
             message => message.Selector == "history_state" &&

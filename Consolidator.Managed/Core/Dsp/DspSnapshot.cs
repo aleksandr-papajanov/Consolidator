@@ -5,31 +5,41 @@ namespace Consolidator.Managed.Core.Dsp;
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct DspSnapshot
 {
-    public float Gain;
+    public float InputLevel;
+    public float InputTarget;
+    public float InputWidth;
 
     public uint InputGainBypass;
+    public uint InputLeveler;
 
     public float SaturatorDrive;
     public float SaturatorOutputDb;
-    public float SaturatorMix;
-    public float SaturatorDetectorAmount;
+    public float SaturatorCurve;
+    public uint SaturatorSplit;
     public uint SaturatorBypass;
     public uint SaturatorSolo;
 
-    public float CompressorThresholdDb;
-    public float CompressorRatio;
-    public float CompressorAttackMs;
-    public float CompressorReleaseMs;
+    public float CompressorAttack;
+    public float CompressorSustain;
+    public float CompressorCompression;
+    public uint CompressorCharacter;
+    public uint CompressorParallel;
     public float CompressorOutputDb;
-    public float CompressorMix;
     public uint CompressorBypass;
     public uint CompressorSolo;
 
     public uint EqualizerBypass;
     public uint EqualizerSolo;
 
-    public float OutputGain;
+    public float PolishThick;
+    public float PolishAir;
+    public uint PolishBypass;
+    public uint PolishSolo;
+
+    public float OutputLevel;
+    public float OutputTarget;
     public uint OutputGainBypass;
+    public uint OutputLimiter;
 
     public uint Audible;
     public uint InputGainActive;
@@ -37,6 +47,7 @@ public unsafe struct DspSnapshot
     public uint CompressorActive;
     public uint EqualizerActive;
     public uint OutputGainActive;
+    public uint InputListen;
     public uint SaturatorListen;
     public uint CompressorListen;
 
@@ -44,7 +55,7 @@ public unsafe struct DspSnapshot
 
     public fixed uint EqualizerFiltersActive[49];
 
-    public fixed uint DetectorFiltersActive[4];
+    public fixed uint DetectorFiltersActive[6];
 }
 
 

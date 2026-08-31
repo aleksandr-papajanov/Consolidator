@@ -54,15 +54,15 @@ public sealed class PersistenceUseCasesTests
             return true;
         });
 
-        Assert.Equal(-18.0F, instance.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
         Assert.DoesNotContain(
             instance.Output.Messages,
             message => message.Selector == "persistence_dirty");
 
         application.Send(instance, "jump_history", Integer(0));
-        Assert.Equal(-18.0F, instance.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
         application.Send(instance, "jump_history", Integer(2));
-        Assert.Equal(-18.0F, instance.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
     }
 
     [Fact]
@@ -77,12 +77,12 @@ public sealed class PersistenceUseCasesTests
                 "\"schema\":1",
                 "\"schema\":2",
                 StringComparison.Ordinal));
-        var before = instance.Dsp.Latest.CompressorThresholdDb;
+        var before = instance.Dsp.Latest.CompressorAttack;
         var beforePublishCount = instance.Dsp.PublishCount;
 
         Assert.Throws<InvalidDataException>(() =>
             persistence.Restore(instance.InstanceId, invalidPayload));
-        Assert.Equal(before, instance.Dsp.Latest.CompressorThresholdDb);
+        Assert.Equal(before, instance.Dsp.Latest.CompressorAttack);
         Assert.Equal(beforePublishCount, instance.Dsp.PublishCount);
     }
 

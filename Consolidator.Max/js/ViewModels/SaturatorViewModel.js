@@ -7,14 +7,9 @@ class SaturatorViewModel
     constructor(state)
     {
         this.drive = new StateValueViewModel(state, "saturator.drive");
-        this.mix = new StateValueViewModel(state, "saturator.mix");
-        this.gain = new StateValueViewModel(state, "saturator.gain");
-        this.detectorAmount = new StateValueViewModel(
-            state,
-            "saturator.detector_amount"
-        );
-        this.bypass = new StateValueViewModel(state, "saturator.bypass");
-        this.solo = new StateValueViewModel(state, "saturator.solo");
+        this.curve = new StateValueViewModel(state, "saturator.curve");
+        this.split = new StateValueViewModel(state, "saturator.split");
+        this.output = new StateValueViewModel(state, "saturator.output");
         this.detectorListen = new StateValueViewModel(
             state,
             "saturator.detector.listen"
@@ -29,11 +24,9 @@ class SaturatorViewModel
     {
         return [
             this.drive,
-            this.mix,
-            this.gain,
-            this.detectorAmount,
-            this.bypass,
-            this.solo,
+            this.curve,
+            this.split,
+            this.output,
             this.detectorListen
         ].concat(this.detectorFilters.reduce((values, filter) => {
             return values.concat(filter.getStateValues());
@@ -43,11 +36,9 @@ class SaturatorViewModel
     destroy()
     {
         this.drive.destroy();
-        this.mix.destroy();
-        this.gain.destroy();
-        this.detectorAmount.destroy();
-        this.bypass.destroy();
-        this.solo.destroy();
+        this.curve.destroy();
+        this.split.destroy();
+        this.output.destroy();
         this.detectorListen.destroy();
         this.detectorFilters.forEach((filter) => { filter.destroy(); });
     }

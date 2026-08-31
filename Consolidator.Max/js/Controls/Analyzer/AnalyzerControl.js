@@ -424,6 +424,11 @@ function transactionRejected() {
     mgraphics.redraw();
 }
 
+function interactionReset() {
+    analyzerControl.resetInteractionState();
+    mgraphics.redraw();
+}
+
 function scope(active, hasColor, red, green, blue, alpha) {
     analyzerControl.setScope(active, hasColor, red, green, blue, alpha);
 }

@@ -7,20 +7,13 @@ class CompressorController
     constructor(viewModel, scope)
     {
         this.presenters = new FeaturePresenterSet(scope);
-        this.presenters.addDial("threshold", viewModel.compressor.threshold,
-            { decimals: 1, suffix: " dB" });
-        this.presenters.addDial("ratio", viewModel.compressor.ratio,
-            { decimals: 1, suffix: ":1" });
-        this.presenters.addDial("attack", viewModel.compressor.attack,
-            { decimals: 1, suffix: " ms" });
-        this.presenters.addDial("release", viewModel.compressor.release,
-            { decimals: 1, suffix: " ms" });
-        this.presenters.addDial("gain", viewModel.compressor.gain,
-            { decimals: 1, suffix: " dB" });
-        this.presenters.addDial("mix", viewModel.compressor.mix,
-            { decimals: 1, suffix: "%", scale: 100 });
-        this.presenters.addButton("bypass", viewModel.compressor.bypass, "BYPASS");
-        this.presenters.addButton("solo", viewModel.compressor.solo, "SOLO");
+        this.presenters.addDial("attack", viewModel.compressor.attack);
+        this.presenters.addDial("sustain", viewModel.compressor.sustain);
+        this.presenters.addDial("compression", viewModel.compressor.compression);
+        this.presenters.addMultiValueToggle("character", viewModel.compressor.character,
+            ["PUNCH", "TIGHT", "SMOOTH"]);
+        this.presenters.addToggle("parallel", viewModel.compressor.parallel, "PARALLEL");
+        this.presenters.addDial("output", viewModel.compressor.output);
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({
             mode: "detector",
             context: "compressor",

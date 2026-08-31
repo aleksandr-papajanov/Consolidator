@@ -40,13 +40,13 @@ snapshot. The exchange remains a POD layout; C++ applies `std::atomic_ref` to
 its two publication fields.
 
 `DspSnapshot` contains the current scalar runtime controls for input/output
-gain, saturator, compressor, and equalizer state. The per-instance `StateTree`
+level, saturator, compressor, Polish, and equalizer state. The per-instance `StateTree`
 is authoritative; its value observers maintain the small `DspRuntimeState` projection
 from which the fixed-layout snapshot is published. Boolean markers use
 `uint32` values in the ABI (`0` or `1`) so the
 C# and C++ layouts remain explicit and blittable. Filter-bank values and
 compiled coefficients are a separate future extension of this snapshot.
-Snapshot structs have no domain defaults. The initial `gain = 1.0` state is
+Snapshot structs have no domain defaults. The initial macro-control state is
 created by Managed `DspDefaults` and compiled before the first publish.
 `Prepare(sampleRate, maximumFrameCount)` is reserved for updating the DSP
 compilation context after audio configuration; it must not reset or republish

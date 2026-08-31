@@ -52,7 +52,7 @@ navigates the shared history cursor through the existing `jump_history` command
 and shifts the visible timeline window.
 
 The Bank Manager also provides a vertical panel selector on its right side.
-Selecting Input, Saturator, Compressor, EQ or Output changes the local panel
+Selecting Input, Saturator, Compressor, EQ, Polish or Output changes the local panel
 presentation. Target snapshots continue to follow the existing bank focus
 transition.
 

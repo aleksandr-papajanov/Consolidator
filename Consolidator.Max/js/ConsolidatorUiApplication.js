@@ -7,6 +7,7 @@ const { EqualizerController } = require("./Controllers/EqualizerController.js");
 const { CompressorController } = require("./Controllers/CompressorController.js");
 const { SaturatorController } = require("./Controllers/SaturatorController.js");
 const { GainController } = require("./Controllers/GainController.js");
+const { PolishController } = require("./Controllers/PolishController.js");
 const { BankManagerController } = require("./Controllers/BankManagerController.js");
 const { BankManagerContext } = require("./Controllers/BankManagerContext.js");
 const { ControlBindings } = require("./Bindings/ControlBindings.js");
@@ -14,29 +15,35 @@ const { AnalyzerControlBinding } = require("./Bindings/AnalyzerControlBinding.js
 const { BankManagerControlBinding } = require("./Bindings/BankManagerControlBinding.js");
 const { DialControlBinding } = require("./Bindings/DialControlBinding.js");
 const { ButtonControlBinding } = require("./Bindings/ButtonControlBinding.js");
+const { ToggleControlBinding } = require("./Bindings/ToggleControlBinding.js");
+const { MultiValueToggleControlBinding } = require("./Bindings/MultiValueToggleControlBinding.js");
 
 const ConsolidatorControlMapping = {
-    inputGain: "input_gain",
-    outputGain: "output_gain",
+    inputLevel: "input_level",
+    inputTarget: "input_target",
+    inputDetector: "input_detector",
+    inputLeveler: "input_leveler",
+    inputWidth: "input_width",
+    outputLevel: "output_level",
+    outputTarget: "output_target",
+    outputLimiter: "output_limiter",
     equalizerAnalyzer: "equalizer_analyzer",
-    equalizerBypass: "equalizer_bypass",
-    equalizerSolo: "equalizer_solo",
     compressorDetector: "compressor_detector",
-    compressorThreshold: "compressor_threshold",
-    compressorRatio: "compressor_ratio",
     compressorAttack: "compressor_attack",
-    compressorRelease: "compressor_release",
-    compressorGain: "compressor_gain",
-    compressorMix: "compressor_mix",
-    compressorBypass: "compressor_bypass",
-    compressorSolo: "compressor_solo",
+    compressorSustain: "compressor_sustain",
+    compressorCompression: "compressor_compression",
+    compressorCharacter: "compressor_character",
+    compressorParallel: "compressor_parallel",
+    compressorOutput: "compressor_output",
     saturatorDetector: "saturator_detector",
     saturatorDrive: "saturator_drive",
-    saturatorGain: "saturator_gain",
-    saturatorMix: "saturator_mix",
-    saturatorDetectorAmount: "saturator_detector_amount",
-    saturatorBypass: "saturator_bypass",
-    saturatorSolo: "saturator_solo",
+    saturatorCurve: "saturator_curve",
+    saturatorSplit: "saturator_split",
+    saturatorOutput: "saturator_output",
+    polishThick: "polish_thick",
+    polishAir: "polish_air",
+    inputLevel: "input_level",
+    outputLevel: "output_level",
     bankManager: "bank_manager"
 };
 
@@ -53,6 +60,7 @@ class ConsolidatorUiHost
         this.equalizer = new EqualizerController(this.viewModel, this.client.scope);
         this.compressor = new CompressorController(this.viewModel, this.client.scope);
         this.saturator = new SaturatorController(this.viewModel, this.client.scope);
+        this.polish = new PolishController(this.viewModel, this.client.scope);
         this.equalizer.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.compressor.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.saturator.analyzer.presenter.connectSpectrum(this.client.protocol);
@@ -238,6 +246,14 @@ class ConsolidatorUiHost
                 this.client.transactions
             );
         });
+        this.bind(mapping.inputDetector, (send) => {
+            return new AnalyzerControlBinding(
+                this.inputGain.analyzer,
+                this.inputGain.analyzer.presenter,
+                send,
+                this.client.transactions
+            );
+        });
         this.bind(mapping.bankManager, (send) => {
             return new BankManagerControlBinding(
                 this.bankManager,
@@ -250,6 +266,7 @@ class ConsolidatorUiHost
             ["equalizer", this.equalizer],
             ["compressor", this.compressor],
             ["saturator", this.saturator],
+            ["polish", this.polish],
             ["output", this.outputGain]
         ].forEach(([prefix, controller]) => {
             controller.presenters.forEach((name, presenter, type) => {
@@ -261,7 +278,11 @@ class ConsolidatorUiHost
                             presenter,
                             send,
                             this.client.transactions)
-                        : new ButtonControlBinding(presenter, send);
+                        : type === "multiValueToggle"
+                            ? new MultiValueToggleControlBinding(presenter, send)
+                        : type === "toggle"
+                            ? new ToggleControlBinding(presenter, send)
+                            : new ButtonControlBinding(presenter, send);
                 });
             });
         });
@@ -347,6 +368,7 @@ class ConsolidatorUiHost
         this.equalizer.destroy();
         this.compressor.destroy();
         this.saturator.destroy();
+        this.polish.destroy();
         this.inputGain.destroy();
         this.outputGain.destroy();
         this.bankManager.destroy();

@@ -984,8 +984,8 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
     ["filterMoved", [1, 0.4, 0.6, "group"], 12],
     ["filterMoved", [1, 0.5, 0.7, "group"], 12],
     ["filterCommit", [1, "group"], 12],
+    ["gestureEnded", [], 12],
   ]);
-  commitCallback({ status: "accepted", error: null });
 
   assert.deepStrictEqual(transactionCalls, [
     ["begin"],
@@ -998,6 +998,103 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
     ["filterCommit", [1, "group"], 12],
     ["gestureEnded", [], 12],
   ]);
+  commitCallback({ status: "accepted", error: null });
+  binding.destroy();
+}
+
+function testAnalyzerStartsNextHistoryPointBeforePreviousWriteResponse() {
+  var beginCallbacks = [];
+  var commitCallbacks = [];
+  var beginIds = [12, 13];
+  var controller = {
+    handle: function (intent, payload, transactionId, callback) {
+      if (intent === "filterCommit") {
+        commitCallbacks.push(callback);
+      }
+    },
+  };
+  var presenter = {
+    subscribe: function () {
+      return function () {};
+    },
+  };
+  var transactions = {
+    begin: function (callback) {
+      var id = beginIds[beginCallbacks.length];
+      beginCallbacks.push(callback);
+      return id;
+    },
+    end: function () {},
+  };
+  var binding = new AnalyzerControlBinding(
+    controller,
+    presenter,
+    function () {},
+    transactions
+  );
+
+  binding.handleIntent("gestureBegan", [1]);
+  beginCallbacks[0](12, { status: "accepted" });
+  binding.handleIntent("filterMoved", [1, 0.4, 0.6]);
+  binding.handleIntent("gestureEnded", [1]);
+  assert.strictEqual(binding.activeTransactionId, null);
+
+  binding.handleIntent("gestureBegan", [1]);
+  assert.strictEqual(beginCallbacks.length, 2);
+  assert.strictEqual(binding.activeTransactionId, 13);
+
+  commitCallbacks[0]({ status: "accepted", error: null });
+  binding.destroy();
+}
+
+function testAnalyzerTargetTransitionCancelsGestureAndTransaction() {
+  var calls = [];
+  var transactionCalls = [];
+  var messages = [];
+  var beginCallback = null;
+  var beginCount = 0;
+  var controller = {
+    handle: function (intent, payload, transactionId) {
+      calls.push([intent, payload, transactionId]);
+    },
+  };
+  var presenter = {
+    subscribe: function () {
+      return function () {};
+    },
+  };
+  var transactions = {
+    begin: function (callback) {
+      beginCount += 1;
+      beginCallback = callback;
+      return 12;
+    },
+    end: function (id) {
+      transactionCalls.push(["end", id]);
+    },
+  };
+  var binding = new AnalyzerControlBinding(
+    controller,
+    presenter,
+    function (selector) { messages.push(selector); },
+    transactions
+  );
+
+  binding.handleIntent("gestureBegan", [1]);
+  beginCallback(12, { status: "accepted" });
+  binding.handleIntent("filterMoved", [1, 0.4, 0.6]);
+  binding.suspend();
+
+  assert.deepStrictEqual(transactionCalls, [["end", 12]]);
+  assert.deepStrictEqual(calls[calls.length - 1], ["gestureEnded", [], 12]);
+  assert.strictEqual(binding.activeTransactionId, null);
+  assert.strictEqual(binding.transactionReady, false);
+  assert.strictEqual(binding.lastMove, null);
+  assert.strictEqual(messages[messages.length - 1], "interactionReset");
+
+  binding.handleIntent("gestureBegan", [1]);
+  assert.strictEqual(beginCount, 2);
+
   binding.destroy();
 }
 function testAnalyzerHandleDragPublishesLatestPositionWhileDragging() {
@@ -1593,6 +1690,34 @@ function testBankManagerPresentsGroupingSelectionAsActive() {
   assert.strictEqual(presenter.presentation.rows[0].banks[0].active, false);
   presenter.destroy();
 }
+function testDialUsesPhysicalRangeOutsideGroupScope() {
+  var source = {
+    value: 0.5,
+    physicalMinimum: 0,
+    physicalMaximum: 1,
+    minimum: 0.5,
+    maximum: 1,
+  };
+  var scope = {
+    mode: "local",
+    enabled: true,
+    isGroup: function () { return this.mode === "group"; },
+  };
+  var presenter = new DialPresenter({
+    rings: [{ value: source }],
+    scope: scope,
+  });
+
+  assert.strictEqual(presenter.presentation.rings[0].minimum, 0);
+  assert.strictEqual(presenter.presentation.rings[0].maximum, 1);
+
+  scope.mode = "group";
+  scope.listeners = [];
+  presenter.rebuild();
+  assert.strictEqual(presenter.presentation.rings[0].minimum, 0.5);
+  assert.strictEqual(presenter.presentation.rings[0].maximum, 1);
+  presenter.destroy();
+}
 function testManagedMarkerReachesBankManagerControlBinding() {
   var registry = {
     subscribe: function () { return function () {}; },
@@ -1679,6 +1804,8 @@ testAnalyzerRendersLegacyHighShelfAndTiltResponses();
 testDetectorBindingPublishesCurvesToControl();
 testAnalyzerControlPreservesCurvesAcrossHandlePresentation();
 testAnalyzerBindingUsesOneTransactionForHandleDrag();
+testAnalyzerStartsNextHistoryPointBeforePreviousWriteResponse();
+testAnalyzerTargetTransitionCancelsGestureAndTransaction();
 testAnalyzerHandleDragPublishesLatestPositionWhileDragging();
 testUiHostAcceptsTrackNameMessage();
 testUiHostPublishesOnlyChangedInstanceActivity();
@@ -1688,6 +1815,7 @@ testFeaturePresenterSetEnumeratesTypedPresenters();
 testFeaturePresenterSetTracksSourceAvailability();
 testPresentationObservableBatchesOneRebuildAndStopsAfterDestroy();
 testDialDisplayScaleDoesNotChangePhysicalValue();
+testDialUsesPhysicalRangeOutsideGroupScope();
 testConsolidatorInitializesDetectorState();
 testFilterPositionUsesOneStateBatch();
 testEqualizerPositionForwardsFinalWriteCallback();

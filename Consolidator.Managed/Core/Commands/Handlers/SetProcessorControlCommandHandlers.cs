@@ -112,6 +112,7 @@ internal static class ProcessorStateAccess
         ProcessorId.Saturator => state.Dsp.Saturator.Bypass,
         ProcessorId.Compressor => state.Dsp.Compressor.Bypass,
         ProcessorId.Equalizer => state.Dsp.Equalizer.Bypass,
+        ProcessorId.Polish => state.Dsp.Polish.Bypass,
         ProcessorId.Output => state.Dsp.OutputGain.Bypass,
         _ => null
     };
@@ -121,6 +122,7 @@ internal static class ProcessorStateAccess
         ProcessorId.Saturator => state.Dsp.Saturator.Solo,
         ProcessorId.Compressor => state.Dsp.Compressor.Solo,
         ProcessorId.Equalizer => state.Dsp.Equalizer.Solo,
+        ProcessorId.Polish => state.Dsp.Polish.Solo,
         _ => null
     };
 }

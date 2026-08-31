@@ -13,34 +13,39 @@ public sealed class CompressorState
         StateValueFactory values,
         DspRuntimeState runtime)
     {
-        ThresholdDb = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Threshold),
-            -24.0F,
-            StateValueEditMode.ApplyDelta,
-            DspParameterRanges.ThresholdDb,
-            [new StateProjectionObserver<float>(value => runtime.CompressorThresholdDb = value)]);
-        Ratio = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Ratio),
-            4.0F,
-            StateValueEditMode.ApplyDelta,
-            DspParameterRanges.Ratio,
-            [new StateProjectionObserver<float>(value => runtime.CompressorRatio = value)]);
-        AttackMs = values.CreateValue(
+        Attack = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Attack),
-            10.0F,
+            0.5F,
             StateValueEditMode.ApplyDelta,
-            DspParameterRanges.AttackMs,
-            [new StateProjectionObserver<float>(value => runtime.CompressorAttackMs = value)]);
-        ReleaseMs = values.CreateValue(
+            DspParameterRanges.Macro,
+            [new StateProjectionObserver<float>(value => runtime.CompressorAttack = value)]);
+        Sustain = values.CreateValue(
             instanceId,
-            path.Append(StateNodeIds.Release),
-            100.0F,
+            path.Append(StateNodeIds.Sustain),
+            0.5F,
             StateValueEditMode.ApplyDelta,
-            DspParameterRanges.ReleaseMs,
-            [new StateProjectionObserver<float>(value => runtime.CompressorReleaseMs = value)]);
+            DspParameterRanges.Macro,
+            [new StateProjectionObserver<float>(value => runtime.CompressorSustain = value)]);
+        Compression = values.CreateValue(
+            instanceId,
+            path.Append(StateNodeIds.Compression),
+            0.5F,
+            StateValueEditMode.ApplyDelta,
+            DspParameterRanges.Macro,
+            [new StateProjectionObserver<float>(value => runtime.CompressorCompression = value)]);
+        Character = values.CreateValue(
+            instanceId,
+            path.Append(StateNodeIds.Character),
+            0,
+            StateValueEditMode.CopyValue,
+            observers: [new StateProjectionObserver<int>(value => runtime.CompressorCharacter = value)]);
+        Parallel = values.CreateValue(
+            instanceId,
+            path.Append(StateNodeIds.Parallel),
+            false,
+            StateValueEditMode.CopyValue,
+            observers: [new StateProjectionObserver<bool>(value => runtime.CompressorParallel = value)]);
         OutputDb = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Output),
@@ -48,13 +53,6 @@ public sealed class CompressorState
             StateValueEditMode.ApplyDelta,
             DspParameterRanges.OutputDb,
             [new StateProjectionObserver<float>(value => runtime.CompressorOutputDb = value)]);
-        Mix = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Mix),
-            1.0F,
-            StateValueEditMode.ApplyDelta,
-            DspParameterRanges.Mix,
-            [new StateProjectionObserver<float>(value => runtime.CompressorMix = value)]);
         Bypass = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Bypass),
@@ -77,21 +75,21 @@ public sealed class CompressorState
             values,
             value => runtime.CompressorListen = value,
             (index, active) => runtime.SetDetectorFilterActive(
-                DspConstants.DetectorFilterCount + index,
+                DspConstants.DetectorFilterCount * 2 + index,
                 active));
     }
 
-    public StateValue<float> ThresholdDb { get; }
+    public StateValue<float> Attack { get; }
 
-    public StateValue<float> Ratio { get; }
+    public StateValue<float> Sustain { get; }
 
-    public StateValue<float> AttackMs { get; }
+    public StateValue<float> Compression { get; }
 
-    public StateValue<float> ReleaseMs { get; }
+    public StateValue<int> Character { get; }
+
+    public StateValue<bool> Parallel { get; }
 
     public StateValue<float> OutputDb { get; }
-
-    public StateValue<float> Mix { get; }
 
     public StateValue<bool> Bypass { get; }
 

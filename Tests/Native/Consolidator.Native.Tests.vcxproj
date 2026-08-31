@@ -52,6 +52,7 @@
     <ClCompile Include="TestMain.cpp" />
     <ClCompile Include="Contracts\AbiContractTests.cpp" />
     <ClCompile Include="Contracts\PersistenceBlobCodecTests.cpp" />
+    <ClCompile Include="Contracts\PersistenceRestoreGateTests.cpp" />
     <ClCompile Include="Realtime\DspParameterSmootherTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\DspParameterSmoother.cpp" />
@@ -60,6 +61,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Consolidator.Native\External\PersistenceBlobCodec.h" />
+    <ClInclude Include="..\..\Consolidator.Native\External\PersistenceRestoreGate.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

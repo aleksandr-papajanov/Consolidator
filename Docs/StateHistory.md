@@ -216,6 +216,18 @@ observer event is emitted. Protocol delivery failures are caught by
 `StateChangePublisher` and cannot turn a committed state operation into a
 failed mutation.
 
+History navigation refreshes the complete observed target. An analyzer target
+transition cancels any local preview gesture, clears its transaction state and
+discards control-side preview coordinates before the authoritative snapshot is
+presented. A stale equalizer preview therefore cannot mask the restored curve or
+prevent the next gesture from opening a new history point.
+
+Each analyzer gesture owns exactly one history point. Its final write and
+`end_history` frame are sent in FIFO order, while the JavaScript binding releases
+the gesture transaction immediately after dispatch instead of waiting for the
+write response. A delayed response therefore cannot merge later equalizer
+gestures into the previous history point.
+
 A persistence restore uses the same transaction mechanism but replaces every
 slot of each persisted value with one validated baseline. Slots are replaced
 even when the active slot already equals the restored value; observers still

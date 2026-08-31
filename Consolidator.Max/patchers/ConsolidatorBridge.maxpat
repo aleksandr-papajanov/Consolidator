@@ -10,10 +10,190 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 183.0, 176.0, 865.0, 760.0 ],
+		"rect" : [ 34.0, 77.0, 1612.0, 891.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
+				"box" : 				{
+					"args" : [ "equalizer" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"hidden" : 1,
+					"id" : "eq-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "EqualizerPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 528.0, 481.0, 26.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 416.0, 39.0, 390.0, 130.0 ],
+					"varname" : "eq-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"args" : [ "compressor" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"hidden" : 1,
+					"id" : "compressor-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "CompressorPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 559.0, 481.0, 26.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 416.0, 39.0, 390.0, 130.0 ],
+					"varname" : "compressor-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"args" : [ "saturator" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"hidden" : 1,
+					"id" : "saturator-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "SaturatorPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 585.0, 481.0, 26.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 416.0, 39.0, 390.0, 130.0 ],
+					"varname" : "saturator-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"args" : [ "input" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"id" : "input-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "InputGainPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 615.0, 481.0, 26.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 416.0, 39.0, 390.0, 130.0 ],
+					"varname" : "input-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"args" : [ "output" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"hidden" : 1,
+					"id" : "output-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "OutputGainPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 691.0, 481.0, 26.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 416.0, 39.0, 390.0, 130.0 ],
+					"varname" : "output-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"args" : [ "polish" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"hidden" : 1,
+					"id" : "polish-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "PolishPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 651.0, 481.0, 26.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 416.0, 39.0, 390.0, 130.0 ],
+					"varname" : "polish-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"args" : [ "bank_manager" ],
+					"bgmode" : 0,
+					"border" : 0,
+					"clickthrough" : 0,
+					"enablehscroll" : 0,
+					"enablevscroll" : 0,
+					"id" : "bank-panel",
+					"lockeddragscroll" : 0,
+					"lockedsize" : 0,
+					"maxclass" : "bpatcher",
+					"name" : "BankManagerPanel.maxpat",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"offset" : [ 0.0, 0.0 ],
+					"outlettype" : [ "", "" ],
+					"patching_rect" : [ 494.0, 481.0, 27.0, 26.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 0.0, 0.0, 806.0, 169.0 ],
+					"varname" : "bank-panel",
+					"viewvisibility" : 1
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"comment" : "Native control outlet",
 					"id" : "native-control-in",
@@ -41,7 +221,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/ConsolidatorUiHost.js",
+					"filename" : "ConsolidatorUiHost.js",
 					"id" : "host",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
@@ -54,7 +234,7 @@
 ,
 					"text" : "v8 Project:/js/ConsolidatorUiHost.js bridge.local",
 					"textfile" : 					{
-						"filename" : "Project:/js/ConsolidatorUiHost.js",
+						"filename" : "ConsolidatorUiHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -89,7 +269,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/LiveInstanceHost.js",
+					"filename" : "LiveInstanceHost.js",
 					"id" : "live-instance-host",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -102,7 +282,7 @@
 ,
 					"text" : "v8 Project:/js/LiveInstanceHost.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/LiveInstanceHost.js",
+						"filename" : "LiveInstanceHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -116,164 +296,10 @@
 					"id" : "panel-broadcast",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
-					"numoutlets" : 6,
-					"outlettype" : [ "", "", "", "", "", "" ],
+					"numoutlets" : 7,
+					"outlettype" : [ "", "", "", "", "", "", "" ],
 					"patching_rect" : [ 521.0, 442.0, 149.0, 22.0 ],
-					"text" : "t l l l l l l"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"args" : [ "bank_manager" ],
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"id" : "bank-panel",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "BankManagerPanel.maxpat",
-					"numinlets" : 1,
-					"numoutlets" : 2,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "", "" ],
-					"patching_rect" : [ 521.0, 481.0, 27.0, 26.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 351.0, 169.0 ],
-					"varname" : "bank-panel",
-					"viewvisibility" : 1
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"args" : [ "equalizer" ],
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"hidden" : 1,
-					"id" : "eq-panel",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "EqualizerPanel.maxpat",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 547.0, 481.0, 26.0, 26.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
-					"varname" : "eq-panel",
-					"viewvisibility" : 1
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"args" : [ "compressor" ],
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"hidden" : 1,
-					"id" : "compressor-panel",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "CompressorPanel.maxpat",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 573.0, 481.0, 26.0, 26.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
-					"varname" : "compressor-panel",
-					"viewvisibility" : 1
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"args" : [ "saturator" ],
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"hidden" : 1,
-					"id" : "saturator-panel",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "SaturatorPanel.maxpat",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 599.0, 481.0, 26.0, 26.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
-					"varname" : "saturator-panel",
-					"viewvisibility" : 1
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"args" : [ "input" ],
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"id" : "input-panel",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "InputGainPanel.maxpat",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 625.0, 481.0, 26.0, 26.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
-					"varname" : "input-panel",
-					"viewvisibility" : 1
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"args" : [ "output" ],
-					"bgmode" : 0,
-					"border" : 0,
-					"clickthrough" : 0,
-					"enablehscroll" : 0,
-					"enablevscroll" : 0,
-					"hidden" : 1,
-					"id" : "output-panel",
-					"lockeddragscroll" : 0,
-					"lockedsize" : 0,
-					"maxclass" : "bpatcher",
-					"name" : "OutputGainPanel.maxpat",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"offset" : [ 0.0, 0.0 ],
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 651.0, 481.0, 26.0, 26.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 351.0, 0.0, 351.0, 169.0 ],
-					"varname" : "output-panel",
-					"viewvisibility" : 1
+					"text" : "t l l l l l l l"
 				}
 
 			}
@@ -351,7 +377,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/PanelSelector.js",
+					"filename" : "PanelSelector.js",
 					"id" : "panel-selector",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -363,7 +389,7 @@
 ,
 					"text" : "v8 Project:/js/PanelSelector.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/PanelSelector.js",
+						"filename" : "PanelSelector.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -391,7 +417,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 330.0, 664.0, 125.0, 22.0 ],
+					"patching_rect" : [ 330.0, 664.0, 132.0, 22.0 ],
 					"text" : "prepend panelSelected"
 				}
 
@@ -418,8 +444,8 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "panel-selection-route", 0 ],
-					"source" : [ "bank-manager-route", 0 ]
+					"destination" : [ "intent-list-normalizer", 0 ],
+					"source" : [ "bank-manager-intent-prefix", 0 ]
 				}
 
 			}
@@ -432,8 +458,8 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "intent-list-normalizer", 0 ],
-					"source" : [ "bank-manager-intent-prefix", 0 ]
+					"destination" : [ "panel-selection-route", 0 ],
+					"source" : [ "bank-manager-route", 0 ]
 				}
 
 			}
@@ -591,15 +617,15 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "saturator-panel", 0 ],
-					"source" : [ "panel-broadcast", 3 ]
+					"destination" : [ "polish-panel", 0 ],
+					"source" : [ "panel-broadcast", 6 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "panel-intent-prefix", 0 ],
-					"source" : [ "panel-selection-route", 0 ]
+					"destination" : [ "saturator-panel", 0 ],
+					"source" : [ "panel-broadcast", 3 ]
 				}
 
 			}
@@ -614,6 +640,20 @@
 				"patchline" : 				{
 					"destination" : [ "bank-manager-intent-prefix", 0 ],
 					"source" : [ "panel-selection-route", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "panel-intent-prefix", 0 ],
+					"source" : [ "panel-selection-route", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "intent-list-normalizer", 0 ],
+					"source" : [ "polish-panel", 0 ]
 				}
 
 			}

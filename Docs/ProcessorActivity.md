@@ -1,6 +1,11 @@
 # Processor Activity
 
-Managed owns one local activity observer for the five instance-owned
+The processor set now includes the Polish device in addition to input,
+saturator, compressor, equalizer, and output. Polish activity is derived from
+its `thick` and `air` macro values together with its bypass state; it supports
+the same bypass and solo processor actions as the other effect devices.
+
+Managed owns one local activity observer for the six instance-owned
 processors and all seven equalizer banks. A separate Managed processor-marker
 projection combines those raw statuses with the exact topology and each
 viewer's focused bank. JavaScript only presents the published values.
@@ -16,7 +21,7 @@ whose gain exceeds that threshold. The equalizer processor is active when the
 device is not bypassed and at least one bank is active.
 
 Processor changes are published as one revisioned
-`registry_processor_changed` delta. A registry snapshot contains all five
+`registry_processor_changed` delta. A registry snapshot contains all six
 statuses for every instance. The Max registry client applies deltas only when
 the previous revision matches; a gap requests a complete snapshot.
 
@@ -24,7 +29,7 @@ Bank and processor activity are recalculated from state changes. The observer
 publishes only transitions, while registry snapshots use the same activity
 definition.
 
-The five device markers in each registry row are per-instance values and render
+The six device markers in each registry row are per-instance values and render
 the processor `effectActive` status directly. The equalizer row marker is active
 when the instance equalizer is not bypassed and at least one of its banks is
 active, independently of the viewer's focused bank.

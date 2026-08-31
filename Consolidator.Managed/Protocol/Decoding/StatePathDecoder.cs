@@ -112,13 +112,12 @@ internal sealed class StatePathDecoder : IStatePathDecoder
                 continue;
             }
 
-            var leaf = segment == "gain" &&
-                !path.Nodes.Contains(StateNodeIds.Filter) &&
-                (path.Nodes[1] == StateNodeIds.Saturator ||
-                 path.Nodes[1] == StateNodeIds.Compressor)
-                ? StateNodeIds.Output
-                : ToNode(segment);
-            path = path.Append(leaf);
+            if (segment == "gain" && !path.Nodes.Contains(StateNodeIds.Filter))
+            {
+                throw new FormatException("Unknown state path segment: gain.");
+            }
+
+            path = path.Append(ToNode(segment));
             if (position != atoms.Length)
             {
                 throw new FormatException("Unexpected state path segment.");
@@ -182,15 +181,23 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "label" => StateNodeIds.Label,
         "mute" => StateNodeIds.Mute,
         "solo" => StateNodeIds.Solo,
-        "gain" => StateNodeIds.Gain,
+        "level" => StateNodeIds.Level,
+        "target" => StateNodeIds.Target,
+        "width" => StateNodeIds.Width,
+        "leveler" => StateNodeIds.Leveler,
         "drive" => StateNodeIds.Drive,
+        "curve" => StateNodeIds.Curve,
+        "split" => StateNodeIds.Split,
         "output" => StateNodeIds.Output,
-        "mix" => StateNodeIds.Mix,
-        "detector_amount" => StateNodeIds.DetectorAmount,
-        "threshold" => StateNodeIds.Threshold,
-        "ratio" => StateNodeIds.Ratio,
+        "gain" => StateNodeIds.Gain,
         "attack" => StateNodeIds.Attack,
-        "release" => StateNodeIds.Release,
+        "sustain" => StateNodeIds.Sustain,
+        "compression" => StateNodeIds.Compression,
+        "character" => StateNodeIds.Character,
+        "parallel" => StateNodeIds.Parallel,
+        "thick" => StateNodeIds.Thick,
+        "air" => StateNodeIds.Air,
+        "limiter" => StateNodeIds.Limiter,
         "frequency" => StateNodeIds.Frequency,
         "q" => StateNodeIds.Q,
         "bypass" => StateNodeIds.Bypass,
@@ -204,6 +211,7 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "saturator" => StateNodeIds.Saturator,
         "compressor" => StateNodeIds.Compressor,
         "equalizer" => StateNodeIds.Equalizer,
+        "polish" => StateNodeIds.Polish,
         "output_gain" => StateNodeIds.OutputGain,
         _ => throw new FormatException($"Unknown DSP path segment: {value}.")
     };

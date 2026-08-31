@@ -38,6 +38,13 @@ unbounded Native allocation. Decode rejects the wrong marker, non-integral
 atoms, inconsistent lengths, extra/truncated chunks, hidden trailing bytes and
 out-of-range packed values before calling Managed restore.
 
+The current payload is schema `2`. It stores input `level`, `target`, `width`,
+and `leveler`; saturation `drive`, `curve`, `split`, and `output`; compressor
+`attack`, `sustain`, `compression`, enum `character`, `parallel`, and `output`;
+Polish `thick` and `air`; and output `level`, `target`, and `limiter`. The
+previous threshold/ratio/release/mix model is not decoded as a compatibility
+format.
+
 The numeric Blob marker is the only supported Max-side representation. Saved
 development devices created with the former JSON-symbol representation must be
 saved again; Native does not keep a parallel legacy decoder.
@@ -75,6 +82,7 @@ Schema version 1 contains:
 - input and output gain;
 - saturator and detector state;
 - compressor and detector state;
+- input and detector state;
 - equalizer bypass/solo and all filters in all seven banks.
 
 Instance IDs, labels, UI selection, analyzer state, runtime handles, DSP exchange
@@ -88,6 +96,9 @@ buffers and history cursor metadata are not serialized.
 - `parameter_enable` is `3` (`blobonly`) and `parameter_visibility` is `1`
   (`store-only`).
 - Native calls `object_parameter_value_changed` only from its Max-thread qelem.
+- A setter callback re-entered synchronously by that local change notification is
+  ignored. Only a setter invocation outside the notification restores the Managed
+  baseline, so publishing a new Blob cannot replace the active history timeline.
 - Object destruction releases the Max parameter after unregistering Managed
   callbacks.
 

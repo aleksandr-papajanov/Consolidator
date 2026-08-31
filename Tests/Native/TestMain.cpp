@@ -6,6 +6,8 @@ int main()
         consolidator::tests::RunAbiContractTests();
     const auto persistenceBlobSucceeded =
         consolidator::tests::RunPersistenceBlobCodecTests();
+    const auto persistenceRestoreGateSucceeded =
+        consolidator::tests::RunPersistenceRestoreGateTests();
     const auto dspParameterSmootherSucceeded =
         consolidator::tests::RunDspParameterSmootherTests();
     const auto dspStateConsumerSucceeded =
@@ -13,6 +15,7 @@ int main()
 
     if (!abiSucceeded ||
         !persistenceBlobSucceeded ||
+        !persistenceRestoreGateSucceeded ||
         !dspParameterSmootherSucceeded ||
         !dspStateConsumerSucceeded)
     {

@@ -1,5 +1,4 @@
 const PROTOCOL_VERSION = 1;
-
 class NativeProtocolClient
 {
     constructor(source, send)
@@ -30,8 +29,9 @@ class NativeProtocolClient
         if (typeof callback === "function") {
             this.pending[requestId] = callback;
         }
-        this.send([selector, PROTOCOL_VERSION, this.source, requestId]
-            .concat(body || []));
+        let frame = [selector, PROTOCOL_VERSION, this.source, requestId]
+            .concat(body || []);
+        this.send(frame);
         return requestId;
     }
     

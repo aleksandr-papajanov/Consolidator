@@ -6,6 +6,7 @@ const PANEL_IDS = {
     saturator: "saturator-panel",
     compressor: "compressor-panel",
     equalizer: "eq-panel",
+    polish: "polish-panel",
     output: "output-panel"
 };
 
@@ -95,6 +96,11 @@ function compressor()
 function equalizer()
 {
     selectPanel(this.patcher, "equalizer");
+}
+
+function polish()
+{
+    selectPanel(this.patcher, "polish");
 }
 
 function output()

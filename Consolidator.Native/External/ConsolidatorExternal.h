@@ -13,6 +13,7 @@
 #include "DspStateConsumer.h"
 #include "ManagedBridge.h"
 #include "PersistenceBlobCodec.h"
+#include "PersistenceRestoreGate.h"
 #include "SharedDspState.h"
 #include "c74_min_api.h"
 
@@ -137,6 +138,10 @@ public:
                 if (instanceId_ == 0)
                 {
                     return { 0.0 };
+                }
+                if (!persistenceRestoreGate_.ShouldRestore())
+                {
+                    return args;
                 }
 
                 std::vector<double> packed;
@@ -442,6 +447,7 @@ private:
     std::atomic_uint64_t skippedFftFrames_{};
     std::atomic_uint64_t lastDrainMicroseconds_{};
     std::atomic_bool persistenceDirty_{};
+    PersistenceRestoreGate persistenceRestoreGate_;
     bool parameterInitialized_{ false };
 };
 

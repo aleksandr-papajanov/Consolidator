@@ -15,19 +15,19 @@
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
-					"filename" : "Project:/js/Controls/BankManager/BankManagerControl.js",
 					"border" : 0,
+					"filename" : "BankManagerControl.js",
 					"id" : "control",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 0.0, 0.0, 351.0, 169.0 ],
+					"patching_rect" : [ 0.0, 0.0, 671.0, 169.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 351.0, 169.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 806.0, 169.0 ],
 					"textfile" : 					{
-						"filename" : "Project:/js/Controls/BankManager/BankManagerControl.js",
+						"filename" : "BankManagerControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -52,7 +52,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/PanelBindingHostV8.js",
+					"filename" : "PanelBindingHostV8.js",
 					"id" : "router",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -64,7 +64,7 @@
 ,
 					"text" : "v8 Project:/js/PanelBindingHostV8.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/PanelBindingHostV8.js",
+						"filename" : "PanelBindingHostV8.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -99,6 +99,7 @@
 			}
 , 			{
 				"box" : 				{
+					"comment" : "",
 					"id" : "out",
 					"index" : 1,
 					"maxclass" : "outlet",
@@ -111,15 +112,15 @@
  ],
 		"lines" : [ 			{
 				"patchline" : 				{
-					"destination" : [ "prefix", 0 ],
-					"source" : [ "control", 0 ]
+					"destination" : [ "panel-out", 0 ],
+					"source" : [ "control", 1 ]
 				}
 
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "panel-out", 0 ],
-					"source" : [ "control", 1 ]
+					"destination" : [ "prefix", 0 ],
+					"source" : [ "control", 0 ]
 				}
 
 			}

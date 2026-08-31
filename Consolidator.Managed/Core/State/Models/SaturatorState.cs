@@ -20,6 +20,19 @@ public sealed class SaturatorState
             StateValueEditMode.ApplyDelta,
             DspParameterRanges.Drive,
             [new StateProjectionObserver<float>(value => runtime.SaturatorDrive = value)]);
+        Curve = values.CreateValue(
+            instanceId,
+            path.Append(StateNodeIds.Curve),
+            0.5F,
+            StateValueEditMode.ApplyDelta,
+            DspParameterRanges.Curve,
+            [new StateProjectionObserver<float>(value => runtime.SaturatorCurve = value)]);
+        Split = values.CreateValue(
+            instanceId,
+            path.Append(StateNodeIds.Split),
+            false,
+            StateValueEditMode.CopyValue,
+            observers: [new StateProjectionObserver<bool>(value => runtime.SaturatorSplit = value)]);
         OutputDb = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Output),
@@ -27,20 +40,6 @@ public sealed class SaturatorState
             StateValueEditMode.ApplyDelta,
             DspParameterRanges.OutputDb,
             [new StateProjectionObserver<float>(value => runtime.SaturatorOutputDb = value)]);
-        Mix = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Mix),
-            1.0F,
-            StateValueEditMode.ApplyDelta,
-            DspParameterRanges.Mix,
-            [new StateProjectionObserver<float>(value => runtime.SaturatorMix = value)]);
-        DetectorAmount = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.DetectorAmount),
-            1.0F,
-            StateValueEditMode.ApplyDelta,
-            DspParameterRanges.DetectorAmount,
-            [new StateProjectionObserver<float>(value => runtime.SaturatorDetectorAmount = value)]);
         Bypass = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Bypass),
@@ -62,16 +61,17 @@ public sealed class SaturatorState
             path.Append(StateNodeIds.Detector),
             values,
             value => runtime.SaturatorListen = value,
-            (index, active) => runtime.SetDetectorFilterActive(index, active));
+            (index, active) => runtime.SetDetectorFilterActive(
+                DspConstants.DetectorFilterCount + index, active));
     }
 
     public StateValue<float> Drive { get; }
 
+    public StateValue<float> Curve { get; }
+
+    public StateValue<bool> Split { get; }
+
     public StateValue<float> OutputDb { get; }
-
-    public StateValue<float> Mix { get; }
-
-    public StateValue<float> DetectorAmount { get; }
 
     public StateValue<bool> Bypass { get; }
 

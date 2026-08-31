@@ -12,13 +12,13 @@ public sealed unsafe class NativeBoundaryContractTests
     public void AbiLayoutAndAtomDecodingMatchTheNativeContract()
     {
         Assert.Equal(16, Marshal.SizeOf<NativeAtom>());
-        Assert.Equal(352, Marshal.SizeOf<DspSnapshot>());
-        Assert.Equal(1064, Marshal.SizeOf<SharedDspExchange>());
+        Assert.Equal(388, Marshal.SizeOf<DspSnapshot>());
+        Assert.Equal(1172, Marshal.SizeOf<SharedDspExchange>());
         Assert.Equal(
-            1056,
+            1164,
             Marshal.OffsetOf<SharedDspExchange>(nameof(SharedDspExchange.PublishedIndex)).ToInt32());
         Assert.Equal(
-            1060,
+            1168,
             Marshal.OffsetOf<SharedDspExchange>(nameof(SharedDspExchange.ConsumerIndex)).ToInt32());
 
         var symbol = Marshal.StringToCoTaskMemUTF8("ready");

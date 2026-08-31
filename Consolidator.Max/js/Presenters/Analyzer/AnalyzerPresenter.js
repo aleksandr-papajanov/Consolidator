@@ -745,8 +745,21 @@ class AnalyzerPresenter extends PresentationObservable
         this.requestRebuild();
     }
 
-    commitPreview(id, transactionId, callback)
+    commitPreview(id, x, y, transactionId, callback)
     {
+        if (isFinite(Number(x)) && isFinite(Number(y))) {
+            let parameter = (this.options.parameters || [])[Number(id) - 1];
+            if (parameter && parameter.gain && this.ready) {
+                let gain = this.clampParameterValue(
+                    parameter.gain, this.yToGain(y));
+                let preview = { gain: gain };
+                if (parameter.frequency) {
+                    preview.frequency = this.clampParameterValue(
+                        parameter.frequency, this.xToFrequency(x));
+                }
+                this.curvePreview[Number(id)] = preview;
+            }
+        }
         let preview = this.curvePreview[Number(id)];
         let parameter = (this.options.parameters || [])[Number(id) - 1];
         if (!preview || preview.gain === undefined || !parameter ||

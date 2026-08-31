@@ -4,23 +4,27 @@ public unsafe sealed class DspRuntimeState
 {
     private DspSnapshot _snapshot = new()
     {
-        Gain = 1.0F,
-        SaturatorMix = 1.0F,
-        SaturatorDetectorAmount = 1.0F,
-        CompressorThresholdDb = -24.0F,
-        CompressorRatio = 4.0F,
-        CompressorAttackMs = 10.0F,
-        CompressorReleaseMs = 100.0F,
-        CompressorMix = 1.0F
+        InputLevel = 0.0F,
+        InputTarget = -18.0F,
+        InputWidth = 100.0F,
+        SaturatorCurve = 0.5F,
+        CompressorAttack = 0.5F,
+        CompressorSustain = 0.5F,
+        CompressorCompression = 0.5F,
+        OutputTarget = -1.0F
     };
 
     public DspSnapshot Snapshot => _snapshot;
 
-    public float Gain
+    public float InputLevel
     {
-        get => _snapshot.Gain;
-        set => _snapshot.Gain = value;
+        get => _snapshot.InputLevel;
+        set => _snapshot.InputLevel = value;
     }
+
+    public float InputTarget { get => _snapshot.InputTarget; set => _snapshot.InputTarget = value; }
+    public float InputWidth { get => _snapshot.InputWidth; set => _snapshot.InputWidth = value; }
+    public bool InputLeveler { get => _snapshot.InputLeveler != 0; set => _snapshot.InputLeveler = value ? 1U : 0U; }
 
     public bool InputGainBypass
     {
@@ -40,17 +44,12 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.SaturatorOutputDb = value;
     }
 
-    public float SaturatorMix
+    public float SaturatorCurve
     {
-        get => _snapshot.SaturatorMix;
-        set => _snapshot.SaturatorMix = value;
+        get => _snapshot.SaturatorCurve;
+        set => _snapshot.SaturatorCurve = value;
     }
-
-    public float SaturatorDetectorAmount
-    {
-        get => _snapshot.SaturatorDetectorAmount;
-        set => _snapshot.SaturatorDetectorAmount = value;
-    }
+    public bool SaturatorSplit { get => _snapshot.SaturatorSplit != 0; set => _snapshot.SaturatorSplit = value ? 1U : 0U; }
 
     public bool SaturatorBypass
     {
@@ -64,29 +63,15 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.SaturatorSolo = value ? 1U : 0U;
     }
 
-    public float CompressorThresholdDb
+    public float CompressorAttack
     {
-        get => _snapshot.CompressorThresholdDb;
-        set => _snapshot.CompressorThresholdDb = value;
+        get => _snapshot.CompressorAttack;
+        set => _snapshot.CompressorAttack = value;
     }
-
-    public float CompressorRatio
-    {
-        get => _snapshot.CompressorRatio;
-        set => _snapshot.CompressorRatio = value;
-    }
-
-    public float CompressorAttackMs
-    {
-        get => _snapshot.CompressorAttackMs;
-        set => _snapshot.CompressorAttackMs = value;
-    }
-
-    public float CompressorReleaseMs
-    {
-        get => _snapshot.CompressorReleaseMs;
-        set => _snapshot.CompressorReleaseMs = value;
-    }
+    public float CompressorSustain { get => _snapshot.CompressorSustain; set => _snapshot.CompressorSustain = value; }
+    public float CompressorCompression { get => _snapshot.CompressorCompression; set => _snapshot.CompressorCompression = value; }
+    public int CompressorCharacter { get => (int)_snapshot.CompressorCharacter; set => _snapshot.CompressorCharacter = (uint)value; }
+    public bool CompressorParallel { get => _snapshot.CompressorParallel != 0; set => _snapshot.CompressorParallel = value ? 1U : 0U; }
 
     public float CompressorOutputDb
     {
@@ -94,11 +79,10 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.CompressorOutputDb = value;
     }
 
-    public float CompressorMix
-    {
-        get => _snapshot.CompressorMix;
-        set => _snapshot.CompressorMix = value;
-    }
+    public float PolishThick { get => _snapshot.PolishThick; set => _snapshot.PolishThick = value; }
+    public float PolishAir { get => _snapshot.PolishAir; set => _snapshot.PolishAir = value; }
+    public bool PolishBypass { get => _snapshot.PolishBypass != 0; set => _snapshot.PolishBypass = value ? 1U : 0U; }
+    public bool PolishSolo { get => _snapshot.PolishSolo != 0; set => _snapshot.PolishSolo = value ? 1U : 0U; }
 
     public bool CompressorBypass
     {
@@ -124,11 +108,13 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.EqualizerSolo = value ? 1U : 0U;
     }
 
-    public float OutputGain
+    public float OutputLevel
     {
-        get => _snapshot.OutputGain;
-        set => _snapshot.OutputGain = value;
+        get => _snapshot.OutputLevel;
+        set => _snapshot.OutputLevel = value;
     }
+    public float OutputTarget { get => _snapshot.OutputTarget; set => _snapshot.OutputTarget = value; }
+    public bool OutputLimiter { get => _snapshot.OutputLimiter != 0; set => _snapshot.OutputLimiter = value ? 1U : 0U; }
 
     public bool OutputGainBypass
     {
@@ -172,6 +158,12 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.SaturatorListen = value ? 1U : 0U;
     }
 
+    public bool InputListen
+    {
+        get => _snapshot.InputListen != 0;
+        set => _snapshot.InputListen = value ? 1U : 0U;
+    }
+
     public bool CompressorListen
     {
         get => _snapshot.CompressorListen != 0;
@@ -211,7 +203,7 @@ public unsafe sealed class DspRuntimeState
 
     public void SetDetectorFilterActive(int index, bool active)
     {
-        if ((uint)index >= 4)
+        if ((uint)index >= 6)
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }

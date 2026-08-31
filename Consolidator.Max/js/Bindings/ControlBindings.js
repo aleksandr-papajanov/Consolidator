@@ -1,5 +1,6 @@
 const { DialControlBinding } = require("./DialControlBinding.js");
 const { ButtonControlBinding } = require("./ButtonControlBinding.js");
+const { MultiValueToggleControlBinding } = require("./MultiValueToggleControlBinding.js");
 const { AnalyzerControlBinding } = require("./AnalyzerControlBinding.js");
 const { BankManagerControlBinding } = require("./BankManagerControlBinding.js");
 
@@ -67,4 +68,3 @@ class ControlBindings
 module.exports = {
     ControlBindings: ControlBindings
 };
-

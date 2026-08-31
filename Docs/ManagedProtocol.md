@@ -228,7 +228,7 @@ registry snapshots.
 `initialize` returns the external's managed instance ID and transient UI context.
 The default context is `equalizer`. `observe_target` receives
 `targetInstanceId`, `bankId` and one strict context symbol (`input`, `saturator`,
-`compressor`, `equalizer` or `output`), then atomically records the UI context
+`compressor`, `equalizer`, `polish` or `output`), then atomically records the UI context
 and target before returning one `target_state_snapshot` frame containing the
 target identity, bank, context, entry count, and each relative path
 with its value and physical/effective ranges. A successful frame implies

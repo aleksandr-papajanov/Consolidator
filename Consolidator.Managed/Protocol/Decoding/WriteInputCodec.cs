@@ -108,7 +108,11 @@ internal sealed class WriteInputCodec : IInputCodec
         if (node == StateNodeIds.Mute
             || node == StateNodeIds.Solo
             || node == StateNodeIds.Bypass
-            || node == StateNodeIds.Listen)
+            || node == StateNodeIds.Listen
+            || node == StateNodeIds.Leveler
+            || node == StateNodeIds.Split
+            || node == StateNodeIds.Parallel
+            || node == StateNodeIds.Limiter)
         {
             return new DecodedValue(ReadBoolean(atom), typeof(bool));
         }
@@ -116,6 +120,16 @@ internal sealed class WriteInputCodec : IInputCodec
         if (node == StateNodeIds.Group)
         {
             return new DecodedValue(ReadGroup(atom), typeof(GroupId?));
+        }
+
+        if (node == StateNodeIds.Character)
+        {
+            if (atom.Type != AtomType.Integer || atom.Integer is < 0 or > 2)
+            {
+                throw new FormatException("Expected a compressor character value.");
+            }
+
+            return new DecodedValue((int)atom.Integer, typeof(int));
         }
 
         return new DecodedValue(ReadFloat(atom), typeof(float));

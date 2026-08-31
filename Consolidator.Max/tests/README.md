@@ -6,6 +6,7 @@ tests/
 ├─ suites/client/
 │  ├─ UiProtocolTests.js             JS → wire frame → JS response
 │  ├─ UiBindingTests.js              UI intent and presentation use cases
+│  ├─ MultiValueToggleTests.js       multi-value control intent and presentation
 │  ├─ RegistryAndBankManagerTests.js registry and topology workflows
 │  ├─ LiveInstanceHostTests.js       Live identity/activity lifecycle
 │  ├─ RuntimePathTests.js             complete Max package contract

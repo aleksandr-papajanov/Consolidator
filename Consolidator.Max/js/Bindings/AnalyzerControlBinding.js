@@ -86,6 +86,27 @@ class AnalyzerControlBinding extends ControlBinding
         this.sendCurve("combined", this.presenter.combinedCurve);
         this.sendCurve("all_banks", this.presenter.allBanksCurve);
     }
+
+    suspend()
+    {
+        super.suspend();
+        this.cancelInteraction();
+    }
+
+    cancelInteraction()
+    {
+        if (this.controller) {
+            this.controller.handle(
+                "gestureEnded", [], this.activeTransactionId);
+        }
+        this.gestureActive = false;
+        if (this.transactions && this.activeTransactionId !== null &&
+                this.transactionReady) {
+            this.transactions.end(this.activeTransactionId);
+        }
+        this.clearTransaction();
+        this.send("interactionReset");
+    }
     
     sendCurve(name, curve, id)
     {
@@ -122,6 +143,9 @@ class AnalyzerControlBinding extends ControlBinding
         }
         if (name === "filterMoved") {
             this.lastMove = values.slice(0);
+            if (this.activeTransactionId !== null && !this.transactionReady) {
+                return;
+            }
         }
         this.controller.handle(name, values, this.activeTransactionId);
     }
@@ -152,6 +176,10 @@ class AnalyzerControlBinding extends ControlBinding
             return;
         }
         this.transactionReady = true;
+        if (this.lastMove) {
+            this.controller.handle(
+                "filterMoved", this.lastMove, id);
+        }
         if (this.pendingEnd) {
             this.commitAndFinish();
         }
@@ -167,14 +195,18 @@ class AnalyzerControlBinding extends ControlBinding
         let transactionId = this.activeTransactionId;
         this.controller.handle(
             "filterCommit",
-            [this.lastMove[0]],
+            this.lastMove.slice(0),
             transactionId,
             (response) => {
-                if (!response || response.error || response.status !== "accepted") {
+                const failed = !response || response.error ||
+                    response.status !== "accepted";
+                const mayResetInteraction = this.activeTransactionId === null ||
+                    this.activeTransactionId === transactionId;
+                if (failed && mayResetInteraction) {
                     this.send("transactionRejected");
                 }
-                this.finishTransaction();
             });
+        this.finishTransaction();
     }
     
     finishTransaction()

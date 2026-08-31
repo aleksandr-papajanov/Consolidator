@@ -76,7 +76,7 @@ function testObservedEqualizerPathsAreExpandedForWrites() {
   target.target = { instanceId: "8", bankId: 3 };
     target.set("equalizer.filter.2.gain", 4.5);
     assert.deepStrictEqual(frames[0], [
-      "write", 1, "ui", "1", "group", "0", 1,
+      "write", 1, "ui", "1", "local", "0", 1,
       "entry", "equalizer", "bank", "filter", 2, "gain", "value", 4.5,
     ]);
 }
@@ -156,7 +156,7 @@ function testWriteWithCallbackIsNotEligibleForGestureCoalescing() {
     response = value;
   }, 42);
 
-  assert.strictEqual(frames[0][4], "group");
+  assert.strictEqual(frames[0][4], "local");
   assert.strictEqual(frames[0][5], "0");
   assert.deepStrictEqual(Object.keys(protocol.pending), ["1"]);
   protocol.handleControl("action_done", [1, "ui", "1", 1]);
