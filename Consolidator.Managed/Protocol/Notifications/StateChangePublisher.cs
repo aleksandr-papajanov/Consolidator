@@ -1,4 +1,5 @@
 using Consolidator.Managed.Core.Services.Abstractions;
+using Consolidator.Managed.Core.Services.Persistence;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Protocol.Encoding;
@@ -15,6 +16,7 @@ internal sealed class StateChangePublisher : IStateChangeSink
     private readonly StateValueMetadataRegistry _metadata;
     private readonly TopologyIndex _topology;
     private readonly RegistryChangePublisher _registryChanges;
+    private readonly PersistenceChangePublisher _persistenceChanges;
 
     public StateChangePublisher(
         IPresentationTransport transport,
@@ -22,7 +24,8 @@ internal sealed class StateChangePublisher : IStateChangeSink
         IManagedLogger logger,
         StateValueMetadataRegistry metadata,
         TopologyIndex topology,
-        RegistryChangePublisher registryChanges)
+        RegistryChangePublisher registryChanges,
+        PersistenceChangePublisher persistenceChanges)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(router);
@@ -34,11 +37,14 @@ internal sealed class StateChangePublisher : IStateChangeSink
         _metadata = metadata;
         _topology = topology;
         _registryChanges = registryChanges;
+        _persistenceChanges = persistenceChanges;
     }
 
     public void Publish(StateValueChanged change)
     {
         ArgumentNullException.ThrowIfNull(change);
+
+        _persistenceChanges.Publish(change);
 
         try
         {
@@ -98,8 +104,8 @@ internal sealed class StateChangePublisher : IStateChangeSink
     }
 
     private static bool IsInstanceValue(
-        Consolidator.Managed.State.StatePath path,
-        Consolidator.Managed.State.Tree.NodeId node)
+        State.StatePath path,
+        State.Tree.NodeId node)
     {
         return path.Nodes.Count == 2 &&
             path.Nodes[0] == StateNodeIds.Instance &&

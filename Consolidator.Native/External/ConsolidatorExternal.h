@@ -1,7 +1,7 @@
 #pragma once
 
-#include <deque>
 #include <atomic>
+#include <deque>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -12,6 +12,7 @@
 #include "DspParameterSmoother.h"
 #include "DspStateConsumer.h"
 #include "ManagedBridge.h"
+#include "PersistenceBlobCodec.h"
 #include "SharedDspState.h"
 #include "c74_min_api.h"
 
@@ -96,6 +97,87 @@ public:
         this,
         "Reference right.",
         "signal"
+    };
+
+    c74::min::attribute<c74::min::numbers> value{
+        this,
+        "value",
+        c74::min::numbers{ 0.0 },
+        c74::min::getter {
+            [this]() -> c74::min::atoms
+            {
+                const auto snapshot = managed_.CapturePersistence(instanceId_);
+                const auto encoded = PersistenceBlobCodec::Encode(snapshot);
+                if (!encoded)
+                {
+                    return { 0.0 };
+                }
+
+                c74::min::atoms result;
+                result.reserve(encoded->size());
+                for (const auto atom : *encoded)
+                {
+                    result.emplace_back(atom);
+                }
+                return result;
+            }
+        },
+        c74::min::setter {
+            MIN_FUNCTION
+            {
+                const auto isInitialValue = args.size() == 1 &&
+                    ((args[0].a_type == c74::max::A_FLOAT &&
+                        static_cast<double>(args[0]) == 0.0) ||
+                    (args[0].a_type == c74::max::A_LONG &&
+                        static_cast<c74::max::t_atom_long>(args[0]) == 0));
+                if (isInitialValue)
+                {
+                    return { 0.0 };
+                }
+                if (instanceId_ == 0)
+                {
+                    return { 0.0 };
+                }
+
+                std::vector<double> packed;
+                packed.reserve(args.size());
+                for (const auto& atom : args)
+                {
+                    if (atom.a_type == c74::max::A_LONG)
+                    {
+                        packed.push_back(
+                            static_cast<double>(
+                                static_cast<c74::max::t_atom_long>(atom)));
+                        continue;
+                    }
+                    if (atom.a_type != c74::max::A_FLOAT)
+                    {
+                        return { 0.0 };
+                    }
+
+                    packed.push_back(static_cast<double>(atom));
+                }
+
+                const auto payload = PersistenceBlobCodec::Decode(packed);
+                if (!payload)
+                {
+                    return { 0.0 };
+                }
+
+                if (!managed_.RestorePersistence(
+                        instanceId_,
+                        payload->data(),
+                        payload->size()))
+                {
+                    return { 0.0 };
+                }
+
+                persistenceDirty_.store(
+                    false,
+                    std::memory_order_relaxed);
+                return args;
+            }
+        }
     };
 
     //
@@ -274,6 +356,22 @@ public:
         }
     };
 
+    c74::min::message<> maxclassSetup{
+        this,
+        "maxclass_setup",
+        MIN_FUNCTION
+        {
+            if (args.empty())
+            {
+                return {};
+            }
+
+            auto* maxClass = static_cast<c74::max::t_class*>(args[0]);
+            c74::max::class_parameter_init(maxClass);
+            return {};
+        }
+    };
+
     ConsolidatorExternal();
     ~ConsolidatorExternal();
 
@@ -343,6 +441,8 @@ private:
     std::atomic_uint64_t replacedFftFrames_{};
     std::atomic_uint64_t skippedFftFrames_{};
     std::atomic_uint64_t lastDrainMicroseconds_{};
+    std::atomic_bool persistenceDirty_{};
+    bool parameterInitialized_{ false };
 };
 
 } // namespace consolidator::max

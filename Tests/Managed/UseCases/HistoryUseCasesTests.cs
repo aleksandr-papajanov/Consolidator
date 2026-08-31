@@ -4,6 +4,7 @@ using System.Linq;
 using Consolidator.Managed.Tests.Support;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
+using Consolidator.Managed.State.Observers;
 using Consolidator.Managed.State.Tree;
 using Xunit;
 
@@ -41,6 +42,60 @@ public sealed class HistoryUseCasesTests
 
         Assert.True(history.JumpToHistory(1));
         Assert.Equal("Track", value.Value);
+    }
+
+    [Fact]
+    public void BaselineReplacesEveryHistorySlotWhenCurrentValueAlreadyMatches()
+    {
+        var history = new StateHistory();
+        var registry = new StateRegistry<string>(history);
+        registry.CreateRoot("instance");
+        var value = registry.CreateValue(
+            "instance",
+            new StatePath([new NodeId(1)]),
+            0);
+
+        history.AdvanceHistoryPoint();
+        value.Value = 1;
+        history.AdvanceHistoryPoint();
+        value.Value = 2;
+        Assert.True(history.JumpToHistory(1));
+        Assert.Equal(1, value.Value);
+
+        using (var transaction = history.BeginTransaction())
+        {
+            value.PrepareBaseline(1, transaction);
+            transaction.Commit();
+        }
+
+        Assert.True(history.JumpToHistory(0));
+        Assert.Equal(1, value.Value);
+        Assert.True(history.JumpToHistory(2));
+        Assert.Equal(1, value.Value);
+    }
+
+    [Fact]
+    public void ObserverFailureDoesNotRollbackCommittedStorage()
+    {
+        var history = new StateHistory();
+        var registry = new StateRegistry<string>(history);
+        registry.CreateRoot("instance");
+        var value = registry.CreateValue(
+            "instance",
+            new StatePath([new NodeId(1)]),
+            0,
+            new ThrowingObserver());
+
+        using var transaction = history.BeginTransaction();
+        value.Prepare(1, transaction);
+
+        Assert.Throws<InvalidOperationException>(transaction.Commit);
+        Assert.Equal(1, value.Value);
+
+        using var nextTransaction = history.BeginTransaction();
+        value.Prepare(2, nextTransaction);
+        Assert.Throws<InvalidOperationException>(nextTransaction.Commit);
+        Assert.Equal(2, value.Value);
     }
 
     [Fact]
@@ -143,6 +198,25 @@ public sealed class HistoryUseCasesTests
         }
 
         public void ApplySlot(int slot)
+        {
+        }
+    }
+
+    private sealed class ThrowingObserver : IStateValueObserver<int>
+    {
+        public void Attach(StateValue<int> value)
+        {
+        }
+
+        public void ValueChanged(
+            StateValue<int> value,
+            int previousValue,
+            int currentValue)
+        {
+            throw new InvalidOperationException("Observer failed.");
+        }
+
+        public void Detach(StateValue<int> value)
         {
         }
     }

@@ -106,6 +106,7 @@
     <ClCompile Include="External\DspParameterSmoother.cpp" />
     <ClCompile Include="External\DspStateConsumer.cpp" />
     <ClCompile Include="External\ManagedBridge.cpp" />
+    <ClCompile Include="External\PersistenceBlobCodec.cpp" />
     <ClCompile Include="External\MinApiImplementation.cpp" />
   </ItemGroup>
   <!-- Headers -->
@@ -116,6 +117,7 @@
     <ClInclude Include="External\DspStateConsumer.h" />
     <ClInclude Include="External\ManagedBridge.h" />
     <ClInclude Include="External\ManagedInterop.h" />
+    <ClInclude Include="External\PersistenceBlobCodec.h" />
     <ClInclude Include="External\SharedDspState.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

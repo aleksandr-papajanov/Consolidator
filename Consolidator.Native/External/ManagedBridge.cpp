@@ -4,6 +4,7 @@
 #undef SendMessage
 
 #include <cstring>
+#include <memory>
 #include <mutex>
 
 #include "c74_min_api.h"
@@ -112,6 +113,10 @@ private:
 
     using ShutdownFn = void (__cdecl *)();
 
+    ManagedCapturePersistence capturePersistence{};
+    ManagedFreePersistence freePersistence{};
+    ManagedRestorePersistence restorePersistence{};
+
     HMODULE library{};
     RegisterInstanceFn registerInstance{};
     UnregisterInstanceFn unregisterInstance{};
@@ -155,6 +160,12 @@ bool ManagedRuntime::Load() noexcept
         GetProcAddress(library, "ConsolidatorSendAudio"));
     shutdown = reinterpret_cast<ShutdownFn>(
         GetProcAddress(library, "ConsolidatorShutdown"));
+    capturePersistence = reinterpret_cast<ManagedCapturePersistence>(
+        GetProcAddress(library, "ConsolidatorCapturePersistence"));
+    freePersistence = reinterpret_cast<ManagedFreePersistence>(
+        GetProcAddress(library, "ConsolidatorFreePersistence"));
+    restorePersistence = reinterpret_cast<ManagedRestorePersistence>(
+        GetProcAddress(library, "ConsolidatorRestorePersistence"));
 
     return IsLoaded();
 }
@@ -187,7 +198,10 @@ bool ManagedRuntime::IsLoaded() const noexcept
            sendMessage &&
            prepare &&
            sendAudio &&
-           shutdown;
+           shutdown &&
+           capturePersistence &&
+           freePersistence &&
+           restorePersistence;
 }
 
 ManagedRuntime& GetManagedRuntime()
@@ -327,6 +341,54 @@ void ManagedBridge::SendAudio(
         referenceLeft,
         referenceRight,
         frameCount);
+}
+
+std::string ManagedBridge::CapturePersistence(InstanceId instanceId) const
+{
+    const auto* runtime = implementation_->runtime;
+    if (!runtime->IsLoaded())
+    {
+        return {};
+    }
+
+    char* data = nullptr;
+    std::size_t length = 0;
+    if (runtime->capturePersistence(instanceId, &data, &length) == 0)
+    {
+        return {};
+    }
+
+    if (data == nullptr || length == 0)
+    {
+        if (data != nullptr)
+        {
+            runtime->freePersistence(data);
+        }
+        return {};
+    }
+
+    const auto deleter = [freePersistence = runtime->freePersistence](char* pointer)
+    {
+        if (pointer != nullptr)
+        {
+            freePersistence(pointer);
+        }
+    };
+    std::unique_ptr<char, decltype(deleter)> owner(data, deleter);
+    auto result = std::string(owner.get(), length);
+    return result;
+}
+
+bool ManagedBridge::RestorePersistence(
+    InstanceId instanceId,
+    const char* data,
+    std::size_t length) const
+{
+    const auto* runtime = implementation_->runtime;
+    const auto result = runtime->IsLoaded() &&
+        data != nullptr &&
+        runtime->restorePersistence(instanceId, data, length) != 0;
+    return result;
 }
 
 } // namespace consolidator::max

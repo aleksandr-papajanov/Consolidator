@@ -12,6 +12,8 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
     private TValue _pendingValue = default!;
     private TValue _previousValue = default!;
     private StateHistoryTransaction? _pendingTransaction;
+    private TValue[]? _pendingBaselineValues;
+    private int _pendingBaselineSlot;
     private Action<TValue>? _mutationHandler;
     private Action<TValue, StateHistoryTransaction>? _mutationPreparationHandler;
     private Func<StateHistoryTransaction, int>? _resetPreparationHandler;
@@ -176,6 +178,63 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
         Prepare(value, transaction);
     }
 
+    internal void PrepareBaseline(TValue value, StateHistoryTransaction transaction)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (_pendingTransaction is not null)
+        {
+            throw new InvalidOperationException(
+                "The state value already belongs to a transaction.");
+        }
+
+        var previousValue = Value;
+        var comparer = EqualityComparer<TValue>.Default;
+        var baselineAlreadyApplied = true;
+        foreach (var existingValue in _values)
+        {
+            if (!comparer.Equals(existingValue, value))
+            {
+                baselineAlreadyApplied = false;
+                break;
+            }
+        }
+
+        if (baselineAlreadyApplied)
+        {
+            return;
+        }
+
+        _pendingBaselineValues = (TValue[])_values.Clone();
+        _pendingBaselineSlot = _currentSlot;
+        _pendingTransaction = transaction;
+        transaction.Add(new BaselineTransactionEntry(this, value));
+        if (!comparer.Equals(previousValue, value))
+        {
+            transaction.AddCommittedChange(() =>
+                NotifyObservers(previousValue, value));
+        }
+    }
+
+    private void CommitBaseline(TValue value)
+    {
+        Array.Fill(_values, value);
+        _previousSlotValue = value;
+    }
+
+    private void RollbackBaseline()
+    {
+        if (_pendingBaselineValues is null)
+        {
+            return;
+        }
+        Array.Copy(_pendingBaselineValues, _values, _values.Length);
+        _currentSlot = _pendingBaselineSlot;
+        _previousSlotValue = _values[_currentSlot];
+        _pendingBaselineValues = null;
+        _pendingTransaction = null;
+    }
+
     internal void SetMutationHandler(
         Action<TValue> mutationHandler,
         Action<TValue, StateHistoryTransaction> mutationPreparationHandler)
@@ -258,6 +317,34 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
 
         public void Complete()
         {
+            _value._pendingTransaction = null;
+        }
+    }
+
+    private sealed class BaselineTransactionEntry : IStateTransactionEntry
+    {
+        private readonly StateValue<TValue> _value;
+        private readonly TValue _pendingValue;
+
+        public BaselineTransactionEntry(StateValue<TValue> value, TValue pendingValue)
+        {
+            _value = value;
+            _pendingValue = pendingValue;
+        }
+
+        public void Commit()
+        {
+            _value.CommitBaseline(_pendingValue);
+        }
+
+        public void Rollback()
+        {
+            _value.RollbackBaseline();
+        }
+
+        public void Complete()
+        {
+            _value._pendingBaselineValues = null;
             _value._pendingTransaction = null;
         }
     }

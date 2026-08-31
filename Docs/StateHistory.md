@@ -216,6 +216,12 @@ observer event is emitted. Protocol delivery failures are caught by
 `StateChangePublisher` and cannot turn a committed state operation into a
 failed mutation.
 
+A persistence restore uses the same transaction mechanism but replaces every
+slot of each persisted value with one validated baseline. Slots are replaced
+even when the active slot already equals the restored value; observers still
+receive only effective active-value changes. This prevents later history
+navigation from exposing values that predate the loaded snapshot.
+
 Root removal disposes its values while the shared operation gate is still held.
 This unregisters them from `StateHistory` and observer registries before another
 control operation can begin. Managed publisher and command-gate disposal may

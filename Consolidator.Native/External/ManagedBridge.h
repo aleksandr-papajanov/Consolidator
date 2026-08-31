@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "ManagedInterop.h"
 
@@ -46,6 +47,9 @@ public:
         const double* referenceLeft,
         const double* referenceRight,
         std::size_t frameCount) const;
+
+    [[nodiscard]] std::string CapturePersistence(InstanceId instanceId) const;
+    bool RestorePersistence(InstanceId instanceId, const char* data, std::size_t length) const;
 
 private:
     struct Implementation;

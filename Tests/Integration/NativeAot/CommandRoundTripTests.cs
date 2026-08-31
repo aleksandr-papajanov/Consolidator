@@ -1,3 +1,5 @@
+using System.Linq;
+
 using Consolidator.Integration.Tests.Support;
 using Xunit;
 
@@ -83,6 +85,20 @@ public sealed class CommandRoundTripTests
         var response = instance.Single("state_done");
         Assert.Equal("102", response.Atoms[2].SymbolValue);
         Assert.Equal(5.5, response.Atoms[^1].FloatValue);
+    }
+
+    [Fact]
+    public void PersistenceExportsRoundTripCommittedStateAcrossTheNativeBoundary()
+    {
+        using var instance = _library.Register();
+        WriteInputGain(instance, 5.5, "150");
+        var payload = _library.CapturePersistence(instance);
+        WriteInputGain(instance, 1.0, "151");
+        Assert.Equal(1.0, ReadInputGain(instance, "152"));
+
+        Assert.True(_library.RestorePersistence(instance, payload));
+
+        Assert.Equal(5.5, ReadInputGain(instance, "153"));
     }
 
     [Fact]
@@ -284,6 +300,54 @@ public sealed class CommandRoundTripTests
             Symbol("value"),
             Integer(group));
         source.WaitForResponse(requestId);
+    }
+
+    private void WriteInputGain(
+        NativeInstance instance,
+        double gain,
+        string requestId)
+    {
+        instance.ClearFrames();
+        _library.Send(
+            instance,
+            "write",
+            Integer(1),
+            Symbol("ui"),
+            Symbol(requestId),
+            Symbol("local"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("input_gain"),
+            Symbol("gain"),
+            Symbol("value"),
+            Float(gain));
+        instance.WaitForResponse(requestId);
+        var error = instance.Frames.SingleOrDefault(
+            frame => frame.Selector == "error");
+        Assert.True(
+            error is null,
+            error?.Atoms[^1].SymbolValue);
+        instance.Single("action_done");
+    }
+
+    private double ReadInputGain(
+        NativeInstance instance,
+        string requestId)
+    {
+        instance.ClearFrames();
+        _library.Send(
+            instance,
+            "read",
+            Integer(1),
+            Symbol("ui"),
+            Symbol(requestId),
+            Integer(1),
+            Symbol("query"),
+            Symbol("input_gain"),
+            Symbol("gain"));
+        instance.WaitForResponse(requestId);
+        return instance.Single("state_done").Atoms[^1].FloatValue;
     }
 
     private void SendFilterGain(

@@ -124,6 +124,9 @@ The exported native entry points use the C calling convention:
 - `ConsolidatorSendMessage`
 - `ConsolidatorPrepare`
 - `ConsolidatorSendAudio`
+- `ConsolidatorCapturePersistence`
+- `ConsolidatorFreePersistence`
+- `ConsolidatorRestorePersistence`
 
 Every `[UnmanagedCallersOnly]` entrypoint catches exceptions before returning to
 native code. Registration returns `0` after a boundary failure; control-path
@@ -442,6 +445,19 @@ callback with its own native lifetime.
 
 The native destructor calls `UnregisterInstance` before destroying the external, then clears `instanceId_` and unsets the qelem. This makes the native `this` context valid until the managed callback barrier has completed.
 `UnregisterInstance` takes only the `InstanceId`; Managed uses its instance-to-audio-handle ownership to release the audio handle after the instance has stopped.
+
+## Persistence boundary
+
+The three persistence exports transfer a versioned UTF-8 snapshot. Capture
+returns caller-owned memory that remains valid after the export returns; Native
+must release it exactly once through `ConsolidatorFreePersistence`. Restore
+borrows its input only for the duration of the call and copies it before the
+barrier is queued.
+
+The Max Blob parameter, dirty-state notification, schema contents, validation,
+history baseline and parameter lifecycle are specified in
+[`Persistence.md`](Persistence.md).
+
 Before `UnregisterInstance` starts, the native host must stop starting new
 audio callbacks for that external. An audio callback that already resolved the
 handle may finish while unregister is in progress, but no new

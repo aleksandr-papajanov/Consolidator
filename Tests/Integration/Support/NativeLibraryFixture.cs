@@ -27,6 +27,9 @@ public sealed class NativeLibraryFixture : IDisposable
     private readonly RegisterInstance _registerInstance;
     private readonly UnregisterInstance _unregisterInstance;
     private readonly SendMessage _sendMessage;
+    private readonly CapturePersistenceExport _capturePersistence;
+    private readonly FreePersistence _freePersistence;
+    private readonly RestorePersistenceExport _restorePersistence;
     private readonly Shutdown _shutdown;
     private bool _disposed;
 
@@ -44,6 +47,12 @@ public sealed class NativeLibraryFixture : IDisposable
         _registerInstance = Load<RegisterInstance>("ConsolidatorRegisterInstance");
         _unregisterInstance = Load<UnregisterInstance>("ConsolidatorUnregisterInstance");
         _sendMessage = Load<SendMessage>("ConsolidatorSendMessage");
+        _capturePersistence = Load<CapturePersistenceExport>(
+            "ConsolidatorCapturePersistence");
+        _freePersistence = Load<FreePersistence>(
+            "ConsolidatorFreePersistence");
+        _restorePersistence = Load<RestorePersistenceExport>(
+            "ConsolidatorRestorePersistence");
         _shutdown = Load<Shutdown>("ConsolidatorShutdown");
     }
 
@@ -122,6 +131,55 @@ public sealed class NativeLibraryFixture : IDisposable
         return Marshal.GetDelegateForFunctionPointer<TDelegate>(pointer);
     }
 
+    public byte[] CapturePersistence(NativeInstance instance)
+    {
+        if (_capturePersistence(
+                instance.InstanceId,
+                out var data,
+                out var length) == 0)
+        {
+            throw new InvalidOperationException(
+                "NativeAOT persistence capture failed.");
+        }
+
+        try
+        {
+            if (data == nint.Zero || length == 0 || length > int.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    "NativeAOT persistence capture returned an invalid buffer.");
+            }
+
+            var payload = new byte[(int)length];
+            Marshal.Copy(data, payload, 0, payload.Length);
+            return payload;
+        }
+        finally
+        {
+            _freePersistence(data);
+        }
+    }
+
+    public bool RestorePersistence(
+        NativeInstance instance,
+        byte[] payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        var data = Marshal.AllocHGlobal(payload.Length);
+        try
+        {
+            Marshal.Copy(payload, 0, data, payload.Length);
+            return _restorePersistence(
+                instance.InstanceId,
+                data,
+                (nuint)payload.Length) != 0;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(data);
+        }
+    }
+
     public void ShutdownServices()
     {
         _shutdown();
@@ -192,6 +250,21 @@ public sealed class NativeLibraryFixture : IDisposable
         nint selector,
         nint atoms,
         nuint atomCount);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int CapturePersistenceExport(
+        ulong instanceId,
+        out nint data,
+        out nuint length);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void FreePersistence(nint data);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int RestorePersistenceExport(
+        ulong instanceId,
+        nint data,
+        nuint length);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void Shutdown();

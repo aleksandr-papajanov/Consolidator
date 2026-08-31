@@ -10,6 +10,7 @@
 | [`CSharpFormatting.md`](CSharpFormatting.md) | Форматирование, naming, using directives, managed dependencies и NativeAOT interop conventions для C#. |
 | [`JavaScriptFormatting.md`](JavaScriptFormatting.md) | ES5-compatible Max runtime style, include order, callbacks, lifecycle, protocol и UI layer conventions для JavaScript. |
 | [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
+| [`Persistence.md`](Persistence.md) | Версионированный Managed snapshot, Max Blob parameter, save/restore barriers, validation и history baseline. |
 | [`UiPerformance.md`](UiPerformance.md) | Batching target snapshots и правила снижения Max JavaScript UI scheduler work. |
 | [`ManagedProtocol.md`](ManagedProtocol.md) | Граница Managed protocol: atom decoding, command types, relative paths, routing scopes и response encoding. |
 | [`BankIndexContract.md`](BankIndexContract.md) | Единый zero-based контракт индексов банков `0..6`. |

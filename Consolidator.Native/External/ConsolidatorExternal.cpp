@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstring>
 #include <type_traits>
 #include <utility>
 
@@ -26,6 +27,25 @@ constexpr std::size_t kMaxControlAtomsPerDrain = 4096;
 ConsolidatorExternal::ConsolidatorExternal()
     : managed_()
 {
+    value.set_visibility(c74::min::visibility::hide);
+
+    if (maxobj() != nullptr)
+    {
+        const auto error = c74::max::object_parameter_init_flags(
+            maxobj(),
+            c74::max::PARAM_TYPE_BLOB,
+            c74::max::PARAM_FLAGS_FORCE_TYPE);
+        c74::max::object_attr_setlong(
+            maxobj(),
+            c74::max::gensym("parameter_enable"),
+            3);
+        c74::max::object_attr_setlong(
+            maxobj(),
+            c74::max::gensym("parameter_visibility"),
+            1);
+        parameterInitialized_ = error == c74::max::MAX_ERR_NONE;
+    }
+
     if (!managed_.IsLoaded())
     {
         cerr
@@ -62,6 +82,12 @@ ConsolidatorExternal::~ConsolidatorExternal()
     audioInputHandle_ = 0;
 
     outputQueue_.unset();
+
+    if (parameterInitialized_)
+    {
+        c74::max::object_parameter_free(maxobj());
+        parameterInitialized_ = false;
+    }
 }
 
 void ConsolidatorExternal::ForwardMessage(
@@ -119,6 +145,13 @@ void ConsolidatorExternal::ReceiveManagedOutput(
 {
     if (selector == nullptr || (atomCount != 0 && atoms == nullptr))
     {
+        return;
+    }
+
+    if (std::strcmp(selector, "persistence_dirty") == 0)
+    {
+        persistenceDirty_.store(true, std::memory_order_relaxed);
+        outputQueue_.set();
         return;
     }
 
@@ -251,6 +284,13 @@ void ConsolidatorExternal::DrainManagedOutput()
             controlOutput.send(output);
         }
     };
+
+    if (persistenceDirty_.exchange(false, std::memory_order_relaxed))
+    {
+        c74::max::object_parameter_value_changed(
+            maxobj(),
+            1);
+    }
 
     for (auto& frame : controlFrames)
     {

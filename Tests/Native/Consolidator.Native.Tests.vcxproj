@@ -51,10 +51,15 @@
   <ItemGroup>
     <ClCompile Include="TestMain.cpp" />
     <ClCompile Include="Contracts\AbiContractTests.cpp" />
+    <ClCompile Include="Contracts\PersistenceBlobCodecTests.cpp" />
     <ClCompile Include="Realtime\DspParameterSmootherTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\DspParameterSmoother.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\DspStateConsumer.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\PersistenceBlobCodec.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Consolidator.Native\External\PersistenceBlobCodec.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

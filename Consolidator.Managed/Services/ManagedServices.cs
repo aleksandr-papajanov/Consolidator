@@ -10,6 +10,7 @@ using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
+using Consolidator.Managed.Core.Services.Persistence;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Core.Topology;
@@ -87,6 +88,7 @@ public static class ManagedServices
         services.AddSingleton<InstanceControlTargetResolver>();
         services.AddSingleton<StateChangeRouter>();
         services.AddSingleton<StateChangePublisher>();
+        services.AddSingleton<PersistenceChangePublisher>();
         services.AddSingleton<HistoryStatePublisher>();
         services.AddSingleton<RegistryChangePublisher>();
         services.AddSingleton<ProcessorMarkerProjection>();
@@ -120,6 +122,12 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<RegistryChangePublisher>(),
                 serviceProvider.GetRequiredService<FftAnalyzer>(),
                 serviceProvider.GetRequiredService<IActivityStatusSink>()));
+        services.AddSingleton(serviceProvider =>
+            new InstancePersistenceService(
+                serviceProvider.GetRequiredService<InstanceRegistry>(),
+                serviceProvider.GetRequiredService<IOperationGate>(),
+                serviceProvider.GetRequiredService<PersistenceChangePublisher>(),
+                serviceProvider.GetRequiredService<DspStateChangeTracker>()));
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
         services.AddSingleton<IStateWritePolicy, BankGroupWritePolicy>();
         services.AddSingleton<IStateWritePolicy, InstanceControlWritePolicy>();

@@ -33,7 +33,10 @@
 					"numoutlets" : 6,
 					"outlettype" : [ "", "", "signal", "signal", "signal", "signal" ],
 					"patching_rect" : [ 48.0, 200.0, 277.0, 22.0 ],
-					"text" : "ConsolidatorExternal"
+					"text" : "ConsolidatorExternal",
+					"parameter_enable" : 3,
+					"parameter_visibility" : 1,
+					"parameter_type" : "blob"
 				}
 
 			}

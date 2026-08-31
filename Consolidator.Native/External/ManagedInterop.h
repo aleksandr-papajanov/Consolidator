@@ -39,4 +39,16 @@ using ManagedOutputCallback = void (__cdecl *)(
     const NativeAtom*,
     std::size_t);
 
+using ManagedCapturePersistence = int (__cdecl *)(
+    InstanceId,
+    char**,
+    std::size_t*);
+
+using ManagedFreePersistence = void (__cdecl *)(char*);
+
+using ManagedRestorePersistence = int (__cdecl *)(
+    InstanceId,
+    const char*,
+    std::size_t);
+
 } // namespace consolidator::max

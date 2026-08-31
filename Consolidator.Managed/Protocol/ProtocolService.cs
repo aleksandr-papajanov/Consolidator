@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading.Channels;
+
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Protocol.Decoding;
@@ -100,6 +101,17 @@ internal sealed class ProtocolService : IDisposable
         _cancelledInstances[instanceId] = 1;
     }
 
+    public T ExecuteControlBarrier<T>(Func<T> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var completion = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _commands.Writer.WriteAsync(
+            new QueuedCommand(null, null, () => action()!, completion),
+            _cancellation.Token).AsTask().GetAwaiter().GetResult();
+        return (T)completion.Task.GetAwaiter().GetResult()!;
+    }
+
     public void Dispose()
     {
         _commands.Writer.TryComplete();
@@ -112,6 +124,12 @@ internal sealed class ProtocolService : IDisposable
         {
         }
 
+        while (_commands.Reader.TryRead(out var queued))
+        {
+            queued.Completion?.TrySetException(
+                new ObjectDisposedException(nameof(ProtocolService)));
+        }
+
         _cancellation.Dispose();
     }
 
@@ -121,14 +139,30 @@ internal sealed class ProtocolService : IDisposable
         {
             await foreach (var queued in _commands.Reader.ReadAllAsync(_cancellation.Token))
             {
-                var command = queued.Command;
+                if (queued.Barrier is not null)
+                {
+                    try
+                    {
+                        queued.Completion!.SetResult(queued.Barrier());
+                    }
+                    catch (Exception exception)
+                    {
+                        queued.Completion!.SetException(exception);
+                    }
+
+                    continue;
+                }
+
+                var command = queued.Command
+                    ?? throw new InvalidOperationException("A command queue entry was empty.");
                 if (queued.Key is { } key)
                 {
                     lock (_coalesceLock)
                     {
                         if (_coalesced.Remove(key, out var latest))
                         {
-                            command = latest.Command;
+                            command = latest.Command
+                                ?? throw new InvalidOperationException("A coalesced command was empty.");
                         }
                     }
                 }
@@ -199,13 +233,14 @@ internal sealed class ProtocolService : IDisposable
     }
 
     private sealed record QueuedCommand(
-        DecodedCommand Command,
-        CoalesceKey? Key);
+        DecodedCommand? Command,
+        CoalesceKey? Key,
+        Func<object?>? Barrier = null,
+        TaskCompletionSource<object?>? Completion = null);
 
     private readonly record struct CoalesceKey(
         ulong SourceInstanceId,
         ulong TargetInstanceId,
         string PathShape,
         ulong TransactionId);
-
 }

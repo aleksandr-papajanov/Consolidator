@@ -26,6 +26,9 @@ public sealed class PublishedLibraryContractTests
             "ConsolidatorSendMessage",
             "ConsolidatorPrepare",
             "ConsolidatorSendAudio",
+            "ConsolidatorCapturePersistence",
+            "ConsolidatorFreePersistence",
+            "ConsolidatorRestorePersistence",
             "ConsolidatorShutdown"
         };
 
