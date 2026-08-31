@@ -312,9 +312,8 @@ that value from exact topology and focused-bank changes and publishes targeted
 `registry_processor_markers_changed` batches containing the changed processors
 grouped by instance. Marker frames do not advance the global registry revision because the
 projection can differ between viewers at the same revision. Processor
-bypass and solo use dedicated `set_processor_bypass` and `set_processor_solo`
-commands. Direct writes to instance-owned processor bypass or solo values are
-rejected. The full contract is documented in
+bypass uses the dedicated `set_processor_bypass` command. Direct writes to
+instance-owned processor bypass values are rejected. The full contract is documented in
 [ProcessorActivity.md](ProcessorActivity.md).
 
 Where a `bankId` is part of an observation, topology, registry, or notification

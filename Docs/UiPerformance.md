@@ -63,15 +63,5 @@ User groups accept at most one bank from each track, and only ungrouped banks
 can be selected for a new group; the same constraints are enforced again by
 Managed when state writes are received.
 
-Each track row also exposes instance-level `S` and `M` controls to toggle its
-solo and mute state through explicit Managed instance-control intents. A plain
-click targets only the row instance. Ctrl/Cmd-click targets the exact group of
-the clicked row at the currently focused bank column; an ungrouped group target
-is rejected without falling back to the instance. Shift selects additive solo,
-and Ctrl/Cmd+Shift selects additive group solo. Mute never changes the solo set.
-Group resolution selects only direct members of that bank group, not a
-transitive connectivity graph through other banks on the same tracks. The
-resolved membership is a snapshot for that command: later topology changes do
-not rewrite existing instance mute or solo values. Device and bank solo
-controls keep their existing state paths and are outside this instance-control
-contract.
+Each track row exposes the instance-level `S` and `M` controls. Device and bank
+solo controls are not part of the UI or protocol.

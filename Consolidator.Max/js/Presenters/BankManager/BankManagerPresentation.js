@@ -4,6 +4,7 @@ class BankManagerPresentation
     {
         this.enabled = true;
         this.selectedPanel = "equalizer";
+        this.focusedBankBypassed = false;
         this.rows = [];
         this.groupAction = null;
         this.ungroupAction = null;

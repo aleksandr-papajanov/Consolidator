@@ -15,9 +15,9 @@ class BiquadCalculator
         if (type === "tilt") {
             return {
                 low: BiquadCalculator.calculateShelf(
-                    "low_shelf", frequencyHz, q, -gainDb / 2, sampleRate),
+                    "low_shelf", frequencyHz, q, -gainDb, sampleRate),
                 high: BiquadCalculator.calculateShelf(
-                    "high_shelf", frequencyHz, q, gainDb / 2, sampleRate)
+                    "high_shelf", frequencyHz, q, gainDb, sampleRate)
             };
         }
         return BiquadCalculator.calculateBell(frequencyHz, q, gainDb, sampleRate);

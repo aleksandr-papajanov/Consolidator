@@ -35,6 +35,7 @@ class BankManagerPresenter extends PresentationObservable
         presentation.selectedPanel = this.read(
             viewModel.selectedPanel,
             "equalizer");
+        presentation.focusedBankBypassed = Boolean(viewModel.focusedBankBypassed);
         presentation.rows = (this.read(viewModel.rows, []) || []).map((row) => {
             return {
                 instanceId: row.instanceId,
@@ -47,7 +48,6 @@ class BankManagerPresenter extends PresentationObservable
                     effectActive: Boolean(processor.effectActive),
                     markerActive: Boolean(processor.markerActive),
                     bypassed: Boolean(processor.bypassed),
-                    soloed: Boolean(processor.soloed)
                 })),
                 banks: (row.banks || []).map((bank) => {
                     return {

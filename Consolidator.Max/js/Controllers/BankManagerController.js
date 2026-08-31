@@ -215,9 +215,22 @@ class BankManagerController
         case "processorBypassChanged":
             this.setProcessorBypass(values[0], Number(values[1]) !== 0);
             break;
-        case "processorSoloChanged":
-            this.setProcessorSolo(values[0], Number(values[1]) !== 0,
-                Number(values[2]) !== 0);
+        case "bankBypassChanged":
+            this.context.state.set(
+                "equalizer.bank.bypass",
+                Number(values[0]) !== 0,
+                (response) => {
+                },
+                0,
+                this.context.scope.mode);
+            break;
+        case "bankResetRequested":
+            this.context.state.reset(
+                "equalizer.bank",
+                (response) => {
+                },
+                0,
+                this.context.scope.mode);
             break;
         case "processorResetRequested":
             this.resetProcessor(values[0]);
@@ -288,12 +301,6 @@ class BankManagerController
             [processorId, this.context.scope.mode, value ? 1 : 0]);
     }
 
-    setProcessorSolo(processorId, value, additive)
-    {
-        this.context.protocol.request("set_processor_solo",
-            [processorId, this.context.scope.mode, value ? 1 : 0,
-                additive ? "additive" : "exclusive"]);
-    }
 
     resetProcessor(processorId)
     {

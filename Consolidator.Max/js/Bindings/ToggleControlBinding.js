@@ -2,9 +2,10 @@ const { ControlBinding } = require("./ControlBinding.js");
 
 class ToggleControlBinding extends ControlBinding
 {
-    constructor(presenter, sendMessage)
+    constructor(presenter, sendMessage, transactions)
     {
         super(presenter, sendMessage);
+        this.transactions = transactions;
         this.connectPresentation();
     }
 
@@ -25,11 +26,27 @@ class ToggleControlBinding extends ControlBinding
     handleIntent(name, values)
     {
         if (name === "valueChanged") {
-            this.presenter.setValue(Number(values[0]) !== 0);
+            let value = Number(values[0]) !== 0;
+            if (!this.transactions) {
+                this.presenter.setValue(value);
+                return;
+            }
+            this.transactions.begin((transactionId, response) => {
+                if (response && response.status === "accepted") {
+                    this.presenter.setValue(value, transactionId);
+                    this.transactions.end(transactionId);
+                }
+            });
         }
         else if (name === "reset") {
             this.presenter.resetValue();
         }
+    }
+
+    destroy()
+    {
+        this.transactions = null;
+        super.destroy();
     }
 }
 

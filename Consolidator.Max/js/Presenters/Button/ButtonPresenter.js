@@ -56,9 +56,9 @@ class ButtonPresenter extends PresentationObservable
         this.publish(presentation);
     }
     
-    setValue(value)
+    setValue(value, transactionId)
     {
-        presentationBindingWrite(this.options.value, value);
+        presentationBindingWrite(this.options.value, value, transactionId);
     }
     
     resetValue()

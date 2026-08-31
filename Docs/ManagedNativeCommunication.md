@@ -320,9 +320,9 @@ its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
 `ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute`,
-`set_instance_solo`, `set_processor_bypass` and `set_processor_solo` as
-relative Max messages. They carry only `local` or `group`, the value, the
-processor ID when applicable, and the solo selection mode. Managed resolves
+`set_instance_solo` and `set_processor_bypass` as relative Max messages. They
+carry only `local` or `group`, the value, and the processor ID when applicable.
+Managed resolves
 the target instance and exact group from the source `SelectionContext`.
 Exact group resolution and all instance-state
 mutations are computed in Managed.

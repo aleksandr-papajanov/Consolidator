@@ -22,17 +22,13 @@ public sealed class EqualizerState
                 runtime.EqualizerBypass = value;
                 runtime.EqualizerActive = !value;
             })]);
-        Solo = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Solo),
-            false,
+        Solo = values.CreateValue(instanceId, path.Append(StateNodeIds.Solo), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.EqualizerSolo = value)]);
     }
 
     public StateValue<bool> Bypass { get; }
     public StateValue<bool> Solo { get; }
-
 }
 
 

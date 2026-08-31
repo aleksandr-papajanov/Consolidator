@@ -3,8 +3,14 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 
+using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Services.Abstractions;
+using Consolidator.Managed.Core.Services.Instances;
+using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.Topology;
+using Consolidator.Managed.Protocol.Decoding;
 using Consolidator.Managed.Protocol.Messages;
+using Consolidator.Managed.State;
 using Consolidator.Managed.Tests.Support;
 using Xunit;
 using Xunit.Abstractions;
@@ -125,6 +131,152 @@ public sealed class StateEditingUseCasesTests
 
         Assert.Equal(0.0F, instance.Dsp.Latest.InputLevel);
         Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
+    }
+
+    [Fact]
+    public void FocusedEqualizerBankBypassPublishesStateChangedToItsViewer()
+    {
+        using var application = new ManagedApplicationFixture();
+        var viewer = application.RegisterInstance();
+
+        application.Send(
+            viewer,
+            "observe_target",
+            Symbol(viewer.InstanceId.Value.ToString()),
+            Integer(2),
+            Symbol("equalizer"));
+        application.Send(viewer, "set_instance_active", Integer(1));
+        viewer.Output.Clear();
+
+        var registry = application.GetRequiredService<InstanceRegistry>();
+        var topology = application.GetRequiredService<TopologyIndex>();
+        var pathDecoder = application.GetRequiredService<IStatePathDecoder>();
+        var router = application.GetRequiredService<Consolidator.Managed.Routing.Notifications.StateChangeRouter>();
+        var state = registry.FindInstance(viewer.InstanceId)!.State;
+        var focusedAddress = topology.ResolveFocusedBankAddress(viewer.InstanceId);
+        var relativePath = pathDecoder.Decode([
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Symbol("bypass")]);
+        var resolvedPath = new InstanceCommandContext(
+            viewer.InstanceId,
+            state).ResolvePath(relativePath);
+        var resolvedAddress = topology.ResolveBankAddress(
+            viewer.InstanceId,
+            resolvedPath);
+        var recipients = router.ResolveTargets(new StateValueChanged(
+            viewer.InstanceId,
+            resolvedPath,
+            StateValueOwnership.BankOwned,
+            false,
+            true));
+
+        Assert.Equal(
+            new BankAddress(viewer.InstanceId, 2),
+            focusedAddress);
+        Assert.Equal(focusedAddress, resolvedAddress);
+        Assert.Equal([viewer.InstanceId.Value], recipients);
+
+        application.Send(
+            viewer,
+            "write",
+            Symbol("local"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Symbol("bypass"),
+            Symbol("value"),
+            Integer(1));
+
+        var change = Assert.Single(
+            viewer.Output.Messages,
+            message => message.Selector == "state_changed" &&
+                message.Atoms[1].Symbol == "equalizer.bank.bypass");
+        Assert.Equal(1, change.Atoms[2].Integer);
+    }
+
+    [Fact]
+    public void GroupedEqualizerBankBypassRoutesDifferentBankIdsToTheirFocusedViewers()
+    {
+        using var application = new ManagedApplicationFixture();
+        var first = application.RegisterInstance();
+        var second = application.RegisterInstance();
+
+        WriteGroup(application, first, first, 1, 7);
+        WriteGroup(application, first, second, 4, 7);
+        application.Send(
+            first,
+            "observe_target",
+            Symbol(first.InstanceId.Value.ToString()),
+            Integer(1),
+            Symbol("equalizer"));
+        application.Send(
+            second,
+            "observe_target",
+            Symbol(second.InstanceId.Value.ToString()),
+            Integer(4),
+            Symbol("equalizer"));
+        application.Send(first, "set_instance_active", Integer(1));
+        first.Output.Clear();
+
+        application.Send(
+            first,
+            "write",
+            Symbol("group"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("equalizer"),
+            Symbol("bank"),
+            Symbol("bypass"),
+            Symbol("value"),
+            Integer(1));
+
+        Assert.Contains(
+            first.Output.Messages,
+            message => message.Selector == "state_changed" &&
+                message.Atoms[1].Symbol == "equalizer.bank.bypass" &&
+                message.Atoms[2].Integer == 1);
+
+        var topology = application.GetRequiredService<TopologyIndex>();
+        var router = application.GetRequiredService<Consolidator.Managed.Routing.Notifications.StateChangeRouter>();
+        var firstPath = new StatePath([
+            StateNodeIds.Dsp,
+            StateNodeIds.Equalizer,
+            StateNodeIds.EqualizerBank,
+            StateNodeIds.BankAt(1),
+            StateNodeIds.Bypass]);
+        var secondPath = new StatePath([
+            StateNodeIds.Dsp,
+            StateNodeIds.Equalizer,
+            StateNodeIds.EqualizerBank,
+            StateNodeIds.BankAt(4),
+            StateNodeIds.Bypass]);
+
+        Assert.Equal(
+            new BankAddress(first.InstanceId, 1),
+            topology.ResolveFocusedBankAddress(first.InstanceId));
+        Assert.Equal(
+            new BankAddress(second.InstanceId, 4),
+            topology.ResolveFocusedBankAddress(second.InstanceId));
+        Assert.Equal(
+            [first.InstanceId.Value],
+            router.ResolveTargets(new StateValueChanged(
+                first.InstanceId,
+                firstPath,
+            StateValueOwnership.BankOwned,
+            false,
+            true)));
+        Assert.Equal(
+            [second.InstanceId.Value],
+            router.ResolveTargets(new StateValueChanged(
+                second.InstanceId,
+                secondPath,
+            StateValueOwnership.BankOwned,
+            false,
+            true)));
     }
 
     [Fact]
@@ -996,4 +1148,5 @@ public sealed class StateEditingUseCasesTests
             snapshot.Atoms.Skip(7).Where((_, index) => index % 6 == 0),
             atom => Assert.StartsWith("input_gain", atom.Symbol));
     }
+
 }

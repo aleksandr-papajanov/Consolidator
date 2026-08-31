@@ -15,13 +15,23 @@ function bankManagerIsGrouped(bank) {
     return isFinite(groupId) && groupId >= 0;
 }
 
+function bankManagerHasGroup(bank) {
+    if (!bank || bank.groupId === undefined || bank.groupId === null) {
+        return false;
+    }
+    let groupId = Number(bank.groupId);
+    return isFinite(groupId) && groupId >= 0;
+}
+
 class BankManagerViewModel
 {
-    constructor(registryClient, localInstanceId, historyClient, scope)
+    constructor(registryClient, localInstanceId, historyClient, scope, targetState)
     {
         this.registryClient = registryClient;
         this.localInstanceId = localInstanceId;
         this.scope = scope;
+        this.targetState = targetState;
+        this.focusedBankBypassed = false;
         this.enabled = true;
         this.selectedPanel = "equalizer";
         this.rows = [];
@@ -46,6 +56,11 @@ class BankManagerViewModel
                 this.notify();
             }, true)
             : null;
+        this.unsubscribeTarget = targetState && targetState.subscribe
+            ? targetState.subscribe("equalizer.bank.bypass", (entry) => {
+                this.focusedBankBypassed = Boolean(entry.value);
+                this.notify({ selector: "bank_bypass_changed" });
+            }, true) : null;
     }
     
     setRegistryActive(active, callback)
@@ -201,7 +216,6 @@ class BankManagerViewModel
                 effectActive: Boolean(processor.effectActive),
                 markerActive: Boolean(processor.markerActive),
                 bypassed: Boolean(processor.bypassed),
-                soloed: Boolean(processor.soloed)
             })),
             banks: instance.banks.map((bank) => {
                 let bankId = Number(bank.bankId);
@@ -255,7 +269,6 @@ class BankManagerViewModel
                     effectActive: Boolean(processor.effectActive),
                     markerActive: Boolean(processor.markerActive),
                     bypassed: Boolean(processor.bypassed),
-                    soloed: Boolean(processor.soloed)
                 })),
                 banks: instance.banks.map((bank) => {
                     let bankId = Number(bank.bankId);
@@ -294,7 +307,7 @@ class BankManagerViewModel
     {
         let selectedCount = this.getSelectedBanks().length;
         let focusedBank = this.focusedBank();
-        let groupContext = bankManagerIsGrouped(focusedBank);
+        let groupContext = bankManagerHasGroup(focusedBank);
         if (this.scope) {
             this.scope.setGroupContext(
                 groupContext,
@@ -326,7 +339,8 @@ class BankManagerViewModel
             active: false
         };
         this.ungroupAction = {
-            enabled: bankManagerIsGrouped(focusedBank),
+            enabled: bankManagerIsGrouped(focusedBank) &&
+                Number(focusedBank.groupId) > 0,
             active: false
         };
         this.scopeAction = {
@@ -398,6 +412,7 @@ class BankManagerViewModel
             instanceId: instanceId,
             bankId: nextBankId
         };
+        this.focusedBankBypassed = false;
         if (this.rows.length === 0) {
             let snapshot = this.registryClient.get();
             if (snapshot) this.applyRegistrySnapshot(snapshot);
@@ -563,8 +578,10 @@ class BankManagerViewModel
     {
         if (this.unsubscribeRegistry) this.unsubscribeRegistry();
         if (this.unsubscribeHistory) this.unsubscribeHistory();
+        if (this.unsubscribeTarget) this.unsubscribeTarget();
         this.unsubscribeRegistry = null;
         this.unsubscribeHistory = null;
+        this.unsubscribeTarget = null;
         this.listeners = [];
     }
 }

@@ -18,9 +18,9 @@ const MultiValueToggleOptions = {
     pointerEnd: 0.6,
     dragSensitivity: 0.015,
     background: UiColors.base.background,
-    ring: UiColors.controls.ring,
-    active: UiColors.base.brightText,
-    inactive: UiColors.controls.inactive
+    ring: UiColors.base.lines,
+    active: UiColors.base.activeText,
+    inactive: UiColors.base.lines
 };
 
 class MultiValueToggleControl
@@ -31,6 +31,8 @@ class MultiValueToggleControl
         this.values = [];
         this.enabled = true;
         this.active = true;
+        this.scopeActive = false;
+        this.scopeColor = null;
         this.inPresentation = false;
         this.hoverIndex = -1;
         this.dragging = false;
@@ -141,9 +143,12 @@ class MultiValueToggleControl
         if (count > 0) {
             let indicatorPoint = this.point(highlighted, count,
                 centerX, centerY, radius);
-            mgraphics.set_source_rgba.apply(mgraphics,
-                active ? MultiValueToggleOptions.active :
-                    MultiValueToggleOptions.inactive);
+            let indicatorColor = active ? MultiValueToggleOptions.active :
+                MultiValueToggleOptions.inactive;
+            if (this.scopeActive && this.scopeColor) {
+                indicatorColor = this.scopeColor;
+            }
+            mgraphics.set_source_rgba.apply(mgraphics, indicatorColor);
             mgraphics.set_line_width(MultiValueToggleOptions.indicatorWidth);
             let pointerX = indicatorPoint.x - centerX;
             let pointerY = indicatorPoint.y - centerY;
@@ -162,8 +167,7 @@ class MultiValueToggleControl
                 let isHighlighted = index === highlighted;
                 let dotRadius = 2;
                 mgraphics.set_source_rgba.apply(mgraphics,
-                    isHighlighted && active
-                        ? MultiValueToggleOptions.active :
+                    isHighlighted && active ? indicatorColor :
                         MultiValueToggleOptions.ring);
                 mgraphics.ellipse(point.x - dotRadius, point.y - dotRadius,
                     dotRadius * 2, dotRadius * 2);
@@ -175,7 +179,7 @@ class MultiValueToggleControl
             UiColors.typography.controlLabelFontFamily);
         mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);
         mgraphics.set_source_rgba.apply(mgraphics,
-            UiColors.base.inactiveText);
+            UiColors.base.text);
         let label = this.values[highlighted] || "";
         let textSize = mgraphics.text_measure(label);
         let fontExtents = mgraphics.font_extents();
@@ -191,7 +195,6 @@ function presentation_begin() { multiValueToggleControl.inPresentation = true; }
 function presentation_end() { multiValueToggleControl.inPresentation = false; mgraphics.redraw(); }
 function paint() { multiValueToggleControl.paint(); }
 function onclick(x, y) {
-    multiValueToggleControl.updateHover(x, y);
     multiValueToggleControl.beginGesture(y);
 }
 function ondrag(x, y, button) {
@@ -207,5 +210,11 @@ function set(value) { multiValueToggleControl.value = Number(value); multiValueT
 function values() { multiValueToggleControl.values = arrayfromargs(arguments).map(String); multiValueToggleControl.redraw(); }
 function enabled(value) { multiValueToggleControl.enabled = Number(value) !== 0; multiValueToggleControl.redraw(); }
 function active(value) { multiValueToggleControl.active = Number(value) !== 0; multiValueToggleControl.redraw(); }
+function scope(active, hasColor, red, green, blue, alpha) {
+    multiValueToggleControl.scopeActive = Number(active) !== 0;
+    multiValueToggleControl.scopeColor = Number(hasColor) !== 0
+        ? [Number(red), Number(green), Number(blue), Number(alpha)] : null;
+    multiValueToggleControl.redraw();
+}
 
 const multiValueToggleControl = new MultiValueToggleControl();

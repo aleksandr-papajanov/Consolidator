@@ -13,9 +13,9 @@ const { UiColors } = require("../../Theme/UiColors.js");
 const ButtonControlOptions = {
     background: UiColors.base.background,
     active: UiColors.controls.active,
-    inactive: UiColors.controls.inactive,
-    disabled: UiColors.base.disabled,
-    text: UiColors.base.brightText,
+    inactive: UiColors.base.lines,
+    disabled: UiColors.base.disabledText,
+    text: UiColors.base.activeText,
     fontSize: 12
 };
 
@@ -135,7 +135,10 @@ class ButtonControl
         if (presentation.label) {
         mgraphics.select_font_face("Arial");
         mgraphics.set_font_size(ButtonControlOptions.fontSize);
-        mgraphics.set_source_rgba.apply(mgraphics, ButtonControlOptions.text);
+        mgraphics.set_source_rgba.apply(mgraphics,
+            presentation.enabled
+                ? ButtonControlOptions.text
+                : UiColors.base.disabledText);
         const textWidth = String(presentation.label).length
             * ButtonControlOptions.fontSize * 0.55;
         mgraphics.move_to(

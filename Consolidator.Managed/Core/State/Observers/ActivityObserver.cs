@@ -8,7 +8,7 @@ namespace Consolidator.Managed.Core.State.Observers;
 
 internal sealed class ActivityObserver
 {
-    public const float GainEpsilon = 0.5F;
+    public const float ActivityEpsilon = 0.0001F;
 
     private readonly InstanceId _instanceId;
     private DspState _dsp = null!;
@@ -97,7 +97,7 @@ internal sealed class ActivityObserver
         {
             active = Enumerable.Range(0, DspConstants.EqualizerFilterCount)
                 .Any(filterId => !_filterBypasses[FilterIndex(bankId, filterId)] &&
-                    MathF.Abs(_filterGains[FilterIndex(bankId, filterId)]) > GainEpsilon);
+                    MathF.Abs(_filterGains[FilterIndex(bankId, filterId)]) > ActivityEpsilon);
         }
 
         if (_bankActivities[bankId] == active)
@@ -120,28 +120,25 @@ internal sealed class ActivityObserver
         ProcessorId.Input => new(
             processorId,
             !_dsp.InputGain.Bypass.Value &&
-                MathF.Abs(_dsp.InputGain.Level.Value) > GainEpsilon,
+            (MathF.Abs(_dsp.InputGain.Level.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.InputGain.Width.Value - 100.0F) > ActivityEpsilon ||
+                _dsp.InputGain.Leveler.Value),
             _dsp.InputGain.Bypass.Value,
             false),
         ProcessorId.Saturator => new(
             processorId,
             !_dsp.Saturator.Bypass.Value &&
-                (MathF.Abs(_dsp.Saturator.Drive.Value) > GainEpsilon ||
-                    MathF.Abs(_dsp.Saturator.OutputDb.Value) > GainEpsilon ||
-                    MathF.Abs(_dsp.Saturator.Curve.Value - 0.5F) > GainEpsilon ||
-                    _dsp.Saturator.Split.Value ||
-                    MathF.Abs(_dsp.Saturator.OutputDb.Value) > GainEpsilon),
+                (MathF.Abs(_dsp.Saturator.Drive.Value) > ActivityEpsilon ||
+                    MathF.Abs(_dsp.Saturator.OutputDb.Value) > ActivityEpsilon),
             _dsp.Saturator.Bypass.Value,
             _dsp.Saturator.Solo.Value),
         ProcessorId.Compressor => new(
             processorId,
             !_dsp.Compressor.Bypass.Value &&
-                (MathF.Abs(_dsp.Compressor.Attack.Value - 0.5F) > GainEpsilon ||
-                    MathF.Abs(_dsp.Compressor.Sustain.Value - 0.5F) > GainEpsilon ||
-                    MathF.Abs(_dsp.Compressor.Compression.Value - 0.5F) > GainEpsilon ||
-                    _dsp.Compressor.Character.Value != 0 ||
-                    _dsp.Compressor.Parallel.Value ||
-                    MathF.Abs(_dsp.Compressor.OutputDb.Value) > GainEpsilon),
+                (MathF.Abs(_dsp.Compressor.Attack.Value) > ActivityEpsilon ||
+                    MathF.Abs(_dsp.Compressor.Sustain.Value) > ActivityEpsilon ||
+                    MathF.Abs(_dsp.Compressor.Compression.Value) > ActivityEpsilon ||
+                    MathF.Abs(_dsp.Compressor.OutputDb.Value) > ActivityEpsilon),
             _dsp.Compressor.Bypass.Value,
             _dsp.Compressor.Solo.Value),
         ProcessorId.Equalizer => new(
@@ -152,14 +149,15 @@ internal sealed class ActivityObserver
         ProcessorId.Polish => new(
             processorId,
             !_dsp.Polish.Bypass.Value &&
-                (MathF.Abs(_dsp.Polish.Thick.Value) > GainEpsilon ||
-                    MathF.Abs(_dsp.Polish.Air.Value) > GainEpsilon),
+                (MathF.Abs(_dsp.Polish.Thick.Value) > ActivityEpsilon ||
+                    MathF.Abs(_dsp.Polish.Air.Value) > ActivityEpsilon),
             _dsp.Polish.Bypass.Value,
             _dsp.Polish.Solo.Value),
         ProcessorId.Output => new(
             processorId,
             !_dsp.OutputGain.Bypass.Value &&
-                MathF.Abs(_dsp.OutputGain.Level.Value) > GainEpsilon,
+                (MathF.Abs(_dsp.OutputGain.Level.Value) > ActivityEpsilon ||
+                    _dsp.OutputGain.Limiter.Value),
             _dsp.OutputGain.Bypass.Value,
             false),
         _ => throw new ArgumentOutOfRangeException(nameof(processorId))

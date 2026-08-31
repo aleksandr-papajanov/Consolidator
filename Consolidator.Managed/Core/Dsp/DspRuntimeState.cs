@@ -8,9 +8,9 @@ public unsafe sealed class DspRuntimeState
         InputTarget = -18.0F,
         InputWidth = 100.0F,
         SaturatorCurve = 0.5F,
-        CompressorAttack = 0.5F,
-        CompressorSustain = 0.5F,
-        CompressorCompression = 0.5F,
+        CompressorAttack = 0.0F,
+        CompressorSustain = 0.0F,
+        CompressorCompression = 0.0F,
         OutputTarget = -1.0F
     };
 

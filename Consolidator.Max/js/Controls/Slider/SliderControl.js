@@ -11,9 +11,9 @@ const { UiColors } = require("../../Theme/UiColors.js");
 
 const SliderControlOptions = {
     background: UiColors.base.background,
-    track: UiColors.controls.track,
+    track: UiColors.base.lines,
     value: UiColors.controls.active,
-    disabled: UiColors.base.disabled,
+    disabled: UiColors.base.disabledText,
     padding: 5,
     trackWidth: 3,
     thumbRadius: 5,

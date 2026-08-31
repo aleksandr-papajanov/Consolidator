@@ -13,9 +13,9 @@ const { UiColors } = require("../../Theme/UiColors.js");
 const ToggleControlOptions = {
     background: UiColors.base.background,
     active: UiColors.controls.active,
-    inactive: UiColors.controls.inactive,
-    disabled: UiColors.base.disabled,
-    text: UiColors.base.brightText,
+    inactive: UiColors.base.lines,
+    disabled: UiColors.base.disabledText,
+    text: UiColors.base.activeText,
     trackWidth: 28,
     trackHeight: 14
 };
@@ -81,6 +81,9 @@ class ToggleControl
         let trackColor = !enabled ? ToggleControlOptions.disabled :
             selected ? ToggleControlOptions.active :
             ToggleControlOptions.inactive;
+        if (enabled && selected && presentation.scopeActive && presentation.scopeColor) {
+            trackColor = presentation.scopeColor;
+        }
 
         mgraphics.set_source_rgba.apply(mgraphics, ToggleControlOptions.background);
         mgraphics.rectangle(0, 0, width, height);
@@ -100,11 +103,13 @@ class ToggleControl
             mgraphics.fill();
         }
 
-        let knobX = selected ? trackX + trackWidth - trackHeight + 2 :
-            trackX + 2;
+        let handleSize = Math.max(0, trackHeight - 4);
+        let handleY = trackY + 2;
+        let knobX = selected
+            ? trackX + trackWidth - handleSize - 2
+            : trackX + 2;
         mgraphics.set_source_rgba.apply(mgraphics, knobColor);
-        mgraphics.rectangle(knobX, trackY + 2,
-            trackHeight - 4, trackHeight - 4);
+        mgraphics.rectangle(knobX, handleY, handleSize, handleSize);
         mgraphics.fill();
 
         if (presentation.label) {
@@ -112,13 +117,22 @@ class ToggleControl
                 UiColors.typography.controlLabelFontFamily);
             mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);
             mgraphics.set_source_rgba.apply(mgraphics,
-                UiColors.base.inactiveText);
+                UiColors.base.text);
             mgraphics.move_to(4, height * 0.5 + 4);
             mgraphics.show_text(String(presentation.label));
         }
         if (presentation.scopeActive && presentation.scopeColor) {
-            mgraphics.set_source_rgba.apply(mgraphics, presentation.scopeColor);
-            mgraphics.arc(width - 4, 4, 2, 0, Math.PI * 2);
+            let markerColor = presentation.scopeColor;
+            mgraphics.set_source_rgba.apply(mgraphics, markerColor);
+            let handleCenterX = knobX + handleSize * 0.5;
+            let handleCenterY = handleY + handleSize * 0.5;
+            let markerSize = Math.min(3, handleSize);
+            mgraphics.rectangle(
+                handleCenterX - markerSize * 0.5,
+                handleCenterY - markerSize * 0.5,
+                markerSize,
+                markerSize
+            );
             mgraphics.fill();
         }
     }

@@ -28,6 +28,9 @@ class BankManagerControlBinding extends ControlBinding
         this.send("presentation_begin", [
             presentation.enabled ? 1 : 0
         ]);
+        this.send("bank_bypass", [
+            presentation.focusedBankBypassed ? 1 : 0
+        ]);
         (presentation.rows || []).forEach((row, rowIndex) => {
             this.send("row", [
                 rowIndex,
@@ -116,8 +119,17 @@ class BankManagerControlBinding extends ControlBinding
             this.send("presentation_patch_end");
             return;
         }
+
+        if (delta.selector === "bank_bypass_changed") {
+            this.send("bank_bypass_patch", [
+                presentation.focusedBankBypassed ? 1 : 0
+            ]);
+            this.send("presentation_patch_end");
+            return;
+        }
     
         if (delta.selector === "bank_focus_changed") {
+            this.send("bank_bypass_patch", [0]);
             this.sendFocusedBankPatch(
                 presentation,
                 delta.previousRowIndex,

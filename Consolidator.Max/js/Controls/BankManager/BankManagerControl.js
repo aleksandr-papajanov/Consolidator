@@ -8,27 +8,18 @@ mgraphics.autofill = 0;
 
 const { BankManagerPresentation } = require("../../Presenters/BankManager/BankManagerPresentation.js");
 const { UiColors } = require("../../Theme/UiColors.js");
-function processorIdSupportsSolo(processorId) {
-    return processorId !== "input" && processorId !== "output";
-}
-
 const BankManagerControlOptions = {
     background: UiColors.base.background,
     text: UiColors.base.text,
-    actionText: UiColors.base.actionText,
     focused: UiColors.controls.active,
-    remote: UiColors.devices.remote,
-    solo: UiColors.devices.solo,
+    remote: UiColors.base.text,
     mute: UiColors.devices.mute,
-    disabled: UiColors.devices.disabled,
-    separator: UiColors.base.separator,
+    disabled: UiColors.base.disabledText,
+    separator: UiColors.base.lines,
     rowHeight: 16,
     bankSize: 16,
     bankGap: 0,
     deviceColumnGap: 5,
-    processorMarkerSize: 7,
-    processorMarkerGap: 2,
-    processorMarkerX: 82,
     actionPanelHeight: 18,
     historyPanelHeight: 18,
     outerPadding: 4,
@@ -43,8 +34,10 @@ const BankManagerControlOptions = {
     panelButtonHeight: 32,
     panelButtonGap: 0,
     actionFlashDurationMs: 180,
-    panelButtonText: UiColors.devices.panelText,
     deviceColors: UiColors.devices.processors,
+    processorMarkerSize: 7,
+    processorMarkerGap: 2,
+    processorMarkerX: 82,
     fontSize: 11
 };
 
@@ -113,15 +106,6 @@ class BankManagerControl
         let rows = this.presentation.rows || [];
         let contentHeight = rows.length * BankManagerControlOptions.rowHeight;
         return Math.max(0, contentHeight - this.contentHeight());
-    }
-
-    paintScopeMarker(x, y, size)
-    {
-        let scope = this.presentation.scopeAction || {};
-        if (!scope.active || !scope.color) return;
-        mgraphics.set_source_rgba.apply(mgraphics, scope.color);
-        mgraphics.rectangle(x + size - 4, y + 2, 3, 3);
-        mgraphics.fill();
     }
 
     contentHeight()
@@ -440,16 +424,22 @@ class BankManagerControl
                 return item.processorId === panelKeys[index];
             })[0];
             let color = BankManagerControlOptions.deviceColors[panelKeys[index]];
+            let processorActive = Boolean(status && status.effectActive);
+            let panelColor = processorActive ? color :
+                BankManagerControlOptions.separator;
+            let panelFill = active
+                ? panelColor : BankManagerControlOptions.background;
             mgraphics.set_source_rgba.apply(mgraphics,
-                active ? color : BankManagerControlOptions.background);
+                panelFill);
             let panelInset = active ? 0 : 1;
             mgraphics.rectangle(itemX + panelInset, y + panelInset,
                 BankManagerControlOptions.panelDeviceWidth - panelInset * 2,
                 BankManagerControlOptions.panelButtonHeight - panelInset * 2);
             mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics,
-                active ? BankManagerControlOptions.background :
-                    color);
+                !processorActive
+                    ? UiColors.base.disabledText
+                    : active ? BankManagerControlOptions.background : panelColor);
             mgraphics.select_font_face("Arial");
             mgraphics.set_font_size(9);
             let textSize = mgraphics.text_measure(label);
@@ -461,36 +451,52 @@ class BankManagerControl
             mgraphics.show_text(label);
             let controlX = itemX + BankManagerControlOptions.panelDeviceWidth;
             let controlHalf = BankManagerControlOptions.panelButtonHeight / 2;
-            let supportsSolo = processorIdSupportsSolo(panelKeys[index]);
-            let bypassActive = status && status.bypassed;
+            let bypassActive = Boolean(status && status.bypassed);
+            let bypassEnabled = processorActive || bypassActive;
+            let isEqualizer = panelKeys[index] === "equalizer";
             let buttons = [
                 {
                     label: "B",
                     active: bypassActive,
-                    enabled: Boolean(status),
+                    enabled: bypassEnabled,
                     x: controlX,
                     y: y,
                     width: BankManagerControlOptions.panelBypassWidth
-                },
-                {
-                    label: "S",
-                    active: status && status.soloed,
-                    enabled: Boolean(status) && supportsSolo,
-                    x: controlX,
-                    y: y + BankManagerControlOptions.panelSoloWidth,
-                    width: BankManagerControlOptions.panelSoloWidth
                 },
                 {
                     label: "R",
                     active: Boolean(this.actionFlash[
                         localRow && String(localRow.instanceId) + ":" + panelKeys[index]
                     ]),
-                    enabled: Boolean(status),
-                    x: controlX + BankManagerControlOptions.panelSoloWidth,
-                    y: y + BankManagerControlOptions.panelSoloWidth,
+                    enabled: processorActive,
+                    x: controlX + BankManagerControlOptions.panelBypassWidth,
+                    y: y,
                     width: BankManagerControlOptions.panelBypassWidth
                 }
             ];
+            if (isEqualizer) {
+                buttons.push(
+                    {
+                        label: "BB",
+                        active: Boolean(this.presentation.focusedBankBypassed),
+                        enabled: processorActive ||
+                            Boolean(this.presentation.focusedBankBypassed),
+                        x: controlX,
+                        y: y + controlHalf,
+                        width: BankManagerControlOptions.panelBypassWidth
+                    },
+                    {
+                        label: "BR",
+                        active: Boolean(this.actionFlash[
+                            localRow && String(localRow.instanceId) + ":equalizer.bank"
+                        ]),
+                        enabled: processorActive,
+                        x: controlX + BankManagerControlOptions.panelBypassWidth,
+                        y: y + controlHalf,
+                        width: BankManagerControlOptions.panelBypassWidth
+                    }
+                );
+            }
             buttons.forEach((button) => {
                 let buttonHeight = controlHalf;
                 mgraphics.set_source_rgba.apply(mgraphics,
@@ -501,11 +507,14 @@ class BankManagerControl
                     button.width - buttonInset * 2,
                     buttonHeight - buttonInset * 2);
                 mgraphics.fill();
-                mgraphics.set_source_rgba.apply(mgraphics,
-                    button.enabled
+                let scope = this.presentation.scopeAction || {};
+                let groupText = scope.active && scope.color && button.enabled
+                    ? scope.color
+                    : button.enabled
                         ? button.active ? BankManagerControlOptions.background :
-                            UiColors.base.inactiveText
-                        : BankManagerControlOptions.disabled);
+                            UiColors.base.activeText
+                        : UiColors.base.disabledText;
+                mgraphics.set_source_rgba.apply(mgraphics, groupText);
                 mgraphics.select_font_face("Arial");
                 mgraphics.set_font_size(8);
                 let buttonTextSize = mgraphics.text_measure(button.label);
@@ -515,14 +524,7 @@ class BankManagerControl
                     button.y + (buttonHeight - buttonFontExtents[2]) / 2 +
                         buttonFontExtents[0]);
                 mgraphics.show_text(button.label);
-                this.paintScopeMarker(button.x, button.y, button.width);
             });
-            if (status && status.markerActive) {
-                mgraphics.set_source_rgba.apply(mgraphics,
-                    active ? BankManagerControlOptions.background : color);
-                mgraphics.rectangle(itemX + 2, y + 2, 3, 3);
-                mgraphics.fill();
-            }
         });
     }
 
@@ -536,7 +538,7 @@ class BankManagerControl
             let x = this.processorMarkerX(index);
             let color = BankManagerControlOptions.deviceColors[processorId];
             mgraphics.set_source_rgba.apply(mgraphics,
-                processor.effectActive ? color : BankManagerControlOptions.disabled);
+                processor.effectActive ? color : BankManagerControlOptions.separator);
             mgraphics.rectangle(x, y + 5,
                 BankManagerControlOptions.processorMarkerSize,
                 BankManagerControlOptions.processorMarkerSize);
@@ -577,10 +579,11 @@ class BankManagerControl
         if (index < 0 || index >= 6) return null;
         let localRow = (this.presentation.rows || []).filter((row) => row.local)[0];
         let processorId = ["input", "saturator", "compressor", "equalizer", "polish", "output"][index];
-        let supportsSolo = processorIdSupportsSolo(processorId);
         let status = localRow && (localRow.processors || []).filter((item) => {
             return item.processorId === processorId;
         })[0];
+        let processorActive = Boolean(status && status.effectActive);
+        let bypassActive = Boolean(status && status.bypassed);
         let relativeX = (x - navigationX) %
             BankManagerControlOptions.panelNavigationItemWidth;
         let relativeY = y;
@@ -589,23 +592,37 @@ class BankManagerControl
                 relativeX < BankManagerControlOptions.panelDeviceWidth +
                     BankManagerControlOptions.panelBypassWidth &&
                 relativeY < controlHalf) {
+            if (!status || (!processorActive && !bypassActive)) return null;
             return { type: "bypass", processorId: processorId,
                 value: !(status && status.bypassed) };
-        }
-        if (supportsSolo && relativeX >= BankManagerControlOptions.panelDeviceWidth &&
-                relativeX < BankManagerControlOptions.panelDeviceWidth +
-                    BankManagerControlOptions.panelBypassWidth &&
-                relativeY >= controlHalf && relativeY <
-                    BankManagerControlOptions.panelSoloWidth * 2) {
-            return { type: "solo", processorId: processorId,
-                value: !(status && status.soloed) };
         }
         if (relativeX >= BankManagerControlOptions.panelDeviceWidth +
                 BankManagerControlOptions.panelBypassWidth &&
                 relativeX < BankManagerControlOptions.panelDeviceWidth +
                     BankManagerControlOptions.panelBypassWidth * 2 &&
-                relativeY >= BankManagerControlOptions.panelSoloWidth) {
+                relativeY < controlHalf) {
+            if (!processorActive) return null;
             return { type: "reset", processorId: processorId };
+        }
+        if (processorId === "equalizer" &&
+                relativeX >= BankManagerControlOptions.panelDeviceWidth &&
+                relativeX < BankManagerControlOptions.panelDeviceWidth +
+                    BankManagerControlOptions.panelBypassWidth &&
+                relativeY >= controlHalf) {
+            if (!status || (!processorActive && !this.presentation.focusedBankBypassed)) {
+                return null;
+            }
+            return { type: "bankBypass", processorId: processorId,
+                value: !this.presentation.focusedBankBypassed };
+        }
+        if (processorId === "equalizer" &&
+                relativeX >= BankManagerControlOptions.panelDeviceWidth +
+                    BankManagerControlOptions.panelBypassWidth &&
+                relativeX < BankManagerControlOptions.panelDeviceWidth +
+                    BankManagerControlOptions.panelBypassWidth * 2 &&
+                relativeY >= controlHalf) {
+            if (!processorActive) return null;
+            return { type: "bankReset", processorId: processorId };
         }
         return null;
     }
@@ -708,12 +725,13 @@ class BankManagerControl
                 );
                 mgraphics.fill();
             }
-            mgraphics.set_source_rgba.apply(
-                mgraphics,
-                button.active
+            let scope = this.presentation.scopeAction || {};
+            let groupText = scope.active && scope.color
+                ? scope.color
+                : button.active
                     ? BankManagerControlOptions.background
-                    : UiColors.base.inactiveText
-            );
+                    : UiColors.base.activeText;
+            mgraphics.set_source_rgba.apply(mgraphics, groupText);
             mgraphics.select_font_face("Arial");
             mgraphics.set_font_size(9);
             let textSize = mgraphics.text_measure(button.label);
@@ -722,7 +740,6 @@ class BankManagerControl
                 y + 12
             );
             mgraphics.show_text(button.label);
-            this.paintScopeMarker(buttonX, y, BankManagerControlOptions.bankSize);
         });
     }
 
@@ -736,7 +753,12 @@ class BankManagerControl
             { key: "group", label: "Group", action: group, momentary: true },
             { key: "ungroup", label: "Ungroup", action: ungroup, momentary: true },
             { key: "clear", label: "Clear", action: clear, momentary: true },
-            { key: "scope", label: "Scope", action: scope, momentary: false }
+            {
+                key: "scope",
+                label: scope.active ? "Group" : "Local",
+                action: scope,
+                momentary: false
+            }
         ];
         let buttonWidth = (width - BankManagerControlOptions.actionGap *
             (actions.length - 1)) / actions.length;
@@ -751,8 +773,8 @@ class BankManagerControl
             let actualWidth = right - x;
             let borderColor = BankManagerControlOptions.separator;
             let textColor = entry.action.enabled
-                ? BankManagerControlOptions.actionText
-                : UiColors.base.inactiveText;
+                ? UiColors.base.activeText
+                : UiColors.base.disabledText;
             let flashed = entry.momentary && this.actionFlash[entry.key];
             let fillColor = flashed
                 ? BankManagerControlOptions.focused
@@ -791,10 +813,10 @@ class BankManagerControl
         let layout = this.historyLayout();
         let historyHeight = BankManagerControlOptions.historyPanelHeight;
         let buttons = [
-            { key: "historyStart", label: "|<", enabled: Number(history.cursor) > 0 },
-            { key: "historyBack", label: "<", enabled: Boolean(history.canUndo) },
-            { key: "historyForward", label: ">", enabled: Boolean(history.canRedo) },
-            { key: "historyEnd", label: ">|", enabled: Number(history.cursor) <
+            { key: "historyStart", label: "First", enabled: Number(history.cursor) > 0 },
+            { key: "historyBack", label: "Back", enabled: Boolean(history.canUndo) },
+            { key: "historyForward", label: "Forward", enabled: Boolean(history.canRedo) },
+            { key: "historyEnd", label: "Last", enabled: Number(history.cursor) <
                 Number(history.entryCount) }
         ];
 
@@ -825,8 +847,8 @@ class BankManagerControl
                 this.actionFlash[button.key]
                     ? BankManagerControlOptions.background
                     : button.enabled
-                        ? BankManagerControlOptions.actionText
-                        : UiColors.base.inactiveText);
+                        ? UiColors.base.activeText
+                        : UiColors.base.disabledText);
             mgraphics.select_font_face(
                 UiColors.typography.controlLabelFontFamily);
             mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);
@@ -889,12 +911,15 @@ class BankManagerControl
                     panelControl.processorId,
                     panelControl.value ? 1 : 0
                 ]);
-            } else if (panelControl.type === "solo") {
-                this.emit("processorSoloChanged", [
-                    panelControl.processorId,
-                    panelControl.value ? 1 : 0,
-                    extendSelection ? 1 : 0
-                ]);
+            } else if (panelControl.type === "bankBypass") {
+                this.emit("bankBypassChanged", [panelControl.value ? 1 : 0]);
+            } else if (panelControl.type === "bankReset") {
+                let localRow = (this.presentation.rows || []).filter((row) => row.local)[0];
+                if (localRow) {
+                    this.flashAction(
+                        String(localRow.instanceId) + ":equalizer.bank");
+                }
+                this.emit("bankResetRequested");
             } else {
                 let localRow = (this.presentation.rows || []).filter((row) => row.local)[0];
                 if (localRow) {
@@ -1140,6 +1165,15 @@ class BankManagerControl
         this.pendingPresentation.enabled = Number(enabled) !== 0;
     }
 
+    setBankBypass(value)
+    {
+        if (!this.pendingPresentation) {
+            return;
+        }
+
+        this.pendingPresentation.focusedBankBypassed = Number(value) !== 0;
+    }
+
     addRow(index,
     instanceId,
     label,
@@ -1181,7 +1215,6 @@ class BankManagerControl
             effectActive: Number(effectActive) !== 0,
             markerActive: Number(markerActive) !== 0,
             bypassed: Number(bypassed) !== 0,
-            soloed: Number(soloed) !== 0
         });
     }
 
@@ -1338,6 +1371,11 @@ class BankManagerControl
         this.presentation.enabled = Number(enabled) !== 0;
     }
 
+    patchBankBypass(value)
+    {
+        this.presentation.focusedBankBypassed = Number(value) !== 0;
+    }
+
     patchRow(index,
     instanceId,
     label,
@@ -1379,7 +1417,6 @@ class BankManagerControl
         processor.effectActive = Number(effectActive) !== 0;
         processor.markerActive = Number(markerActive) !== 0;
         processor.bypassed = Number(bypassed) !== 0;
-        processor.soloed = Number(soloed) !== 0;
     }
 
     removeRow(index)
@@ -1463,6 +1500,10 @@ function presentation_begin(enabled) {
     bankManagerControl.beginPresentation(enabled);
 }
 
+function bank_bypass(value) {
+    bankManagerControl.setBankBypass(value);
+}
+
 function row(...args) {
     bankManagerControl.addRow(...args);
 }
@@ -1507,6 +1548,10 @@ function presentation_end() {
 
 function presentation_patch_begin(enabled) {
     bankManagerControl.beginPresentationPatch(enabled);
+}
+
+function bank_bypass_patch(value) {
+    bankManagerControl.patchBankBypass(value);
 }
 
 function row_patch(...args) {

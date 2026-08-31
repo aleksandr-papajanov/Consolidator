@@ -111,7 +111,7 @@
 				"box" : 				{
 					"filename" : "DialControl.js",
 					"id" : "width",
-					"jsarguments" : [ "WIDTH", 0.0, 1.0, 0, 1.0, 1, "%" ],
+					"jsarguments" : [ "WIDTH", 0.0, 1.0, 0, 100.0, 1, "%" ],
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
 					"numoutlets" : 1,

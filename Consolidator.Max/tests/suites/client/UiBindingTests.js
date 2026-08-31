@@ -1779,6 +1779,52 @@ function testManagedMarkerReachesBankManagerControlBinding() {
   presenter.destroy();
   viewModel.destroy();
 }
+function testBankBypassStateReachesControlAndInvertsNextClick() {
+  var stateChangedListener = null;
+  var viewModel = {
+    enabled: true,
+    selectedPanel: "equalizer",
+    focusedBankBypassed: false,
+    rows: [],
+    groupAction: null,
+    ungroupAction: null,
+    clearAction: { enabled: false },
+    scopeAction: { enabled: false, active: false, color: null },
+    history: { cursor: 0, entryCount: 0, canUndo: false, canRedo: false },
+    subscribe: function (callback, immediate) {
+      stateChangedListener = callback;
+      if (immediate) callback(this, null);
+      return function () {};
+    },
+    destroy: function () {},
+  };
+  var presenter = new BankManagerPresenter(viewModel);
+  var control = new BankManagerControl();
+  var binding = new BankManagerControlBinding(
+    { handleIntent: function () {} },
+    presenter,
+    function (selector, args) {
+      if (selector === "presentation_begin") control.beginPresentation(args[0]);
+      else if (selector === "bank_bypass") control.setBankBypass(args[0]);
+      else if (selector === "presentation_end") control.endPresentation();
+      else if (selector === "presentation_patch_begin") control.beginPresentationPatch(args[0]);
+      else if (selector === "bank_bypass_patch") control.patchBankBypass(args[0]);
+    },
+  );
+
+  assert.strictEqual(control.presentation.focusedBankBypassed, false);
+  viewModel.focusedBankBypassed = true;
+  stateChangedListener(viewModel, { selector: "bank_bypass_changed" });
+  assert.strictEqual(control.presentation.focusedBankBypassed, true);
+
+  var controlX = control.primaryWidth() + 6 + 3 * 64 + 32 + 1;
+  var button = control.panelControlAt(controlX, 20);
+  assert.strictEqual(button.type, "bankBypass");
+  assert.strictEqual(button.value, false);
+
+  binding.destroy();
+  presenter.destroy();
+}
 testDoubleClickTrackerRecognizesOnlyTheSameControl();
 testControlBindingsDispatchByControlId();
 testDialBindingUsesMessageTransportAndIntents();
@@ -1829,4 +1875,5 @@ testBankManagerForwardsInstanceControlModifiers();
 testBankManagerEqualizerResetReachesStateClient();
 testBankManagerPresentsGroupingSelectionAsActive();
 testManagedMarkerReachesBankManagerControlBinding();
+testBankBypassStateReachesControlAndInvertsNextClick();
 console.log("UiBindingTests passed");

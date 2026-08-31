@@ -73,7 +73,8 @@ class ConsolidatorUiHost
             this.client.registry,
             source,
             this.client.transactions,
-            this.client.scope
+            this.client.scope,
+            this.client.targetState
         );
         this.bankManagerPresenter = new BankManagerPresenter(
             this.bankManagerViewModel
@@ -279,9 +280,11 @@ class ConsolidatorUiHost
                             send,
                             this.client.transactions)
                         : type === "multiValueToggle"
-                            ? new MultiValueToggleControlBinding(presenter, send)
+                            ? new MultiValueToggleControlBinding(
+                                presenter, send, this.client.transactions)
                         : type === "toggle"
-                            ? new ToggleControlBinding(presenter, send)
+                            ? new ToggleControlBinding(
+                                presenter, send, this.client.transactions)
                             : new ButtonControlBinding(presenter, send);
                 });
             });

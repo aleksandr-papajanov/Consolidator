@@ -15,6 +15,10 @@ class MultiValueTogglePresenter extends PresentationObservable
         if (source && typeof source.subscribe === "function") {
             this.unsubscribers.push(source.subscribe(() => this.rebuild(), false));
         }
+        let scope = this.options.scope;
+        if (scope && typeof scope.subscribe === "function") {
+            this.unsubscribers.push(scope.subscribe(() => this.rebuild()));
+        }
         this.rebuild();
     }
 
@@ -31,11 +35,13 @@ class MultiValueTogglePresenter extends PresentationObservable
         this.publish(presentation);
     }
 
-    setValue(value)
+    setValue(value, transactionId)
     {
         let count = (this.options.values || []).length;
         let next = Math.max(0, Math.min(count - 1, Math.floor(Number(value))));
-        if (count > 0 && isFinite(next)) presentationBindingWrite(this.options.value, next);
+        if (count > 0 && isFinite(next)) {
+            presentationBindingWrite(this.options.value, next, transactionId);
+        }
     }
 
     resetValue()

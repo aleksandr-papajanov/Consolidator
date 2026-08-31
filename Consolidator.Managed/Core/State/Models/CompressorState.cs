@@ -16,21 +16,21 @@ public sealed class CompressorState
         Attack = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Attack),
-            0.5F,
+            0.0F,
             StateValueEditMode.ApplyDelta,
             DspParameterRanges.Macro,
             [new StateProjectionObserver<float>(value => runtime.CompressorAttack = value)]);
         Sustain = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Sustain),
-            0.5F,
+            0.0F,
             StateValueEditMode.ApplyDelta,
             DspParameterRanges.Macro,
             [new StateProjectionObserver<float>(value => runtime.CompressorSustain = value)]);
         Compression = values.CreateValue(
             instanceId,
             path.Append(StateNodeIds.Compression),
-            0.5F,
+            0.0F,
             StateValueEditMode.ApplyDelta,
             DspParameterRanges.Macro,
             [new StateProjectionObserver<float>(value => runtime.CompressorCompression = value)]);
@@ -63,10 +63,7 @@ public sealed class CompressorState
                 runtime.CompressorBypass = value;
                 runtime.CompressorActive = !value;
             })]);
-        Solo = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Solo),
-            false,
+        Solo = values.CreateValue(instanceId, path.Append(StateNodeIds.Solo), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.CompressorSolo = value)]);
         Detector = new DetectorState(
@@ -92,7 +89,6 @@ public sealed class CompressorState
     public StateValue<float> OutputDb { get; }
 
     public StateValue<bool> Bypass { get; }
-
     public StateValue<bool> Solo { get; }
 
     public DetectorState Detector { get; }

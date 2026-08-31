@@ -33,9 +33,9 @@ const DialControlOptions = {
     dragSensitivity: 0.007,
     labelRestoreDelayMs: 500,
     background: UiColors.base.background,
-    ring: UiColors.controls.ring,
-    active: UiColors.base.brightText,
-    inactive: UiColors.controls.inactive,
+    ring: UiColors.base.lines,
+    active: UiColors.base.activeText,
+    inactive: UiColors.base.lines,
     visualization: UiColors.controls.visualization
 };
 
@@ -309,7 +309,7 @@ class DialControl
                 UiColors.typography.controlLabelFontFamily);
             mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);
             mgraphics.set_source_rgba.apply(mgraphics,
-                UiColors.base.inactiveText);
+                UiColors.base.text);
             let label = this.showValueLabel && ring.display
                 ? this.displayValue(ring, value)
                 : String(this.presentation.label);

@@ -11,9 +11,9 @@ DspParameterSmoother::DspParameterSmoother() noexcept
     current_.inputTarget = -18.0F;
     current_.inputWidth = 100.0F;
     current_.saturatorCurve = 0.5F;
-    current_.compressorAttack = 0.5F;
-    current_.compressorSustain = 0.5F;
-    current_.compressorCompression = 0.5F;
+    current_.compressorAttack = 0.0F;
+    current_.compressorSustain = 0.0F;
+    current_.compressorCompression = 0.0F;
     current_.outputTarget = -1.0F;
     target_ = current_;
 }

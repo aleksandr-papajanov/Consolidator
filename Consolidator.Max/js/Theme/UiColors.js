@@ -7,24 +7,17 @@ const UiColors = {
     base: {
         background: [0.045, 0.047, 0.043, 1],
 
-        inactiveText: [0.44, 0.45, 0.41, 1],
-        text: [0.68, 0.69, 0.64, 1],
-        brightText: [0.90, 0.90, 0.83, 1],
-        actionText: [0.97, 0.97, 0.90, 1],
-
-        disabled: [0.14, 0.145, 0.135, 1],
-        separator: [0.20, 0.205, 0.185, 1]
+        disabledText: [0.44, 0.46, 0.48, 1],
+        text: [0.52, 0.55, 0.59, 1],
+        activeText: [0.80, 0.85, 0.9, 1],
+        lines: [0.14, 0.15, 0.16, 1]
     },
 
     controls: {
         // Main identity of the whole UI.
         active: [0.72, 0.88, 0.28, 1],
 
-        inactive: [0.27, 0.28, 0.255, 1],
-        ring: [0.40, 0.41, 0.37, 1],
-
-        visualization: [0.72, 0.88, 0.28, 1],
-        track: [0.16, 0.165, 0.15, 1]
+        visualization: [0.72, 0.88, 0.28, 1]
     },
 
     groups: {
@@ -50,11 +43,6 @@ const UiColors = {
     },
 
     devices: {
-        remote: [0.42, 0.43, 0.39, 1],
-        disabled: [0.16, 0.165, 0.15, 1],
-
-        panelText: [0.82, 0.82, 0.75, 1],
-
         processors: {
             input: [0.30, 0.66, 0.72, 1],
 
@@ -70,7 +58,6 @@ const UiColors = {
         },
 
         solo: [0.72, 0.88, 0.28, 1],
-
         mute: [0.91, 0.35, 0.32, 1],
 
         reset: [0.82, 0.68, 0.32, 1]

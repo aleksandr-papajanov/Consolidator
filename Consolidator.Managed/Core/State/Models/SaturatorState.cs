@@ -50,10 +50,7 @@ public sealed class SaturatorState
                 runtime.SaturatorBypass = value;
                 runtime.SaturatorActive = !value;
             })]);
-        Solo = values.CreateValue(
-            instanceId,
-            path.Append(StateNodeIds.Solo),
-            false,
+        Solo = values.CreateValue(instanceId, path.Append(StateNodeIds.Solo), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.SaturatorSolo = value)]);
         Detector = new DetectorState(
@@ -74,7 +71,6 @@ public sealed class SaturatorState
     public StateValue<float> OutputDb { get; }
 
     public StateValue<bool> Bypass { get; }
-
     public StateValue<bool> Solo { get; }
 
     public DetectorState Detector { get; }
