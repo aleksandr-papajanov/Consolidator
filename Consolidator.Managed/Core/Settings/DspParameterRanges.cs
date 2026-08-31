@@ -15,7 +15,7 @@ public static class DspParameterRanges
     public static readonly FloatRange AttackMs = new(0.01F, 1000.0F);
     public static readonly FloatRange ReleaseMs = new(1.0F, 5000.0F);
     public static readonly FloatRange FrequencyHz = new(20.0F, 20000.0F);
-    public static readonly FloatRange Q = new(0.1F, 20.0F);
+    public static readonly FloatRange Q = new(0.1F, 10.0F);
 }
 
 

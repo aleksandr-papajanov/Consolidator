@@ -495,8 +495,9 @@ Activation, source-focus changes and source preparation publish
 `analyzer_configuration 1 sourceInstanceId sampleRate` to the active viewer.
 Observe-target, committed equalizer changes and history navigation publish an
 atomic
-`analyzer_equalizer_state` projection containing raw bypass, frequency, Q and
-gain values for every source bank. JavaScript calculates focused and all-bank
-curves from those values. No coefficient or response arrays are allocated or
-copied by Managed or Native.
+`analyzer_equalizer_state` protocol version 1, frame version 2 projection carries the filter kind, fixed
+Q and named parameter values for every source bank. Unsupported parameters are
+omitted rather than represented by placeholders. JavaScript calculates focused
+and all-bank curves from those values. No coefficient or response arrays are
+allocated or copied by Managed or Native.
 

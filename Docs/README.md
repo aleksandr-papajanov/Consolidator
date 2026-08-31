@@ -15,6 +15,7 @@
 | [`BankIndexContract.md`](BankIndexContract.md) | Единый zero-based контракт индексов банков `0..6`. |
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
 | [`DspStatePipeline.md`](DspStatePipeline.md) | DSP snapshot publication, local JavaScript curves, analyzer configuration и FFT capture. |
+| [`FilterCatalog.md`](FilterCatalog.md) | Filter kinds, parameter capabilities and legacy-derived defaults. |
 | [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
 | [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |
 | [`Testing.md`](Testing.md) | Философия тестов, уровни, сквозные use cases, структура suites и команды запуска. |

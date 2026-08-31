@@ -9,6 +9,8 @@ using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
+using Consolidator.Managed.State;
+using Consolidator.Managed.Core.Settings;
 
 namespace Consolidator.Managed.Analyzer;
 
@@ -103,13 +105,12 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         }
 
         var banks = state.Dsp.EqualizerBanks;
-        var filterCount = banks.Length == 0 ? 0 : banks[0].Filters.Length;
-        var atoms = new List<Atom>(5 + banks.Length * (1 + filterCount * 4))
+        var atoms = new List<Atom>
         {
             new(AtomType.Integer, 1, 0, null),
+            new(AtomType.Integer, 2, 0, null),
             new(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
             new(AtomType.Integer, banks.Length, 0, null),
-            new(AtomType.Integer, filterCount, 0, null),
             new(
                 AtomType.Integer,
                 state.Dsp.Equalizer.Bypass.Value ? 0 : 1,
@@ -123,6 +124,7 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
                 bank.Bypass.Value ? 0 : 1,
                 0,
                 null));
+            atoms.Add(new Atom(AtomType.Integer, bank.Filters.Length, 0, null));
             foreach (var filter in bank.Filters)
             {
                 atoms.Add(new Atom(
@@ -131,16 +133,18 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
                     0,
                     null));
                 atoms.Add(new Atom(
-                    AtomType.Float,
+                    AtomType.Symbol,
                     0,
-                    filter.FrequencyHz.Value,
-                    null));
-                atoms.Add(new Atom(AtomType.Float, 0, filter.Q.Value, null));
-                atoms.Add(new Atom(
-                    AtomType.Float,
                     0,
-                    filter.GainDb.Value,
-                    null));
+                    FilterCatalog.ToProtocolName(filter.Definition.Kind)));
+                atoms.Add(new Atom(AtomType.Float, 0, filter.Definition.FixedQ, null));
+                var parameterCount = filter.FrequencyHz is null
+                    ? filter.Q is null ? 1 : 2
+                    : filter.Q is null ? 2 : 3;
+                atoms.Add(new Atom(AtomType.Integer, parameterCount, 0, null));
+                AddParameter(atoms, "frequency", filter.FrequencyHz);
+                AddParameter(atoms, "q", filter.Q);
+                AddParameter(atoms, "gain", filter.GainDb);
             }
         }
 
@@ -149,6 +153,85 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
             "analyzer_equalizer_state",
             atoms,
             DeliverySemantics.ActivePresentation));
+    }
+
+    internal void PublishFilterCatalog(
+        ManagedState state,
+        ProcessorId processorId)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (processorId is not (ProcessorId.Equalizer or ProcessorId.Saturator or ProcessorId.Compressor))
+        {
+            return;
+        }
+
+        var targetId = GetSpectrumRecipient(state.Instance.InstanceId);
+        if (targetId == 0)
+        {
+            return;
+        }
+
+        var definitions = FilterCatalog.For(processorId);
+        var atoms = new List<Atom>
+        {
+            new(AtomType.Integer, 1, 0, null),
+            new(AtomType.Integer, (long)state.Instance.InstanceId.Value, 0, null),
+            new(AtomType.Symbol, 0, 0, ProcessorIds.Encode(processorId)),
+            new(AtomType.Integer, definitions.Count, 0, null)
+        };
+        for (var index = 0; index < definitions.Count; index++)
+        {
+            var definition = definitions[index];
+            var parameterCount = (definition.Frequency is null ? 0 : 1) +
+                (definition.Q is null ? 0 : 1) + 1;
+            atoms.Add(new Atom(AtomType.Integer, index + 1, 0, null));
+            atoms.Add(new Atom(
+                AtomType.Symbol,
+                0,
+                0,
+                FilterCatalog.ToProtocolName(definition.Kind)));
+            atoms.Add(new Atom(AtomType.Float, 0, definition.FixedQ, null));
+            atoms.Add(new Atom(AtomType.Integer, parameterCount, 0, null));
+            AddDefinition(atoms, "frequency", definition.Frequency);
+            AddDefinition(atoms, "q", definition.Q);
+            AddDefinition(atoms, "gain", definition.Gain);
+        }
+
+        _transport.Send(new ProtocolOutput(
+            [targetId],
+            "filter_catalog",
+            atoms,
+            DeliverySemantics.ActivePresentation));
+    }
+
+    private static void AddParameter(
+        ICollection<Atom> atoms,
+        string name,
+        StateValue<float>? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        atoms.Add(new Atom(AtomType.Symbol, 0, 0, name));
+        atoms.Add(new Atom(AtomType.Float, 0, value.Value, null));
+    }
+
+    private static void AddDefinition(
+        ICollection<Atom> atoms,
+        string name,
+        FilterParameterDefinition? definition)
+    {
+        if (definition is null)
+        {
+            return;
+        }
+
+        atoms.Add(new Atom(AtomType.Symbol, 0, 0, name));
+        atoms.Add(new Atom(AtomType.Float, 0, definition.Range.Minimum, null));
+        atoms.Add(new Atom(AtomType.Float, 0, definition.Range.Maximum, null));
+        atoms.Add(new Atom(AtomType.Float, 0, definition.DefaultValue, null));
     }
 
     public void SetInstanceActive(InstanceId instanceId, bool active)

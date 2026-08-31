@@ -23,6 +23,7 @@ class CompressorController
         this.presenters.addButton("solo", viewModel.compressor.solo, "SOLO");
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({
             mode: "detector",
+            context: "compressor",
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,

@@ -19,6 +19,7 @@ class SaturatorController
         this.presenters.addButton("solo", viewModel.saturator.solo, "SOLO");
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({
             mode: "detector",
+            context: "saturator",
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,

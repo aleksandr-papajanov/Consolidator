@@ -1,5 +1,6 @@
 const { StateValueViewModel } = require("./StateValueViewModel.js");
 const { FilterViewModel } = require("./FilterViewModel.js");
+const { EqualizerFilterDefinitions } = require("./FilterCatalog.js");
 
 class EqualizerViewModel
 {
@@ -10,7 +11,8 @@ class EqualizerViewModel
         this.bankBypass = new StateValueViewModel(state, "equalizer.bank.bypass");
         this.bankSolo = new StateValueViewModel(state, "equalizer.bank.solo");
         this.filters = [1, 2, 3, 4, 5, 6, 7].map((filterId) => {
-            return new FilterViewModel(state, filterId);
+            return new FilterViewModel(state, filterId,
+                EqualizerFilterDefinitions[filterId - 1]);
         });
     }
     

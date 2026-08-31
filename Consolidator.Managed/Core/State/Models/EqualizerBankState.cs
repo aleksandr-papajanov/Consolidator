@@ -37,6 +37,7 @@ public sealed class EqualizerBankState
                 values,
                 true,
                 bypass => runtime.SetEqualizerFilterActive(bankIndex, index, !bypass),
+                FilterCatalog.Equalizer[index],
                 activity,
                 bankIndex,
                 index))
@@ -49,5 +50,3 @@ public sealed class EqualizerBankState
     public bool EffectActive => _activity.BankActivity(_bankIndex);
 
 }
-
-

@@ -71,6 +71,9 @@ internal sealed class ObserveTargetCommandHandler
                 command.TargetInstanceId,
                 (int)command.BankId),
             command.SnapshotContext);
+        _registry.PublishFilterCatalog(
+            command.TargetInstanceId,
+            command.SnapshotContext);
         if (command.SnapshotContext == ProcessorId.Equalizer)
         {
             _registry.PublishAnalyzerState(

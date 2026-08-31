@@ -175,6 +175,21 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         }
     }
 
+    internal void PublishFilterCatalog(
+        InstanceId instanceId,
+        ProcessorId snapshotContext)
+    {
+        lock (_lock)
+        {
+            if (_instances.TryGetValue(instanceId, out var instance))
+            {
+                _fftAnalyzer.PublishFilterCatalog(
+                    instance.State,
+                    snapshotContext);
+            }
+        }
+    }
+
     internal void PublishAnalyzerStates(IReadOnlyList<InstanceId> instanceIds)
     {
         lock (_lock)
@@ -185,7 +200,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 {
                     _fftAnalyzer.PublishEqualizerState(
                         instance.State,
-                    instance.State.Transient.Selection.SelectedProcessor);
+                        instance.State.Transient.Selection.SelectedProcessor);
                 }
             }
         }

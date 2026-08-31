@@ -658,7 +658,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("frequency"));
 
-        Assert.Equal(1000.0, second.Output.Single("state_done").Atoms[^1].Float);
+        Assert.Equal(100.0, second.Output.Single("state_done").Atoms[^1].Float);
         Assert.DoesNotContain(
             second.Output.Messages,
             message => message.Selector == "state_changed" &&
@@ -705,7 +705,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("frequency"));
 
-        Assert.Equal(2000.0, second.Output.Single("state_done").Atoms[^1].Float);
+        Assert.Equal(1100.0, second.Output.Single("state_done").Atoms[^1].Float);
     }
 
     [Fact]
@@ -746,17 +746,20 @@ public sealed class StateEditingUseCasesTests
             Symbol("equalizer"));
 
         var state = instance.Output.Single("analyzer_equalizer_state");
-        Assert.Equal(208, state.Atoms.Count);
+        Assert.Equal(439, state.Atoms.Count);
         Assert.Equal(1, state.Atoms[0].Integer);
-        Assert.Equal((long)instance.InstanceId.Value, state.Atoms[1].Integer);
-        Assert.Equal(7, state.Atoms[2].Integer);
+        Assert.Equal(2, state.Atoms[1].Integer);
+        Assert.Equal((long)instance.InstanceId.Value, state.Atoms[2].Integer);
         Assert.Equal(7, state.Atoms[3].Integer);
         Assert.Equal(1, state.Atoms[4].Integer);
         Assert.Equal(1, state.Atoms[5].Integer);
-        Assert.Equal(1, state.Atoms[6].Integer);
-        Assert.Equal(1000.0, state.Atoms[7].Float);
-        Assert.Equal(1.0, state.Atoms[8].Float);
-        Assert.Equal(0.0, state.Atoms[9].Float);
+        Assert.Equal(7, state.Atoms[6].Integer);
+        Assert.Equal(1, state.Atoms[7].Integer);
+        Assert.Equal("gain", state.Atoms[8].Symbol);
+        Assert.Equal(0.707F, state.Atoms[9].Float);
+        Assert.Equal(1, state.Atoms[10].Integer);
+        Assert.Equal("gain", state.Atoms[11].Symbol);
+        Assert.Equal(0.0, state.Atoms[12].Float);
 
         instance.Output.Clear();
         application.Send(
@@ -777,10 +780,10 @@ public sealed class StateEditingUseCasesTests
 
         Assert.Equal(
             6.0,
-            instance.Output.Single("analyzer_equalizer_state").Atoms[9].Float);
+            instance.Output.Single("analyzer_equalizer_state").Atoms[12].Float);
         Assert.Equal(
             0.0,
-            instance.Output.Single("analyzer_equalizer_state").Atoms[13].Float);
+            instance.Output.Single("analyzer_equalizer_state").Atoms[20].Float);
 
         instance.Output.Clear();
         application.Send(
@@ -972,7 +975,7 @@ public sealed class StateEditingUseCasesTests
             () => instance.Output.Messages.Any(message =>
                 message.Selector == "state_done"),
             TimeSpan.FromSeconds(1)));
-        Assert.Equal(1000.0, instance.Output.Single("state_done").Atoms[^1].Float);
+        Assert.Equal(100.0, instance.Output.Single("state_done").Atoms[^1].Float);
     }
 
     [Fact]

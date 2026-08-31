@@ -13,6 +13,7 @@ class EqualizerController
         this.presenters.addButton("solo", viewModel.equalizer.bankSolo, "SOLO");
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({
             mode: "equalizer",
+            context: "equalizer",
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,
@@ -26,6 +27,8 @@ class EqualizerController
     {
         return filters.map((filter) => {
                 return {
+                    type: filter.definition.type,
+                    definition: filter.definition,
                     frequency: filter.frequency,
                     gain: filter.gain,
                     q: filter.q,

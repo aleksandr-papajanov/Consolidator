@@ -751,19 +751,23 @@ function testEqualizerPresenterBuildsAllBanksCurveFromRawState() {
   });
 
   protocolHandlers.analyzer_equalizer_state([
-    1, 8, 2, 1, 1,
-    1, 1, 1000, 1, 6,
-    1, 1, 2000, 1, 6,
+    1, 2, 8, 2, 1,
+    1, 2,
+    1, "bell", 0.707, 3, "frequency", 1000, "q", 1, "gain", 6,
+    1, "bell", 0.707, 3, "frequency", 2000, "q", 1, "gain", 6,
   ]);
   assert.strictEqual(presenter.allBanksCurve.active, false);
+  assert.strictEqual(presenter.equalizerState.sourceInstanceId, "8");
 
   protocolHandlers.analyzer_equalizer_state([
-    1, 7, 2, 1, 1,
-    1, 1, 1000, 1, 6,
-    1, 1, 2000, 1, 6,
+    1, 2, 7, 2, 1,
+    1, 2,
+    1, "bell", 0.707, 3, "frequency", 1000, "q", 1, "gain", 6,
+    1, "bell", 0.707, 3, "frequency", 2000, "q", 1, "gain", 6,
   ]);
 
   assert.strictEqual(presenter.allBanksCurve.active, true);
+  assert.strictEqual(presenter.equalizerState.sourceInstanceId, "7");
   assert.strictEqual(presenter.allBanksCurve.values.length, 256);
   assert.notDeepStrictEqual(
     presenter.allBanksCurve.values,
@@ -800,6 +804,52 @@ function testDetectorPresenterUpdatesCurvesDuringFilterDrag() {
 
   assert.notDeepStrictEqual(presenter.curves[0].values, previous);
   presenter.destroy();
+}
+function testAnalyzerRendersFixedQFilterWithoutEditableQ() {
+  var presenter = new AnalyzerPresenter({
+    mode: "equalizer",
+    parameters: [{
+      definition: {
+        type: "low_shelf",
+        fixedQ: 0.707,
+        parameters: { frequency: {}, gain: {} },
+      },
+      frequency: { value: 100 },
+      q: null,
+      gain: { value: 6 },
+      enabled: true,
+    }],
+  });
+
+  assert.ok(presenter.curves[0].values.some(function (value) {
+    return value < 0.49;
+  }));
+  presenter.destroy();
+}
+function testAnalyzerRendersLegacyHighShelfAndTiltResponses() {
+  ["high_shelf", "tilt"].forEach(function (type) {
+    var presenter = new AnalyzerPresenter({
+      mode: "equalizer",
+      sampleRate: 44100,
+      parameters: [{
+        definition: {
+          type: type,
+          fixedQ: 0.707,
+          parameters: { frequency: {}, gain: {} },
+        },
+        frequency: { value: type === "tilt" ? 1000 : 10000 },
+        q: null,
+        gain: { value: 6 },
+        enabled: true,
+      }],
+    });
+    var values = presenter.curves[0].values;
+    assert.ok(values.some(function (value) { return value < 0.49; }));
+    if (type === "tilt") {
+      assert.ok(values.some(function (value) { return value > 0.51; }));
+    }
+    presenter.destroy();
+  });
 }
 function testDetectorBindingPublishesCurvesToControl() {
   var messages = [];
@@ -1624,6 +1674,8 @@ testAnalyzerConfigurationRecalculatesCurvesForSampleRate();
 testEqualizerPresenterBuildsAllBanksCurveFromRawState();
 testDetectorPresenterBuildsFilterCurves();
 testDetectorPresenterUpdatesCurvesDuringFilterDrag();
+testAnalyzerRendersFixedQFilterWithoutEditableQ();
+testAnalyzerRendersLegacyHighShelfAndTiltResponses();
 testDetectorBindingPublishesCurvesToControl();
 testAnalyzerControlPreservesCurvesAcrossHandlePresentation();
 testAnalyzerBindingUsesOneTransactionForHandleDrag();

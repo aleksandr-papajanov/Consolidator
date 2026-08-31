@@ -142,15 +142,32 @@ The equalizer analyzer additionally receives one active-presentation snapshot
 of raw state for every bank:
 
 ```text
-analyzer_equalizer_state 1 sourceInstanceId bankCount filterCount
-    equalizerActive
-    (bankActive (filterActive frequencyHz q gainDb)*)*
+  analyzer_equalizer_state 1 2 sourceInstanceId bankCount equalizerActive
+    (bankActive filterCount
+      (filterActive filterType fixedQ parameterCount
+        parameterName value × parameterCount) × filterCount) × bankCount
 ```
 
-Managed publishes this snapshot after `observe_target`, committed equalizer
-writes/resets and history navigation. Other DSP changes do not produce this
-frame. It does not contain biquad coefficients or curve points; those remain
-JavaScript presentation concerns.
+Filter parameters are named and variable-length. Unsupported parameters are
+omitted; Gain contains only `gain`, while shelf and Tilt contain `frequency`
+and `gain`. The fixed Q used by shelf and Tilt is transmitted as `fixedQ` and
+is not an editable state value. In the equalizer UI, Gain is represented by a
+horizontal response line and a vertical-only triangular handle at the left
+edge of the analyzer; it has no frequency or Q control.
+
+The corresponding catalog frame is:
+
+```text
+filter_catalog 1 sourceInstanceId context filterCount
+    filterId filterType fixedQ parameterCount
+        parameterName minimum maximum defaultValue × parameterCount
+```
+
+Managed publishes the catalog after `observe_target`; it publishes the
+equalizer state snapshot after `observe_target`, committed equalizer
+writes/resets and history navigation. Other DSP changes do not produce these
+analyzer frames. They do not contain biquad coefficients or curve points;
+those remain JavaScript presentation concerns.
 
 `analyzer_configuration` is emitted on viewer activation, source-focus change,
 and source preparation. `analyzer_equalizer_state` is emitted after

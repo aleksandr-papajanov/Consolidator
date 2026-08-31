@@ -49,16 +49,23 @@ For the equalizer, Managed also publishes an atomic raw-state projection for all
 banks of the observed source:
 
 ```text
-analyzer_equalizer_state 1 sourceInstanceId bankCount filterCount
-    equalizerActive
-    (bankActive (filterActive frequencyHz q gainDb)*)*
+analyzer_equalizer_state 1 2 sourceInstanceId bankCount equalizerActive
+    (bankActive filterCount
+      (filterActive filterType fixedQ parameterCount
+        parameterName value × parameterCount) × filterCount) × bankCount
 ```
 
+The frame carries each filter kind and its variable-length named parameters.
 This projection contains no coefficients or rendered points. JavaScript remains
 the only curve calculator. It caches the raw projection, calculates the response
 of non-focused banks when that projection or the sample rate changes, and adds
 the live focused-bank response during gestures to produce `all_banks` without
 recalculating every bank on each drag frame.
+
+The active viewer also receives `filter_catalog 1` for the selected processor.
+The catalog describes each slot's filter kind, fixed Q and parameter ranges;
+the UI uses it to validate the analyzer model and never derives a filter kind
+from the slot index.
 
 ## Spectrum capture
 

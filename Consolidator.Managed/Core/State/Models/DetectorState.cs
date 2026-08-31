@@ -25,7 +25,8 @@ public sealed class DetectorState
                 path.Append(StateNodeIds.Filter).Append(StateNodeIds.FilterAt(index)),
                 values,
                 false,
-                bypass => filterActiveProjection(index, !bypass)))
+                bypass => filterActiveProjection(index, !bypass),
+                FilterCatalog.Detector[index]))
             .ToArray();
     }
 

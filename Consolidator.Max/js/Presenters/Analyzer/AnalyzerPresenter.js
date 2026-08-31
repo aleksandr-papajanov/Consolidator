@@ -31,6 +31,7 @@ class AnalyzerPresenter extends PresentationObservable
             ? Number(this.options.sampleRate) : DEFAULT_SAMPLE_RATE;
         this.sampleRates = {};
         this.equalizerStates = {};
+        this.filterCatalogs = {};
         this.equalizerState = null;
         this.otherBanksDecibels = null;
         this.focusedBankId = 0;
@@ -104,15 +105,13 @@ class AnalyzerPresenter extends PresentationObservable
                 this.equalizerState = null;
             }
             else {
-                this.sourceInstanceId = status.target
-                    ? status.target.instanceId : null;
                 this.focusedBankId = status.target
                     ? Number(status.target.bankId) : null;
-                const configuredSampleRate =
-                    this.sampleRates[String(this.sourceInstanceId)];
+                const configuredSampleRate = this.sourceInstanceId === null
+                    ? null : this.sampleRates[String(this.sourceInstanceId)];
                 this.sampleRate = configuredSampleRate || DEFAULT_SAMPLE_RATE;
-                this.equalizerState = this.equalizerStates[
-                    String(this.sourceInstanceId)] || null;
+                this.equalizerState = this.sourceInstanceId === null
+                    ? null : this.equalizerStates[String(this.sourceInstanceId)] || null;
             }
             this.otherBanksDecibels = null;
             this.requestRebuild();
@@ -126,10 +125,11 @@ class AnalyzerPresenter extends PresentationObservable
         }
         this.unsubscribers.push(protocol.on("fft", (args) => {
             if (!args || args.length < 3 ||
-                    (this.hasTargetStatus &&
+                    (this.sourceInstanceId !== null &&
                         String(args[1]) !== String(this.sourceInstanceId))) {
                 return;
             }
+            this.sourceInstanceId = String(args[1]);
             let fftSize = Number(args[2]);
             let binCount = Math.floor(fftSize / 2) + 1;
             if (!isFinite(fftSize) || binCount <= 1 ||
@@ -175,10 +175,7 @@ class AnalyzerPresenter extends PresentationObservable
             }
             const sourceInstanceId = String(args[1]);
             this.sampleRates[sourceInstanceId] = sampleRate;
-            if (this.hasTargetStatus &&
-                    sourceInstanceId !== String(this.sourceInstanceId)) {
-                return;
-            }
+            this.sourceInstanceId = sourceInstanceId;
             if (sampleRate === this.sampleRate) {
                 return;
             }
@@ -191,11 +188,8 @@ class AnalyzerPresenter extends PresentationObservable
             if (!state) {
                 return;
             }
+            this.sourceInstanceId = state.sourceInstanceId;
             this.equalizerStates[state.sourceInstanceId] = state;
-            if (this.hasTargetStatus &&
-                    state.sourceInstanceId !== String(this.sourceInstanceId)) {
-                return;
-            }
             const preserveOtherBanks = this.sameOtherBanksState(
                 this.equalizerState,
                 state);
@@ -203,6 +197,18 @@ class AnalyzerPresenter extends PresentationObservable
             if (!preserveOtherBanks) {
                 this.otherBanksDecibels = null;
             }
+            this.requestRebuild();
+        }));
+        this.unsubscribers.push(protocol.on("filter_catalog", (args) => {
+            const catalog = this.decodeFilterCatalog(args);
+            if (!catalog) {
+                return;
+            }
+            this.sourceInstanceId = catalog.sourceInstanceId;
+            this.filterCatalogs[
+                String(catalog.sourceInstanceId) + ":" + catalog.context] =
+                catalog.filters;
+            this.otherBanksDecibels = null;
             this.requestRebuild();
         }));
     }
@@ -230,6 +236,8 @@ class AnalyzerPresenter extends PresentationObservable
                 let firstFilter = firstBank.filters[filterIndex];
                 let secondFilter = secondBank.filters[filterIndex];
                 if (firstFilter.active !== secondFilter.active ||
+                        firstFilter.type !== secondFilter.type ||
+                        firstFilter.fixedQ !== secondFilter.fixedQ ||
                         firstFilter.frequency !== secondFilter.frequency ||
                         firstFilter.q !== secondFilter.q ||
                         firstFilter.gain !== secondFilter.gain) {
@@ -242,15 +250,14 @@ class AnalyzerPresenter extends PresentationObservable
 
     decodeEqualizerState(args)
     {
-        if (!args || Number(args[0]) !== 1 || args.length < 5) {
+        if (!args || Number(args[0]) !== 1 || Number(args[1]) !== 2 ||
+                args.length < 5) {
             return null;
         }
-        const bankCount = Math.floor(Number(args[2]));
-        const filterCount = Math.floor(Number(args[3]));
-        const expectedLength = 5 + bankCount * (1 + filterCount * 4);
+        const bankCount = Math.floor(Number(args[3]));
+        const expectedLengthMinimum = 5 + bankCount * 2;
         if (!isFinite(bankCount) || bankCount < 1 || bankCount > 32 ||
-                !isFinite(filterCount) || filterCount < 1 || filterCount > 32 ||
-                args.length !== expectedLength) {
+                args.length < expectedLengthMinimum) {
             return null;
         }
         let position = 5;
@@ -258,29 +265,99 @@ class AnalyzerPresenter extends PresentationObservable
         for (let bankIndex = 0; bankIndex < bankCount; bankIndex += 1) {
             let bank = { active: Number(args[position]) !== 0, filters: [] };
             position += 1;
-            for (let filterIndex = 0; filterIndex < filterCount;
-                    filterIndex += 1) {
+            let filterCount = Math.floor(Number(args[position]));
+            position += 1;
+            if (!isFinite(filterCount) || filterCount < 1 || filterCount > 32) {
+                return null;
+            }
+            for (let filterIndex = 0; filterIndex < filterCount; filterIndex += 1) {
                 let filter = {
                     active: Number(args[position]) !== 0,
-                    frequency: Number(args[position + 1]),
-                    q: Number(args[position + 2]),
-                    gain: Number(args[position + 3])
+                    type: String(args[position + 1]),
+                    fixedQ: Number(args[position + 2]),
+                    parameters: {}
                 };
-                if (!isFinite(filter.frequency) || filter.frequency <= 0 ||
-                        !isFinite(filter.q) || filter.q <= 0 ||
-                        !isFinite(filter.gain)) {
+                let parameterCount = Math.floor(Number(args[position + 3]));
+                position += 4;
+                if (!isFinite(parameterCount) || parameterCount < 1 || parameterCount > 3 ||
+                        position + parameterCount * 2 > args.length) {
+                    return null;
+                }
+                for (let parameterIndex = 0; parameterIndex < parameterCount; parameterIndex += 1) {
+                    let name = String(args[position]);
+                    let value = Number(args[position + 1]);
+                    if (["frequency", "q", "gain"].indexOf(name) < 0 ||
+                            filter.parameters[name] !== undefined || !isFinite(value)) {
+                        return null;
+                    }
+                    filter.parameters[name] = value;
+                    filter[name] = value;
+                    position += 2;
+                }
+                if (filter.parameters.gain === undefined || !isFinite(filter.fixedQ) || filter.fixedQ <= 0 ||
+                        (filter.type !== "gain" && filter.parameters.frequency === undefined) ||
+                        (filter.type === "bell" && filter.parameters.q === undefined) ||
+                        (filter.type === "gain" && Object.keys(filter.parameters).length !== 1) ||
+                        (filter.type === "bell" && Object.keys(filter.parameters).length !== 3) ||
+                        (filter.type !== "bell" && filter.type !== "gain" && Object.keys(filter.parameters).length !== 2) ||
+                        (filter.type !== "gain" && filter.parameters.q !== undefined && filter.type !== "bell") ||
+                        (["bell", "tilt", "low_shelf", "high_shelf", "gain"].indexOf(filter.type) < 0)) {
                     return null;
                 }
                 bank.filters.push(filter);
-                position += 4;
             }
             banks.push(bank);
         }
+        if (position !== args.length) return null;
         return {
-            sourceInstanceId: String(args[1]),
+            sourceInstanceId: String(args[2]),
             active: Number(args[4]) !== 0,
             banks: banks
         };
+    }
+
+    decodeFilterCatalog(args)
+    {
+        if (!args || Number(args[0]) !== 1 || args.length < 4) return null;
+        let filterCount = Math.floor(Number(args[3]));
+        if (!isFinite(filterCount) || filterCount < 1 || filterCount > 32) return null;
+        let position = 4;
+        let filters = [];
+        for (let filterIndex = 0; filterIndex < filterCount; filterIndex += 1) {
+            if (position + 4 > args.length) return null;
+            let id = Math.floor(Number(args[position]));
+            let type = String(args[position + 1]);
+            let fixedQ = Number(args[position + 2]);
+            let parameterCount = Math.floor(Number(args[position + 3]));
+            position += 4;
+            if (id !== filterIndex + 1 || !isFinite(parameterCount) ||
+                    parameterCount < 1 || parameterCount > 3 || !isFinite(fixedQ) || fixedQ <= 0 ||
+                    ["bell", "tilt", "low_shelf", "high_shelf", "gain"].indexOf(type) < 0) return null;
+            let parameters = {};
+            for (let index = 0; index < parameterCount; index += 1) {
+                if (position + 4 > args.length) return null;
+                let name = String(args[position]);
+                let minimum = Number(args[position + 1]);
+                let maximum = Number(args[position + 2]);
+                let defaultValue = Number(args[position + 3]);
+                position += 4;
+                if (["frequency", "q", "gain"].indexOf(name) < 0 ||
+                        parameters[name] || !isFinite(minimum) || !isFinite(maximum) ||
+                        !isFinite(defaultValue) || minimum > maximum ||
+                        defaultValue < minimum || defaultValue > maximum) return null;
+                parameters[name] = {
+                    minimum: minimum, maximum: maximum, defaultValue: defaultValue
+                };
+            }
+            if (parameters.gain === undefined ||
+                    (type === "gain" && Object.keys(parameters).length !== 1) ||
+                    (type === "bell" && Object.keys(parameters).length !== 3) ||
+                    (type !== "bell" && type !== "gain" && Object.keys(parameters).length !== 2) ||
+                    (type !== "bell" && parameters.q !== undefined)) return null;
+            filters.push({ type: type, fixedQ: fixedQ, parameters: parameters });
+        }
+        if (position !== args.length) return null;
+        return { sourceInstanceId: String(args[1]), context: String(args[2]), filters: filters };
     }
     
     publishSpectrum()
@@ -408,15 +485,19 @@ class AnalyzerPresenter extends PresentationObservable
                     parameter.gain, this.gainMinimum);
                 let gainMaximum = this.clampParameterValue(
                     parameter.gain, this.gainMaximum);
+                if (!parameter.gain) {
+                    return;
+                }
+                let hasFrequency = Boolean(parameter.frequency);
                 presentation.handles.push({
                     id: index + 1,
-                    frequency: this.frequencyToX(
-                        this.read(parameter.frequency, 1000)),
+                    frequency: hasFrequency ? this.frequencyToX(
+                        this.read(parameter.frequency, 1000)) : 0,
                     gain: this.gainToY(this.read(parameter.gain, 0)),
                     enabled: this.read(parameter.enabled, true),
                     selected: index + 1 === this.selectedId,
-                    xMinimum: this.frequencyToX(frequencyMinimum),
-                    xMaximum: this.frequencyToX(frequencyMaximum),
+                    xMinimum: hasFrequency ? this.frequencyToX(frequencyMinimum) : 0,
+                    xMaximum: hasFrequency ? this.frequencyToX(frequencyMaximum) : 0,
                     yMinimum: this.gainToY(gainMaximum),
                     yMaximum: this.gainToY(gainMinimum),
                     capabilities: {
@@ -515,19 +596,25 @@ class AnalyzerPresenter extends PresentationObservable
 
     calculateFilterCurve(id, parameter, enabled, preview)
     {
+        let definition = this.getFilterDefinition(id, parameter);
         const filterFrequency = preview && preview.frequency !== undefined
             ? Number(preview.frequency)
             : Number(this.read(parameter.frequency, 1000));
         const q = preview && preview.q !== undefined
             ? Number(preview.q)
-            : Number(this.read(parameter.q, 1));
+            : parameter.q
+                ? Number(this.read(parameter.q, definition.fixedQ || 1))
+                : Number(definition.fixedQ || 1);
         const gain = preview && preview.gain !== undefined
             ? Number(preview.gain)
             : Number(this.read(parameter.gain, 0));
-        const valid = enabled && isFinite(filterFrequency) && isFinite(q) &&
-            isFinite(gain) && filterFrequency > 0 && q > 0;
+        const type = definition.type;
+        const valid = enabled && isFinite(gain) &&
+            (type === "gain" || (isFinite(filterFrequency) &&
+                isFinite(q) && filterFrequency > 0 && q > 0));
         const coefficients = valid
-            ? BiquadCalculator.calculateBell(
+            ? BiquadCalculator.calculate(
+                type,
                 filterFrequency, q, gain, this.sampleRate)
             : null;
         const decibels = this.curveFrequencies.map((frequency) => {
@@ -546,6 +633,21 @@ class AnalyzerPresenter extends PresentationObservable
         };
     }
 
+    getFilterDefinition(id, parameter)
+    {
+        let catalog = this.filterCatalogs[
+            String(this.sourceInstanceId) + ":" + this.options.context];
+        let definition = catalog && catalog[Number(id) - 1];
+        if (definition) {
+            return definition;
+        }
+        return parameter.definition || {
+            type: parameter.type || "bell",
+            fixedQ: 1,
+            parameters: {}
+        };
+    }
+
     createCurveFrequencies()
     {
         let frequencies = [];
@@ -561,14 +663,17 @@ class AnalyzerPresenter extends PresentationObservable
     previewMoved(id, x, y)
     {
         let parameter = (this.options.parameters || [])[Number(id) - 1];
-        if (!parameter || !this.ready) {
+        if (!parameter || !parameter.gain || !this.ready) {
             return;
         }
-        let frequency = this.clampParameterValue(
-            parameter.frequency, this.xToFrequency(x));
         let gain = this.clampParameterValue(
             parameter.gain, this.yToGain(y));
-        this.curvePreview[Number(id)] = { frequency: frequency, gain: gain };
+        let preview = { gain: gain };
+        if (parameter.frequency) {
+            preview.frequency = this.clampParameterValue(
+                parameter.frequency, this.xToFrequency(x));
+        }
+        this.curvePreview[Number(id)] = preview;
         this.requestRebuild();
     }
 
@@ -608,20 +713,23 @@ class AnalyzerPresenter extends PresentationObservable
     )
     {
         let parameter = (this.options.parameters || [])[Number(id) - 1];
-        if (!parameter || !this.ready) {
+        if (!parameter || !parameter.gain || !this.ready) {
             return;
         }
-        let frequency = this.xToFrequency(x);
         let gain = this.yToGain(y);
-        frequency = this.clampParameterValue(parameter.frequency, frequency);
         gain = this.clampParameterValue(parameter.gain, gain);
+        let frequency = parameter.frequency
+            ? this.clampParameterValue(parameter.frequency, this.xToFrequency(x))
+            : null;
         this.curvePreview[Number(id)] = { frequency: frequency, gain: gain };
         this.requestRebuild();
         if (typeof parameter.setPosition === "function") {
             parameter.setPosition(frequency, gain, transactionId);
             return;
         }
-        presentationBindingWrite(parameter.frequency, frequency, transactionId);
+        if (parameter.frequency && frequency !== null) {
+            presentationBindingWrite(parameter.frequency, frequency, transactionId);
+        }
         presentationBindingWrite(parameter.gain, gain, transactionId);
     }
 
@@ -641,8 +749,9 @@ class AnalyzerPresenter extends PresentationObservable
     {
         let preview = this.curvePreview[Number(id)];
         let parameter = (this.options.parameters || [])[Number(id) - 1];
-        if (!preview || preview.frequency === undefined ||
-                preview.gain === undefined || !parameter) {
+        if (!preview || preview.gain === undefined || !parameter ||
+                !parameter.gain || (parameter.frequency &&
+                    preview.frequency === undefined)) {
             if (callback) callback({ status: "accepted", error: null });
             return;
         }
@@ -654,8 +763,10 @@ class AnalyzerPresenter extends PresentationObservable
                 callback);
             return;
         }
-        presentationBindingWrite(
-            parameter.frequency, preview.frequency, transactionId);
+        if (parameter.frequency) {
+            presentationBindingWrite(
+                parameter.frequency, preview.frequency, transactionId);
+        }
         presentationBindingWrite(
             parameter.gain, preview.gain, transactionId);
         if (callback) callback({ status: "accepted", error: null });
@@ -729,6 +840,7 @@ class AnalyzerPresenter extends PresentationObservable
         this.curveListeners = [];
         this.sampleRates = {};
         this.equalizerStates = {};
+        this.filterCatalogs = {};
         this.equalizerState = null;
         this.otherBanksDecibels = null;
         this.sourceInstanceId = null;
@@ -736,6 +848,7 @@ class AnalyzerPresenter extends PresentationObservable
         this.curvePreview = {};
         super.destroy();
     }
+
 }
 
 

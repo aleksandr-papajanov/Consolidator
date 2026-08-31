@@ -63,8 +63,18 @@ class AnalyzerRenderer
                 presentation.scopeColor
                     ? presentation.scopeColor
                     : handle.selected ? UiColors.analyzer.selectedHandle : UiColors.analyzer.handle);
-            graphics.ellipse(x - 4, y - 4, 8, 8);
-            graphics.fill();
+            if (handle.capabilities && !handle.capabilities.frequency) {
+                graphics.new_path();
+                graphics.move_to(x - 6, y);
+                graphics.line_to(x + 3, y - 5);
+                graphics.line_to(x + 3, y + 5);
+                graphics.close_path();
+                graphics.fill();
+            }
+            else {
+                graphics.ellipse(x - 4, y - 4, 8, 8);
+                graphics.fill();
+            }
         });
     }
 }

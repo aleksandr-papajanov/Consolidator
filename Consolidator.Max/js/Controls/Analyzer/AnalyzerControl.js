@@ -236,8 +236,7 @@ class AnalyzerControl
     {
         let handle = this.handleById(id);
         let capabilities = handle && handle.capabilities;
-        return Boolean(capabilities &&
-            (capabilities.frequency || capabilities.gain));
+        return Boolean(capabilities && capabilities.gain);
     }
 
     canChangeQ(id)

@@ -13,31 +13,38 @@ public sealed class FilterState
         StateValueFactory values,
         bool bankOwned,
         Action<bool> bypassProjection,
+        FilterDefinition definition,
         ActivityObserver? activity = null,
         int bankId = -1,
         int filterId = -1)
     {
-        FrequencyHz = CreateValue(
+        ArgumentNullException.ThrowIfNull(definition);
+        Definition = definition;
+        FrequencyHz = Definition.Frequency is { } frequency
+            ? CreateValue(
             instanceId,
             path.Append(StateNodeIds.Frequency),
             values,
             bankOwned,
-            1000.0F,
-            DspParameterRanges.FrequencyHz);
-        Q = CreateValue(
+            frequency.DefaultValue,
+            frequency.Range)
+            : null;
+        Q = Definition.Q is { } q
+            ? CreateValue(
             instanceId,
             path.Append(StateNodeIds.Q),
             values,
             bankOwned,
-            1.0F,
-            DspParameterRanges.Q);
+            q.DefaultValue,
+            q.Range)
+            : null;
         GainDb = CreateValue(
             instanceId,
             path.Append(StateNodeIds.Gain),
             values,
             bankOwned,
-            0.0F,
-            DspParameterRanges.FilterGainDb,
+            Definition.Gain.DefaultValue,
+            Definition.Gain.Range,
             activity is null
                 ? Array.Empty<IStateValueObserver<float>>()
                 : [activity.ObserveFilterGain(bankId, filterId)]);
@@ -61,9 +68,11 @@ public sealed class FilterState
             false);
     }
 
-    public StateValue<float> FrequencyHz { get; }
+    public StateValue<float>? FrequencyHz { get; }
 
-    public StateValue<float> Q { get; }
+    public FilterDefinition Definition { get; }
+
+    public StateValue<float>? Q { get; }
 
     public StateValue<float> GainDb { get; }
 

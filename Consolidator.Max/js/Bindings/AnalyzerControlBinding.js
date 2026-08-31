@@ -97,6 +97,7 @@ class AnalyzerControlBinding extends ControlBinding
         args = args.concat(curve.values || []);
         this.send(name, args);
     }
+
     
     handleIntent(name, values)
     {

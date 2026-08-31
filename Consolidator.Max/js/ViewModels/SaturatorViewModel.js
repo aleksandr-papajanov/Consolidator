@@ -1,5 +1,6 @@
 const { StateValueViewModel } = require("./StateValueViewModel.js");
 const { DetectorFilterViewModel } = require("./DetectorFilterViewModel.js");
+const { DetectorFilterDefinitions } = require("./FilterCatalog.js");
 
 class SaturatorViewModel
 {
@@ -19,7 +20,8 @@ class SaturatorViewModel
             "saturator.detector.listen"
         );
         this.detectorFilters = [1, 2].map((filterId) => {
-            return new DetectorFilterViewModel(state, "saturator", filterId);
+            return new DetectorFilterViewModel(state, "saturator", filterId,
+                DetectorFilterDefinitions[filterId - 1]);
         });
     }
     

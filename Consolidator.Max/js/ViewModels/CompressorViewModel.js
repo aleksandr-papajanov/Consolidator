@@ -1,5 +1,6 @@
 const { StateValueViewModel } = require("./StateValueViewModel.js");
 const { DetectorFilterViewModel } = require("./DetectorFilterViewModel.js");
+const { DetectorFilterDefinitions } = require("./FilterCatalog.js");
 
 class CompressorViewModel
 {
@@ -18,7 +19,8 @@ class CompressorViewModel
             "compressor.detector.listen"
         );
         this.detectorFilters = [1, 2].map((filterId) => {
-            return new DetectorFilterViewModel(state, "compressor", filterId);
+            return new DetectorFilterViewModel(state, "compressor", filterId,
+                DetectorFilterDefinitions[filterId - 1]);
         });
     }
     
