@@ -300,16 +300,6 @@ public:
         }
     };
 
-    c74::min::message<> setProcessorSolo{
-        this,
-        "set_processor_solo",
-        MIN_FUNCTION
-        {
-            ForwardMessage("set_processor_solo", args);
-            return {};
-        }
-    };
-
     c74::min::message<> beginHistory{
         this,
         "begin_history",

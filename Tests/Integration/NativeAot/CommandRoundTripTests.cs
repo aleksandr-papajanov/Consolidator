@@ -55,7 +55,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("entry"),
             Symbol("input_gain"),
-            Symbol("gain"),
+            Symbol("level"),
             Symbol("value"),
             Float(5.5));
         instance.WaitForResponse("101");
@@ -65,8 +65,8 @@ public sealed class CommandRoundTripTests
         var change = Assert.Single(
             instance.Frames,
             frame => frame.Selector == "state_changed" &&
-                frame.Atoms[1].SymbolValue == "input_gain.gain");
-        Assert.Equal("input_gain.gain", change.Atoms[1].SymbolValue);
+                frame.Atoms[1].SymbolValue == "input_gain.level");
+        Assert.Equal("input_gain.level", change.Atoms[1].SymbolValue);
         Assert.Equal(5.5, change.Atoms[2].FloatValue);
 
         instance.ClearFrames();
@@ -79,7 +79,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("query"),
             Symbol("input_gain"),
-            Symbol("gain"));
+            Symbol("level"));
         instance.WaitForResponse("102");
 
         var response = instance.Single("state_done");
@@ -150,11 +150,10 @@ public sealed class CommandRoundTripTests
             instance.Frames,
             frame => frame.Selector == "registry_processor_changed" &&
                 frame.Atoms[4].SymbolValue == "equalizer");
-        Assert.Equal(8, activeProcessorNotification.Atoms.Count);
+        Assert.Equal(7, activeProcessorNotification.Atoms.Count);
         Assert.Equal(instance.InstanceId.ToString(), activeProcessorNotification.Atoms[3].SymbolValue);
         Assert.Equal(1, activeProcessorNotification.Atoms[5].IntegerValue);
         Assert.Equal(0, activeProcessorNotification.Atoms[6].IntegerValue);
-        Assert.Equal(0, activeProcessorNotification.Atoms[7].IntegerValue);
 
         var activeRevision = activeNotification.Atoms[2].IntegerValue;
 
@@ -197,7 +196,6 @@ public sealed class CommandRoundTripTests
                 frame.Atoms[4].SymbolValue == "equalizer");
         Assert.Equal(0, processorNotification.Atoms[5].IntegerValue);
         Assert.Equal(0, processorNotification.Atoms[6].IntegerValue);
-        Assert.Equal(0, processorNotification.Atoms[7].IntegerValue);
     }
 
     [Fact]
@@ -319,7 +317,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("entry"),
             Symbol("input_gain"),
-            Symbol("gain"),
+            Symbol("level"),
             Symbol("value"),
             Float(gain));
         instance.WaitForResponse(requestId);
@@ -345,7 +343,7 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("query"),
             Symbol("input_gain"),
-            Symbol("gain"));
+            Symbol("level"));
         instance.WaitForResponse(requestId);
         return instance.Single("state_done").Atoms[^1].FloatValue;
     }

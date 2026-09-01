@@ -38,12 +38,13 @@ unbounded Native allocation. Decode rejects the wrong marker, non-integral
 atoms, inconsistent lengths, extra/truncated chunks, hidden trailing bytes and
 out-of-range packed values before calling Managed restore.
 
-The current payload is schema `2`. It stores input `level`, `target`, `width`,
-and `leveler`; saturation `drive`, `curve`, `split`, and `output`; compressor
-`attack`, `sustain`, `compression`, enum `character`, `parallel`, and `output`;
-Polish `thick` and `air`; and output `level`, `target`, and `limiter`. The
-previous threshold/ratio/release/mix model is not decoded as a compatibility
-format.
+The current payload is schema `4`. It stores instance mute and solo, bank group
+membership, input `level`, `target`, `width`, and `leveler`; saturation
+`drive`, `curve`, `split`, and `output`; compressor `attack`, `sustain`,
+`compression`, enum `character`, `parallel`, and `output`; Polish `thick` and
+`air`; output `level`, `target`, and `limiter`; and the DSP bypass values.
+The previous threshold/ratio/release/mix model is not decoded as a
+compatibility format.
 
 The numeric Blob marker is the only supported Max-side representation. Saved
 development devices created with the former JSON-symbol representation must be

@@ -23,7 +23,6 @@ public static class StateNodeIds
     public static readonly NodeId Frequency = new(24);
     public static readonly NodeId Q = new(25);
     public static readonly NodeId Bypass = new(26);
-    public static readonly NodeId Listen = new(27);
     public static readonly NodeId Detector = new(28);
     public static readonly NodeId EqualizerBank = new(29);
     public static readonly NodeId Filter = new(30);

@@ -13,7 +13,7 @@ namespace Consolidator.Managed.Core.Services.Persistence;
 
 internal sealed class InstancePersistenceService
 {
-    private const int CurrentSchema = 2;
+    private const int CurrentSchema = 4;
     private readonly InstanceRegistry _instances;
     private readonly IOperationGate _operationGate;
     private readonly PersistenceChangePublisher _persistenceChanges;
@@ -40,7 +40,7 @@ internal sealed class InstancePersistenceService
                     "Instance is not registered.");
             return JsonSerializer.SerializeToUtf8Bytes(
                 CreateSnapshot(instance.State),
-                PersistenceJsonContext.Default.PersistentStateV2);
+                PersistenceJsonContext.Default.PersistentStateV4);
         }
     }
 
@@ -48,7 +48,7 @@ internal sealed class InstancePersistenceService
     {
         var snapshot = JsonSerializer.Deserialize(
             utf8Json,
-            PersistenceJsonContext.Default.PersistentStateV2)
+            PersistenceJsonContext.Default.PersistentStateV4)
             ?? throw new InvalidDataException("Persistence payload is empty.");
         Validate(snapshot);
         using (_operationGate.Enter())
@@ -62,7 +62,7 @@ internal sealed class InstancePersistenceService
         }
     }
 
-    private static PersistentStateV2 CreateSnapshot(ManagedState state) => new(
+    private static PersistentStateV4 CreateSnapshot(ManagedState state) => new(
         CurrentSchema,
         new PersistentInstance(
             state.Instance.Mute.Value,
@@ -84,28 +84,27 @@ internal sealed class InstancePersistenceService
 
     private static PersistentSaturator CreateSaturator(SaturatorState value) => new(
         value.Drive.Value, value.Curve.Value, value.Split.Value,
-        value.OutputDb.Value, value.Bypass.Value, value.Solo.Value,
+        value.OutputDb.Value, value.Bypass.Value,
         CreateDetector(value.Detector));
 
     private static PersistentCompressor CreateCompressor(CompressorState value) => new(
         value.Attack.Value, value.Sustain.Value, value.Compression.Value,
         value.Character.Value, value.Parallel.Value, value.OutputDb.Value,
-        value.Bypass.Value, value.Solo.Value, CreateDetector(value.Detector));
+        value.Bypass.Value, CreateDetector(value.Detector));
 
     private static PersistentPolish CreatePolish(PolishState value) =>
-        new(value.Thick.Value, value.Air.Value, value.Bypass.Value, value.Solo.Value);
+        new(value.Thick.Value, value.Air.Value, value.Bypass.Value);
 
     private static PersistentOutput CreateOutput(OutputState value) =>
         new(value.Level.Value, value.Target.Value, value.Limiter.Value, value.Bypass.Value);
 
     private static PersistentDetector CreateDetector(DetectorState value) => new(
-        value.Listen.Value, value.Filters.Select(CreateFilter).ToArray());
+        value.Filters.Select(CreateFilter).ToArray());
 
     private static PersistentEqualizer CreateEqualizer(
         EqualizerState equalizer,
         IReadOnlyList<EqualizerBankState> banks) => new(
         equalizer.Bypass.Value,
-        equalizer.Solo.Value,
         banks.Select(bank => new PersistentEqualizerBank(
             bank.Bypass.Value,
             bank.Solo.Value,
@@ -118,7 +117,7 @@ internal sealed class InstancePersistenceService
         value.Bypass.Value,
         value.Solo.Value);
 
-    private static void Apply(ManagedState state, PersistentStateV2 snapshot)
+    private static void Apply(ManagedState state, PersistentStateV4 snapshot)
     {
         using var transaction = new StateHistoryTransaction();
         state.Instance.Mute.PrepareBaseline(snapshot.Instance.Mute, transaction);
@@ -136,12 +135,8 @@ internal sealed class InstancePersistenceService
         state.Dsp.Polish.Thick.PrepareBaseline(snapshot.Dsp.Polish.Thick, transaction);
         state.Dsp.Polish.Air.PrepareBaseline(snapshot.Dsp.Polish.Air, transaction);
         state.Dsp.Polish.Bypass.PrepareBaseline(snapshot.Dsp.Polish.Bypass, transaction);
-        state.Dsp.Polish.Solo.PrepareBaseline(snapshot.Dsp.Polish.Solo, transaction);
         state.Dsp.Equalizer.Bypass.PrepareBaseline(
             snapshot.Dsp.Equalizer.Bypass,
-            transaction);
-        state.Dsp.Equalizer.Solo.PrepareBaseline(
-            snapshot.Dsp.Equalizer.Solo,
             transaction);
         for (var bankIndex = 0; bankIndex < DspConstants.BankCount; bankIndex++)
         {
@@ -188,7 +183,6 @@ internal sealed class InstancePersistenceService
         target.Split.PrepareBaseline(source.Split, transaction);
         target.OutputDb.PrepareBaseline(source.Output, transaction);
         target.Bypass.PrepareBaseline(source.Bypass, transaction);
-        target.Solo.PrepareBaseline(source.Solo, transaction);
         ApplyDetector(target.Detector, source.Detector, transaction);
     }
 
@@ -204,7 +198,6 @@ internal sealed class InstancePersistenceService
         target.Parallel.PrepareBaseline(source.Parallel, transaction);
         target.OutputDb.PrepareBaseline(source.Output, transaction);
         target.Bypass.PrepareBaseline(source.Bypass, transaction);
-        target.Solo.PrepareBaseline(source.Solo, transaction);
         ApplyDetector(target.Detector, source.Detector, transaction);
     }
 
@@ -213,7 +206,6 @@ internal sealed class InstancePersistenceService
         PersistentDetector source,
         StateHistoryTransaction transaction)
     {
-        target.Listen.PrepareBaseline(source.Listen, transaction);
         ApplyFilters(target.Filters, source.Filters, transaction);
     }
 
@@ -256,7 +248,7 @@ internal sealed class InstancePersistenceService
         }
     }
 
-    private static void Validate(PersistentStateV2 snapshot)
+    private static void Validate(PersistentStateV4 snapshot)
     {
         if (snapshot.Schema != CurrentSchema || snapshot.Instance is null ||
             snapshot.Banks is null ||

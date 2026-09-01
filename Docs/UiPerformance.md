@@ -35,8 +35,10 @@ the control; the mouse wheel moves by one row per wheel step. Scrolling is
 clamped to the available content range and does not create Managed protocol
 traffic.
 
-Track names are rendered with the control's fixed track-name size on every
-row. Bank cells do not display their bank ID; only banks assigned to a group
+Each row is laid out as three columns: the track name uses the remaining
+available width, the processor marker column uses the width of its processor markers,
+and the bank column uses the maximum bank count plus the instance controls.
+Bank cells do not display their bank ID; only banks assigned to a group
 display that group's alphabetic ID (`A` for group `0`). The bank grid is drawn
 separately from the cells; selection fills the cell space without adding a
 cell border, group labels are centered using the active font metrics, and
@@ -45,18 +47,20 @@ active EQ effect show a small contrasting marker, including when the bank is
 selected. This status is updated by a registry delta only when the
 neutral/active state changes.
 
-BankManager actions are rendered in a bottom action panel. A normal click
+BankManager actions are rendered in a fourth column after the track name,
+processor markers, and banks. The four action buttons are stacked vertically,
+with `Redo` and `Undo` below them as a separate group with a small gap. The
+history group contains only these two one-step controls.
+A normal click
 starts a selection with one bank and Shift-click adds or removes banks from
 it; `Group` writes the next available
 group ID to the selected banks, `Ungroup` clears the focused bank's group, and
 `Clear` clears local groups with confirmation. The former link-group panel is
 not part of the presentation.
 
-The BankManager also renders the 32-slot history timeline directly below its
-action buttons. Filled slots show the applied portion of the timeline, the
-current cursor is highlighted, and clicking an available slot sends one
-`jump_history` request. History state is delivered through the same complete
-presentation stream as the bank table; it does not create registry traffic.
+History state is delivered through the same complete presentation stream as the
+bank table; it does not create registry traffic. `Redo` and `Undo` issue the
+corresponding one-step history request when enabled.
 
 Group `0` is the automatic system group and cannot be changed or ungrouped.
 User groups accept at most one bank from each track, and only ungrouped banks

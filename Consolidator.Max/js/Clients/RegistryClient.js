@@ -96,18 +96,17 @@ class RegistryClient
         };
         let processorCount = Number(args[7]);
         for (let index = 0; index < processorCount; index += 1) {
-            let position = 8 + index * 4;
+            let position = 8 + index * 3;
             instance.processors.push({
                 processorId: String(args[position]),
                 effectActive: Number(args[position + 1]) !== 0,
                 markerActive: false,
-                bypassed: Number(args[position + 2]) !== 0,
-                soloed: Number(args[position + 3]) !== 0
+                bypassed: Number(args[position + 2]) !== 0
             });
         }
-        let count = Number(args[8 + processorCount * 4]);
+        let count = Number(args[8 + processorCount * 3]);
         for (let index = 0; index < count; index += 1) {
-            let position = 9 + processorCount * 4 + index * 3;
+            let position = 9 + processorCount * 3 + index * 3;
             instance.banks.push({
                 bankId: args[position],
                 groupId: args[position + 1] === "none" ? null : args[position + 1],
@@ -182,7 +181,6 @@ class RegistryClient
                 if (processor.processorId === processorId) {
                     processor.effectActive = Number(args[5]) !== 0;
                     processor.bypassed = Number(args[6]) !== 0;
-                    processor.soloed = Number(args[7]) !== 0;
                 }
             });
         });
@@ -321,8 +319,7 @@ class RegistryClient
             processorId: String(args[4]),
             effectActive: Number(args[5]) !== 0,
             markerActive: Number(args[6]) !== 0,
-            bypassed: Number(args[7]) !== 0,
-            soloed: Number(args[8]) !== 0
+            bypassed: Number(args[7]) !== 0
         });
     }
 

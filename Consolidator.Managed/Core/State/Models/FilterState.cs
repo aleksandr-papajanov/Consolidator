@@ -48,7 +48,7 @@ public sealed class FilterState
             activity is null
                 ? Array.Empty<IStateValueObserver<float>>()
                 : [activity.ObserveFilterGain(bankId, filterId)]);
-        Bypass = CreateValue(
+        Bypass = CreateNonHistoryValue(
             instanceId,
             path.Append(StateNodeIds.Bypass),
             values,
@@ -60,7 +60,7 @@ public sealed class FilterState
                     new StateProjectionObserver<bool>(bypassProjection),
                     activity.ObserveFilterBypass(bankId, filterId)
                 ]);
-        Solo = CreateValue(
+        Solo = CreateNonHistoryValue(
             instanceId,
             path.Append(StateNodeIds.Solo),
             values,
@@ -96,6 +96,29 @@ public sealed class FilterState
                 StateValueEditMode.CopyValue,
                 observers: observers)
             : values.CreateValue(
+                instanceId,
+                path,
+                initialValue,
+                StateValueEditMode.CopyValue,
+                observers: observers);
+    }
+
+    private static StateValue<TValue> CreateNonHistoryValue<TValue>(
+        InstanceId instanceId,
+        StatePath path,
+        StateValueFactory values,
+        bool bankOwned,
+        TValue initialValue,
+        params IStateValueObserver<TValue>[] observers)
+    {
+        return bankOwned
+            ? values.CreateBankValueWithoutHistory(
+                instanceId,
+                path,
+                initialValue,
+                StateValueEditMode.CopyValue,
+                observers: observers)
+            : values.CreateValueWithoutHistory(
                 instanceId,
                 path,
                 initialValue,

@@ -28,7 +28,7 @@ public sealed class PersistenceUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
             Float(-18.0));
 
@@ -43,7 +43,7 @@ public sealed class PersistenceUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
             Float(-12.0));
         instance.Output.Clear();
@@ -54,15 +54,15 @@ public sealed class PersistenceUseCasesTests
             return true;
         });
 
-        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
         Assert.DoesNotContain(
             instance.Output.Messages,
             message => message.Selector == "persistence_dirty");
 
         application.Send(instance, "jump_history", Integer(0));
-        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
         application.Send(instance, "jump_history", Integer(2));
-        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public sealed class PersistenceUseCasesTests
         var payload = persistence.CaptureCommitted(instance.InstanceId);
         var invalidPayload = Encoding.UTF8.GetBytes(
             Encoding.UTF8.GetString(payload).Replace(
-                "\"schema\":1",
-                "\"schema\":2",
+                "\"schema\":4",
+                "\"schema\":3",
                 StringComparison.Ordinal));
         var before = instance.Dsp.Latest.CompressorAttack;
         var beforePublishCount = instance.Dsp.PublishCount;

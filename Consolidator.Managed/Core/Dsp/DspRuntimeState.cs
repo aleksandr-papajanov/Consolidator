@@ -57,11 +57,6 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.SaturatorBypass = value ? 1U : 0U;
     }
 
-    public bool SaturatorSolo
-    {
-        get => _snapshot.SaturatorSolo != 0;
-        set => _snapshot.SaturatorSolo = value ? 1U : 0U;
-    }
 
     public float CompressorAttack
     {
@@ -82,7 +77,6 @@ public unsafe sealed class DspRuntimeState
     public float PolishThick { get => _snapshot.PolishThick; set => _snapshot.PolishThick = value; }
     public float PolishAir { get => _snapshot.PolishAir; set => _snapshot.PolishAir = value; }
     public bool PolishBypass { get => _snapshot.PolishBypass != 0; set => _snapshot.PolishBypass = value ? 1U : 0U; }
-    public bool PolishSolo { get => _snapshot.PolishSolo != 0; set => _snapshot.PolishSolo = value ? 1U : 0U; }
 
     public bool CompressorBypass
     {
@@ -90,11 +84,6 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.CompressorBypass = value ? 1U : 0U;
     }
 
-    public bool CompressorSolo
-    {
-        get => _snapshot.CompressorSolo != 0;
-        set => _snapshot.CompressorSolo = value ? 1U : 0U;
-    }
 
     public bool EqualizerBypass
     {
@@ -102,11 +91,6 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.EqualizerBypass = value ? 1U : 0U;
     }
 
-    public bool EqualizerSolo
-    {
-        get => _snapshot.EqualizerSolo != 0;
-        set => _snapshot.EqualizerSolo = value ? 1U : 0U;
-    }
 
     public float OutputLevel
     {
@@ -150,24 +134,6 @@ public unsafe sealed class DspRuntimeState
     {
         get => _snapshot.OutputGainActive != 0;
         set => _snapshot.OutputGainActive = value ? 1U : 0U;
-    }
-
-    public bool SaturatorListen
-    {
-        get => _snapshot.SaturatorListen != 0;
-        set => _snapshot.SaturatorListen = value ? 1U : 0U;
-    }
-
-    public bool InputListen
-    {
-        get => _snapshot.InputListen != 0;
-        set => _snapshot.InputListen = value ? 1U : 0U;
-    }
-
-    public bool CompressorListen
-    {
-        get => _snapshot.CompressorListen != 0;
-        set => _snapshot.CompressorListen = value ? 1U : 0U;
     }
 
     public bool Audible

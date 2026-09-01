@@ -12,10 +12,6 @@ class CompressorViewModel
         this.character = new StateValueViewModel(state, "compressor.character");
         this.parallel = new StateValueViewModel(state, "compressor.parallel");
         this.output = new StateValueViewModel(state, "compressor.output");
-        this.detectorListen = new StateValueViewModel(
-            state,
-            "compressor.detector.listen"
-        );
         this.detectorFilters = [1, 2].map((filterId) => {
             return new DetectorFilterViewModel(state, "compressor", filterId,
                 DetectorFilterDefinitions[filterId - 1]);
@@ -30,8 +26,7 @@ class CompressorViewModel
             this.compression,
             this.character,
             this.parallel,
-            this.output,
-            this.detectorListen
+            this.output
         ].concat(this.detectorFilters.reduce((values, filter) => {
             return values.concat(filter.getStateValues());
         }, []));
@@ -45,7 +40,6 @@ class CompressorViewModel
         this.character.destroy();
         this.parallel.destroy();
         this.output.destroy();
-        this.detectorListen.destroy();
         this.detectorFilters.forEach((filter) => { filter.destroy(); });
     }
 }

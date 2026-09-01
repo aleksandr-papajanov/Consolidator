@@ -19,9 +19,11 @@ const BankManagerControlOptions = {
     rowHeight: 16,
     bankSize: 16,
     bankGap: 0,
+    columnGap: 5,
     deviceColumnGap: 5,
-    actionPanelHeight: 18,
-    historyPanelHeight: 18,
+    actionColumnWidth: 64,
+    actionButtonHeight: 16,
+    historyGroupGap: 8,
     outerPadding: 4,
     sectionGap: 3,
     actionGap: 3,
@@ -35,9 +37,9 @@ const BankManagerControlOptions = {
     panelButtonGap: 0,
     actionFlashDurationMs: 180,
     deviceColors: UiColors.devices.processors,
+    processorIds: ["input", "saturator", "compressor", "equalizer", "polish", "output"],
     processorMarkerSize: 7,
     processorMarkerGap: 2,
-    processorMarkerX: 82,
     fontSize: 11
 };
 
@@ -110,22 +112,7 @@ class BankManagerControl
 
     contentHeight()
     {
-        return Math.max(0, this.layoutHeight() -
-            BankManagerControlOptions.actionPanelHeight -
-            BankManagerControlOptions.historyPanelHeight -
-            BankManagerControlOptions.sectionGap * 2);
-    }
-
-    actionPanelY()
-    {
-        return this.contentHeight() + BankManagerControlOptions.sectionGap;
-    }
-
-    historyPanelY()
-    {
-        return this.actionPanelY() +
-            BankManagerControlOptions.actionPanelHeight +
-            BankManagerControlOptions.sectionGap;
+        return this.layoutHeight();
     }
 
     primaryWidth()
@@ -158,20 +145,38 @@ class BankManagerControl
     {
         let gridWidth = this.bankCount(rows) * BankManagerControlOptions.bankSize;
         let instanceButtonWidth = BankManagerControlOptions.bankSize * 3;
-        return Math.max(0, this.primaryWidth() - gridWidth -
+        return Math.max(0, this.actionsColumnX() - BankManagerControlOptions.columnGap -
+            gridWidth -
             instanceButtonWidth - BankManagerControlOptions.deviceColumnGap);
     }
 
-    historyLayout()
+    actionsColumnX()
     {
-        let buttonCount = 4;
-        let gap = BankManagerControlOptions.actionGap;
-        return {
-            buttonCount: buttonCount,
-            gap: gap,
-            buttonWidth: (this.primaryWidth() - gap * (buttonCount - 1)) /
-                buttonCount
-        };
+        return Math.max(0, this.primaryWidth() - BankManagerControlOptions.actionColumnWidth);
+    }
+
+    actionGroupHeight()
+    {
+        let actionCount = 4;
+        return actionCount * BankManagerControlOptions.actionButtonHeight +
+            (actionCount - 1) * BankManagerControlOptions.actionGap;
+    }
+
+    processorMarkerCount()
+    {
+        return BankManagerControlOptions.processorIds.length;
+    }
+
+    processorMarkerWidth()
+    {
+        return this.processorMarkerCount() * BankManagerControlOptions.processorMarkerSize +
+            (this.processorMarkerCount() - 1) * BankManagerControlOptions.processorMarkerGap;
+    }
+
+    processorMarkerColumnX(rows)
+    {
+        return Math.max(0, this.bankGridX(rows) -
+            BankManagerControlOptions.columnGap - this.processorMarkerWidth());
     }
 
     scrollBy(delta)
@@ -331,8 +336,10 @@ class BankManagerControl
         mgraphics.set_font_size(BankManagerControlOptions.fontSize);
 
         let contentHeight = this.contentHeight();
-        this.paintActions(this.primaryWidth(), this.actionPanelY());
-        this.paintHistory(this.primaryWidth(), this.historyPanelY());
+        this.paintActions(
+            this.actionsColumnX(),
+            this.contentHeight()
+        );
         this.paintBankGrid(rows, offset);
 
         for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
@@ -530,8 +537,7 @@ class BankManagerControl
 
     paintProcessorMarkers(row, y)
     {
-        let processorIds = ["input", "saturator", "compressor", "equalizer", "polish", "output"];
-        processorIds.forEach((processorId, index) => {
+        BankManagerControlOptions.processorIds.forEach((processorId, index) => {
             let processor = (row.processors || []).filter((candidate) => {
                 return candidate.processorId === processorId;
             })[0] || { effectActive: false };
@@ -548,7 +554,7 @@ class BankManagerControl
 
     processorMarkerX(index)
     {
-        return BankManagerControlOptions.processorMarkerX + index *
+        return this.processorMarkerColumnX(this.presentation.rows || []) + index *
             (BankManagerControlOptions.processorMarkerSize +
                 BankManagerControlOptions.processorMarkerGap);
     }
@@ -743,7 +749,7 @@ class BankManagerControl
         });
     }
 
-    paintActions(width, contentHeight)
+    paintActions(x, height)
     {
         let group = this.presentation.groupAction || {};
         let ungroup = this.presentation.ungroupAction || {};
@@ -760,17 +766,18 @@ class BankManagerControl
                 momentary: false
             }
         ];
-        let buttonWidth = (width - BankManagerControlOptions.actionGap *
-            (actions.length - 1)) / actions.length;
-        let y = contentHeight;
         mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.background);
-        mgraphics.rectangle(0, y, width, BankManagerControlOptions.actionPanelHeight);
+        mgraphics.rectangle(
+            x,
+            0,
+            BankManagerControlOptions.actionColumnWidth,
+            height
+        );
         mgraphics.fill();
-        actions.forEach((entry, index) => {
-            let x = Math.round(index * (buttonWidth +
-                BankManagerControlOptions.actionGap));
-            let right = Math.round(x + buttonWidth);
-            let actualWidth = right - x;
+
+        let paintButton = (entry, buttonY) => {
+            let buttonBottom = Math.round(buttonY + BankManagerControlOptions.actionButtonHeight);
+            let actualHeight = buttonBottom - buttonY;
             let borderColor = BankManagerControlOptions.separator;
             let textColor = entry.action.enabled
                 ? UiColors.base.activeText
@@ -781,20 +788,19 @@ class BankManagerControl
                 : entry.action.active && entry.action.color
                     ? entry.action.color : BankManagerControlOptions.background;
             mgraphics.set_source_rgba.apply(mgraphics, fillColor);
-            mgraphics.rectangle(x, y, actualWidth,
-                BankManagerControlOptions.actionPanelHeight);
+            mgraphics.rectangle(x, buttonY, BankManagerControlOptions.actionColumnWidth,
+                actualHeight);
             mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics, borderColor);
-            mgraphics.rectangle(x, y, actualWidth, 1);
+            mgraphics.rectangle(x, buttonY, BankManagerControlOptions.actionColumnWidth, 1);
             mgraphics.fill();
-            mgraphics.rectangle(x, y + BankManagerControlOptions.actionPanelHeight - 1,
-                actualWidth, 1);
+            mgraphics.rectangle(x, buttonBottom - 1,
+                BankManagerControlOptions.actionColumnWidth, 1);
             mgraphics.fill();
-            mgraphics.rectangle(x, y, 1,
-                BankManagerControlOptions.actionPanelHeight);
+            mgraphics.rectangle(x, buttonY, 1, actualHeight);
             mgraphics.fill();
-            mgraphics.rectangle(right - 1, y, 1,
-                BankManagerControlOptions.actionPanelHeight);
+            mgraphics.rectangle(x + BankManagerControlOptions.actionColumnWidth - 1,
+                buttonY, 1, actualHeight);
             mgraphics.fill();
             mgraphics.set_source_rgba.apply(mgraphics,
                 flashed || entry.action.active
@@ -802,74 +808,41 @@ class BankManagerControl
             mgraphics.select_font_face("Arial");
             mgraphics.set_font_size(9);
             let textSize = mgraphics.text_measure(entry.label);
-            mgraphics.move_to(x + (actualWidth - textSize[0]) / 2, y + 12);
+            mgraphics.move_to(x + (BankManagerControlOptions.actionColumnWidth - textSize[0]) / 2,
+                buttonY + 12);
             mgraphics.show_text(entry.label);
-        });
-    }
+        };
 
-    paintHistory(width, y)
-    {
+        actions.forEach((entry, index) => {
+            paintButton(
+                entry,
+                Math.round(index * (BankManagerControlOptions.actionButtonHeight +
+                    BankManagerControlOptions.actionGap))
+            );
+        });
+
         let history = this.presentation.history || {};
-        let layout = this.historyLayout();
-        let historyHeight = BankManagerControlOptions.historyPanelHeight;
-        let buttons = [
-            { key: "historyStart", label: "First", enabled: Number(history.cursor) > 0 },
-            { key: "historyBack", label: "Back", enabled: Boolean(history.canUndo) },
-            { key: "historyForward", label: "Forward", enabled: Boolean(history.canRedo) },
-            { key: "historyEnd", label: "Last", enabled: Number(history.cursor) <
-                Number(history.entryCount) }
-        ];
-
-        mgraphics.set_source_rgba.apply(mgraphics, BankManagerControlOptions.background);
-        mgraphics.rectangle(0, y, width, historyHeight);
-        mgraphics.fill();
-        buttons.forEach((button, index) => {
-            let x = Math.round(index * (layout.buttonWidth + layout.gap));
-            let right = Math.round(x + layout.buttonWidth);
-            let actualWidth = right - x;
-            mgraphics.set_source_rgba.apply(mgraphics,
-                this.actionFlash[button.key]
-                    ? BankManagerControlOptions.focused
-                    : BankManagerControlOptions.background);
-            mgraphics.rectangle(x, y, actualWidth, historyHeight);
-            mgraphics.fill();
-            mgraphics.set_source_rgba.apply(mgraphics,
-                BankManagerControlOptions.separator);
-            mgraphics.rectangle(x, y, actualWidth, 1);
-            mgraphics.fill();
-            mgraphics.rectangle(x, y + historyHeight - 1, actualWidth, 1);
-            mgraphics.fill();
-            mgraphics.rectangle(x, y, 1, historyHeight);
-            mgraphics.fill();
-            mgraphics.rectangle(right - 1, y, 1, historyHeight);
-            mgraphics.fill();
-            mgraphics.set_source_rgba.apply(mgraphics,
-                this.actionFlash[button.key]
-                    ? BankManagerControlOptions.background
-                    : button.enabled
-                        ? UiColors.base.activeText
-                        : UiColors.base.disabledText);
-            mgraphics.select_font_face(
-                UiColors.typography.controlLabelFontFamily);
-            mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);
-            let textSize = mgraphics.text_measure(button.label);
-            mgraphics.move_to(x + (actualWidth - textSize[0]) / 2, y + 12);
-            mgraphics.show_text(button.label);
+        let historyY = this.actionGroupHeight() + BankManagerControlOptions.historyGroupGap;
+        [
+            {
+                key: "historyRedo",
+                label: "Redo",
+                action: { enabled: Boolean(history.canRedo) },
+                momentary: true
+            },
+            {
+                key: "historyUndo",
+                label: "Undo",
+                action: { enabled: Boolean(history.canUndo) },
+                momentary: true
+            }
+        ].forEach((button, index) => {
+            paintButton(
+                button,
+                historyY + index * (BankManagerControlOptions.actionButtonHeight +
+                    BankManagerControlOptions.actionGap)
+            );
         });
-    }
-
-    historyButtonAt(x, y)
-    {
-        let historyY = this.historyPanelY();
-        if (y < historyY || y >= historyY +
-                BankManagerControlOptions.historyPanelHeight) {
-            return -1;
-        }
-        let layout = this.historyLayout();
-        let index = Math.floor(x / (layout.buttonWidth + layout.gap));
-        if (index < 0 || index >= layout.buttonCount) return -1;
-        let buttonX = index * (layout.buttonWidth + layout.gap);
-        return x < buttonX + layout.buttonWidth ? index : -1;
     }
 
     rowAt(y)
@@ -938,37 +911,15 @@ class BankManagerControl
             return;
         }
 
-        let historyButton = this.historyButtonAt(x, y);
-        if (historyButton >= 0) {
-            let history = this.presentation.history || {};
-            let enabled = [
-                Number(history.cursor) > 0,
-                Boolean(history.canUndo),
-                Boolean(history.canRedo),
-                Number(history.cursor) < Number(history.entryCount)
-            ][historyButton];
-            if (enabled) {
-                let cursor = Number(history.cursor) || 0;
-                let entryCount = Number(history.entryCount) || 0;
-                let target = [0, cursor - 1, cursor + 1, entryCount][historyButton];
-                this.flashAction([
-                    "historyStart",
-                    "historyBack",
-                    "historyForward",
-                    "historyEnd"
-                ][historyButton]);
-                this.emit("historySelected", [target]);
-            }
-            return;
-        }
-
-        if (y >= this.actionPanelY() &&
-                y < this.actionPanelY() + BankManagerControlOptions.actionPanelHeight) {
-            let actionWidth = (this.primaryWidth() - BankManagerControlOptions.actionGap * 3) / 4;
-            let actionStep = actionWidth + BankManagerControlOptions.actionGap;
-            let buttonIndex = Math.floor(x / actionStep);
-            if (buttonIndex < 0 || buttonIndex >= 4 ||
-                    x >= buttonIndex * actionStep + actionWidth) {
+        if (x >= this.actionsColumnX() &&
+                x < this.actionsColumnX() + BankManagerControlOptions.actionColumnWidth &&
+                y >= 0 && y < this.contentHeight()) {
+            let actionStep = BankManagerControlOptions.actionButtonHeight +
+                BankManagerControlOptions.actionGap;
+            let actionButtonIndex = Math.floor(y / actionStep);
+            let actionGroupHeight = this.actionGroupHeight();
+            if (y < actionGroupHeight &&
+                    y >= actionButtonIndex * actionStep + BankManagerControlOptions.actionButtonHeight) {
                 return;
             }
             let actions = [
@@ -977,17 +928,36 @@ class BankManagerControl
                 this.presentation.clearAction,
                 this.presentation.scopeAction
             ];
-            let action = actions[buttonIndex];
-            if (action && action.enabled) {
-                if (buttonIndex < 3) {
-                    this.flashAction(["group", "ungroup", "clear"][buttonIndex]);
+            if (y < actionGroupHeight) {
+                let action = actions[actionButtonIndex];
+                if (action && action.enabled) {
+                    if (actionButtonIndex < 3) {
+                        this.flashAction(["group", "ungroup", "clear"][actionButtonIndex]);
+                    }
+                    this.emit([
+                        "groupRequested",
+                        "ungroupRequested",
+                        "clearRequested",
+                        "scopeToggled"
+                    ][actionButtonIndex]);
                 }
-                this.emit([
-                    "groupRequested",
-                    "ungroupRequested",
-                    "clearRequested",
-                    "scopeToggled"
-                ][buttonIndex]);
+                return;
+            }
+
+            let historyY = actionGroupHeight + BankManagerControlOptions.historyGroupGap;
+            let historyButtonIndex = Math.floor((y - historyY) / actionStep);
+            if (y < historyY || historyButtonIndex < 0 || historyButtonIndex >= 2 ||
+                    y >= historyY + historyButtonIndex * actionStep +
+                        BankManagerControlOptions.actionButtonHeight) {
+                return;
+            }
+            let history = this.presentation.history || {};
+            let historyEnabled = [Boolean(history.canRedo), Boolean(history.canUndo)][historyButtonIndex];
+            if (historyEnabled) {
+                let cursor = Number(history.cursor) || 0;
+                let target = historyButtonIndex === 0 ? cursor + 1 : cursor - 1;
+                this.flashAction(["historyRedo", "historyUndo"][historyButtonIndex]);
+                this.emit("historySelected", [target]);
             }
             return;
         }
@@ -1201,8 +1171,7 @@ class BankManagerControl
     processorId,
     effectActive,
     markerActive,
-    bypassed,
-    soloed)
+    bypassed)
     {
         if (!this.pendingPresentation) {
             return;
@@ -1401,8 +1370,7 @@ class BankManagerControl
     processorId,
     effectActive,
     markerActive,
-    bypassed,
-    soloed)
+    bypassed)
     {
         let row = this.presentation.rows[Number(rowIndex)];
         if (!row) return;

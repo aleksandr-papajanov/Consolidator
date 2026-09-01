@@ -240,8 +240,7 @@ class BankManagerControlBinding extends ControlBinding
             processor.processorId,
             processor.effectActive ? 1 : 0,
             processor.markerActive ? 1 : 0,
-            processor.bypassed ? 1 : 0,
-            processor.soloed ? 1 : 0
+            processor.bypassed ? 1 : 0
         ]);
     }
 

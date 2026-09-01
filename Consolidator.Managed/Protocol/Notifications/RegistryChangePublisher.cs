@@ -63,7 +63,6 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink
             payload.Add(Symbol(ProcessorIds.Encode(processor.ProcessorId)));
             payload.Add(Integer(processor.EffectActive ? 1 : 0));
             payload.Add(Integer(processor.Bypassed ? 1 : 0));
-            payload.Add(Integer(processor.Soloed ? 1 : 0));
         }
         payload.Add(Integer(banks.Count));
         foreach (var bank in banks)
@@ -112,8 +111,7 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink
             Symbol(instanceId.Value.ToString()),
             Symbol(ProcessorIds.Encode(status.ProcessorId)),
             Integer(status.EffectActive ? 1 : 0),
-            Integer(status.Bypassed ? 1 : 0),
-            Integer(status.Soloed ? 1 : 0));
+            Integer(status.Bypassed ? 1 : 0));
 
     public void Publish(string selector, params Atom[] payload)
     {

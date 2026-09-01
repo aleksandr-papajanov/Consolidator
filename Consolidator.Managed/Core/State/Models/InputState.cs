@@ -25,14 +25,13 @@ public sealed class InputState
         Leveler = values.CreateValue(instanceId, path.Append(StateNodeIds.Leveler), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.InputLeveler = value)]);
-        Bypass = values.CreateValue(instanceId, path.Append(StateNodeIds.Bypass), false,
+        Bypass = values.CreateValueWithoutHistory(instanceId, path.Append(StateNodeIds.Bypass), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.InputGainBypass = value)]);
         Detector = new DetectorState(
             instanceId,
             path.Append(StateNodeIds.Detector),
             values,
-            value => runtime.InputListen = value,
             (index, active) => runtime.SetDetectorFilterActive(index, active));
     }
 

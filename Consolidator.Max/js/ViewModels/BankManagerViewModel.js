@@ -184,7 +184,6 @@ class BankManagerViewModel
                 if (processor.processorId === processorId) {
                     processor.effectActive = Number(args[5]) !== 0;
                     processor.bypassed = Number(args[6]) !== 0;
-                    processor.soloed = Number(args[7]) !== 0;
                 }
             });
         } else return false;

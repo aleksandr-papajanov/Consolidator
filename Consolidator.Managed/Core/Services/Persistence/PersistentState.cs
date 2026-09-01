@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Consolidator.Managed.Core.Services.Persistence;
 
-internal sealed record PersistentStateV2(
+internal sealed record PersistentStateV4(
     int Schema,
     PersistentInstance Instance,
     PersistentBank[] Banks,
@@ -29,7 +29,6 @@ internal sealed record PersistentSaturator(
     bool Split,
     float Output,
     bool Bypass,
-    bool Solo,
     PersistentDetector Detector);
 
 internal sealed record PersistentCompressor(
@@ -40,18 +39,15 @@ internal sealed record PersistentCompressor(
     bool Parallel,
     float Output,
     bool Bypass,
-    bool Solo,
     PersistentDetector Detector);
 
-internal sealed record PersistentPolish(float Thick, float Air, bool Bypass, bool Solo);
+internal sealed record PersistentPolish(float Thick, float Air, bool Bypass);
 
 internal sealed record PersistentDetector(
-    bool Listen,
     PersistentFilter[] Filters);
 
 internal sealed record PersistentEqualizer(
     bool Bypass,
-    bool Solo,
     PersistentEqualizerBank[] Banks);
 
 internal sealed record PersistentEqualizerBank(
@@ -71,7 +67,7 @@ internal sealed record PersistentFilter(
     NumberHandling = JsonNumberHandling.Strict,
     RespectRequiredConstructorParameters = true,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
-[JsonSerializable(typeof(PersistentStateV2))]
+[JsonSerializable(typeof(PersistentStateV4))]
 internal partial class PersistenceJsonContext : JsonSerializerContext
 {
 }

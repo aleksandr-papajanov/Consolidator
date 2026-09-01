@@ -22,7 +22,7 @@ public sealed class OutputState
         Limiter = values.CreateValue(instanceId, path.Append(StateNodeIds.Limiter), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.OutputLimiter = value)]);
-        Bypass = values.CreateValue(instanceId, path.Append(StateNodeIds.Bypass), false,
+        Bypass = values.CreateValueWithoutHistory(instanceId, path.Append(StateNodeIds.Bypass), false,
             StateValueEditMode.CopyValue,
             observers: [new StateProjectionObserver<bool>(value => runtime.OutputGainBypass = value)]);
     }

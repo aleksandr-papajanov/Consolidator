@@ -21,18 +21,18 @@ public sealed class InstanceState
 
         InstanceId = instanceId;
         var instancePath = new StatePath([StateNodeIds.Instance]);
-        Label = values.CreateValue(
+        Label = values.CreateValueWithoutHistory(
             instanceId,
             instancePath.Append(StateNodeIds.Label),
             string.Empty,
             StateValueEditMode.CopyValue);
-        Mute = values.CreateValue(
+        Mute = values.CreateValueWithoutHistory(
             instanceId,
             instancePath.Append(StateNodeIds.Mute),
             false,
             StateValueEditMode.CopyValue,
             observers: [audibilityObserver.ObserveMute(instanceId, runtime)]);
-        Solo = values.CreateValue(
+        Solo = values.CreateValueWithoutHistory(
             instanceId,
             instancePath.Append(StateNodeIds.Solo),
             false,

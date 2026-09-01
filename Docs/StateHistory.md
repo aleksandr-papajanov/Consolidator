@@ -187,7 +187,7 @@ layers no longer exist.
 DSP state constructors attach `StateProjectionObserver<TValue>` directly to
 the values that affect the runtime snapshot. The observer applies the initial
 value and every later effective change. Bypass observers update both the raw
-bypass marker and its derived active flag; detector listen and equalizer
+bypass marker and its derived active flag; and equalizer
 bank/filter activity are projected by their owning state objects.
 
 These observers run only on the Managed control path. Native audio reads the
@@ -200,6 +200,12 @@ list of active `IHistoryValue` objects. The generic registry registers and
 unregisters values directly, so history never discovers values by walking the
 tree. The ordered collection keeps a direct node index, making registration
 and removal O(1) without scanning values owned by previously loaded instances.
+
+Presentation-only metadata and audibility controls (`Label`, `Mute`, `Solo`,
+and `Bypass` values) remain normal state values for registry notifications but
+are not registered as history values. They therefore change immediately
+without creating or being restored by an Undo/Redo step. History is reserved
+for editable DSP parameters and bank topology.
 
 `AdvanceHistoryPoint` copies the current slot into the next slot before a
 logical edit. `JumpToHistory` moves the shared logical cursor in one operation,

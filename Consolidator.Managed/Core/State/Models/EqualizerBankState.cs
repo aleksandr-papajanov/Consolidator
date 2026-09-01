@@ -20,7 +20,7 @@ public sealed class EqualizerBankState
     {
         _activity = activity;
         _bankIndex = bankIndex;
-        Bypass = values.CreateBankValue(
+        Bypass = values.CreateBankValueWithoutHistory(
             instanceId,
             path.Append(StateNodeIds.Bypass),
             false,
@@ -29,7 +29,7 @@ public sealed class EqualizerBankState
                 new StateProjectionObserver<bool>(value => runtime.SetEqualizerBankActive(bankIndex, !value)),
                 activity.ObserveBankBypass(bankIndex)
             ]);
-        Solo = values.CreateBankValue(instanceId, path.Append(StateNodeIds.Solo), false,
+        Solo = values.CreateBankValueWithoutHistory(instanceId, path.Append(StateNodeIds.Solo), false,
             StateValueEditMode.CopyValue);
         Filters = Enumerable.Range(0, DspConstants.EqualizerFilterCount)
             .Select(index => new FilterState(

@@ -18,7 +18,6 @@ struct DspSnapshot
     float saturatorCurve;
     std::uint32_t saturatorSplit;
     std::uint32_t saturatorBypass;
-    std::uint32_t saturatorSolo;
     float compressorAttack;
     float compressorSustain;
     float compressorCompression;
@@ -26,13 +25,10 @@ struct DspSnapshot
     std::uint32_t compressorParallel;
     float compressorOutputDb;
     std::uint32_t compressorBypass;
-    std::uint32_t compressorSolo;
     std::uint32_t equalizerBypass;
-    std::uint32_t equalizerSolo;
     float polishThick;
     float polishAir;
     std::uint32_t polishBypass;
-    std::uint32_t polishSolo;
     float outputLevel;
     float outputTarget;
     std::uint32_t outputGainBypass;
@@ -43,9 +39,6 @@ struct DspSnapshot
     std::uint32_t compressorActive;
     std::uint32_t equalizerActive;
     std::uint32_t outputGainActive;
-    std::uint32_t inputListen;
-    std::uint32_t saturatorListen;
-    std::uint32_t compressorListen;
     std::uint32_t equalizerBanksActive[7];
     std::uint32_t equalizerFiltersActive[49];
     std::uint32_t detectorFiltersActive[6];
@@ -58,10 +51,10 @@ struct SharedDspExchange
     std::uint32_t consumerIndex{};
 };
 
-static_assert(sizeof(DspSnapshot) == 400);
-static_assert(sizeof(SharedDspExchange) == 1208);
+static_assert(sizeof(DspSnapshot) == 372);
+static_assert(sizeof(SharedDspExchange) == 1124);
 static_assert(offsetof(SharedDspExchange, snapshots) == 0);
-static_assert(offsetof(SharedDspExchange, publishedIndex) == 1200);
-static_assert(offsetof(SharedDspExchange, consumerIndex) == 1204);
+static_assert(offsetof(SharedDspExchange, publishedIndex) == 1116);
+static_assert(offsetof(SharedDspExchange, consumerIndex) == 1120);
 
 } // namespace consolidator::max

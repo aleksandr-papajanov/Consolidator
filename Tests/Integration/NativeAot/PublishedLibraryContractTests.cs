@@ -48,7 +48,7 @@ public sealed class PublishedLibraryContractTests
         Assert.NotEqual(0UL, instance.InstanceId);
         Assert.NotEqual((nuint)0, instance.AudioInputHandle);
         Assert.InRange(instance.PublishedSnapshotIndex, 0, 2);
-        Assert.Equal(1.0F, instance.PublishedGain);
+        Assert.Equal(0.0F, instance.PublishedGain);
     }
 
     [Fact]
@@ -65,6 +65,6 @@ public sealed class PublishedLibraryContractTests
 
         Assert.NotEqual(0UL, restartedInstance.InstanceId);
         Assert.NotEqual((nuint)0, restartedInstance.AudioInputHandle);
-        Assert.Equal(1.0F, restartedInstance.PublishedGain);
+        Assert.Equal(0.0F, restartedInstance.PublishedGain);
     }
 }

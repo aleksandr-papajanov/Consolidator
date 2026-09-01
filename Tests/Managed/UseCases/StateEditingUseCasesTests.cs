@@ -68,7 +68,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("input_gain"),
-            Symbol("gain"),
+            Symbol("level"),
             Symbol("value"),
             Float(6.0));
 
@@ -78,8 +78,8 @@ public sealed class StateEditingUseCasesTests
         var change = Assert.Single(
             instance.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "input_gain.gain");
-        Assert.Equal("input_gain.gain", change.Atoms[1].Symbol);
+                message.Atoms[1].Symbol == "input_gain.level");
+        Assert.Equal("input_gain.level", change.Atoms[1].Symbol);
         Assert.Equal(6.0, change.Atoms[2].Float);
 
         instance.Output.Clear();
@@ -89,7 +89,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("query"),
             Symbol("input_gain"),
-            Symbol("gain"));
+            Symbol("level"));
 
         Assert.Equal(6.0, instance.Output.Single("state_done").Atoms[^1].Float);
 
@@ -106,8 +106,8 @@ public sealed class StateEditingUseCasesTests
         Assert.Contains(
             instance.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "input_gain.gain" &&
-                message.Atoms[2].Float == 1.0);
+                message.Atoms[1].Symbol == "input_gain.level" &&
+                message.Atoms[2].Float == 0.0);
 
         application.Send(
             instance,
@@ -117,7 +117,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
             Float(-18.0));
         instance.Output.Clear();
@@ -130,7 +130,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("dsp"));
 
         Assert.Equal(0.0F, instance.Dsp.Latest.InputLevel);
-        Assert.Equal(0.5F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
     }
 
     [Fact]
@@ -203,6 +203,8 @@ public sealed class StateEditingUseCasesTests
         using var application = new ManagedApplicationFixture();
         var first = application.RegisterInstance();
         var second = application.RegisterInstance();
+        WriteGroup(application, first, first, 0, 1);
+        WriteGroup(application, first, second, 0, 1);
 
         WriteGroup(application, first, first, 1, 7);
         WriteGroup(application, first, second, 4, 7);
@@ -303,7 +305,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("input_gain"),
-            Symbol("gain"));
+            Symbol("level"));
 
         Assert.Equal(initial, instance.Dsp.Latest.InputLevel);
         Assert.Equal(publishCount, instance.Dsp.PublishCount);
@@ -589,9 +591,9 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
-            Float(-18.0));
+            Float(0.5));
 
         Assert.True(SpinWait.SpinUntil(
             () => first.Dsp.PublishCount > firstPublishCount &&
@@ -606,6 +608,7 @@ public sealed class StateEditingUseCasesTests
     {
         using var application = new ManagedApplicationFixture();
         var first = application.RegisterInstance();
+        WriteGroup(application, first, first, 0, 1);
         application.Send(
             first,
             "observe_target",
@@ -622,20 +625,21 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
-            Float(-1.0));
+            Float(0.25));
         first.Output.Clear();
 
         var second = application.RegisterInstance();
+        WriteGroup(application, first, second, 0, 1);
 
         var rangeChange = Assert.Single(
             first.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "compressor.threshold");
-        Assert.Equal(-1.0, rangeChange.Atoms[2].Float);
-        Assert.Equal(-97.0, rangeChange.Atoms[6].Float);
-        Assert.Equal(0.0, rangeChange.Atoms[7].Float);
+                message.Atoms[1].Symbol == "compressor.attack");
+        Assert.Equal(0.25, rangeChange.Atoms[2].Float);
+        Assert.Equal(0.25, rangeChange.Atoms[6].Float);
+        Assert.Equal(1.0, rangeChange.Atoms[7].Float);
 
         second.Output.Clear();
         application.Send(
@@ -648,9 +652,9 @@ public sealed class StateEditingUseCasesTests
             second.Output.Messages,
             message => message.Selector == "target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)threshold.Atoms[6].Integer)
-            .Single(index => threshold.Atoms[7 + index * 6].Symbol == "compressor.threshold");
-        Assert.Equal(-97.0, threshold.Atoms[11 + thresholdIndex * 6].Float);
-        Assert.Equal(0.0, threshold.Atoms[12 + thresholdIndex * 6].Float);
+            .Single(index => threshold.Atoms[7 + index * 6].Symbol == "compressor.attack");
+        Assert.Equal(0.25, threshold.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(1.0, threshold.Atoms[12 + thresholdIndex * 6].Float);
 
         first.Output.Clear();
         application.UnregisterInstance(second);
@@ -658,10 +662,10 @@ public sealed class StateEditingUseCasesTests
         var restoredRange = Assert.Single(
             first.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "compressor.threshold");
-        Assert.Equal(-1.0, restoredRange.Atoms[2].Float);
-        Assert.Equal(-120.0, restoredRange.Atoms[6].Float);
-        Assert.Equal(0.0, restoredRange.Atoms[7].Float);
+                message.Atoms[1].Symbol == "compressor.attack");
+        Assert.Equal(0.25, restoredRange.Atoms[2].Float);
+        Assert.Equal(0.0, restoredRange.Atoms[6].Float);
+        Assert.Equal(1.0, restoredRange.Atoms[7].Float);
     }
 
     [Fact]
@@ -672,6 +676,10 @@ public sealed class StateEditingUseCasesTests
             .Select(_ => application.RegisterInstance())
             .ToArray();
         var source = instances[0];
+        for (var index = 0; index < instances.Length; index++)
+        {
+            WriteGroup(application, source, instances[index], 1, 1);
+        }
         application.Send(
             source,
             "observe_target",
@@ -687,9 +695,9 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
-            Float(-1.0));
+            Float(0.25));
         source.Output.Clear();
 
         application.Send(
@@ -706,9 +714,9 @@ public sealed class StateEditingUseCasesTests
             source.Output.Messages,
             message => message.Selector == "target_state_snapshot" &&
                 Enumerable.Range(0, (int)message.Atoms[6].Integer).Any(index =>
-                    message.Atoms[7 + index * 6].Symbol == "compressor.threshold" &&
-                    message.Atoms[11 + index * 6].Float == -97.0 &&
-                    message.Atoms[12 + index * 6].Float == 0.0));
+                    message.Atoms[7 + index * 6].Symbol == "compressor.attack" &&
+                    message.Atoms[11 + index * 6].Float == 0.0 &&
+                    message.Atoms[12 + index * 6].Float == 1.0));
     }
 
     [Fact]
@@ -718,6 +726,9 @@ public sealed class StateEditingUseCasesTests
         var target = application.RegisterInstance();
         var groupedPeer = application.RegisterInstance();
         var localObserver = application.RegisterInstance();
+        WriteGroup(application, target, target, 1, 1);
+        WriteGroup(application, target, groupedPeer, 1, 1);
+        WriteGroup(application, target, localObserver, 1, 1);
         application.Send(
             target,
             "observe_target",
@@ -744,9 +755,9 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
-            Float(-1.0));
+            Float(0.25));
 
         var localChanges = localObserver.Output.Messages
             .Where(message => message.Selector == "state_changed")
@@ -756,8 +767,8 @@ public sealed class StateEditingUseCasesTests
         Assert.DoesNotContain(
             target.Output.Messages,
             message => message.Selector == "state_changed");
-        Assert.Equal(-120.0, localChange.Atoms[6].Float);
-        Assert.Equal(0.0, localChange.Atoms[7].Float);
+        Assert.Equal(0.0, localChange.Atoms[6].Float);
+        Assert.Equal(1.0, localChange.Atoms[7].Float);
 
         application.Send(target, "set_instance_active", Integer(1));
         target.Output.Clear();
@@ -770,9 +781,9 @@ public sealed class StateEditingUseCasesTests
         var snapshot = target.Output.Single("target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
             .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
-                "compressor.threshold");
-        Assert.Equal(-97.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
-        Assert.Equal(0.0, snapshot.Atoms[12 + thresholdIndex * 6].Float);
+                "compressor.attack");
+        Assert.Equal(0.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
+        Assert.Equal(1.0, snapshot.Atoms[12 + thresholdIndex * 6].Float);
     }
 
     [Fact]
@@ -946,7 +957,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("input_gain"),
-            Symbol("gain"),
+            Symbol("level"),
             Symbol("value"),
             Float(2.0));
 
@@ -981,7 +992,7 @@ public sealed class StateEditingUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("input_gain"),
-            Symbol("gain"),
+            Symbol("level"),
             Symbol("value"),
             Float(2.0));
         foreach (var instance in instances)
@@ -1001,8 +1012,8 @@ public sealed class StateEditingUseCasesTests
                 Symbol("42"),
                 Integer(1),
                 Symbol("entry"),
-                Symbol("input_gain"),
-                Symbol("gain"),
+            Symbol("input_gain"),
+            Symbol("level"),
                 Symbol("value"),
                 Float(finalValue));
         }

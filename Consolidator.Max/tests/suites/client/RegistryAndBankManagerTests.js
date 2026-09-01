@@ -87,7 +87,7 @@ function testRegistrySnapshotRoundTrip() {
     1, "ui.main", "1", "7", "input", 1, 1, 0, 0,
   ]);
   client.handleControl("registry_processor", [
-    1, "ui.main", "1", "7", "equalizer", 1, 0, 0, 1,
+     1, "ui.main", "1", "7", "equalizer", 1, 0, 0,
   ]);
   client.handleControl("registry_bank", [1, "ui.main", "1", "7", 1, "none"]);
   client.handleControl("registry_bank", [1, "ui.main", "1", "7", 2, 0]);
@@ -97,7 +97,6 @@ function testRegistrySnapshotRoundTrip() {
 
   assert.strictEqual(client.registry.get().revision, 20);
   assert.strictEqual(client.registry.get().instances[0].banks[1].groupId, 0);
-  assert.strictEqual(client.registry.get().instances[0].processors[1].soloed, true);
   assert.strictEqual(client.registry.get().instances[0].processors[0].markerActive, true);
   assert.strictEqual(client.registry.get().instances[0].processors[1].markerActive, false);
   assert.strictEqual(snapshots.length, 1);
@@ -126,8 +125,7 @@ function testRegistryProcessorDeltaPatchesOneRow() {
       processors: [{
         processorId: "saturator",
         effectActive: false,
-        bypassed: true,
-        soloed: false,
+         bypassed: true,
       }],
       banks: [],
     }],
@@ -137,11 +135,10 @@ function testRegistryProcessorDeltaPatchesOneRow() {
   viewModel.applyRegistrySnapshot(registry.snapshot);
   viewModel.applyRegistryUpdate(registry.snapshot, {
     selector: "registry_processor_changed",
-    args: [1, 4, 5, "1", "saturator", 1, 0, 1],
+     args: [1, 4, 5, "1", "saturator", 1, 0],
   });
   assert.strictEqual(viewModel.rows[0].processors[0].effectActive, true);
   assert.strictEqual(viewModel.rows[0].processors[0].bypassed, false);
-  assert.strictEqual(viewModel.rows[0].processors[0].soloed, true);
   viewModel.destroy();
 }
 function testEqualizerGainRoundTripUpdatesBankActivityMarker() {
@@ -246,8 +243,8 @@ function testViewModelUsesManagedProcessorMarkers() {
       instanceId: "local",
       label: "Local",
       processors: [
-        { processorId: "saturator", effectActive: false, markerActive: false, bypassed: false, soloed: false },
-        { processorId: "equalizer", effectActive: false, markerActive: true, bypassed: false, soloed: false },
+         { processorId: "saturator", effectActive: false, markerActive: false, bypassed: false },
+         { processorId: "equalizer", effectActive: false, markerActive: true, bypassed: false },
       ],
       banks: [
         { bankId: 1, groupId: null, effectActive: true },
@@ -257,8 +254,8 @@ function testViewModelUsesManagedProcessorMarkers() {
       instanceId: "remote",
       label: "Remote",
       processors: [
-        { processorId: "saturator", effectActive: true, markerActive: true, bypassed: false, soloed: false },
-        { processorId: "equalizer", effectActive: true, markerActive: false, bypassed: false, soloed: false },
+         { processorId: "saturator", effectActive: true, markerActive: true, bypassed: false },
+         { processorId: "equalizer", effectActive: true, markerActive: false, bypassed: false },
       ],
       banks: [
         { bankId: 1, groupId: null, effectActive: false },
@@ -654,10 +651,8 @@ function testBankManagerControllerSendsRelativeInstanceControlScopes() {
 function testBankManagerControllerSendsProcessorControls() {
   var fixture = makeBankManagerControllerFixture();
   fixture.controller.handleIntent("processorBypassChanged", ["compressor", 1, 0]);
-  fixture.controller.handleIntent("processorSoloChanged", ["equalizer", 1, 1, 1]);
   assert.deepStrictEqual(fixture.calls.requests, [
-    ["set_processor_bypass", ["compressor", "local", 1]],
-    ["set_processor_solo", ["equalizer", "group", 1, "additive"]],
+     ["set_processor_bypass", ["compressor", "local", 1]],
   ]);
 }
 function testBankManagerShiftExtendsGroupingSelection() {

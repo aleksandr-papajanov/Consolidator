@@ -40,12 +40,3 @@ public sealed record SetProcessorBypassCommand(
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }
-
-public sealed record SetProcessorSoloCommand(
-    ProcessorId ProcessorId,
-    InstanceControlScope TargetScope,
-    bool Soloed,
-    SoloSelectionMode Mode) : IInstanceCommand<StateWriteStatus>
-{
-    public CommandScope Scope => CommandScope.Coordinator;
-}

@@ -108,7 +108,6 @@ internal sealed class WriteInputCodec : IInputCodec
         if (node == StateNodeIds.Mute
             || node == StateNodeIds.Solo
             || node == StateNodeIds.Bypass
-            || node == StateNodeIds.Listen
             || node == StateNodeIds.Leveler
             || node == StateNodeIds.Split
             || node == StateNodeIds.Parallel

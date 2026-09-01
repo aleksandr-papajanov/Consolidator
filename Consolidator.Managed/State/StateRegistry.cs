@@ -23,6 +23,25 @@ public sealed class StateRegistry<TRootId>
         TValue initialValue,
         params IStateValueObserver<TValue>[] observers)
     {
+        return CreateValue(rootId, path, initialValue, true, observers);
+    }
+
+    public StateValue<TValue> CreateValueWithoutHistory<TValue>(
+        TRootId rootId,
+        StatePath path,
+        TValue initialValue,
+        params IStateValueObserver<TValue>[] observers)
+    {
+        return CreateValue(rootId, path, initialValue, false, observers);
+    }
+
+    private StateValue<TValue> CreateValue<TValue>(
+        TRootId rootId,
+        StatePath path,
+        TValue initialValue,
+        bool registerInHistory,
+        IReadOnlyList<IStateValueObserver<TValue>> observers)
+    {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(observers);
 
@@ -32,7 +51,10 @@ public sealed class StateRegistry<TRootId>
             initialValue,
             observers,
             _history.Unregister);
-        _history.Register(value);
+        if (registerInHistory)
+        {
+            _history.Register(value);
+        }
         try
         {
             parent.Add(new StateNode<TValue>(path.Nodes[^1], value));

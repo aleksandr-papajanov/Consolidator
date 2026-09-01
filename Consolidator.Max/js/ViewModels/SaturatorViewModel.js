@@ -10,10 +10,6 @@ class SaturatorViewModel
         this.curve = new StateValueViewModel(state, "saturator.curve");
         this.split = new StateValueViewModel(state, "saturator.split");
         this.output = new StateValueViewModel(state, "saturator.output");
-        this.detectorListen = new StateValueViewModel(
-            state,
-            "saturator.detector.listen"
-        );
         this.detectorFilters = [1, 2].map((filterId) => {
             return new DetectorFilterViewModel(state, "saturator", filterId,
                 DetectorFilterDefinitions[filterId - 1]);
@@ -26,8 +22,7 @@ class SaturatorViewModel
             this.drive,
             this.curve,
             this.split,
-            this.output,
-            this.detectorListen
+            this.output
         ].concat(this.detectorFilters.reduce((values, filter) => {
             return values.concat(filter.getStateValues());
         }, []));
@@ -39,7 +34,6 @@ class SaturatorViewModel
         this.curve.destroy();
         this.split.destroy();
         this.output.destroy();
-        this.detectorListen.destroy();
         this.detectorFilters.forEach((filter) => { filter.destroy(); });
     }
 }

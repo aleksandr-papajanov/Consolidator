@@ -48,8 +48,8 @@ Managed resolves the selected target and bank from the source instance's
 addresses. Group targets are resolved by `InstanceControlTargetResolver`. An
 ungrouped bank is rejected without falling back to its instance. Processor control
 transactions do not create history points. Direct state writes to
-instance-owned processor bypass values are rejected. Device solo is not part of
-the processor contract.
+instance-owned processor bypass values are rejected. Processor controls expose
+only bypass and reset operations.
 
 The processor panel also exposes an `R` control. A regular click sends a local
 reset for the complete processor. Ctrl/Command-click sends the same reset with

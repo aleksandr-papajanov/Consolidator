@@ -12,7 +12,7 @@ public sealed class EqualizerState
         StateValueFactory values,
         DspRuntimeState runtime)
     {
-        Bypass = values.CreateValue(
+        Bypass = values.CreateValueWithoutHistory(
             instanceId,
             path.Append(StateNodeIds.Bypass),
             false,
@@ -22,13 +22,9 @@ public sealed class EqualizerState
                 runtime.EqualizerBypass = value;
                 runtime.EqualizerActive = !value;
             })]);
-        Solo = values.CreateValue(instanceId, path.Append(StateNodeIds.Solo), false,
-            StateValueEditMode.CopyValue,
-            observers: [new StateProjectionObserver<bool>(value => runtime.EqualizerSolo = value)]);
     }
 
     public StateValue<bool> Bypass { get; }
-    public StateValue<bool> Solo { get; }
 }
 
 

@@ -5,7 +5,7 @@ const UiColors = {
     },
 
     base: {
-        background: [0.045, 0.047, 0.043, 1],
+        background: [0.0, 0.0, 0.0, 1],
 
         disabledText: [0.44, 0.46, 0.48, 1],
         text: [0.52, 0.55, 0.59, 1],

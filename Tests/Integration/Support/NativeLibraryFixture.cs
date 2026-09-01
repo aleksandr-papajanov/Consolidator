@@ -62,8 +62,8 @@ public sealed class NativeLibraryFixture : IDisposable
     {
         var instance = new NativeInstance(this);
         var context = GCHandle.Alloc(instance);
-        var exchange = Marshal.AllocHGlobal(1208);
-        Span<byte> zero = stackalloc byte[1208];
+        var exchange = Marshal.AllocHGlobal(1124);
+        Span<byte> zero = stackalloc byte[1124];
         Marshal.Copy(zero.ToArray(), 0, exchange, zero.Length);
         var instanceId = _registerInstance(
             GCHandle.ToIntPtr(context),
@@ -306,10 +306,10 @@ public sealed class NativeInstance : IDisposable
         }
     }
 
-    public int PublishedSnapshotIndex => Marshal.ReadInt32(_exchange, 1200);
+    public int PublishedSnapshotIndex => Marshal.ReadInt32(_exchange, 1116);
 
     public float PublishedGain => Marshal.PtrToStructure<float>(
-        _exchange + PublishedSnapshotIndex * 400);
+        _exchange + PublishedSnapshotIndex * 372);
 
     internal void Initialize(
         ulong instanceId,

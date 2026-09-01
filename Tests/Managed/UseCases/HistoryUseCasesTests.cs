@@ -218,6 +218,8 @@ public sealed class HistoryUseCasesTests
         using var application = new ManagedApplicationFixture();
         var editor = application.RegisterInstance();
         var observer = application.RegisterInstance();
+        WriteGroup(application, editor, editor, 0, 1);
+        WriteGroup(application, editor, observer, 0, 1);
         application.Send(
             observer,
             "observe_target",
@@ -244,9 +246,9 @@ public sealed class HistoryUseCasesTests
             Integer(1),
             Symbol("entry"),
             Symbol("compressor"),
-            Symbol("threshold"),
+            Symbol("attack"),
             Symbol("value"),
-            Float(-18.0));
+            Float(0.5));
         application.Send(editor, "end_history", Symbol("41"));
 
         Assert.Equal(0.5F, editor.Dsp.Latest.CompressorAttack);
@@ -260,7 +262,7 @@ public sealed class HistoryUseCasesTests
         observer.Output.Clear();
         application.Send(editor, "jump_history", Integer(0));
 
-        Assert.NotEqual(0.5F, editor.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, editor.Dsp.Latest.CompressorAttack);
         Assert.Contains(
             observer.Output.Messages,
             message => message.Selector == "history_state" &&
@@ -279,8 +281,30 @@ public sealed class HistoryUseCasesTests
         var snapshot = editor.Output.Single("target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
             .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
-                "compressor.threshold");
-        Assert.NotEqual(-18.0, snapshot.Atoms[8 + thresholdIndex * 6].Float);
+                "compressor.attack");
+        Assert.Equal(0.0, snapshot.Atoms[8 + thresholdIndex * 6].Float);
+    }
+
+    private static void WriteGroup(
+        ManagedApplicationFixture application,
+        ManagedApplicationFixture.TestInstance source,
+        ManagedApplicationFixture.TestInstance target,
+        int bank,
+        int group)
+    {
+        application.Send(
+            source,
+            "write",
+            Symbol("topology"),
+            Symbol(target.InstanceId.Value.ToString()),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("bank"),
+            Integer(bank),
+            Symbol("group"),
+            Symbol("value"),
+            Integer(group));
     }
 
     private sealed class NonComparableHistoryValue : IHistoryValue

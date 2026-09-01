@@ -26,7 +26,7 @@ internal sealed class ActivityObserver
         _instanceId = instanceId;
         _sink = sink;
         _statuses = ProcessorIds.All
-            .Select(processorId => new ProcessorStatus(processorId, false, false, false))
+            .Select(processorId => new ProcessorStatus(processorId, false, false))
             .ToArray();
     }
 
@@ -123,15 +123,13 @@ internal sealed class ActivityObserver
             (MathF.Abs(_dsp.InputGain.Level.Value) > ActivityEpsilon ||
                 MathF.Abs(_dsp.InputGain.Width.Value - 100.0F) > ActivityEpsilon ||
                 _dsp.InputGain.Leveler.Value),
-            _dsp.InputGain.Bypass.Value,
-            false),
+            _dsp.InputGain.Bypass.Value),
         ProcessorId.Saturator => new(
             processorId,
             !_dsp.Saturator.Bypass.Value &&
                 (MathF.Abs(_dsp.Saturator.Drive.Value) > ActivityEpsilon ||
                     MathF.Abs(_dsp.Saturator.OutputDb.Value) > ActivityEpsilon),
-            _dsp.Saturator.Bypass.Value,
-            _dsp.Saturator.Solo.Value),
+            _dsp.Saturator.Bypass.Value),
         ProcessorId.Compressor => new(
             processorId,
             !_dsp.Compressor.Bypass.Value &&
@@ -139,27 +137,23 @@ internal sealed class ActivityObserver
                     MathF.Abs(_dsp.Compressor.Sustain.Value) > ActivityEpsilon ||
                     MathF.Abs(_dsp.Compressor.Compression.Value) > ActivityEpsilon ||
                     MathF.Abs(_dsp.Compressor.OutputDb.Value) > ActivityEpsilon),
-            _dsp.Compressor.Bypass.Value,
-            _dsp.Compressor.Solo.Value),
+            _dsp.Compressor.Bypass.Value),
         ProcessorId.Equalizer => new(
             processorId,
             !_dsp.Equalizer.Bypass.Value && _bankActivities.Any(active => active),
-            _dsp.Equalizer.Bypass.Value,
-            _dsp.Equalizer.Solo.Value),
+            _dsp.Equalizer.Bypass.Value),
         ProcessorId.Polish => new(
             processorId,
             !_dsp.Polish.Bypass.Value &&
                 (MathF.Abs(_dsp.Polish.Thick.Value) > ActivityEpsilon ||
                     MathF.Abs(_dsp.Polish.Air.Value) > ActivityEpsilon),
-            _dsp.Polish.Bypass.Value,
-            _dsp.Polish.Solo.Value),
+            _dsp.Polish.Bypass.Value),
         ProcessorId.Output => new(
             processorId,
             !_dsp.OutputGain.Bypass.Value &&
                 (MathF.Abs(_dsp.OutputGain.Level.Value) > ActivityEpsilon ||
                     _dsp.OutputGain.Limiter.Value),
-            _dsp.OutputGain.Bypass.Value,
-            false),
+            _dsp.OutputGain.Bypass.Value),
         _ => throw new ArgumentOutOfRangeException(nameof(processorId))
     };
 

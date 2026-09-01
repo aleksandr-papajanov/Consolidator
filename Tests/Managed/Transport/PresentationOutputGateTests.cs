@@ -13,7 +13,7 @@ public sealed class PresentationOutputGateTests
         var output = new RecordingTransport();
         var gate = new PresentationOutputGate(output);
 
-        gate.Send(StateChange(7, "compressor.threshold", -18));
+        gate.Send(StateChange(7, "compressor.attack", -18));
         gate.Send(StateChange(7, "compressor.attack", 15));
         gate.SetActive(7, true);
 
@@ -27,7 +27,7 @@ public sealed class PresentationOutputGateTests
         var gate = new PresentationOutputGate(output);
         gate.SetActive(7, true);
 
-        gate.Send(StateChange(7, "compressor.threshold", -18));
+        gate.Send(StateChange(7, "compressor.attack", -18));
 
         var message = Assert.Single(output.Messages);
         Assert.Equal("state_changed", message.Selector);
@@ -54,11 +54,11 @@ public sealed class PresentationOutputGateTests
         var output = new RecordingTransport();
         var gate = new PresentationOutputGate(output);
         gate.SetActive(7, true);
-        gate.Send(StateChange(7, "compressor.threshold", -18));
+        gate.Send(StateChange(7, "compressor.attack", -18));
         output.Messages.Clear();
 
         gate.Unregister(7);
-        gate.Send(StateChange(7, "compressor.threshold", -12));
+        gate.Send(StateChange(7, "compressor.attack", -12));
 
         Assert.Empty(output.Messages);
     }

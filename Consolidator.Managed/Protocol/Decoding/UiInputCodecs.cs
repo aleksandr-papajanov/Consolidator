@@ -179,34 +179,6 @@ internal sealed class SetProcessorBypassInputCodec : IInputCodec
     }
 }
 
-internal sealed class SetProcessorSoloInputCodec : IInputCodec
-{
-    public string Selector => "set_processor_solo";
-
-    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
-    {
-        var processor = ProcessorControlInputCodecSupport.ReadProcessor(atoms, header);
-        var targetScope = InstanceControlInputCodecSupport.ReadScope(
-            atoms, header with { Position = header.Position + 1 }, out var valuePosition);
-        if (atoms.Length != valuePosition + 2 ||
-            atoms[valuePosition].Type != AtomType.Integer ||
-            atoms[valuePosition].Integer is < 0 or > 1 ||
-            atoms[valuePosition + 1].Type != AtomType.Symbol)
-        {
-            throw new FormatException("Invalid set_processor_solo frame.");
-        }
-
-        var mode = atoms[valuePosition + 1].Symbol switch
-        {
-            "exclusive" => SoloSelectionMode.Exclusive,
-            "additive" => SoloSelectionMode.Additive,
-            _ => throw new FormatException("Invalid solo selection mode.")
-        };
-        return CommandCodecSupport.Success(header, new SetProcessorSoloCommand(
-            processor, targetScope, atoms[valuePosition].Integer == 1, mode));
-    }
-}
-
 internal static class ProcessorControlInputCodecSupport
 {
     public static ProcessorId ReadProcessor(

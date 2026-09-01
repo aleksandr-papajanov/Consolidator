@@ -84,11 +84,6 @@
 			<description></description>
 		</method>
 
-		<method name='set_processor_solo'>
-			<digest></digest>
-			<description></description>
-		</method>
-
 		<method name='begin_history'>
 			<digest></digest>
 			<description></description>

@@ -53,6 +53,31 @@ public sealed class StateValueFactory
             editMode,
             physicalRange,
             StateValueOwnership.InstanceOwned,
+            true,
+            observers);
+    }
+
+    public StateValue<TValue> CreateValueWithoutHistory<TValue>(
+        InstanceId instanceId,
+        StatePath path,
+        TValue initialValue,
+        StateValueEditMode editMode,
+        FloatRange? physicalRange = null,
+        params IStateValueObserver<TValue>[] observers)
+    {
+        ValidatePath(path);
+        var scope = path.Nodes[0] == StateNodeIds.Instance
+            ? StateValueEditScope.Local
+            : StateValueEditScope.BankGroup;
+        return Create(
+            instanceId,
+            path,
+            initialValue,
+            scope,
+            editMode,
+            physicalRange,
+            StateValueOwnership.InstanceOwned,
+            false,
             observers);
     }
 
@@ -74,6 +99,28 @@ public sealed class StateValueFactory
             editMode,
             physicalRange,
             StateValueOwnership.BankOwned,
+            true,
+            observers);
+    }
+
+    public StateValue<TValue> CreateBankValueWithoutHistory<TValue>(
+        InstanceId instanceId,
+        StatePath path,
+        TValue initialValue,
+        StateValueEditMode editMode,
+        FloatRange? physicalRange = null,
+        params IStateValueObserver<TValue>[] observers)
+    {
+        ValidatePath(path);
+        return Create(
+            instanceId,
+            path,
+            initialValue,
+            StateValueEditScope.BankGroup,
+            editMode,
+            physicalRange,
+            StateValueOwnership.BankOwned,
+            false,
             observers);
     }
 
@@ -95,6 +142,7 @@ public sealed class StateValueFactory
         StateValueEditMode editMode,
         FloatRange? physicalRange,
         StateValueOwnership ownership,
+        bool registerInHistory,
         IReadOnlyList<IStateValueObserver<TValue>> observers)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -124,11 +172,9 @@ public sealed class StateValueFactory
                 _dspChanges,
                 instanceId))
             .ToArray();
-        return _registry.CreateValue(
-            instanceId,
-            path,
-            initialValue,
-            valueObservers);
+        return registerInHistory
+            ? _registry.CreateValue(instanceId, path, initialValue, valueObservers)
+            : _registry.CreateValueWithoutHistory(instanceId, path, initialValue, valueObservers);
     }
 
     private static void ValidatePath(StatePath path)

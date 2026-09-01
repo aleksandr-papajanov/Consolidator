@@ -17,7 +17,6 @@ public unsafe struct DspSnapshot
     public float SaturatorCurve;
     public uint SaturatorSplit;
     public uint SaturatorBypass;
-    public uint SaturatorSolo;
 
     public float CompressorAttack;
     public float CompressorSustain;
@@ -26,15 +25,12 @@ public unsafe struct DspSnapshot
     public uint CompressorParallel;
     public float CompressorOutputDb;
     public uint CompressorBypass;
-    public uint CompressorSolo;
 
     public uint EqualizerBypass;
-    public uint EqualizerSolo;
 
     public float PolishThick;
     public float PolishAir;
     public uint PolishBypass;
-    public uint PolishSolo;
 
     public float OutputLevel;
     public float OutputTarget;
@@ -47,10 +43,6 @@ public unsafe struct DspSnapshot
     public uint CompressorActive;
     public uint EqualizerActive;
     public uint OutputGainActive;
-    public uint InputListen;
-    public uint SaturatorListen;
-    public uint CompressorListen;
-
     public fixed uint EqualizerBanksActive[7];
 
     public fixed uint EqualizerFiltersActive[49];

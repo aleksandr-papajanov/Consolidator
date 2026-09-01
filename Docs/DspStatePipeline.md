@@ -87,6 +87,6 @@ copies into the bounded capture ring and reads the published native DSP state;
 it does not call Max UI code, allocate, block, log, or perform FFT work.
 
 The native audio path applies a 10 ms linear ramp to continuous runtime snapshot
-parameters. Discrete bypass, active, listen, audibility, bank, and filter
+parameters. Discrete bypass, active, audibility, bank, and filter
 markers are applied immediately. Ramp state belongs to the external instance
 and is advanced only on the audio thread.

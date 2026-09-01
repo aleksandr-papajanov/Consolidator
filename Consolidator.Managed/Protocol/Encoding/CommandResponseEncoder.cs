@@ -93,8 +93,7 @@ internal sealed class CommandResponseEncoder
                         Symbol(ProcessorIds.Encode(processor.ProcessorId)),
                         Integer(processor.EffectActive ? 1 : 0),
                         Integer(markerActive ? 1 : 0),
-                        Integer(processor.Bypassed ? 1 : 0),
-                        Integer(processor.Soloed ? 1 : 0)]).ToArray()));
+                        Integer(processor.Bypassed ? 1 : 0)]).ToArray()));
             }
             foreach (var bank in instance.Banks)
             {

@@ -290,7 +290,7 @@ function testBankManagerBindingPatchesRegistryAddition() {
     local: true,
     processors: [{
       processorId: "equalizer", effectActive: false,
-      markerActive: false, bypassed: false, soloed: false,
+       markerActive: false, bypassed: false,
     }],
     banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
     }],
@@ -319,7 +319,7 @@ function testBankManagerBindingPatchesRegistryAddition() {
       local: false,
       processors: [{
         processorId: "equalizer", effectActive: true,
-        markerActive: true, bypassed: false, soloed: false,
+         markerActive: true, bypassed: false,
       }],
       banks: [{ bankId: 1, label: "1", visible: true, enabled: true }],
     }]),
@@ -1634,7 +1634,6 @@ function testBankManagerEqualizerResetReachesStateClient() {
     processors: [{
       processorId: "equalizer",
       bypassed: false,
-      soloed: false,
     }],
     banks: [{ bankId: 2, label: "2", visible: true, enabled: true }],
   }];
@@ -1736,7 +1735,6 @@ function testManagedMarkerReachesBankManagerControlBinding() {
         effectActive: true,
         markerActive: true,
         bypassed: false,
-        soloed: false,
       }],
       banks: [{ bankId: 0, groupId: null, effectActive: true }],
     }],

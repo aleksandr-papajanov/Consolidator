@@ -201,7 +201,6 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "frequency" => StateNodeIds.Frequency,
         "q" => StateNodeIds.Q,
         "bypass" => StateNodeIds.Bypass,
-        "listen" => StateNodeIds.Listen,
         _ => throw new FormatException($"Unknown state path segment: {value}.")
     };
 
