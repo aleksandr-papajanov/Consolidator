@@ -1,4 +1,5 @@
 using Consolidator.Managed.State.History;
+using Consolidator.Managed.Core.State;
 
 namespace Consolidator.Managed.State.Tree;
 
@@ -141,6 +142,7 @@ internal sealed class StateNode<TValue> : StateNode, IStateNode<TValue>
 
     internal StateWriteStatus PrepareWrite(
         TValue value,
+        StateValueEditMode editMode,
         StateHistoryTransaction transaction)
     {
         ArgumentNullException.ThrowIfNull(transaction);
@@ -153,7 +155,7 @@ internal sealed class StateNode<TValue> : StateNode, IStateNode<TValue>
             return StateWriteStatus.Unchanged;
         }
 
-        _historyValue.PrepareMutation(value, transaction);
+        _historyValue.PrepareMutation(value, editMode, transaction);
         return StateWriteStatus.Applied;
     }
 

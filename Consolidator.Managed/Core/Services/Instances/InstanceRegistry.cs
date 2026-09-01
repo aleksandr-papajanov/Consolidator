@@ -16,36 +16,30 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private readonly Dictionary<InstanceId, ManagedInstance> _instances = new();
     private readonly object _lock = new();
     private readonly StateRegistry<InstanceId> _stateRegistry;
-    private readonly StateValueFactory _stateValueFactory;
     private readonly StateTopologyObserver _topologyObserver;
-    private readonly AudibilityObserver _audibilityObserver;
     private readonly DspStateChangeTracker _dspChanges;
     private readonly IOperationGate _operationGate;
-    private ulong _nextInstanceId;
+    private readonly ManagedStateBuilder _stateBuilder;
     private readonly RegistryChangePublisher _registryChanges;
     private readonly FftAnalyzer _fftAnalyzer;
-    private readonly IActivityStatusSink _activityStatusSink;
+    private ulong _nextInstanceId;
 
     internal InstanceRegistry(
         StateRegistry<InstanceId> stateRegistry,
-        StateValueFactory stateValueFactory,
         StateTopologyObserver topologyObserver,
-        AudibilityObserver audibilityObserver,
+        ManagedStateBuilder stateBuilder,
         DspStateChangeTracker dspChanges,
         IOperationGate operationGate,
         RegistryChangePublisher registryChanges,
-        FftAnalyzer fftAnalyzer,
-        IActivityStatusSink activityStatusSink)
+        FftAnalyzer fftAnalyzer)
     {
         _stateRegistry = stateRegistry;
-        _stateValueFactory = stateValueFactory;
         _topologyObserver = topologyObserver;
-        _audibilityObserver = audibilityObserver;
         _dspChanges = dspChanges;
         _operationGate = operationGate;
         _registryChanges = registryChanges;
         _fftAnalyzer = fftAnalyzer;
-        _activityStatusSink = activityStatusSink;
+        _stateBuilder = stateBuilder;
     }
 
     public InstanceId RegisterInstance(
@@ -83,7 +77,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                     .Select(bank => (
                         (int)bank.Id,
                         bank.Group.Value?.Value,
-                        state.Dsp.EqualizerBanks[(int)bank.Id].EffectActive))
+                        state.Activity.BankActivity((int)bank.Id)))
                     .ToArray());
 
             return instanceId;
@@ -232,7 +226,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                     .Select(bank => new RegistryBankSnapshot(
                         (int)bank.Id,
                         bank.Group.Value?.Value,
-                        instance.State.Dsp.EqualizerBanks[(int)bank.Id].EffectActive))
+                        instance.State.Activity.BankActivity((int)bank.Id)))
                     .ToArray()))
             .ToArray();
         var groups = snapshots
@@ -302,40 +296,9 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
 
     private ManagedState CreateState(InstanceId instanceId)
     {
-        _stateRegistry.CreateRoot(instanceId);
-        try
-        {
-            var runtime = DspDefaults.CreateRuntime();
-            var transient = new InstanceTransientState(
-                instanceId,
-                _topologyObserver);
-            var instance = new InstanceState(
-                instanceId,
-                _stateValueFactory,
-                runtime,
-                _audibilityObserver,
-                _topologyObserver);
-            var dsp = new DspState(
-                instanceId,
-                _stateValueFactory,
-                runtime,
-                _activityStatusSink);
-            var root = _stateRegistry.GetRoot(instanceId);
-            var state = new ManagedState(
-                instance,
-                transient,
-                dsp,
-                dsp.Activity,
-                runtime,
-                root);
-            _topologyObserver.AddState(state.Instance, state.Transient);
-            return state;
-        }
-        catch
-        {
-            _stateRegistry.RemoveRoot(instanceId);
-            throw;
-        }
+        var state = _stateBuilder.Build(instanceId);
+        _topologyObserver.AddState(state.Instance, state.Transient);
+        return state;
     }
 
     private IDisposable EnterOperation()
@@ -343,6 +306,3 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         return _operationGate.Enter();
     }
 }
-
-
-

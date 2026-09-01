@@ -1,8 +1,10 @@
-# Filter catalog
+# Filter definitions
 
-Managed owns the filter catalog used to construct state. It is the single
-source for filter kind, available parameters and initial values. The Max UI
-mirrors only the presentation capabilities needed to bind controls.
+`StateValueDefinitions` owns the filter definitions used to construct state.
+Its `EqualizerDefinitions` and `DetectorDefinitions` are the single source
+for available parameters, ranges and initial values. Wire names are owned by
+`Protocol/Encoding/FilterProtocolNames`. The Max UI mirrors only the
+presentation capabilities needed to bind controls.
 
 The legacy standard equalizer layout was:
 

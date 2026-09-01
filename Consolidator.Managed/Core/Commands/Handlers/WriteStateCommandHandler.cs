@@ -1,5 +1,6 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 using Consolidator.Managed.State.Tree;
@@ -56,6 +57,7 @@ public sealed class WriteStateCommandHandler
             var validator = new WriteValueVisitor(
                 entry.Value,
                 entry.ValueType,
+                entry.Mode,
                 null);
             node.Accept(validator);
             if (validator.Status is StateWriteStatus.NotHandled or StateWriteStatus.Rejected)
@@ -73,6 +75,7 @@ public sealed class WriteStateCommandHandler
             var writer = new WriteValueVisitor(
                 write.Entry.Value,
                 write.Entry.ValueType,
+                write.Entry.Mode,
                 transaction);
             write.Node.Accept(writer);
             if (writer.Status is StateWriteStatus.NotHandled or StateWriteStatus.Rejected)
@@ -108,15 +111,18 @@ public sealed class WriteStateCommandHandler
     {
         private readonly object? _value;
         private readonly Type _valueType;
+        private readonly StateValueEditMode _mode;
         private readonly StateHistoryTransaction? _transaction;
 
         public WriteValueVisitor(
             object? value,
             Type valueType,
+            StateValueEditMode mode,
             StateHistoryTransaction? transaction)
         {
             _value = value;
             _valueType = valueType;
+            _mode = mode;
             _transaction = transaction;
         }
 
@@ -139,7 +145,7 @@ public sealed class WriteStateCommandHandler
                 ? EqualityComparer<TValue>.Default.Equals(node.Value, (TValue)_value!)
                     ? StateWriteStatus.Unchanged
                     : StateWriteStatus.Applied
-                : node.PrepareWrite((TValue)_value!, _transaction);
+                : node.PrepareWrite((TValue)_value!, _mode, _transaction);
         }
     }
 }

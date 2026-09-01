@@ -12,6 +12,7 @@ using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.Persistence;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Native;
@@ -103,6 +104,7 @@ public static class ManagedServices
         services.AddSingleton<StateRegistry<InstanceId>>();
         services.AddSingleton<StateValueMetadataRegistry>();
         services.AddSingleton<TargetStateProjector>();
+        services.AddSingleton<ManagedStateBuilder>();
         services.AddSingleton(serviceProvider =>
             new StateValueFactory(
                 serviceProvider.GetRequiredService<StateRegistry<InstanceId>>(),
@@ -114,14 +116,12 @@ public static class ManagedServices
         services.AddSingleton(serviceProvider =>
             new InstanceRegistry(
                 serviceProvider.GetRequiredService<StateRegistry<InstanceId>>(),
-                serviceProvider.GetRequiredService<StateValueFactory>(),
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
-                serviceProvider.GetRequiredService<AudibilityObserver>(),
+                serviceProvider.GetRequiredService<ManagedStateBuilder>(),
                 serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<IOperationGate>(),
                 serviceProvider.GetRequiredService<RegistryChangePublisher>(),
-                serviceProvider.GetRequiredService<FftAnalyzer>(),
-                serviceProvider.GetRequiredService<IActivityStatusSink>()));
+                serviceProvider.GetRequiredService<FftAnalyzer>()));
         services.AddSingleton(serviceProvider =>
             new InstancePersistenceService(
                 serviceProvider.GetRequiredService<InstanceRegistry>(),

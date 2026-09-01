@@ -34,18 +34,15 @@ internal sealed class StatePeerObserver
         InstanceId instanceId,
         StatePath path,
         StateValueEditScope scope,
-        StateValueEditMode editMode,
         FloatRange? physicalRange,
         Action<TValue> effectiveRangeChanged)
     {
         ArgumentNullException.ThrowIfNull(effectiveRangeChanged);
-        Validate<TValue>(editMode, physicalRange);
         return new StatePeerValueObserver<TValue>(
             this,
             instanceId,
             path,
             scope,
-            editMode,
             physicalRange,
             effectiveRangeChanged);
     }
@@ -436,12 +433,6 @@ internal sealed class StatePeerObserver
                 nameof(physicalRange));
         }
 
-        if (editMode is StateValueEditMode.CopyValue && physicalRange is not null)
-        {
-            throw new ArgumentException(
-                "CopyValue values must not define a physical range.",
-                nameof(physicalRange));
-        }
     }
 
     private interface IObservedValue
@@ -481,7 +472,6 @@ internal sealed class StatePeerObserver
         IStatePeerValueObserver<TValue>
     {
         private readonly StatePeerObserver _owner;
-        private readonly StateValueEditMode _editMode;
         private readonly FloatRange? _physicalRange;
         private readonly Action<TValue> _effectiveRangeChanged;
         private StateValue<TValue>? _value;
@@ -493,7 +483,6 @@ internal sealed class StatePeerObserver
             InstanceId instanceId,
             StatePath path,
             StateValueEditScope scope,
-            StateValueEditMode editMode,
             FloatRange? physicalRange,
             Action<TValue> effectiveRangeChanged)
         {
@@ -506,7 +495,6 @@ internal sealed class StatePeerObserver
                 : new StatePath(path.Nodes.Select(node =>
                     IsBankNode(node) ? StateNodeIds.BankAt(0) : node));
             Scope = scope;
-            _editMode = editMode;
             _physicalRange = physicalRange;
             _effectiveRangeChanged = effectiveRangeChanged;
         }
@@ -526,12 +514,11 @@ internal sealed class StatePeerObserver
         public PeerSet Peers => _peers;
 
         public bool TracksEffectiveRange =>
-            _editMode is StateValueEditMode.ApplyDelta;
+            _physicalRange is not null;
 
         public FloatRange? GetEffectiveRange(BankAddress? focusedBank = null)
         {
-            if (_editMode is not StateValueEditMode.ApplyDelta ||
-                _value is null)
+            if (_physicalRange is null || _value is null)
             {
                 return null;
             }
@@ -583,7 +570,7 @@ internal sealed class StatePeerObserver
         public FloatRange CalculateEffectiveDeltaRange(
             IReadOnlyList<IObservedValue> peers)
         {
-            if (_editMode is not StateValueEditMode.ApplyDelta)
+            if (_physicalRange is null)
             {
                 return new FloatRange(1.0F, 0.0F);
             }
@@ -610,8 +597,7 @@ internal sealed class StatePeerObserver
 
         public FloatRange? CalculateEffectiveRange(FloatRange deltaRange)
         {
-            if (_editMode is not StateValueEditMode.ApplyDelta ||
-                _value is null ||
+            if (_physicalRange is null || _value is null ||
                 !deltaRange.IsValid)
             {
                 return null;
@@ -651,12 +637,13 @@ internal sealed class StatePeerObserver
             }
 
             using var transaction = _owner._history.BeginTransaction();
-            Prepare(value, transaction);
+            Prepare(value, StateValueEditMode.CopyValue, transaction);
             transaction.Commit();
         }
 
         private void Prepare(
             TValue value,
+            StateValueEditMode editMode,
             StateHistoryTransaction transaction)
         {
             ArgumentNullException.ThrowIfNull(transaction);
@@ -672,10 +659,11 @@ internal sealed class StatePeerObserver
                     $"No state peers are available for path {Path}.");
             }
 
-            var delta = _editMode is StateValueEditMode.ApplyDelta
+            Validate<TValue>(editMode, _physicalRange);
+            var delta = editMode is StateValueEditMode.ApplyDelta
                 ? Subtract(value, _value.Value)
                 : default;
-            if (_editMode is StateValueEditMode.ApplyDelta &&
+            if (editMode is StateValueEditMode.ApplyDelta &&
                 !CalculateEffectiveDeltaRange(peers.Values).Contains(
                     (float)(object)delta!))
             {
@@ -695,7 +683,7 @@ internal sealed class StatePeerObserver
 
                 var peerValue = ReferenceEquals(peer, this)
                     ? value
-                    : _editMode is StateValueEditMode.ApplyDelta
+                    : editMode is StateValueEditMode.ApplyDelta
                         ? Add(peer._value.Value, delta!)
                         : value;
                 peer._value.Prepare(peerValue, transaction);

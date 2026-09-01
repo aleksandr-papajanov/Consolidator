@@ -91,6 +91,10 @@ write local|group transactionId entryCount entries...
 write topology targetInstanceId transactionId entryCount entries...
 ```
 
+Each entry is encoded as `entry path... value valueAtoms mode`, where `mode`
+is the symbol `copy` for an absolute value or `delta` for a relative float
+change. The mode belongs to the write operation, not to the state definition.
+
 `topology` is a separate explicit-address contract used only for bank-group
 membership changes over a user-selected bank set.
 

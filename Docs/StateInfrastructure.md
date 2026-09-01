@@ -34,11 +34,24 @@ The application boundary is `Core/State/StateValueFactory`. It wraps
 `StateRegistry<InstanceId>` and decides:
 
 - local versus connected edit scope;
-- copy versus delta editing and physical ranges;
+- physical ranges;
 - instance-owned versus bank-owned notifications;
 - peer and state-change observers;
 - additional observers requested by concrete state models.
 
-Concrete models and observers remain in `Core/State`. Routing and Protocol may
+`Core/State/StateValueDefinition<TValue>` groups the static policy of a value:
+default value, physical range and history participation. The write protocol
+selects copy versus delta for each write operation. The
+`Core/Settings/StateValueDefinitions` exposes these definitions in
+typed device groups such as `Compressor`, `Saturator`, `Input` and `Output`.
+The state value factory consumes a definition while `ManagedStateBuilder`
+composes runtime-specific observers and fixed state-tree nodes. This keeps reusable `StateValue<TValue>`
+free of Core policy and avoids repeating the same defaults and ranges at each
+call site.
+
+`ManagedStateBuilder` composes the runtime state models and owns rollback when
+root construction fails. `ManagedState` is the immutable container returned by
+the builder. `InstanceRegistry` remains responsible for lifecycle registration
+and topology attachment. Concrete models and observers remain in `Core/State`. Routing and Protocol may
 consume infrastructure contracts such as `StatePath`, but business behavior
 must not move back into the top-level mechanism.

@@ -8,6 +8,7 @@ using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Protocol.Messages;
+using Consolidator.Managed.Protocol.Encoding;
 using Consolidator.Managed.Protocol.Transport;
 using Consolidator.Managed.State;
 using Consolidator.Managed.Core.Settings;
@@ -136,15 +137,21 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
                     AtomType.Symbol,
                     0,
                     0,
-                    FilterCatalog.ToProtocolName(filter.Definition.Kind)));
-                atoms.Add(new Atom(AtomType.Float, 0, filter.Definition.FixedQ, null));
-                var parameterCount = filter.FrequencyHz is null
-                    ? filter.Q is null ? 1 : 2
-                    : filter.Q is null ? 2 : 3;
+                    FilterProtocolNames.Get(filter.Definition)));
+                atoms.Add(new Atom(
+                    AtomType.Float,
+                    0,
+                    filter.Definition is FixedQFilterDefinition fixedQ ? fixedQ.FixedQ : 0.0F,
+                    null));
+                var parameterCount = filter.Definition switch
+                {
+                    GainFilterDefinition => 1,
+                    BellFilterDefinition => 3,
+                    FrequencyFilterDefinition => 2,
+                    _ => throw new InvalidOperationException("Unknown filter definition.")
+                };
                 atoms.Add(new Atom(AtomType.Integer, parameterCount, 0, null));
-                AddParameter(atoms, "frequency", filter.FrequencyHz);
-                AddParameter(atoms, "q", filter.Q);
-                AddParameter(atoms, "gain", filter.GainDb);
+                AddFilterParameters(atoms, filter);
             }
         }
 
@@ -171,7 +178,9 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
             return;
         }
 
-        var definitions = FilterCatalog.For(processorId);
+        var definitions = processorId is ProcessorId.Equalizer
+            ? StateValueDefinitions.EqualizerDefinitions
+            : StateValueDefinitions.DetectorDefinitions;
         var atoms = new List<Atom>
         {
             new(AtomType.Integer, 1, 0, null),
@@ -182,19 +191,23 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         for (var index = 0; index < definitions.Count; index++)
         {
             var definition = definitions[index];
-            var parameterCount = (definition.Frequency is null ? 0 : 1) +
-                (definition.Q is null ? 0 : 1) + 1;
+            var parameterCount = definition.Parameters.Count;
             atoms.Add(new Atom(AtomType.Integer, index + 1, 0, null));
             atoms.Add(new Atom(
                 AtomType.Symbol,
                 0,
                 0,
-                FilterCatalog.ToProtocolName(definition.Kind)));
-            atoms.Add(new Atom(AtomType.Float, 0, definition.FixedQ, null));
+                FilterProtocolNames.Get(definition)));
+            atoms.Add(new Atom(
+                AtomType.Float,
+                0,
+                definition is FixedQFilterDefinition fixedQ ? fixedQ.FixedQ : 0.0F,
+                null));
             atoms.Add(new Atom(AtomType.Integer, parameterCount, 0, null));
-            AddDefinition(atoms, "frequency", definition.Frequency);
-            AddDefinition(atoms, "q", definition.Q);
-            AddDefinition(atoms, "gain", definition.Gain);
+            foreach (var parameter in definition.Parameters)
+            {
+                AddDefinition(atoms, parameter);
+            }
         }
 
         _transport.Send(new ProtocolOutput(
@@ -218,17 +231,38 @@ public sealed class FftAnalyzer : IInstanceAudioInputService, IInstancePreparati
         atoms.Add(new Atom(AtomType.Float, 0, value.Value, null));
     }
 
+    private static void AddFilterParameters(
+        ICollection<Atom> atoms,
+        FilterState filter)
+    {
+        switch (filter)
+        {
+            case GainFilterState gain:
+                AddParameter(atoms, "gain", gain.GainDb);
+                break;
+            case FixedQFilterState fixedQ:
+                AddParameter(atoms, "frequency", fixedQ.FrequencyHz);
+                AddParameter(atoms, "gain", fixedQ.GainDb);
+                break;
+            case BellFilterState bell:
+                AddParameter(atoms, "frequency", bell.FrequencyHz);
+                AddParameter(atoms, "q", bell.Q);
+                AddParameter(atoms, "gain", bell.GainDb);
+                break;
+            default:
+                throw new InvalidOperationException("Unknown filter state.");
+        }
+    }
+
     private static void AddDefinition(
         ICollection<Atom> atoms,
-        string name,
-        FilterParameterDefinition? definition)
+        FilterParameterDefinition definition)
     {
-        if (definition is null)
-        {
-            return;
-        }
-
-        atoms.Add(new Atom(AtomType.Symbol, 0, 0, name));
+        atoms.Add(new Atom(
+            AtomType.Symbol,
+            0,
+            0,
+            FilterProtocolNames.GetParameter(definition.Node)));
         atoms.Add(new Atom(AtomType.Float, 0, definition.Range.Minimum, null));
         atoms.Add(new Atom(AtomType.Float, 0, definition.Range.Maximum, null));
         atoms.Add(new Atom(AtomType.Float, 0, definition.DefaultValue, null));

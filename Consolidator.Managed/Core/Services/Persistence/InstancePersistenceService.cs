@@ -110,12 +110,28 @@ internal sealed class InstancePersistenceService
             bank.Solo.Value,
             bank.Filters.Select(CreateFilter).ToArray())).ToArray());
 
-    private static PersistentFilter CreateFilter(FilterState value) => new(
-        value.FrequencyHz?.Value,
-        value.Q?.Value,
-        value.GainDb.Value,
-        value.Bypass.Value,
-        value.Solo.Value);
+    private static PersistentFilter CreateFilter(FilterState value) => value switch
+    {
+        GainFilterState gain => new(
+            null,
+            null,
+            gain.GainDb.Value,
+            gain.Bypass.Value,
+            gain.Solo.Value),
+        FixedQFilterState fixedQ => new(
+            fixedQ.FrequencyHz.Value,
+            null,
+            fixedQ.GainDb.Value,
+            fixedQ.Bypass.Value,
+            fixedQ.Solo.Value),
+        BellFilterState bell => new(
+            bell.FrequencyHz.Value,
+            bell.Q.Value,
+            bell.GainDb.Value,
+            bell.Bypass.Value,
+            bell.Solo.Value),
+        _ => throw new InvalidOperationException("Unknown filter state.")
+    };
 
     private static void Apply(ManagedState state, PersistentStateV4 snapshot)
     {
@@ -216,25 +232,36 @@ internal sealed class InstancePersistenceService
     {
         for (var index = 0; index < target.Count; index++)
         {
-            if (target[index].FrequencyHz is { } frequency)
+            switch (target[index])
             {
-                frequency.PrepareBaseline(source[index].FrequencyHz
-                    ?? throw new InvalidDataException("Filter frequency is missing."),
-                    transaction);
-            }
-            else if (source[index].FrequencyHz is not null)
-            {
-                throw new InvalidDataException("Filter frequency is not supported.");
-            }
-            if (target[index].Q is { } q)
-            {
-                q.PrepareBaseline(source[index].Q
-                    ?? throw new InvalidDataException("Filter Q is missing."),
-                    transaction);
-            }
-            else if (source[index].Q is not null)
-            {
-                throw new InvalidDataException("Filter Q is not supported.");
+                case GainFilterState:
+                    if (source[index].FrequencyHz is not null || source[index].Q is not null)
+                    {
+                        throw new InvalidDataException("Filter parameters are not supported.");
+                    }
+                    break;
+                case FixedQFilterState fixedQ:
+                    fixedQ.FrequencyHz.PrepareBaseline(
+                        source[index].FrequencyHz
+                            ?? throw new InvalidDataException("Filter frequency is missing."),
+                        transaction);
+                    if (source[index].Q is not null)
+                    {
+                        throw new InvalidDataException("Filter Q is not supported.");
+                    }
+                    break;
+                case BellFilterState bell:
+                    bell.FrequencyHz.PrepareBaseline(
+                        source[index].FrequencyHz
+                            ?? throw new InvalidDataException("Filter frequency is missing."),
+                        transaction);
+                    bell.Q.PrepareBaseline(
+                        source[index].Q
+                            ?? throw new InvalidDataException("Filter Q is missing."),
+                        transaction);
+                    break;
+                default:
+                    throw new InvalidDataException("Unknown filter state.");
             }
             target[index].GainDb.PrepareBaseline(
                 source[index].GainDb,
@@ -283,24 +310,24 @@ internal sealed class InstancePersistenceService
         var equalizer = dsp.Equalizer!;
         var saturatorDetector = dsp.Saturator!.Detector!;
         var compressorDetector = dsp.Compressor!.Detector!;
-        ValidateRange(dsp.Input!.Level, DspParameterRanges.GainDb);
-        ValidateRange(dsp.Input.Target, DspParameterRanges.TargetDb);
-        ValidateRange(dsp.Input.Width, DspParameterRanges.Width);
-        ValidateRange(dsp.Output!.Level, DspParameterRanges.GainDb);
-        ValidateRange(dsp.Output.Target, DspParameterRanges.TargetDb);
-        ValidateRange(dsp.Saturator.Drive, DspParameterRanges.Drive);
-        ValidateRange(dsp.Saturator.Curve, DspParameterRanges.Curve);
-        ValidateRange(dsp.Saturator.Output, DspParameterRanges.OutputDb);
-        ValidateRange(dsp.Compressor.Attack, DspParameterRanges.Macro);
-        ValidateRange(dsp.Compressor.Sustain, DspParameterRanges.Macro);
-        ValidateRange(dsp.Compressor.Compression, DspParameterRanges.Macro);
-        ValidateRange(dsp.Compressor.Output, DspParameterRanges.OutputDb);
+        ValidateRange(dsp.Input!.Level, StateValueDefinitions.Input.Level);
+        ValidateRange(dsp.Input.Target, StateValueDefinitions.Input.Target);
+        ValidateRange(dsp.Input.Width, StateValueDefinitions.Input.Width);
+        ValidateRange(dsp.Output!.Level, StateValueDefinitions.Output.Level);
+        ValidateRange(dsp.Output.Target, StateValueDefinitions.Output.Target);
+        ValidateRange(dsp.Saturator.Drive, StateValueDefinitions.Saturator.Drive);
+        ValidateRange(dsp.Saturator.Curve, StateValueDefinitions.Saturator.Curve);
+        ValidateRange(dsp.Saturator.Output, StateValueDefinitions.Saturator.OutputDb);
+        ValidateRange(dsp.Compressor.Attack, StateValueDefinitions.Compressor.Attack);
+        ValidateRange(dsp.Compressor.Sustain, StateValueDefinitions.Compressor.Sustain);
+        ValidateRange(dsp.Compressor.Compression, StateValueDefinitions.Compressor.Compression);
+        ValidateRange(dsp.Compressor.Output, StateValueDefinitions.Compressor.OutputDb);
         if (dsp.Compressor.Character is < 0 or > 2)
         {
             throw new InvalidDataException("Invalid compressor character.");
         }
-        ValidateRange(dsp.Polish.Thick, DspParameterRanges.Macro);
-        ValidateRange(dsp.Polish.Air, DspParameterRanges.Macro);
+        ValidateRange(dsp.Polish.Thick, StateValueDefinitions.Polish.Thick);
+        ValidateRange(dsp.Polish.Air, StateValueDefinitions.Polish.Air);
         if (equalizer.Banks.Any(bank => bank.Filters is null) ||
             saturatorDetector.Filters is null ||
             compressorDetector.Filters is null)
@@ -330,21 +357,32 @@ internal sealed class InstancePersistenceService
             {
                 throw new InvalidDataException("Invalid filter object.");
             }
-            ValidateRange(filter.GainDb, DspParameterRanges.FilterGainDb);
+            ValidateRange(
+                filter.GainDb,
+                StateValueDefinitions.EqualizerDefinitions[0].Gain.Definition);
             if (filter.FrequencyHz is { } frequency)
             {
-                ValidateRange(frequency, DspParameterRanges.FrequencyHz);
+                ValidateRange(
+                    frequency,
+                    ((FrequencyFilterDefinition)StateValueDefinitions.EqualizerDefinitions[1]).Frequency.Definition);
             }
             if (filter.Q is { } q)
             {
-                ValidateRange(q, DspParameterRanges.Q);
+                ValidateRange(
+                    q,
+                    ((BellFilterDefinition)StateValueDefinitions.EqualizerDefinitions[4]).Q.Definition);
             }
         }
     }
 
-    private static void ValidateRange(float value, FloatRange range)
+    private static void ValidateRange(
+        float value,
+        StateValueDefinition<float> definition)
     {
-        if (float.IsNaN(value) || float.IsInfinity(value) || !range.Contains(value))
+        if (float.IsNaN(value) ||
+            float.IsInfinity(value) ||
+            definition.PhysicalRange is not { } range ||
+            !range.Contains(value))
         {
             throw new InvalidDataException("Persistence value is outside its range.");
         }

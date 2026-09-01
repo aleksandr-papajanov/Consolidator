@@ -33,94 +33,19 @@ public sealed class StateValueFactory
 
     public IActivityStatusSink ActivityStatusSink => _activityStatusSink;
 
-    public StateValue<TValue> CreateValue<TValue>(
-        InstanceId instanceId,
-        StatePath path,
-        TValue initialValue,
-        StateValueEditMode editMode,
-        FloatRange? physicalRange = null,
+    public StateValue<TValue> Create<TValue>(
+        StateValueCreationContext context,
+        StateValueDefinition<TValue> definition,
         params IStateValueObserver<TValue>[] observers)
     {
-        ValidatePath(path);
-        var scope = path.Nodes[0] == StateNodeIds.Instance
-            ? StateValueEditScope.Local
-            : StateValueEditScope.BankGroup;
-        return Create(
-            instanceId,
-            path,
-            initialValue,
-            scope,
-            editMode,
-            physicalRange,
-            StateValueOwnership.InstanceOwned,
-            true,
-            observers);
-    }
-
-    public StateValue<TValue> CreateValueWithoutHistory<TValue>(
-        InstanceId instanceId,
-        StatePath path,
-        TValue initialValue,
-        StateValueEditMode editMode,
-        FloatRange? physicalRange = null,
-        params IStateValueObserver<TValue>[] observers)
-    {
-        ValidatePath(path);
-        var scope = path.Nodes[0] == StateNodeIds.Instance
-            ? StateValueEditScope.Local
-            : StateValueEditScope.BankGroup;
-        return Create(
-            instanceId,
-            path,
-            initialValue,
-            scope,
-            editMode,
-            physicalRange,
-            StateValueOwnership.InstanceOwned,
-            false,
-            observers);
-    }
-
-    public StateValue<TValue> CreateBankValue<TValue>(
-        InstanceId instanceId,
-        StatePath path,
-        TValue initialValue,
-        StateValueEditMode editMode,
-        FloatRange? physicalRange = null,
-        StateValueEditScope scope = StateValueEditScope.BankGroup,
-        params IStateValueObserver<TValue>[] observers)
-    {
-        ValidatePath(path);
-        return Create(
-            instanceId,
-            path,
-            initialValue,
-            scope,
-            editMode,
-            physicalRange,
-            StateValueOwnership.BankOwned,
-            true,
-            observers);
-    }
-
-    public StateValue<TValue> CreateBankValueWithoutHistory<TValue>(
-        InstanceId instanceId,
-        StatePath path,
-        TValue initialValue,
-        StateValueEditMode editMode,
-        FloatRange? physicalRange = null,
-        params IStateValueObserver<TValue>[] observers)
-    {
-        ValidatePath(path);
-        return Create(
-            instanceId,
-            path,
-            initialValue,
-            StateValueEditScope.BankGroup,
-            editMode,
-            physicalRange,
-            StateValueOwnership.BankOwned,
-            false,
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(definition);
+        ValidatePath(context.Path);
+        return CreateValue(
+            context,
+            definition.DefaultValue,
+            definition.PhysicalRange,
+            definition.RegisterInHistory,
             observers);
     }
 
@@ -134,47 +59,42 @@ public sealed class StateValueFactory
         _registry.CreateTransient(instanceId, path, read, write);
     }
 
-    private StateValue<TValue> Create<TValue>(
-        InstanceId instanceId,
-        StatePath path,
+    private StateValue<TValue> CreateValue<TValue>(
+        StateValueCreationContext context,
         TValue initialValue,
-        StateValueEditScope scope,
-        StateValueEditMode editMode,
         FloatRange? physicalRange,
-        StateValueOwnership ownership,
         bool registerInHistory,
         IReadOnlyList<IStateValueObserver<TValue>> observers)
     {
-        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(context.Path);
         ArgumentNullException.ThrowIfNull(observers);
 
         var stateChangeObserver = new StateChangeObserver<TValue>(
-            instanceId,
-            path,
-            ownership,
+            context.InstanceId,
+            context.Path,
+            context.Ownership,
             _stateChangeSink);
         var peerObserver = _peerObserver.Create<TValue>(
-            instanceId,
-            path,
-            scope,
-            editMode,
+            context.InstanceId,
+            context.Path,
+            context.Scope,
             physicalRange,
             stateChangeObserver.EffectiveRangeChanged);
         var valueObservers = observers
             .Append(peerObserver)
             .Append(_metadata.Observe<TValue>(
-                instanceId,
-                path,
+                context.InstanceId,
+                context.Path,
                 physicalRange,
                 peerObserver.GetEffectiveRange))
             .Append(stateChangeObserver)
             .Append(new DspStateObserver<TValue>(
                 _dspChanges,
-                instanceId))
+                context.InstanceId))
             .ToArray();
         return registerInHistory
-            ? _registry.CreateValue(instanceId, path, initialValue, valueObservers)
-            : _registry.CreateValueWithoutHistory(instanceId, path, initialValue, valueObservers);
+            ? _registry.CreateValue(context.InstanceId, context.Path, initialValue, valueObservers)
+            : _registry.CreateValueWithoutHistory(context.InstanceId, context.Path, initialValue, valueObservers);
     }
 
     private static void ValidatePath(StatePath path)

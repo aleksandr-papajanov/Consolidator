@@ -919,7 +919,7 @@ public sealed class StateEditingUseCasesTests
         Assert.Equal(7, state.Atoms[6].Integer);
         Assert.Equal(1, state.Atoms[7].Integer);
         Assert.Equal("gain", state.Atoms[8].Symbol);
-        Assert.Equal(0.707F, state.Atoms[9].Float);
+        Assert.Equal(0.0F, state.Atoms[9].Float);
         Assert.Equal(1, state.Atoms[10].Integer);
         Assert.Equal("gain", state.Atoms[11].Symbol);
         Assert.Equal(0.0, state.Atoms[12].Float);

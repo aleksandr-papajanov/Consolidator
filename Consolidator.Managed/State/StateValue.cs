@@ -1,5 +1,6 @@
 using Consolidator.Managed.State.History;
 using Consolidator.Managed.State.Observers;
+using Consolidator.Managed.Core.State;
 
 namespace Consolidator.Managed.State;
 
@@ -15,7 +16,7 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
     private TValue[]? _pendingBaselineValues;
     private int _pendingBaselineSlot;
     private Action<TValue>? _mutationHandler;
-    private Action<TValue, StateHistoryTransaction>? _mutationPreparationHandler;
+    private Action<TValue, StateValueEditMode, StateHistoryTransaction>? _mutationPreparationHandler;
     private Func<StateHistoryTransaction, int>? _resetPreparationHandler;
     private TValue _previousSlotValue = default!;
     private bool _disposed;
@@ -85,7 +86,7 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
             return false;
         }
 
-        PrepareMutation(_initialValue, transaction);
+        PrepareMutation(_initialValue, StateValueEditMode.CopyValue, transaction);
         return true;
     }
 
@@ -165,13 +166,14 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
 
     internal void PrepareMutation(
         TValue value,
+        StateValueEditMode editMode,
         StateHistoryTransaction transaction)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(transaction);
         if (_mutationPreparationHandler is not null)
         {
-            _mutationPreparationHandler(value, transaction);
+            _mutationPreparationHandler(value, editMode, transaction);
             return;
         }
 
@@ -237,7 +239,7 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
 
     internal void SetMutationHandler(
         Action<TValue> mutationHandler,
-        Action<TValue, StateHistoryTransaction> mutationPreparationHandler)
+        Action<TValue, StateValueEditMode, StateHistoryTransaction> mutationPreparationHandler)
     {
         ArgumentNullException.ThrowIfNull(mutationHandler);
         ArgumentNullException.ThrowIfNull(mutationPreparationHandler);

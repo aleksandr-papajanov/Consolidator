@@ -61,7 +61,18 @@ internal sealed class WriteInputCodec : IInputCodec
             }
 
             var value = DecodeValue(atoms[position++], path);
-            entries.Add(new StateWriteEntry(path, value.Value, value.ValueType));
+            if (position >= atoms.Length || atoms[position].Type != AtomType.Symbol)
+            {
+                throw new FormatException("Write entry has no mode.");
+            }
+
+            var mode = atoms[position++].Symbol switch
+            {
+                "copy" => StateValueEditMode.CopyValue,
+                "delta" => StateValueEditMode.ApplyDelta,
+                _ => throw new FormatException("Invalid write mode.")
+            };
+            entries.Add(new StateWriteEntry(path, value.Value, value.ValueType, mode));
         }
 
         if (position != atoms.Length)

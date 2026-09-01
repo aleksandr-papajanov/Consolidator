@@ -26,10 +26,11 @@ public sealed record WriteStateCommand(
 
     public static WriteStateCommand Create<TValue>(
         StatePath path,
-        TValue value)
+        TValue value,
+        StateValueEditMode mode = StateValueEditMode.CopyValue)
     {
         return new WriteStateCommand(
-            [new StateWriteEntry(path, value, typeof(TValue))],
+            [new StateWriteEntry(path, value, typeof(TValue), mode)],
             0,
             WriteScope.Local);
     }
@@ -45,7 +46,8 @@ public enum WriteScope
 public sealed record StateWriteEntry(
     StatePath Path,
     object? Value,
-    Type ValueType);
+    Type ValueType,
+    StateValueEditMode Mode);
 
 public sealed record ResetStateCommand(
     StatePath Target,

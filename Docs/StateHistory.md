@@ -30,8 +30,11 @@ an ordered observer list. Generic
 by its caller. It has no dependency on Core, instances, topology, UI ownership
 or peer policy.
 
-`Core.State.StateValueFactory` creates the concrete application values. It
-assigns edit scope and notification ownership and appends three common observers:
+`Core.State.StateValueFactory` creates the concrete application values. A
+`StateValueDefinition<TValue>` from the typed
+`StateValueDefinitions` catalog supplies the default, edit mode,
+physical range and history participation; the factory assigns edit scope and
+notification ownership and appends three common observers:
 
 - `StatePeerObserver` materializes peers, intercepts writes and maintains the
   effective delta range;

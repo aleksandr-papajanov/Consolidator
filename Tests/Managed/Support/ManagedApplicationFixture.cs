@@ -61,12 +61,45 @@ internal sealed class ManagedApplicationFixture : IDisposable
             Symbol("test"),
             Symbol(requestId.ToString())
         };
-        atoms.AddRange(body);
+        atoms.AddRange(NormalizeLegacyWrite(body, selector));
         _protocol.Receive(new ProtocolInput(
             source.InstanceId.Value,
             selector,
             atoms));
         return requestId;
+    }
+
+    private static IEnumerable<Atom> NormalizeLegacyWrite(
+        IReadOnlyList<Atom> body,
+        string selector)
+    {
+        if (selector != "write")
+        {
+            return body;
+        }
+
+        var normalized = new List<Atom>(body.Count + 2);
+        for (var index = 0; index < body.Count; index++)
+        {
+            var atom = body[index];
+            normalized.Add(atom);
+            if (atom.Type != AtomType.Symbol || atom.Symbol != "value" ||
+                index + 1 >= body.Count)
+            {
+                continue;
+            }
+
+            var value = body[++index];
+            normalized.Add(value);
+            if (index + 1 >= body.Count ||
+                body[index + 1].Type != AtomType.Symbol ||
+                body[index + 1].Symbol is not ("copy" or "delta"))
+            {
+                normalized.Add(Symbol(value.Type == AtomType.Float ? "delta" : "copy"));
+            }
+        }
+
+        return normalized;
     }
 
     public void UnregisterInstance(TestInstance instance)
