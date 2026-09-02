@@ -1,7 +1,6 @@
 namespace Consolidator.Managed.Core.Services;
 
 using Consolidator.Managed.Core.Services.Abstractions;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Services.Instances;
 
 public sealed class InstancePreparationService : IInstancePreparationService

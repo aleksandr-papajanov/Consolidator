@@ -1,7 +1,6 @@
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
-using Consolidator.Managed.Protocol.Notifications;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Services;
@@ -16,7 +15,7 @@ public sealed class HistoryNavigation : IHistoryNavigation
         StateHistory history,
         InstanceRegistry instanceRegistry,
         DspStateChangeTracker dspChanges,
-        HistoryStatePublisher historyStatePublisher)
+        IHistoryStateSink historyStatePublisher)
     {
         _history = history;
         _instanceRegistry = instanceRegistry;
@@ -37,7 +36,6 @@ public sealed class HistoryNavigation : IHistoryNavigation
 
         var affectedInstanceIds = _dspChanges.Drain();
         _instanceRegistry.PublishDspStates(affectedInstanceIds);
-        _instanceRegistry.PublishAnalyzerStates(affectedInstanceIds);
         return true;
     }
 }

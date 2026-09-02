@@ -35,39 +35,9 @@ write's response, which follows its state notifications in the lossless control
 FIFO. A rejected transaction or final write also clears the preview and rebuilds
 the presentation from accepted state.
 
-The analyzer frequency response uses the prepared sample rate of the observed
-source. Managed publishes this infrequent configuration as:
-
-```text
-analyzer_configuration 1 sourceInstanceId sampleRate
-```
-
-The active viewer receives the configuration when it is activated, when its
-observed source changes, and when that source is prepared with a new sample
-rate. Until preparation, the defined analyzer default is 48 kHz, matching the
-initial DSP preparation context.
-
-For the equalizer, Managed also publishes an atomic raw-state projection for all
-banks of the observed source:
-
-```text
-analyzer_equalizer_state 1 2 sourceInstanceId bankCount equalizerActive
-    (bankActive filterCount
-      (filterActive filterType fixedQ parameterCount
-        parameterName value × parameterCount) × filterCount) × bankCount
-```
-
-The frame carries each filter kind and its variable-length named parameters.
-This projection contains no coefficients or rendered points. JavaScript remains
-the only curve calculator. It caches the raw projection, calculates the response
-of non-focused banks when that projection or the sample rate changes, and adds
-the live focused-bank response during gestures to produce `all_banks` without
-recalculating every bank on each drag frame.
-
-The active viewer also receives `filter_catalog 1` for the selected processor.
-The catalog describes each slot's filter kind, fixed Q and parameter ranges;
-the UI uses it to validate the analyzer model and never derives a filter kind
-from the slot index.
+The analyzer frequency response is calculated entirely in JavaScript from the
+focused parameter bindings and local filter definitions. Managed publishes no
+analyzer configuration, raw equalizer state, or filter catalog frames.
 
 ## Spectrum capture
 

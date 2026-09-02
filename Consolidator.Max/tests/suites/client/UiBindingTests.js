@@ -694,94 +694,6 @@ function testAnalyzerGestureKeepsPreviewUntilFinalWriteCompletes() {
   assert.notDeepStrictEqual(presenter.curves[0].values, previewCurve);
   presenter.destroy();
 }
-function testAnalyzerConfigurationRecalculatesCurvesForSampleRate() {
-  var protocolHandlers = {};
-  var presenter = new AnalyzerPresenter({
-    statusSource: {
-      subscribeStatus: function (callback, immediate) {
-        if (immediate) callback({
-          ready: true,
-          target: { instanceId: 7, bankId: 1 },
-        });
-        return function () {};
-      },
-    },
-    parameters: [{
-      frequency: { value: 18000 },
-      gain: { value: 12 },
-      q: { value: 1 },
-    }],
-  });
-  presenter.connectConfiguration({
-    on: function (selector, callback) {
-      protocolHandlers[selector] = callback;
-      return function () {};
-    },
-  });
-  var previous = presenter.curves[0].values.slice(0);
-
-  protocolHandlers.analyzer_configuration([1, 8, 32000]);
-  assert.strictEqual(presenter.sampleRate, 32000);
-  protocolHandlers.analyzer_configuration([1, 7, 44100]);
-
-  assert.strictEqual(presenter.sampleRate, 44100);
-  assert.notDeepStrictEqual(presenter.curves[0].values, previous);
-  presenter.destroy();
-}
-function testEqualizerPresenterBuildsAllBanksCurveFromRawState() {
-  var protocolHandlers = {};
-  var presenter = new AnalyzerPresenter({
-    mode: "equalizer",
-    statusSource: {
-      subscribeStatus: function (callback, immediate) {
-        if (immediate) callback({
-          ready: true,
-          target: { instanceId: 7, bankId: 0 },
-        });
-        return function () {};
-      },
-    },
-    parameters: [{
-      frequency: { value: 1000 },
-      gain: { value: 6 },
-      q: { value: 1 },
-      enabled: true,
-    }],
-  });
-  presenter.connectConfiguration({
-    on: function (selector, callback) {
-      protocolHandlers[selector] = callback;
-      return function () {};
-    },
-  });
-
-  protocolHandlers.analyzer_equalizer_state([
-    1, 2, 8, 2, 0,
-    1, 1,
-    1, "bell", 0.707, 3, "frequency", 1000, "q", 1, "gain", 6,
-    1, 1,
-    1, "bell", 0.707, 3, "frequency", 2000, "q", 1, "gain", 6,
-  ]);
-  assert.strictEqual(presenter.allBanksCurve.active, false);
-  assert.strictEqual(presenter.equalizerState.sourceInstanceId, "8");
-
-  protocolHandlers.analyzer_equalizer_state([
-    1, 2, 7, 2, 1,
-    1, 1,
-    1, "bell", 0.707, 3, "frequency", 1000, "q", 1, "gain", 6,
-    1, 1,
-    1, "bell", 0.707, 3, "frequency", 2000, "q", 1, "gain", 6,
-  ]);
-
-  assert.strictEqual(presenter.allBanksCurve.active, true);
-  assert.strictEqual(presenter.equalizerState.sourceInstanceId, "7");
-  assert.strictEqual(presenter.allBanksCurve.values.length, 256);
-  assert.notDeepStrictEqual(
-    presenter.allBanksCurve.values,
-    presenter.combinedCurve.values,
-  );
-  presenter.destroy();
-}
 function testDetectorPresenterBuildsFilterCurves() {
   var presenter = new AnalyzerPresenter({
     mode: "detector",
@@ -1853,8 +1765,6 @@ testAnalyzerPublishesOneSpectrumNotificationPerFftFrame();
 testAnalyzerDragClampsToEffectivePeerRanges();
 testAnalyzerParameterUpdatesRecalculateLocalCurves();
 testAnalyzerGestureKeepsPreviewUntilFinalWriteCompletes();
-testAnalyzerConfigurationRecalculatesCurvesForSampleRate();
-testEqualizerPresenterBuildsAllBanksCurveFromRawState();
 testDetectorPresenterBuildsFilterCurves();
 testDetectorPresenterUpdatesCurvesDuringFilterDrag();
 testAnalyzerRendersFixedQFilterWithoutEditableQ();

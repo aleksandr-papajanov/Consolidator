@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Services.Abstractions;
-using Consolidator.Managed.Core.Services.Persistence;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Protocol.Encoding;
@@ -15,8 +14,8 @@ internal sealed class StateChangePublisher : IStateChangeSink
     private readonly IManagedLogger _logger;
     private readonly StateValueMetadataRegistry _metadata;
     private readonly TopologyIndex _topology;
-    private readonly RegistryChangePublisher _registryChanges;
-    private readonly PersistenceChangePublisher _persistenceChanges;
+    private readonly IRegistryChangeSink _registryChanges;
+    private readonly IPersistenceChangeSink _persistenceChanges;
 
     public StateChangePublisher(
         IPresentationTransport transport,
@@ -24,8 +23,8 @@ internal sealed class StateChangePublisher : IStateChangeSink
         IManagedLogger logger,
         StateValueMetadataRegistry metadata,
         TopologyIndex topology,
-        RegistryChangePublisher registryChanges,
-        PersistenceChangePublisher persistenceChanges)
+        IRegistryChangeSink registryChanges,
+        IPersistenceChangeSink persistenceChanges)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(router);

@@ -2,8 +2,6 @@ using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Accessors;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Services.Instances;
-using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 

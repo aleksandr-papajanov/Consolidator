@@ -13,13 +13,13 @@ public sealed unsafe class NativeBoundaryContractTests
     {
         Assert.Equal(16, Marshal.SizeOf<NativeAtom>());
         Assert.Equal(24, Marshal.SizeOf<FilterSnapshot>());
-        Assert.Equal(1472, Marshal.SizeOf<DspSnapshot>());
-        Assert.Equal(4424, Marshal.SizeOf<DspStateExchange>());
+        Assert.Equal(1476, Marshal.SizeOf<DspSnapshot>());
+        Assert.Equal(4436, Marshal.SizeOf<DspStateExchange>());
         Assert.Equal(
-            4416,
+            4428,
             Marshal.OffsetOf<DspStateExchange>(nameof(DspStateExchange.PublishedIndex)).ToInt32());
         Assert.Equal(
-            4420,
+            4432,
             Marshal.OffsetOf<DspStateExchange>(nameof(DspStateExchange.ConsumerIndex)).ToInt32());
 
         var symbol = Marshal.StringToCoTaskMemUTF8("ready");

@@ -1,22 +1,19 @@
-using Consolidator.Managed.Analyzer;
-using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Protocol.Notifications;
-using Consolidator.Managed.Protocol.Transport;
+using Consolidator.Managed.Core.Services.Abstractions;
 
 namespace Consolidator.Managed.Core.Services;
 
 internal sealed class ActiveInstanceCoordinator
 {
-    private readonly FftAnalyzer _analyzer;
-    private readonly IPresentationTransport _presentation;
-    private readonly RegistryChangePublisher _registryChanges;
+    private readonly IAnalyzerLifecycle _analyzer;
+    private readonly IInstancePresentationLifecycle _presentation;
+    private readonly IRegistryChangeSink _registryChanges;
     private readonly object _lock = new();
     private InstanceId? _activeInstanceId;
 
     public ActiveInstanceCoordinator(
-        FftAnalyzer analyzer,
-        IPresentationTransport presentation,
-        RegistryChangePublisher registryChanges)
+        IAnalyzerLifecycle analyzer,
+        IInstancePresentationLifecycle presentation,
+        IRegistryChangeSink registryChanges)
     {
         ArgumentNullException.ThrowIfNull(analyzer);
         ArgumentNullException.ThrowIfNull(presentation);

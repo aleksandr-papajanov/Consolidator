@@ -12,11 +12,16 @@ Application state code is organized by responsibility:
 
 ```text
 Core/State/
-├─ Models/      concrete instance and DSP state composition
+├─ Identifiers/ domain identifiers and addresses
+├─ Definitions/ value ranges, definitions and edit policies
+├─ Values/      value factory, metadata and change context
+├─ Composition/ model builder and construction context
+├─ Models/
+│  ├─ Instance/    instance state and transient selection
+│  ├─ Dsp/         DSP aggregate and processor state
+│  └─ Filters/     filter state records
 ├─ Observers/   topology, peer, audibility, projection and UI reactions
-├─ StateValueFactory.cs
-├─ StateNodeIds.cs
-└─ domain value types and edit policies
+└─ StateNodeIds.cs  state tree schema
 
 Core/Topology/
 └─ TopologyIndex.cs  shared derived bank/group indexes and queries

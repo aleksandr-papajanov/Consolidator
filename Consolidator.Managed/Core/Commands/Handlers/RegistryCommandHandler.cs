@@ -2,7 +2,7 @@ using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services.Instances;
-using Consolidator.Managed.Protocol.Notifications;
+using Consolidator.Managed.Core.Services.Abstractions;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
@@ -10,13 +10,13 @@ internal sealed class ReadRegistryCommandHandler
     : CommandHandler<ReadRegistryCommand, RegistrySnapshotResult>
 {
     private readonly InstanceRegistry _registry;
-    private readonly RegistryChangePublisher _registryChanges;
-    private readonly ProcessorMarkerPublisher _processorMarkers;
+    private readonly IRegistryChangeSink _registryChanges;
+    private readonly IProcessorMarkerSink _processorMarkers;
 
     public ReadRegistryCommandHandler(
         InstanceRegistry registry,
-        RegistryChangePublisher registryChanges,
-        ProcessorMarkerPublisher processorMarkers)
+        IRegistryChangeSink registryChanges,
+        IProcessorMarkerSink processorMarkers)
     {
         _registry = registry;
         _registryChanges = registryChanges;

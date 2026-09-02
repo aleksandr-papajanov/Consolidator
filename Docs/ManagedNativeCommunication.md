@@ -93,12 +93,9 @@ range `0..6` in Max, JavaScript, Native, Managed, registry messages, state
 paths, target snapshots, and group targets. No layer adds or subtracts one
 when forwarding a bank index.
 
-Changing the focused bank updates the active source and capture demand and
-publishes one small `analyzer_configuration` presentation containing the
-source's prepared sample rate. `observe_target` publishes
-`analyzer_equalizer_state` only for the `equalizer` context. Curve
-calculation does not delay the target snapshot because it runs locally after
-the presentations are applied.
+Changing the focused bank updates the active source and capture demand. Curve
+calculation does not delay the target snapshot because it runs locally from
+the focused parameter bindings.
 During a local dial gesture, the control renders its local preview until the
 gesture ends. Authoritative `state_changed` presentations continue updating the
 stored value but do not replace the value currently under the pointer.
@@ -380,8 +377,7 @@ Max low-priority thread
 ```
 
 FFT frames use the dedicated `analysisOutput` outlet. Other Managed protocol
-frames, including `analyzer_configuration` and `analyzer_equalizer_state`, use
-`controlOutput`. The Max bridge
+frames use `controlOutput`. The Max bridge
 connects the analysis outlet to the UI host's protocol input separately from
 control output.
 
@@ -511,13 +507,7 @@ source instance ID, FFT size, main spectrum bins and reference spectrum bins.
 
 `FftAnalyzer` owns its capture rings directly; there is no separate analyzer
 registry or Managed curve cache. Instance activity gates spectrum capture.
-Activation, source-focus changes and source preparation publish
-`analyzer_configuration 1 sourceInstanceId sampleRate` to the active viewer.
-Observe-target, committed equalizer changes and history navigation publish an
-atomic
-`analyzer_equalizer_state` protocol version 1, frame version 2 projection carries the filter kind, fixed
-Q and named parameter values for every source bank. Unsupported parameters are
-omitted rather than represented by placeholders. JavaScript calculates focused
-and all-bank curves from those values. No coefficient or response arrays are
-allocated or copied by Managed or Native.
+JavaScript calculates analyzer curves from local parameter bindings and filter
+definitions. No coefficient or response arrays are allocated or copied by
+Managed or Native.
 

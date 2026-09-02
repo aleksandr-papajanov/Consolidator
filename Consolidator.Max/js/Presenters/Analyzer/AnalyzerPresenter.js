@@ -29,11 +29,6 @@ class AnalyzerPresenter extends PresentationObservable
             ? 24 : Number(gainRange.maximum);
         this.sampleRate = Number(this.options.sampleRate) > 0
             ? Number(this.options.sampleRate) : DEFAULT_SAMPLE_RATE;
-        this.sampleRates = {};
-        this.equalizerStates = {};
-        this.filterCatalogs = {};
-        this.equalizerState = null;
-        this.otherBanksDecibels = null;
         this.focusedBankId = 0;
         this.sourceInstanceId = null;
         this.curvePointCount = 256;
@@ -102,18 +97,11 @@ class AnalyzerPresenter extends PresentationObservable
                 this.selectedId = 0;
                 this.sourceInstanceId = null;
                 this.focusedBankId = null;
-                this.equalizerState = null;
             }
             else {
                 this.focusedBankId = status.target
                     ? Number(status.target.bankId) : null;
-                const configuredSampleRate = this.sourceInstanceId === null
-                    ? null : this.sampleRates[String(this.sourceInstanceId)];
-                this.sampleRate = configuredSampleRate || DEFAULT_SAMPLE_RATE;
-                this.equalizerState = this.sourceInstanceId === null
-                    ? null : this.equalizerStates[String(this.sourceInstanceId)] || null;
             }
-            this.otherBanksDecibels = null;
             this.requestRebuild();
         }, true));
     }
@@ -146,218 +134,6 @@ class AnalyzerPresenter extends PresentationObservable
             };
             this.publishSpectrum();
         }));
-    }
-    
-    subscribeSpectrum(callback, immediate)
-    {
-        this.spectrumListeners.push(callback);
-        if (immediate && (this.spectrum || this.referenceSpectrum)) {
-            callback(this.spectrum, this.referenceSpectrum);
-        }
-        return () => {
-            this.spectrumListeners = this.spectrumListeners.filter(
-                (listener) => { return listener !== callback; });
-        };
-    }
-
-    connectConfiguration(protocol)
-    {
-        if (!protocol || typeof protocol.on !== "function") {
-            return;
-        }
-        this.unsubscribers.push(protocol.on("analyzer_configuration", (args) => {
-            if (!args || Number(args[0]) !== 1 || args.length < 3) {
-                return;
-            }
-            const sampleRate = Number(args[2]);
-            if (!isFinite(sampleRate) || sampleRate <= 0) {
-                return;
-            }
-            const sourceInstanceId = String(args[1]);
-            this.sampleRates[sourceInstanceId] = sampleRate;
-            this.sourceInstanceId = sourceInstanceId;
-            if (sampleRate === this.sampleRate) {
-                return;
-            }
-            this.sampleRate = sampleRate;
-            this.otherBanksDecibels = null;
-            this.requestRebuild();
-        }));
-        this.unsubscribers.push(protocol.on("analyzer_equalizer_state", (args) => {
-            const state = this.decodeEqualizerState(args);
-            if (!state) {
-                return;
-            }
-            this.sourceInstanceId = state.sourceInstanceId;
-            this.equalizerStates[state.sourceInstanceId] = state;
-            const preserveOtherBanks = this.sameOtherBanksState(
-                this.equalizerState,
-                state);
-            this.equalizerState = state;
-            if (!preserveOtherBanks) {
-                this.otherBanksDecibels = null;
-            }
-            this.requestRebuild();
-        }));
-        this.unsubscribers.push(protocol.on("filter_catalog", (args) => {
-            const catalog = this.decodeFilterCatalog(args);
-            if (!catalog) {
-                return;
-            }
-            this.sourceInstanceId = catalog.sourceInstanceId;
-            this.filterCatalogs[
-                String(catalog.sourceInstanceId) + ":" + catalog.context] =
-                catalog.filters;
-            this.otherBanksDecibels = null;
-            this.requestRebuild();
-        }));
-    }
-
-    sameOtherBanksState(first, second)
-    {
-        if (!first || !second ||
-                first.sourceInstanceId !== second.sourceInstanceId ||
-                first.banks.length !== second.banks.length) {
-            return false;
-        }
-        for (let bankIndex = 0; bankIndex < first.banks.length;
-                bankIndex += 1) {
-            if (bankIndex === this.focusedBankId) {
-                continue;
-            }
-            let firstBank = first.banks[bankIndex];
-            let secondBank = second.banks[bankIndex];
-            if (firstBank.active !== secondBank.active ||
-                    firstBank.filters.length !== secondBank.filters.length) {
-                return false;
-            }
-            for (let filterIndex = 0; filterIndex < firstBank.filters.length;
-                    filterIndex += 1) {
-                let firstFilter = firstBank.filters[filterIndex];
-                let secondFilter = secondBank.filters[filterIndex];
-                if (firstFilter.active !== secondFilter.active ||
-                        firstFilter.type !== secondFilter.type ||
-                        firstFilter.fixedQ !== secondFilter.fixedQ ||
-                        firstFilter.frequency !== secondFilter.frequency ||
-                        firstFilter.q !== secondFilter.q ||
-                        firstFilter.gain !== secondFilter.gain) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    decodeEqualizerState(args)
-    {
-        if (!args || Number(args[0]) !== 1 || Number(args[1]) !== 2 ||
-                args.length < 5) {
-            return null;
-        }
-        const bankCount = Math.floor(Number(args[3]));
-        const expectedLengthMinimum = 5 + bankCount * 2;
-        if (!isFinite(bankCount) || bankCount < 1 || bankCount > 32 ||
-                args.length < expectedLengthMinimum) {
-            return null;
-        }
-        let position = 5;
-        let banks = [];
-        for (let bankIndex = 0; bankIndex < bankCount; bankIndex += 1) {
-            let bank = { active: Number(args[position]) !== 0, filters: [] };
-            position += 1;
-            let filterCount = Math.floor(Number(args[position]));
-            position += 1;
-            if (!isFinite(filterCount) || filterCount < 1 || filterCount > 32) {
-                return null;
-            }
-            for (let filterIndex = 0; filterIndex < filterCount; filterIndex += 1) {
-                let filter = {
-                    active: Number(args[position]) !== 0,
-                    type: String(args[position + 1]),
-                    fixedQ: Number(args[position + 2]),
-                    parameters: {}
-                };
-                let parameterCount = Math.floor(Number(args[position + 3]));
-                position += 4;
-                if (!isFinite(parameterCount) || parameterCount < 1 || parameterCount > 3 ||
-                        position + parameterCount * 2 > args.length) {
-                    return null;
-                }
-                for (let parameterIndex = 0; parameterIndex < parameterCount; parameterIndex += 1) {
-                    let name = String(args[position]);
-                    let value = Number(args[position + 1]);
-                    if (["frequency", "q", "gain"].indexOf(name) < 0 ||
-                            filter.parameters[name] !== undefined || !isFinite(value)) {
-                        return null;
-                    }
-                    filter.parameters[name] = value;
-                    filter[name] = value;
-                    position += 2;
-                }
-                if (filter.parameters.gain === undefined || !isFinite(filter.fixedQ) || filter.fixedQ <= 0 ||
-                        (filter.type !== "gain" && filter.parameters.frequency === undefined) ||
-                        (filter.type === "bell" && filter.parameters.q === undefined) ||
-                        (filter.type === "gain" && Object.keys(filter.parameters).length !== 1) ||
-                        (filter.type === "bell" && Object.keys(filter.parameters).length !== 3) ||
-                        (filter.type !== "bell" && filter.type !== "gain" && Object.keys(filter.parameters).length !== 2) ||
-                        (filter.type !== "gain" && filter.parameters.q !== undefined && filter.type !== "bell") ||
-                        (["bell", "tilt", "low_shelf", "high_shelf", "gain"].indexOf(filter.type) < 0)) {
-                    return null;
-                }
-                bank.filters.push(filter);
-            }
-            banks.push(bank);
-        }
-        if (position !== args.length) return null;
-        return {
-            sourceInstanceId: String(args[2]),
-            active: Number(args[4]) !== 0,
-            banks: banks
-        };
-    }
-
-    decodeFilterCatalog(args)
-    {
-        if (!args || Number(args[0]) !== 1 || args.length < 4) return null;
-        let filterCount = Math.floor(Number(args[3]));
-        if (!isFinite(filterCount) || filterCount < 1 || filterCount > 32) return null;
-        let position = 4;
-        let filters = [];
-        for (let filterIndex = 0; filterIndex < filterCount; filterIndex += 1) {
-            if (position + 4 > args.length) return null;
-            let id = Math.floor(Number(args[position]));
-            let type = String(args[position + 1]);
-            let fixedQ = Number(args[position + 2]);
-            let parameterCount = Math.floor(Number(args[position + 3]));
-            position += 4;
-            if (id !== filterIndex + 1 || !isFinite(parameterCount) ||
-                    parameterCount < 1 || parameterCount > 3 || !isFinite(fixedQ) || fixedQ <= 0 ||
-                    ["bell", "tilt", "low_shelf", "high_shelf", "gain"].indexOf(type) < 0) return null;
-            let parameters = {};
-            for (let index = 0; index < parameterCount; index += 1) {
-                if (position + 4 > args.length) return null;
-                let name = String(args[position]);
-                let minimum = Number(args[position + 1]);
-                let maximum = Number(args[position + 2]);
-                let defaultValue = Number(args[position + 3]);
-                position += 4;
-                if (["frequency", "q", "gain"].indexOf(name) < 0 ||
-                        parameters[name] || !isFinite(minimum) || !isFinite(maximum) ||
-                        !isFinite(defaultValue) || minimum > maximum ||
-                        defaultValue < minimum || defaultValue > maximum) return null;
-                parameters[name] = {
-                    minimum: minimum, maximum: maximum, defaultValue: defaultValue
-                };
-            }
-            if (parameters.gain === undefined ||
-                    (type === "gain" && Object.keys(parameters).length !== 1) ||
-                    (type === "bell" && Object.keys(parameters).length !== 3) ||
-                    (type !== "bell" && type !== "gain" && Object.keys(parameters).length !== 2) ||
-                    (type !== "bell" && parameters.q !== undefined)) return null;
-            filters.push({ type: type, fixedQ: fixedQ, parameters: parameters });
-        }
-        if (position !== args.length) return null;
-        return { sourceInstanceId: String(args[1]), context: String(args[2]), filters: filters };
     }
     
     publishSpectrum()
@@ -550,48 +326,7 @@ class AnalyzerPresenter extends PresentationObservable
 
     calculateAllBanksCurve(focusedDecibels, focusedBankActive)
     {
-        if ((this.options.mode || "equalizer") !== "equalizer") {
-            return null;
-        }
-        if (!this.equalizerState) {
-            return {
-                active: false,
-                values: []
-            };
-        }
-        if (!this.otherBanksDecibels) {
-            this.otherBanksDecibels = new Array(this.curvePointCount).fill(0);
-            this.equalizerState.banks.forEach((bank, bankIndex) => {
-                if (!bank.active || bankIndex === this.focusedBankId) {
-                    return;
-                }
-                bank.filters.forEach((filter, filterIndex) => {
-                    if (!filter.active) {
-                        return;
-                    }
-                    let response = this.calculateFilterCurve(
-                        filterIndex + 1,
-                        filter,
-                        true,
-                        null);
-                    for (let point = 0; point < this.curvePointCount; point += 1) {
-                        this.otherBanksDecibels[point] += response.decibels[point];
-                    }
-                });
-            });
-        }
-        let decibels = this.otherBanksDecibels.slice(0);
-        if (focusedBankActive) {
-            for (let point = 0; point < this.curvePointCount; point += 1) {
-                decibels[point] += focusedDecibels[point];
-            }
-        }
-        return {
-            active: this.equalizerState.active,
-            values: decibels.map((value) => {
-                return this.toNormalizedDecibels(value);
-            })
-        };
+        return null;
     }
 
     calculateFilterCurve(id, parameter, enabled, preview)
@@ -635,12 +370,6 @@ class AnalyzerPresenter extends PresentationObservable
 
     getFilterDefinition(id, parameter)
     {
-        let catalog = this.filterCatalogs[
-            String(this.sourceInstanceId) + ":" + this.options.context];
-        let definition = catalog && catalog[Number(id) - 1];
-        if (definition) {
-            return definition;
-        }
         return parameter.definition || {
             type: parameter.type || "bell",
             fixedQ: 1,
@@ -851,11 +580,6 @@ class AnalyzerPresenter extends PresentationObservable
         this.unsubscribers = [];
         this.spectrumListeners = [];
         this.curveListeners = [];
-        this.sampleRates = {};
-        this.equalizerStates = {};
-        this.filterCatalogs = {};
-        this.equalizerState = null;
-        this.otherBanksDecibels = null;
         this.sourceInstanceId = null;
         this.previewGestureActive = false;
         this.curvePreview = {};

@@ -1,8 +1,6 @@
-using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 

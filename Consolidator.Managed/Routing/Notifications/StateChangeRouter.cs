@@ -1,4 +1,3 @@
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 
 namespace Consolidator.Managed.Routing.Notifications;

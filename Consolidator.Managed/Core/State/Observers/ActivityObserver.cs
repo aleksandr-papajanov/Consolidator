@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Services.Abstractions;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Observers;

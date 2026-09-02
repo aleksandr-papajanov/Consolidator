@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Commands.Definitions;
@@ -10,7 +9,7 @@ public enum InstanceControlScope
     BankGroup
 }
 
-public enum SoloSelectionMode
+public enum InstanceControlSelectionMode
 {
     Exclusive,
     Additive
@@ -19,7 +18,7 @@ public enum SoloSelectionMode
 public sealed record SetInstanceMuteCommand(
     InstanceControlScope TargetScope,
     bool Muted,
-    SoloSelectionMode Mode,
+    InstanceControlSelectionMode Mode,
     InstanceId? TargetInstanceId) :
     IInstanceCommand<StateWriteStatus>,
     IInstanceControlCommand
@@ -32,7 +31,7 @@ public sealed record SetInstanceMuteCommand(
 public sealed record SetInstanceSoloCommand(
     InstanceControlScope TargetScope,
     bool Soloed,
-    SoloSelectionMode Mode,
+    InstanceControlSelectionMode Mode,
     InstanceId? TargetInstanceId) :
     IInstanceCommand<StateWriteStatus>,
     IInstanceControlCommand
@@ -45,7 +44,7 @@ public sealed record SetInstanceSoloCommand(
 public sealed record SetInstanceBypassCommand(
     InstanceControlScope TargetScope,
     bool Bypassed,
-    SoloSelectionMode Mode,
+    InstanceControlSelectionMode Mode,
     InstanceId? TargetInstanceId) :
     IInstanceCommand<StateWriteStatus>,
     IInstanceControlCommand

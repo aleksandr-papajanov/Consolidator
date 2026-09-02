@@ -3,7 +3,6 @@ using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Instances;
-using Consolidator.Managed.Core.State;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
@@ -41,15 +40,6 @@ internal sealed class ObserveTargetCommandHandler
                 command.TargetInstanceId,
                 (int)command.BankId),
             command.SnapshotContext);
-        _registry.PublishFilterCatalog(
-            command.TargetInstanceId,
-            command.SnapshotContext);
-        if (command.SnapshotContext == ProcessorId.Equalizer)
-        {
-            _registry.PublishAnalyzerState(
-                command.TargetInstanceId,
-                command.SnapshotContext);
-        }
         return ValueTask.FromResult(
             _projector.Project(target.State, command.BankId, command.SnapshotContext));
     }

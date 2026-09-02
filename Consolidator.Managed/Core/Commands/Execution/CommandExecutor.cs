@@ -4,7 +4,6 @@ using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
 
@@ -71,28 +70,9 @@ public sealed class CommandExecutor
         {
             var affectedInstanceIds = _dspChanges.Drain();
             _instanceRegistry.PublishDspStates(affectedInstanceIds);
-            if (AffectsEqualizer(command))
-            {
-                _instanceRegistry.PublishAnalyzerStates(affectedInstanceIds);
-            }
         }
 
         return result;
-    }
-
-    private static bool AffectsEqualizer<TResult>(
-        IInstanceCommand<TResult> command)
-    {
-        return command switch
-        {
-            WriteStateCommand write => write.Entries.Any(entry =>
-                entry.Path.Nodes.Contains(StateNodeIds.Equalizer)),
-            ResetStateCommand reset => reset.Target.Depth == 0 ||
-                reset.Target.Depth == 1 &&
-                reset.Target.Nodes[0] == StateNodeIds.Dsp ||
-                reset.Target.Nodes.Contains(StateNodeIds.Equalizer),
-            _ => false
-        };
     }
 
     private async ValueTask<CommandExecutionResult<TResult>> ExecuteOnTargets<TResult>(

@@ -30,7 +30,7 @@ application policy. Tree nodes provide structural lookup and typed leaf access.
 Runtime-typed reads and writes belong directly to the Core command handlers
 that require them. These types contain no DI or Core policy.
 
-The application boundary is `Core/State/StateValueFactory`. It wraps
+The application boundary is `Core/State/Values/StateValueFactory`. It wraps
 `StateRegistry<InstanceId>` and decides:
 
 - local versus connected edit scope;
@@ -39,7 +39,8 @@ The application boundary is `Core/State/StateValueFactory`. It wraps
 - peer and state-change observers;
 - additional observers requested by concrete state models.
 
-`Core/State/StateValueDefinition<TValue>` groups the static policy of a value:
+`Core/State/Definitions/StateValueDefinition<TValue>` groups the static policy
+of a value:
 default value, physical range and history participation. The write protocol
 selects copy versus delta for each write operation. The
 `Core/Settings/StateValueDefinitions` exposes these definitions in

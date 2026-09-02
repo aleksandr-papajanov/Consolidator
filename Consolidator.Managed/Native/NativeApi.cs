@@ -1,21 +1,18 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Persistence;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol;
-using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
-using Consolidator.Managed.Services;
+using Consolidator.Managed.Composition;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Consolidator.Managed.Native;
 
-public static unsafe class NativeApi
+public static unsafe partial class NativeApi
 {
     private static readonly NativeLogSink LogSink = NativeLogSink.Shared;
 
@@ -44,141 +41,6 @@ public static unsafe class NativeApi
         AudioInputHandles = new();
     private static long _audioBoundaryExceptionCount;
     private static int _shutdownStarted;
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorCapturePersistence",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static int CapturePersistence(
-        ulong instanceId,
-        byte** data,
-        nuint* length)
-    {
-        try
-        {
-            if (data == null || length == null)
-            {
-                return 0;
-            }
-
-            *data = null;
-            *length = 0;
-            var utf8 = ProtocolService.ExecuteControlBarrier(
-                () => PersistenceService.CaptureCommitted(new InstanceId(instanceId)));
-            var pointer = (byte*)Marshal.AllocCoTaskMem(utf8.Length);
-            try
-            {
-                Marshal.Copy(utf8, 0, (nint)pointer, utf8.Length);
-            }
-            catch
-            {
-                Marshal.FreeCoTaskMem((nint)pointer);
-                throw;
-            }
-            *data = pointer;
-            *length = (nuint)utf8.Length;
-            return 1;
-        }
-        catch (Exception exception)
-        {
-            LogBoundaryException("ConsolidatorCapturePersistence", exception);
-            return 0;
-        }
-    }
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorFreePersistence",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static void FreePersistence(byte* data)
-    {
-        if (data != null)
-        {
-            Marshal.FreeCoTaskMem((nint)data);
-        }
-    }
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorRestorePersistence",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static int RestorePersistence(
-        ulong instanceId,
-        byte* data,
-        nuint length)
-    {
-        try
-        {
-            if (data == null || length > int.MaxValue)
-            {
-                return 0;
-            }
-
-            var payload = new byte[(int)length];
-            Marshal.Copy((nint)data, payload, 0, payload.Length);
-            ProtocolService.ExecuteControlBarrier(() =>
-            {
-                PersistenceService.Restore(
-                    new InstanceId(instanceId),
-                    payload);
-                return true;
-            });
-            return 1;
-        }
-        catch (Exception exception)
-        {
-            LogBoundaryException("ConsolidatorRestorePersistence", exception);
-            return 0;
-        }
-    }
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorShutdown",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static void Shutdown()
-    {
-        if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0)
-        {
-            return;
-        }
-
-        try
-        {
-            ManagedServices.Dispose();
-        }
-        catch (Exception exception)
-        {
-            LogBoundaryException(
-                "ConsolidatorShutdown",
-                exception);
-        }
-        finally
-        {
-            foreach (var entry in AudioInputHandles.ToArray())
-            {
-                if (AudioInputHandles.TryRemove(entry.Key, out var handle))
-                {
-                    handle.Free();
-                }
-            }
-        }
-    }
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorSetLogCallback",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static void SetLogCallback(
-        void* context,
-        delegate* unmanaged[Cdecl]<void*, byte*, void> callback)
-    {
-        try
-        {
-            LogSink.Configure(context, callback);
-        }
-        catch (Exception exception)
-        {
-            LogBoundaryException(
-                "ConsolidatorSetLogCallback",
-                exception);
-        }
-    }
 
     [UnmanagedCallersOnly(
         EntryPoint = "ConsolidatorRegisterInstance",
@@ -329,156 +191,6 @@ public static unsafe class NativeApi
         }
     }
 
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorSendMessage",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static void SendMessage(
-        ulong instanceId,
-        byte* selector,
-        NativeAtom* atoms,
-        nuint atomCount)
-    {
-        var startedAt = Stopwatch.GetTimestamp();
-
-        try
-        {
-            ReportPendingAudioBoundaryExceptions();
-
-            var managedSelector = Marshal.PtrToStringUTF8((nint)selector);
-
-            if (managedSelector is null)
-            {
-                return;
-            }
-
-            if (managedSelector == "metrics")
-            {
-                LogSink.Write(RuntimeMetrics.Shared.FormatSnapshot());
-                return;
-            }
-
-            var managedAtoms = AtomDecoder.Decode(atoms, atomCount);
-
-            ProtocolService.Receive(
-                new ProtocolInput(
-                    instanceId,
-                    managedSelector,
-                    managedAtoms));
-        }
-        catch (Exception exception)
-        {
-            LogBoundaryException(
-                "ConsolidatorSendMessage",
-                exception);
-        }
-        finally
-        {
-            RuntimeMetrics.Shared.RecordNativeInput(
-                Stopwatch.GetTimestamp() - startedAt);
-        }
-    }
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorPrepare",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static void Prepare(
-        ulong instanceId,
-        double sampleRate,
-        nuint maximumFrameCount)
-    {
-        try
-        {
-            ReportPendingAudioBoundaryExceptions();
-
-            PreparationService.Prepare(
-                new InstanceId(instanceId),
-                sampleRate,
-                maximumFrameCount);
-        }
-        catch (Exception exception)
-        {
-            LogBoundaryException(
-                "ConsolidatorPrepare",
-                exception);
-        }
-    }
-
-    [UnmanagedCallersOnly(
-        EntryPoint = "ConsolidatorSendAudio",
-        CallConvs = [typeof(CallConvCdecl)])]
-    public static void SendAudio(
-        nuint audioInputHandle,
-        double* mainLeft,
-        double* mainRight,
-        double* referenceLeft,
-        double* referenceRight,
-        nuint frameCount)
-    {
-        try
-        {
-            if (audioInputHandle == 0)
-            {
-                return;
-            }
-
-            var audioInput = (NativeAudioInput?)GCHandle
-                .FromIntPtr((nint)audioInputHandle)
-                .Target;
-
-            if (audioInput is null)
-            {
-                return;
-            }
-
-            audioInput.ReceiveAudio(
-                mainLeft,
-                mainRight,
-                referenceLeft,
-                referenceRight,
-                frameCount);
-        }
-        catch
-        {
-            Interlocked.Increment(ref _audioBoundaryExceptionCount);
-        }
-    }
-
-    private static void ReportPendingAudioBoundaryExceptions()
-    {
-        var exceptionCount =
-            Interlocked.Exchange(
-                ref _audioBoundaryExceptionCount,
-                0);
-
-        if (exceptionCount == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            LogSink.Write(
-                $"Managed audio boundary exceptions: {exceptionCount}");
-        }
-        catch
-        {
-        }
-    }
-
-    private static void LogBoundaryException(
-        string entryPoint,
-        Exception exception)
-    {
-        try
-        {
-            LogSink.Write(
-                $"Managed boundary exception in {entryPoint}: "
-                + exception);
-        }
-        catch
-        {
-        }
-    }
 }
 
 

@@ -133,50 +133,10 @@ second bank address.
 Notification delivery failures do not turn an already committed state mutation
 into a failed operation.
 
-Analyzer curves are JavaScript presentation derived from the focused parameter
-state and the raw all-bank equalizer projection. Managed publishes no curve
-arrays. It sends the active viewer the observed source configuration required
-for correct local calculation:
-
-```text
-analyzer_configuration 1 sourceInstanceId sampleRate
-```
-
-The equalizer analyzer additionally receives one active-presentation snapshot
-of raw state for every bank:
-
-```text
-  analyzer_equalizer_state 1 2 sourceInstanceId bankCount equalizerActive
-    (bankActive filterCount
-      (filterActive filterType fixedQ parameterCount
-        parameterName value × parameterCount) × filterCount) × bankCount
-```
-
-Filter parameters are named and variable-length. Unsupported parameters are
-omitted; Gain contains only `gain`, while shelf and Tilt contain `frequency`
-and `gain`. The fixed Q used by shelf and Tilt is transmitted as `fixedQ` and
-is not an editable state value. In the equalizer UI, Gain is represented by a
-horizontal response line and a vertical-only triangular handle at the left
-edge of the analyzer; it has no frequency or Q control.
-
-The corresponding catalog frame is:
-
-```text
-filter_catalog 1 sourceInstanceId context filterCount
-    filterId filterType fixedQ parameterCount
-        parameterName minimum maximum defaultValue × parameterCount
-```
-
-Managed publishes the catalog after `observe_target`; it publishes the
-equalizer state snapshot after `observe_target`, committed equalizer
-writes/resets and history navigation. Other DSP changes do not produce these
-analyzer frames. They do not contain biquad coefficients or curve points;
-those remain JavaScript presentation concerns.
-
-`analyzer_configuration` is emitted on viewer activation, source-focus change,
-and source preparation. `analyzer_equalizer_state` is emitted after
-`observe_target`, relevant equalizer changes and history navigation. FFT
-remains the only streamed analysis frame.
+Analyzer curves are calculated entirely in JavaScript from the focused
+parameter bindings and their local filter definitions. Managed publishes no
+curve arrays, raw equalizer projections, filter catalogs, or analyzer
+configuration frames. `fft` remains the only streamed analysis frame.
 
 ## Routing and Core ownership
 

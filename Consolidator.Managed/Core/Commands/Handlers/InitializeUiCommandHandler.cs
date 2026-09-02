@@ -1,8 +1,7 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
-using Consolidator.Managed.Core.Services;
-using Consolidator.Managed.Protocol.Notifications;
+using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
@@ -11,11 +10,11 @@ internal sealed class InitializeUiCommandHandler
     : CommandHandler<InitializeUiCommand, UiInitializationResult>
 {
     private readonly StateHistory _history;
-    private readonly HistoryStatePublisher _historyStatePublisher;
+    private readonly IHistoryStateSink _historyStatePublisher;
 
     public InitializeUiCommandHandler(
         StateHistory history,
-        HistoryStatePublisher historyStatePublisher)
+        IHistoryStateSink historyStatePublisher)
     {
         _history = history;
         _historyStatePublisher = historyStatePublisher;

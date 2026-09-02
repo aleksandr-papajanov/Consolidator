@@ -1,5 +1,3 @@
-using Consolidator.Managed.Core.State;
-
 namespace Consolidator.Managed.Core.Topology;
 
 internal sealed class ContextualBankResolver

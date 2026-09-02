@@ -1,4 +1,3 @@
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Observers;

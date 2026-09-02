@@ -1,6 +1,5 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Results;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Commands.Definitions;

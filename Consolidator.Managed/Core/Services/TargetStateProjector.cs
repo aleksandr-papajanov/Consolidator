@@ -1,6 +1,5 @@
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Tree;
 

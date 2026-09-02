@@ -1,4 +1,3 @@
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Commands.Results;

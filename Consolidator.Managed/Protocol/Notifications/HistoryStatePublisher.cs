@@ -5,7 +5,7 @@ using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Protocol.Notifications;
 
-internal sealed class HistoryStatePublisher
+internal sealed class HistoryStatePublisher : IHistoryStateSink
 {
     private readonly IPresentationTransport _transport;
     private readonly IManagedLogger _logger;
@@ -27,7 +27,7 @@ internal sealed class HistoryStatePublisher
         history.Changed += Publish;
     }
 
-    internal void Publish(StateHistorySnapshot snapshot)
+    public void Publish(StateHistorySnapshot snapshot)
     {
         try
         {

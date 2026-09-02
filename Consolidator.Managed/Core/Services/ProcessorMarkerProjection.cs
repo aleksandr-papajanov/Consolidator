@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Commands.Results;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 
 namespace Consolidator.Managed.Core.Services;

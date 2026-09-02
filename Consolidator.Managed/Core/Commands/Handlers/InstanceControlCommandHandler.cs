@@ -1,9 +1,7 @@
-using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 
@@ -57,7 +55,7 @@ internal abstract class InstanceControlCommandHandler<TCommand>
                 var value = GetStateValue(instance);
                 var requested = targetSet.Contains(instance.InstanceId)
                     ? command.RequestedValue
-                    : command.RequestedValue && command.Mode is SoloSelectionMode.Exclusive
+                    : command.RequestedValue && command.Mode is InstanceControlSelectionMode.Exclusive
                         ? false
                         : value.Value;
                 return (Value: value, Requested: requested);

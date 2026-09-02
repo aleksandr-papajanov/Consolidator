@@ -1,10 +1,11 @@
 using System.Collections.Concurrent;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Protocol.Messages;
+using Consolidator.Managed.Core.Services.Abstractions;
 
 namespace Consolidator.Managed.Protocol.Transport;
 
-internal sealed class PresentationOutputGate : IPresentationTransport
+internal sealed class PresentationOutputGate : IPresentationTransport, IInstancePresentationLifecycle
 {
     private readonly IProtocolTransport _output;
     private readonly ConcurrentDictionary<ulong, byte> _activeInstances = new();

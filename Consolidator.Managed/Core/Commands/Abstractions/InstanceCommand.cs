@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
 using Consolidator.Managed.Core.Commands.Definitions;
@@ -29,7 +28,7 @@ public interface IInstanceControlCommand
 
     bool RequestedValue { get; }
 
-    SoloSelectionMode Mode { get; }
+    InstanceControlSelectionMode Mode { get; }
 }
 
 public sealed class InstanceCommandContext

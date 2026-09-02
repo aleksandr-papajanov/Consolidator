@@ -1,18 +1,18 @@
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services;
+using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Protocol.Notifications;
 
-internal sealed class ProcessorMarkerPublisher : IDisposable
+internal sealed class ProcessorMarkerPublisher : IDisposable, IProcessorMarkerSink
 {
     private readonly InstanceRegistry _registry;
     private readonly ProcessorMarkerProjection _projection;
-    private readonly RegistryChangePublisher _registryChanges;
+    private readonly IRegistryChangeSink _registryChanges;
     private readonly StateTopologyObserver _topologyObserver;
     private readonly IPresentationTransport _transport;
     private readonly Dictionary<ulong, IReadOnlyDictionary<MarkerKey, bool>> _markers = new();
@@ -21,7 +21,7 @@ internal sealed class ProcessorMarkerPublisher : IDisposable
     public ProcessorMarkerPublisher(
         InstanceRegistry registry,
         ProcessorMarkerProjection projection,
-        RegistryChangePublisher registryChanges,
+        IRegistryChangeSink registryChanges,
         StateTopologyObserver topologyObserver,
         IPresentationTransport transport)
     {

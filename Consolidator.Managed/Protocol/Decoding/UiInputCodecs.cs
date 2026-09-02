@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Commands.Definitions;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Dispatch;
 using Consolidator.Managed.Protocol.Messages;
 
@@ -125,8 +124,8 @@ internal sealed class SetInstanceMuteInputCodec : IInputCodec
 
         var mode = atoms[valuePosition + 1].Symbol switch
         {
-            "exclusive" => SoloSelectionMode.Exclusive,
-            "additive" => SoloSelectionMode.Additive,
+            "exclusive" => InstanceControlSelectionMode.Exclusive,
+            "additive" => InstanceControlSelectionMode.Additive,
             _ => throw new FormatException("Invalid mute selection mode.")
         };
 
@@ -170,8 +169,8 @@ internal sealed class SetInstanceSoloInputCodec : IInputCodec
 
         var mode = atoms[valuePosition + 1].Symbol switch
         {
-            "exclusive" => SoloSelectionMode.Exclusive,
-            "additive" => SoloSelectionMode.Additive,
+            "exclusive" => InstanceControlSelectionMode.Exclusive,
+            "additive" => InstanceControlSelectionMode.Additive,
             _ => throw new FormatException("Invalid solo selection mode.")
         };
         return CommandCodecSupport.Success(
@@ -210,8 +209,8 @@ internal sealed class SetInstanceBypassInputCodec : IInputCodec
 
         var mode = atoms[valuePosition + 1].Symbol switch
         {
-            "exclusive" => SoloSelectionMode.Exclusive,
-            "additive" => SoloSelectionMode.Additive,
+            "exclusive" => InstanceControlSelectionMode.Exclusive,
+            "additive" => InstanceControlSelectionMode.Additive,
             _ => throw new FormatException("Invalid bypass selection mode.")
         };
         return CommandCodecSupport.Success(

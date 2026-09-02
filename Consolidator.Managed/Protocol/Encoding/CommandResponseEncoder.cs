@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Commands.Results;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.State;
 

@@ -64,9 +64,6 @@ class ConsolidatorUiHost
         this.equalizer.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.compressor.analyzer.presenter.connectSpectrum(this.client.protocol);
         this.saturator.analyzer.presenter.connectSpectrum(this.client.protocol);
-        this.equalizer.analyzer.presenter.connectConfiguration(this.client.protocol);
-        this.compressor.analyzer.presenter.connectConfiguration(this.client.protocol);
-        this.saturator.analyzer.presenter.connectConfiguration(this.client.protocol);
         this.inputGain = new GainController(this.viewModel.inputGain, this.client.scope);
         this.outputGain = new GainController(this.viewModel.outputGain, this.client.scope);
         this.bankManagerViewModel = new BankManagerViewModel(

@@ -7,6 +7,9 @@ using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
+using Consolidator.Managed.Core.State.Definitions;
+using Consolidator.Managed.Core.State.Identifiers;
+using Consolidator.Managed.Core.State.Values;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Protocol.Decoding;
 using Consolidator.Managed.State;
@@ -868,101 +871,6 @@ public sealed class StateEditingUseCasesTests
             Symbol("frequency"));
 
         Assert.Equal(1100.0, second.Output.Single("state_done").Atoms[^1].Float);
-    }
-
-    [Fact]
-    public void AnalyzerActivationPublishesTheSourceSampleRate()
-    {
-        using var application = new ManagedApplicationFixture();
-        var instance = application.RegisterInstance();
-        application.GetRequiredService<IInstancePreparationService>().Prepare(
-            instance.InstanceId,
-            44100.0,
-            512);
-        instance.Output.Clear();
-
-        application.Send(
-            instance,
-            "set_instance_active",
-            Integer(1));
-
-        var configuration = instance.Output.Single("analyzer_configuration");
-        Assert.Equal(1, configuration.Atoms[0].Integer);
-        Assert.Equal((long)instance.InstanceId.Value, configuration.Atoms[1].Integer);
-        Assert.Equal(44100.0, configuration.Atoms[2].Float);
-    }
-
-    [Fact]
-    public void EqualizerPresentationPublishesAllBanksOnlyForRelevantChanges()
-    {
-        using var application = new ManagedApplicationFixture();
-        var instance = application.RegisterInstance();
-        application.Send(instance, "set_instance_active", Integer(1));
-        instance.Output.Clear();
-
-        application.Send(
-            instance,
-            "observe_target",
-            Symbol(instance.InstanceId.Value.ToString()),
-            Integer(0),
-            Symbol("equalizer"));
-
-        var state = instance.Output.Single("analyzer_equalizer_state");
-        Assert.Equal(439, state.Atoms.Count);
-        Assert.Equal(1, state.Atoms[0].Integer);
-        Assert.Equal(2, state.Atoms[1].Integer);
-        Assert.Equal((long)instance.InstanceId.Value, state.Atoms[2].Integer);
-        Assert.Equal(7, state.Atoms[3].Integer);
-        Assert.Equal(1, state.Atoms[4].Integer);
-        Assert.Equal(1, state.Atoms[5].Integer);
-        Assert.Equal(7, state.Atoms[6].Integer);
-        Assert.Equal(1, state.Atoms[7].Integer);
-        Assert.Equal("gain", state.Atoms[8].Symbol);
-        Assert.Equal(0.0F, state.Atoms[9].Float);
-        Assert.Equal(1, state.Atoms[10].Integer);
-        Assert.Equal("gain", state.Atoms[11].Symbol);
-        Assert.Equal(0.0, state.Atoms[12].Float);
-
-        instance.Output.Clear();
-        application.Send(
-            instance,
-            "write",
-            Symbol("group"),
-            Symbol("0"),
-            Integer(1),
-            Symbol("entry"),
-            Symbol("equalizer"),
-            Symbol("bank"),
-            Integer(0),
-            Symbol("filter"),
-            Integer(1),
-            Symbol("gain"),
-            Symbol("value"),
-            Float(6.0));
-
-        Assert.Equal(
-            6.0,
-            instance.Output.Single("analyzer_equalizer_state").Atoms[12].Float);
-        Assert.Equal(
-            0.0,
-            instance.Output.Single("analyzer_equalizer_state").Atoms[20].Float);
-
-        instance.Output.Clear();
-        application.Send(
-            instance,
-            "write",
-            Symbol("group"),
-            Symbol("0"),
-            Integer(1),
-            Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
-            Symbol("value"),
-            Float(2.0));
-
-        Assert.DoesNotContain(
-            instance.Output.Messages,
-            message => message.Selector == "analyzer_equalizer_state");
     }
 
     [Fact]

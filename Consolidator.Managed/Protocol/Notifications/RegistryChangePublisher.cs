@@ -1,12 +1,11 @@
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Protocol.Notifications;
 
-internal sealed class RegistryChangePublisher : IActivityStatusSink
+internal sealed class RegistryChangePublisher : IActivityStatusSink, IRegistryChangeSink
 {
     private readonly IPresentationTransport _transport;
     private readonly IProtocolOutputRegistry _outputs;
@@ -102,7 +101,7 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink
             groupId is { } group ? Integer(group) : Symbol("none"));
 
     public void BankActivityChanged(
-        Consolidator.Managed.Core.State.InstanceId instanceId,
+        InstanceId instanceId,
         int bankId,
         bool effectActive) =>
         Publish(

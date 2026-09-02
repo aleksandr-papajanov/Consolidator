@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Settings;
-using Consolidator.Managed.Core.State;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Topology;

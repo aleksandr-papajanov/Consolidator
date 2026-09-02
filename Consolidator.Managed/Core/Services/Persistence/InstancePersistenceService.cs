@@ -4,8 +4,6 @@ using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Settings;
-using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Services.Persistence;
@@ -15,13 +13,13 @@ internal sealed class InstancePersistenceService
     private const int CurrentSchema = 4;
     private readonly InstanceRegistry _instances;
     private readonly IOperationGate _operationGate;
-    private readonly PersistenceChangePublisher _persistenceChanges;
+    private readonly IPersistenceChangeSink _persistenceChanges;
     private readonly DspStateChangeTracker _dspChanges;
 
     internal InstancePersistenceService(
         InstanceRegistry instances,
         IOperationGate operationGate,
-        PersistenceChangePublisher persistenceChanges,
+        IPersistenceChangeSink persistenceChanges,
         DspStateChangeTracker dspChanges)
     {
         _instances = instances;

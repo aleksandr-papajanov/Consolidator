@@ -1,13 +1,11 @@
-using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 using Consolidator.Managed.State.Observers;
-using Consolidator.Managed.State.Tree;
 
 namespace Consolidator.Managed.Core.State.Observers;
 
-internal sealed class StatePeerObserver
+internal sealed partial class StatePeerObserver
 {
     private readonly StateHistory _history;
     private readonly TopologyIndex _topology;
@@ -435,39 +433,7 @@ internal sealed class StatePeerObserver
 
     }
 
-    private interface IObservedValue
-    {
-        InstanceId InstanceId { get; }
-
-        StatePath Path { get; }
-
-        StatePath PeerPath { get; }
-
-        BankAddress? Bank { get; }
-
-        Type ValueType { get; }
-
-        StateValueEditScope Scope { get; }
-
-        PeerSet Peers { get; }
-
-        bool TracksEffectiveRange { get; }
-
-        object? GetCurrentValue();
-
-        void SetPeers(PeerSet peers);
-
-        FloatRange CalculateEffectiveDeltaRange(
-            IReadOnlyList<IObservedValue> peers);
-
-        FloatRange? CalculateEffectiveRange(FloatRange deltaRange);
-
-        void SetEffectiveDeltaRange(FloatRange range, bool notify);
-
-        void NotifyEffectiveRangeChanged();
-    }
-
-    private sealed class StatePeerValueObserver<TValue> :
+    private sealed partial class StatePeerValueObserver<TValue> :
         IObservedValue,
         IStatePeerValueObserver<TValue>
     {
@@ -628,127 +594,6 @@ internal sealed class StatePeerObserver
             }
         }
 
-        private void Set(TValue value)
-        {
-            if (_peers.Values.Count == 0)
-            {
-                throw new InvalidOperationException(
-                    $"No state peers are available for path {Path}.");
-            }
-
-            using var transaction = _owner._history.BeginTransaction();
-            Prepare(value, StateValueEditMode.CopyValue, transaction);
-            transaction.Commit();
-        }
-
-        private void Prepare(
-            TValue value,
-            StateValueEditMode editMode,
-            StateHistoryTransaction transaction)
-        {
-            ArgumentNullException.ThrowIfNull(transaction);
-            if (_value is null)
-            {
-                throw new ObjectDisposedException(nameof(StateValue<TValue>));
-            }
-
-            var peers = _owner.ResolveMutationPeers(this);
-            if (peers.Values.Count == 0)
-            {
-                throw new InvalidOperationException(
-                    $"No state peers are available for path {Path}.");
-            }
-
-            Validate<TValue>(editMode, _physicalRange);
-            var delta = editMode is StateValueEditMode.ApplyDelta
-                ? Subtract(value, _value.Value)
-                : default;
-            if (editMode is StateValueEditMode.ApplyDelta &&
-                !CalculateEffectiveDeltaRange(peers.Values).Contains(
-                    (float)(object)delta!))
-            {
-                throw new InvalidOperationException(
-                    $"The requested delta is outside the effective range for path {Path}.");
-            }
-
-            peers.ScheduleEffectiveRangeRefresh(transaction, this);
-
-            foreach (var peer in peers.Values.Cast<StatePeerValueObserver<TValue>>())
-            {
-                if (peer._value is null)
-                {
-                    throw new InvalidOperationException(
-                        $"A state peer was removed for path {Path}.");
-                }
-
-                var peerValue = ReferenceEquals(peer, this)
-                    ? value
-                    : editMode is StateValueEditMode.ApplyDelta
-                        ? Add(peer._value.Value, delta!)
-                        : value;
-                peer._value.Prepare(peerValue, transaction);
-            }
-        }
-
-        private int PrepareReset(StateHistoryTransaction transaction)
-        {
-            ArgumentNullException.ThrowIfNull(transaction);
-            if (_value is null)
-            {
-                throw new ObjectDisposedException(nameof(StateValue<TValue>));
-            }
-
-            var peers = _owner.ResolveMutationPeers(this);
-            if (peers.Values.Count == 0)
-            {
-                throw new InvalidOperationException(
-                    $"No state peers are available for path {Path}.");
-            }
-
-            peers.ScheduleEffectiveRangeRefresh(transaction, this);
-            var resetCount = 0;
-            foreach (var peer in peers.Values.Cast<StatePeerValueObserver<TValue>>())
-            {
-                if (peer._value is null)
-                {
-                    throw new InvalidOperationException(
-                        $"A state peer was removed for path {Path}.");
-                }
-
-                if (peer._value.PrepareResetDirect(transaction))
-                {
-                    resetCount++;
-                }
-            }
-
-            return resetCount;
-        }
-
-        private static TValue Add(TValue left, TValue right) =>
-            Calculate(left, right, (first, second) => first + second);
-
-        private static TValue Subtract(TValue left, TValue right) =>
-            Calculate(left, right, (first, second) => first - second);
-
-        private static TValue Calculate(
-            TValue left,
-            TValue right,
-            Func<float, float, float> operation)
-        {
-            if (typeof(TValue) != typeof(float))
-            {
-                throw new InvalidOperationException(
-                    $"Delta editing is not supported for {typeof(TValue).Name}.");
-            }
-
-            return (TValue)(object)operation(
-                (float)(object)left!,
-                (float)(object)right!);
-        }
-
-        private static bool IsBankNode(NodeId node) =>
-            node.Value >= 100 &&
-            node.Value < 100 + DspConstants.BankCount;
     }
 
     private readonly record struct ObservedValueAddress(
@@ -766,118 +611,6 @@ internal sealed class StatePeerObserver
         Type ValueType,
         BankAddress? FocusedBank);
 
-    private sealed class PeerSet
-    {
-        private object?[]? _effectiveRangeValues;
-        private readonly bool _sharesEffectiveRange;
-        private readonly bool _tracksEffectiveRange;
-        private StateHistoryTransaction? _pendingEffectiveRangeRefresh;
-
-        public PeerSet(
-            IReadOnlyList<IObservedValue> values,
-            bool sharesEffectiveRange)
-            : this(default, null!, values, sharesEffectiveRange)
-        {
-        }
-
-        public PeerSet(
-            ContextualPeerSetKey key,
-            IObservedValue source,
-            IReadOnlyList<IObservedValue> values,
-            bool sharesEffectiveRange)
-        {
-            ArgumentNullException.ThrowIfNull(values);
-            Key = key;
-            Source = source;
-            Values = values;
-            _sharesEffectiveRange = sharesEffectiveRange;
-            _tracksEffectiveRange = values.Any(value =>
-                value.TracksEffectiveRange);
-        }
-
-        public static PeerSet Empty { get; } =
-            new(default, null!, Array.Empty<IObservedValue>(), true);
-
-        public ContextualPeerSetKey Key { get; }
-
-        public IObservedValue? Source { get; }
-
-        public IReadOnlyList<IObservedValue> Values { get; }
-
-        public FloatRange? EffectiveRange { get; private set; }
-
-        public bool HasPendingEffectiveRangeRefresh =>
-            _pendingEffectiveRangeRefresh is { IsCompleted: false };
-
-        public void ScheduleEffectiveRangeRefresh(
-            StateHistoryTransaction transaction,
-            IObservedValue source)
-        {
-            if (!_tracksEffectiveRange ||
-                ReferenceEquals(_pendingEffectiveRangeRefresh, transaction))
-            {
-                return;
-            }
-
-            _pendingEffectiveRangeRefresh = transaction;
-            transaction.AddCommittedChange(() =>
-            {
-                _pendingEffectiveRangeRefresh = null;
-                UpdateEffectiveRanges(source, true);
-            });
-        }
-
-        public bool UpdateEffectiveRanges(
-            IObservedValue source,
-            bool notify)
-        {
-            if (!_tracksEffectiveRange)
-            {
-                return false;
-            }
-
-            if (_effectiveRangeValues is not null &&
-                _effectiveRangeValues.Length == Values.Count)
-            {
-                var unchanged = true;
-                for (var index = 0; index < Values.Count; index++)
-                {
-                    if (!Equals(
-                        _effectiveRangeValues[index],
-                        Values[index].GetCurrentValue()))
-                    {
-                        unchanged = false;
-                        break;
-                    }
-                }
-                if (unchanged)
-                {
-                    return false;
-                }
-            }
-
-            _effectiveRangeValues = Values
-                .Select(value => value.GetCurrentValue())
-                .ToArray();
-            var effectiveDeltaRange = source.CalculateEffectiveDeltaRange(Values);
-            var effectiveRange = source.CalculateEffectiveRange(effectiveDeltaRange);
-            var changed = EffectiveRange != effectiveRange;
-            EffectiveRange = effectiveRange;
-            if (Source is not null)
-            {
-                return changed;
-            }
-
-            IReadOnlyList<IObservedValue> targets = _sharesEffectiveRange
-                ? Values
-                : [source];
-            foreach (var value in targets)
-            {
-                value.SetEffectiveDeltaRange(effectiveDeltaRange, notify);
-            }
-            return changed;
-        }
-    }
 }
 
 internal interface IStatePeerValueObserver<TValue> : IStateValueObserver<TValue>

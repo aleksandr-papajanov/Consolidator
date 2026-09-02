@@ -1,12 +1,9 @@
-using Consolidator.Managed.Analyzer;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.PerInstance;
-using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Core.State.Models;
+using Consolidator.Managed.Core.State.Composition;
 using Consolidator.Managed.Core.State.Observers;
-using Consolidator.Managed.Protocol.Notifications;
 using Consolidator.Managed.State;
 
 namespace Consolidator.Managed.Core.Services.Instances;
@@ -20,8 +17,8 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
     private readonly DspStateChangeTracker _dspChanges;
     private readonly IOperationGate _operationGate;
     private readonly ManagedStateBuilder _stateBuilder;
-    private readonly RegistryChangePublisher _registryChanges;
-    private readonly FftAnalyzer _fftAnalyzer;
+    private readonly IRegistryChangeSink _registryChanges;
+    private readonly IAnalyzerLifecycle _analyzerLifecycle;
     private ulong _nextInstanceId;
 
     internal InstanceRegistry(
@@ -30,15 +27,15 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
         ManagedStateBuilder stateBuilder,
         DspStateChangeTracker dspChanges,
         IOperationGate operationGate,
-        RegistryChangePublisher registryChanges,
-        FftAnalyzer fftAnalyzer)
+        IRegistryChangeSink registryChanges,
+        IAnalyzerLifecycle analyzerLifecycle)
     {
         _stateRegistry = stateRegistry;
         _topologyObserver = topologyObserver;
         _dspChanges = dspChanges;
         _operationGate = operationGate;
         _registryChanges = registryChanges;
-        _fftAnalyzer = fftAnalyzer;
+        _analyzerLifecycle = analyzerLifecycle;
         _stateBuilder = stateBuilder;
     }
 
@@ -98,7 +95,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 }
 
                 _stateRegistry.RemoveRoot(instanceId);
-                _fftAnalyzer.RemoveInstance(instanceId);
+                _analyzerLifecycle.RemoveInstance(instanceId);
             }
 
             _topologyObserver.RemoveState(instanceId);
@@ -150,52 +147,6 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 {
                     instance.State.Activity.Refresh();
                     instance.PublishDspState();
-                }
-            }
-        }
-    }
-
-    internal void PublishAnalyzerState(
-        InstanceId instanceId,
-        ProcessorId snapshotContext)
-    {
-        lock (_lock)
-        {
-            if (_instances.TryGetValue(instanceId, out var instance))
-            {
-                _fftAnalyzer.PublishEqualizerState(
-                    instance.State,
-                    snapshotContext);
-            }
-        }
-    }
-
-    internal void PublishFilterCatalog(
-        InstanceId instanceId,
-        ProcessorId snapshotContext)
-    {
-        lock (_lock)
-        {
-            if (_instances.TryGetValue(instanceId, out var instance))
-            {
-                _fftAnalyzer.PublishFilterCatalog(
-                    instance.State,
-                    snapshotContext);
-            }
-        }
-    }
-
-    internal void PublishAnalyzerStates(IReadOnlyList<InstanceId> instanceIds)
-    {
-        lock (_lock)
-        {
-            foreach (var instanceId in instanceIds.Distinct())
-            {
-                if (_instances.TryGetValue(instanceId, out var instance))
-                {
-                    _fftAnalyzer.PublishEqualizerState(
-                        instance.State,
-                        instance.State.Transient.Selection.SelectedProcessor);
                 }
             }
         }
@@ -269,7 +220,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
             foreach (var instance in instances)
             {
                 _stateRegistry.RemoveRoot(instance.InstanceId);
-                _fftAnalyzer.RemoveInstance(instance.InstanceId);
+                _analyzerLifecycle.RemoveInstance(instance.InstanceId);
                 _topologyObserver.RemoveState(instance.InstanceId);
             }
         }

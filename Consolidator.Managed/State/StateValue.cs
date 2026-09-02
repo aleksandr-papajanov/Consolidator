@@ -1,6 +1,5 @@
 using Consolidator.Managed.State.History;
 using Consolidator.Managed.State.Observers;
-using Consolidator.Managed.Core.State;
 
 namespace Consolidator.Managed.State;
 
