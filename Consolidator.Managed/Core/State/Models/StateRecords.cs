@@ -113,6 +113,7 @@ public sealed record InstanceState(
     StateValue<string> Label,
     StateValue<bool> Mute,
     StateValue<bool> Solo,
+    StateValue<bool> Bypass,
     BankState[] Banks);
 
 public sealed record LevelState(StateValue<float> Level);

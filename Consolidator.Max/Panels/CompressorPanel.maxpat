@@ -15,7 +15,7 @@
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
-					"filename" : "AnalyzerControl.js",
+					"filename" : "Project:/js/Controls/Analyzer/AnalyzerControl.js",
 					"id" : "detector",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
@@ -26,7 +26,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 143.0, 0.0, 117.0, 78.0 ],
 					"textfile" : 					{
-						"filename" : "AnalyzerControl.js",
+						"filename" : "Project:/js/Controls/Analyzer/AnalyzerControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -38,7 +38,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "DialControl.js",
+					"filename" : "Project:/js/Controls/Dial/DialControl.js",
 					"id" : "attack",
 					"jsarguments" : [ "ATTACK", 0.0, 1.0, 0, 100.0, 1, "%" ],
 					"maxclass" : "v8ui",
@@ -50,7 +50,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 13.0, 0.0, 65.0, 65.0 ],
 					"textfile" : 					{
-						"filename" : "DialControl.js",
+						"filename" : "Project:/js/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -62,7 +62,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "DialControl.js",
+					"filename" : "Project:/js/Controls/Dial/DialControl.js",
 					"id" : "sustain",
 					"jsarguments" : [ "SUSTAIN", 0.0, 1.0, 0, 100.0, 1, "%" ],
 					"maxclass" : "v8ui",
@@ -74,7 +74,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 78.0, 0.0, 65.0, 65.0 ],
 					"textfile" : 					{
-						"filename" : "DialControl.js",
+						"filename" : "Project:/js/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -86,7 +86,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "DialControl.js",
+					"filename" : "Project:/js/Controls/Dial/DialControl.js",
 					"id" : "compression",
 					"jsarguments" : [ "COMPRESSION", 0.0, 1.0, 0, 100.0, 1, "%" ],
 					"maxclass" : "v8ui",
@@ -98,7 +98,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 13.0, 65.0, 65.0, 65.0 ],
 					"textfile" : 					{
-						"filename" : "DialControl.js",
+						"filename" : "Project:/js/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -110,7 +110,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "MultiValueToggleControl.js",
+					"filename" : "Project:/js/Controls/MultiValueToggle/MultiValueToggleControl.js",
 					"id" : "character",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
@@ -121,7 +121,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 78.0, 65.0, 65.0, 65.0 ],
 					"textfile" : 					{
-						"filename" : "MultiValueToggleControl.js",
+						"filename" : "Project:/js/Controls/MultiValueToggle/MultiValueToggleControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -133,7 +133,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "DialControl.js",
+					"filename" : "Project:/js/Controls/Dial/DialControl.js",
 					"id" : "output",
 					"jsarguments" : [ "OUTPUT", -36.0, 36.0, 0, 1.0, 1, "dB" ],
 					"maxclass" : "v8ui",
@@ -145,7 +145,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 325.0, 0.0, 65.0, 65.0 ],
 					"textfile" : 					{
-						"filename" : "DialControl.js",
+						"filename" : "Project:/js/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -157,7 +157,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "ToggleControl.js",
+					"filename" : "Project:/js/Controls/Toggle/ToggleControl.js",
 					"id" : "parallel",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
@@ -168,7 +168,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 143.0, 91.0, 117.0, 26.0 ],
 					"textfile" : 					{
-						"filename" : "ToggleControl.js",
+						"filename" : "Project:/js/Controls/Toggle/ToggleControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -265,7 +265,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "PanelBindingHostV8.js",
+					"filename" : "Project:/js/PanelBindingHostV8.js",
 					"id" : "router",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -277,7 +277,7 @@
 ,
 					"text" : "v8 Project:/js/PanelBindingHostV8.js",
 					"textfile" : 					{
-						"filename" : "PanelBindingHostV8.js",
+						"filename" : "Project:/js/PanelBindingHostV8.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

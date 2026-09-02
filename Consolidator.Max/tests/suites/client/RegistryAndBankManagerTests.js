@@ -50,12 +50,17 @@ function makeBankManagerControllerFixture() {
       calls.requests.push([selector, args]);
     },
   };
+  var transactions = {
+    begin: function (callback) { callback(1); },
+    end: function () {},
+  };
   var context = new BankManagerContext(
     viewModel,
     state,
     uiTarget,
     "local",
     protocol,
+    transactions,
   );
   return {
     controller: new BankManagerController(context),
@@ -167,7 +172,7 @@ function testEqualizerGainRoundTripUpdatesBankActivityMarker() {
     4.5,
   );
   assert.deepStrictEqual(sent[0].slice(0, 9), [
-    "write", 1, "ui.main", "1", "group", "0", 1,
+    "write", 1, "ui.main", "1", "local", "0", 1,
     "entry", "equalizer",
   ]);
 
@@ -503,6 +508,7 @@ function testStateClientAddressesRemoteTopologyWrites() {
     "group",
     "value",
     5,
+    "copy",
   ]);
 }
 function testStateClientEncodesZeroBasedBankPath() {
@@ -635,16 +641,30 @@ function testBankManagerControllerShiftOnlyTogglesSelection() {
 function testBankManagerControllerSendsRelativeInstanceControlScopes() {
   var fixture = makeBankManagerControllerFixture();
 
-  fixture.controller.handleIntent("instanceMuteChanged", [1, 0]);
-  fixture.controller.handleIntent("instanceMuteChanged", [0, 1]);
+  fixture.controller.handleIntent("instanceMuteChanged", [1, 1, 0]);
+  fixture.controller.handleIntent("instanceMuteChanged", [1, 0, 1]);
   fixture.controller.handleIntent("instanceSoloChanged", [1, 0, 0]);
   fixture.controller.handleIntent("instanceSoloChanged", [1, 1, 1]);
 
   assert.deepStrictEqual(fixture.calls.requests, [
-    ["set_instance_mute", ["local", 1]],
-    ["set_instance_mute", ["group", 0]],
-    ["set_instance_solo", ["local", 1, "exclusive"]],
-    ["set_instance_solo", ["group", 1, "additive"]],
+    ["set_instance_mute", [1, "local", 1, "exclusive"]],
+    ["set_instance_mute", [1, "local", 0, "additive"]],
+    ["set_instance_solo", [1, "local", 0, "exclusive"]],
+    ["set_instance_solo", [1, "local", 1, "additive"]],
+  ]);
+}
+
+function testBankManagerControllerKeepsGroupScopeForAdditiveGroupedSolo() {
+  var fixture = makeBankManagerControllerFixture();
+  fixture.controller.context.scope.mode = "group";
+  fixture.viewModel.focusedBankFor = function () {
+    return { bankId: 5, groupId: 2 };
+  };
+
+  fixture.controller.handleIntent("instanceSoloChanged", [1, 1, 1]);
+
+  assert.deepStrictEqual(fixture.calls.requests, [
+    ["set_instance_solo", [1, "group", 1, "additive"]],
   ]);
 }
 
@@ -682,22 +702,16 @@ function testBankManagerShiftExtendsGroupingSelection() {
   assert.strictEqual(viewModel.rows[0].banks[2].selected, true);
   viewModel.destroy();
 }
-function testBankManagerControllerClearRequiresConfirmation() {
+function testBankManagerControllerClearsGroupsThroughTransaction() {
   var fixture = makeBankManagerControllerFixture(false);
   fixture.viewModel.rows[0].local = true;
   fixture.viewModel.rows[0].banks[0].groupId = 1;
-  var realSetTimeout = setTimeout;
-  setTimeout = function () {
-    return null;
-  };
-  fixture.controller.clearLocalGroups();
-  setTimeout = realSetTimeout;
-  assert.strictEqual(fixture.viewModel.clearAction.armed, true);
-  assert.strictEqual(fixture.calls.cleared, 0);
-
-  fixture.controller.clearLocalGroups();
-  assert.strictEqual(fixture.viewModel.clearAction.armed, false);
-  assert.strictEqual(fixture.calls.cleared, 1);
+  fixture.controller.clearGroups();
+  fixture.controller.clearGroups();
+  assert.deepStrictEqual(fixture.calls.requests, [
+    ["clear_topology", []],
+    ["clear_topology", []],
+  ]);
 }
 function testBankManagerWritesSelectedGroupsForEveryInstance() {
   var writes = [];
@@ -724,6 +738,11 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
         show: function () {},
       },
       "local",
+      undefined,
+      {
+        begin: function (callback) { callback(1); },
+        end: function () {},
+      },
     ),
   );
 
@@ -769,6 +788,6 @@ testBankManagerControllerShiftOnlyTogglesSelection();
 testBankManagerControllerSendsRelativeInstanceControlScopes();
 testBankManagerControllerSendsProcessorControls();
 testBankManagerShiftExtendsGroupingSelection();
-testBankManagerControllerClearRequiresConfirmation();
+testBankManagerControllerClearsGroupsThroughTransaction();
 testBankManagerWritesSelectedGroupsForEveryInstance();
 console.log("RegistryAndBankManagerTests passed");

@@ -85,6 +85,13 @@ internal sealed class StateChangePublisher : IStateChangeSink
                     (bool)change.CurrentValue!);
             }
             else if (change.IsValueChange &&
+                IsInstanceValue(change.Path, StateNodeIds.Bypass))
+            {
+                _registryChanges.InstanceBypassChanged(
+                    change.InstanceId.Value,
+                    (bool)change.CurrentValue!);
+            }
+            else if (change.IsValueChange &&
                 change.Path.Nodes.Contains(StateNodeIds.Group) &&
                 bank is { } bankAddress)
             {

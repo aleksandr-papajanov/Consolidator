@@ -18,19 +18,41 @@ public enum SoloSelectionMode
 
 public sealed record SetInstanceMuteCommand(
     InstanceControlScope TargetScope,
-    bool Muted) :
-    IInstanceCommand<StateWriteStatus>
+    bool Muted,
+    SoloSelectionMode Mode,
+    InstanceId? TargetInstanceId) :
+    IInstanceCommand<StateWriteStatus>,
+    IInstanceControlCommand
 {
     public CommandScope Scope => CommandScope.Coordinator;
+
+    bool IInstanceControlCommand.RequestedValue => Muted;
 }
 
 public sealed record SetInstanceSoloCommand(
     InstanceControlScope TargetScope,
     bool Soloed,
-    SoloSelectionMode Mode) :
-    IInstanceCommand<StateWriteStatus>
+    SoloSelectionMode Mode,
+    InstanceId? TargetInstanceId) :
+    IInstanceCommand<StateWriteStatus>,
+    IInstanceControlCommand
 {
     public CommandScope Scope => CommandScope.Coordinator;
+
+    bool IInstanceControlCommand.RequestedValue => Soloed;
+}
+
+public sealed record SetInstanceBypassCommand(
+    InstanceControlScope TargetScope,
+    bool Bypassed,
+    SoloSelectionMode Mode,
+    InstanceId? TargetInstanceId) :
+    IInstanceCommand<StateWriteStatus>,
+    IInstanceControlCommand
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+
+    bool IInstanceControlCommand.RequestedValue => Bypassed;
 }
 
 public sealed record SetProcessorBypassCommand(

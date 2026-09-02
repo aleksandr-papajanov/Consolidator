@@ -34,8 +34,8 @@ public static unsafe class NativeApi
     private static IInstanceAudioInputService AudioInputService =>
         ManagedServices.Provider.GetRequiredService<IInstanceAudioInputService>();
 
-    private static InstanceActivityCoordinator ActivityCoordinator =>
-        ManagedServices.Provider.GetRequiredService<InstanceActivityCoordinator>();
+    private static ActiveInstanceCoordinator ActivityCoordinator =>
+        ManagedServices.Provider.GetRequiredService<ActiveInstanceCoordinator>();
 
     private static InstancePersistenceService PersistenceService =>
         ManagedServices.Provider.GetRequiredService<InstancePersistenceService>();
@@ -191,7 +191,7 @@ public static unsafe class NativeApi
             NativeAtom*,
             nuint,
             void> outputCallback,
-        SharedDspExchange* dspExchange,
+        DspStateExchange* dspExchange,
         nuint* audioInputHandle)
     {
         InstanceId instanceId = default;

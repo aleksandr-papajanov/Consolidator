@@ -141,15 +141,24 @@ class BankManagerViewModel
             if (rowIndex < 0) return false;
             delta.rowIndex = rowIndex;
             this.rows[rowIndex].label = String(args[4]);
+            if (typeof post === "function")
+            {
+                post("[Consolidator][TrackName] BankManagerViewModel row=" +
+                    rowIndex + " instanceId=" + JSON.stringify(instanceId) +
+                    " label=" + JSON.stringify(this.rows[rowIndex].label) + "\n");
+            }
         } else if (delta.selector === "registry_instance_mute_changed" ||
-                delta.selector === "registry_instance_solo_changed") {
+            delta.selector === "registry_instance_solo_changed" ||
+            delta.selector === "registry_instance_bypass_changed") {
             rowIndex = this.findRowIndex(instanceId);
             if (rowIndex < 0) return false;
             delta.rowIndex = rowIndex;
             if (delta.selector === "registry_instance_mute_changed") {
                 this.rows[rowIndex].mute = Number(args[4]) !== 0;
-            } else {
+            } else if (delta.selector === "registry_instance_solo_changed") {
                 this.rows[rowIndex].solo = Number(args[4]) !== 0;
+            } else {
+                this.rows[rowIndex].bypass = Number(args[4]) !== 0;
             }
         } else if (delta.selector === "registry_bank_group_changed") {
             rowIndex = this.findRowIndex(instanceId);
@@ -210,6 +219,7 @@ class BankManagerViewModel
             local: String(instance.instanceId) === String(this.localInstanceId),
             mute: Boolean(instance.mute),
             solo: Boolean(instance.solo),
+            bypass: Boolean(instance.bypass),
             processors: (instance.processors || []).map((processor) => ({
                 processorId: processor.processorId,
                 effectActive: Boolean(processor.effectActive),

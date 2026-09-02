@@ -84,7 +84,8 @@ internal sealed class CommandResponseEncoder
         {
             outputs.Add(Output(target, "registry_instance", Header(target, requestId)
                 .Concat([Symbol(instance.InstanceId.ToString()), Symbol(instance.Label),
-                    Integer(instance.Mute ? 1 : 0), Integer(instance.Solo ? 1 : 0)]).ToArray()));
+                    Integer(instance.Mute ? 1 : 0), Integer(instance.Solo ? 1 : 0),
+                    Integer(instance.Bypass ? 1 : 0)]).ToArray()));
             foreach (var processor in instance.Processors)
             {
                 var markerActive = processorMarkers[(instance.InstanceId, processor.ProcessorId)];

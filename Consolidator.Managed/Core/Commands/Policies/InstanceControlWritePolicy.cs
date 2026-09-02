@@ -13,7 +13,8 @@ internal sealed class InstanceControlWritePolicy : IStateWritePolicy
         if (nodes.Count == 2 &&
             nodes[0] == StateNodeIds.Instance &&
             (nodes[1] == StateNodeIds.Mute ||
-                nodes[1] == StateNodeIds.Solo))
+                nodes[1] == StateNodeIds.Solo ||
+                nodes[1] == StateNodeIds.Bypass))
         {
             return true;
         }

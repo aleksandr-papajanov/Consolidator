@@ -47,15 +47,17 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink
         string label,
         bool mute,
         bool solo,
+        bool bypass,
         IReadOnlyList<ProcessorStatus> processors,
         IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive)> banks)
     {
-        var payload = new List<Atom>(5 + banks.Count * 3)
+        var payload = new List<Atom>(6 + banks.Count * 3)
         {
             Symbol(instanceId.ToString()),
             Symbol(label),
             Integer(mute ? 1 : 0),
             Integer(solo ? 1 : 0),
+            Integer(bypass ? 1 : 0),
             Integer(processors.Count)
         };
         foreach (var processor in processors)
@@ -87,6 +89,10 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink
     public void InstanceSoloChanged(ulong instanceId, bool solo) =>
         Publish("registry_instance_solo_changed",
             Symbol(instanceId.ToString()), Integer(solo ? 1 : 0));
+
+    public void InstanceBypassChanged(ulong instanceId, bool bypass) =>
+        Publish("registry_instance_bypass_changed",
+            Symbol(instanceId.ToString()), Integer(bypass ? 1 : 0));
 
     public void BankGroupChanged(ulong instanceId, int bankId, uint? groupId) =>
         Publish(

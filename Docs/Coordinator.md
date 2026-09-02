@@ -39,7 +39,7 @@ Responsibilities are intentionally narrow:
 - `TopologyIndex` stores derived group/focus indexes and serves queries;
 - `ProcessorMarkerProjection` combines activity snapshots, exact bank-group
   membership and per-viewer focus into device marker presentation values;
-- `AudibilityObserver` observes mute/solo values and projects audibility;
+- `AudibilityObserver` observes mute/solo values and projects effective audibility;
 - `FftAnalyzer` owns the demanded source's bounded audio capture, prepared
   sample rate, worker-side FFT, focused-viewer configuration and spectrum
   publication;

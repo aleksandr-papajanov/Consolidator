@@ -27,6 +27,14 @@ class LiveInstanceHost
         return name;
     }
 
+    logTrackName(message)
+    {
+        if (typeof post === "function")
+        {
+            post("[Consolidator][TrackName] LiveInstanceHost " + message + "\n");
+        }
+    }
+
     readId(values)
     {
         if (!values)
@@ -47,7 +55,10 @@ class LiveInstanceHost
 
     publishName(value)
     {
-        this.emit(["track_name", this.normalizeName(value)]);
+        let name = this.normalizeName(value);
+        this.logTrackName("publish raw=" + JSON.stringify(value) +
+            " normalized=" + JSON.stringify(name));
+        this.emit(["track_name", name]);
     }
 
     publishActivity()
@@ -65,8 +76,10 @@ class LiveInstanceHost
 
     trackNameChanged(values)
     {
+        this.logTrackName("callback=" + JSON.stringify(values));
         if (!values || values.length < 2 || String(values[0]) !== "name")
         {
+            this.logTrackName("ignored callback");
             return;
         }
         this.publishName(values[1]);
@@ -89,16 +102,22 @@ class LiveInstanceHost
         this.deviceId = Number(device.id);
         let track = new this.LiveAPI(null, "this_device canonical_parent");
         this.trackId = Number(track.id);
+        this.logTrackName("bang deviceId=" + this.deviceId +
+            " trackId=" + this.trackId +
+            " trackPath=" + JSON.stringify(track.unquotedpath || ""));
         if (!isFinite(this.deviceId) || this.deviceId <= 0 || this.trackId <= 0)
         {
+            this.logTrackName("activation stopped: invalid ids");
             return;
         }
 
         let name = track.get("name");
+        this.logTrackName("initial get(name)=" + JSON.stringify(name));
         this.publishName(name && name.length ? name[0] : "");
         let trackPath = String(track.unquotedpath || "");
         if (!trackPath)
         {
+            this.logTrackName("activation stopped: empty track path");
             return;
         }
         this.trackObserver = new this.LiveAPI((values) =>

@@ -43,6 +43,7 @@ class BankManagerPresenter extends PresentationObservable
                 local: Boolean(row.local),
                 mute: Boolean(row.mute),
                 solo: Boolean(row.solo),
+                bypass: Boolean(row.bypass),
                 processors: (row.processors || []).map((processor) => ({
                     processorId: processor.processorId,
                     effectActive: Boolean(processor.effectActive),

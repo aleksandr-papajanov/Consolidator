@@ -200,13 +200,23 @@ class BankManagerController
             break;
         case "instanceSoloChanged":
             this.setSolo(
-                Number(values[0]) !== 0,
-                Number(values[1]) !== 0
+                values[0],
+                Number(values[1]) !== 0,
+                Number(values[2]) !== 0
             );
             break;
         case "instanceMuteChanged":
             this.setMute(
-                Number(values[0]) !== 0
+                values[0],
+                Number(values[1]) !== 0,
+                Number(values[2]) !== 0
+            );
+            break;
+        case "instanceBypassChanged":
+            this.setBypass(
+                values[0],
+                Number(values[1]) !== 0,
+                Number(values[2]) !== 0
             );
             break;
         case "instanceResetRequested":
@@ -277,11 +287,29 @@ class BankManagerController
     }
 
 
-    setMute(value)
+    setMute(instanceId, value, additive)
     {
+        let scope = this.resolveInstanceControlScope(instanceId, additive);
         this.context.protocol.request(
             "set_instance_mute",
-            [this.context.scope.mode, value ? 1 : 0]
+            [instanceId,
+                scope,
+                value ? 1 : 0,
+                additive ? "additive" : "exclusive"
+            ]
+        );
+    }
+
+    setBypass(instanceId, value, additive)
+    {
+        let scope = this.resolveInstanceControlScope(instanceId, additive);
+        this.context.protocol.request(
+            "set_instance_bypass",
+            [instanceId,
+                scope,
+                value ? 1 : 0,
+                additive ? "additive" : "exclusive"
+            ]
         );
     }
 
@@ -322,24 +350,35 @@ class BankManagerController
         );
     }
 
-    setSolo(value, additive)
+    setSolo(instanceId, value, additive)
     {
+        let scope = this.resolveInstanceControlScope(instanceId, additive);
         this.context.protocol.request(
             "set_instance_solo",
-            [this.context.scope.mode,
+            [instanceId,
+                scope,
                 value ? 1 : 0,
                 additive ? "additive" : "exclusive"
             ]
         );
     }
 
-    
     destroy()
     {
         if (this.unsubscribeHistory) this.unsubscribeHistory();
         this.unsubscribeHistory = null;
         this.historyJumpPending = false;
         this.context = null;
+    }
+
+    resolveInstanceControlScope(instanceId, additive)
+    {
+        let focusedBank = typeof this.context.viewModel.focusedBankFor === "function"
+            ? this.context.viewModel.focusedBankFor(instanceId) : null;
+        let hasFocusedGroup = focusedBank && focusedBank.groupId !== undefined &&
+            focusedBank.groupId !== null && Number(focusedBank.groupId) >= 0;
+        return additive && !hasFocusedGroup
+            ? "local" : this.context.scope.mode;
     }
 }
 

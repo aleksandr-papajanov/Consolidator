@@ -23,7 +23,7 @@
     "boxes": [
       {
         "box": {
-          "filename": "AnalyzerControl.js",
+          "filename": "Project:/js/Controls/Analyzer/AnalyzerControl.js",
           "id": "analyzer",
           "maxclass": "v8ui",
           "numinlets": 1,
@@ -46,7 +46,7 @@
             130
           ],
           "textfile": {
-            "filename": "AnalyzerControl.js",
+            "filename": "Project:/js/Controls/Analyzer/AnalyzerControl.js",
             "flags": 0,
             "embed": 0,
             "autowatch": 1
@@ -75,7 +75,7 @@
       },
       {
         "box": {
-          "filename": "PanelBindingHostV8.js",
+          "filename": "Project:/js/PanelBindingHostV8.js",
           "id": "router",
           "maxclass": "newobj",
           "numinlets": 1,
@@ -91,7 +91,7 @@
           },
           "text": "v8 Project:/js/PanelBindingHostV8.js",
           "textfile": {
-            "filename": "PanelBindingHostV8.js",
+            "filename": "Project:/js/PanelBindingHostV8.js",
             "flags": 0,
             "embed": 0,
             "autowatch": 1

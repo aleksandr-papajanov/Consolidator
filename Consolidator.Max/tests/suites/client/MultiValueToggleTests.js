@@ -43,18 +43,19 @@ function testMultiValueTogglePresenterPublishesOptionsAndWritesIndex() {
 }
 
 function testMultiValueToggleControlCyclesAndEmitsSelectedIndex() {
-  var MultiValueToggleControl = loadMaxClass(
-    "js/Controls/MultiValueToggle/MultiValueToggleControl.js",
-    "MultiValueToggleControl",
-  );
   var emissions = [];
   global.outlet = function (outletIndex, values) {
     emissions.push([outletIndex, values]);
   };
+  var MultiValueToggleControl = loadMaxClass(
+    "js/Controls/MultiValueToggle/MultiValueToggleControl.js",
+    "MultiValueToggleControl",
+  );
   var control = new MultiValueToggleControl();
   control.values = ["Punch", "Tight", "Smooth"];
   control.value = 1;
-  control.click();
+  control.beginGesture(0);
+  control.drag(-34);
 
   assert.deepStrictEqual(emissions, [[0, ["valueChanged", 2]]]);
 }

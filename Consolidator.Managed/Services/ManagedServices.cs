@@ -76,7 +76,7 @@ public static class ManagedServices
         services.AddSingleton<PresentationOutputGate>();
         services.AddSingleton<IPresentationTransport>(serviceProvider =>
             serviceProvider.GetRequiredService<PresentationOutputGate>());
-        services.AddSingleton<InstanceActivityCoordinator>();
+        services.AddSingleton<ActiveInstanceCoordinator>();
         services.AddSingleton<IProtocolOutputRegistry>(serviceProvider =>
             serviceProvider.GetRequiredService<NativeOutputService>());
         services.AddSingleton<IOperationGate, OperationGate>();
@@ -143,6 +143,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, ClearTopologyCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceMuteCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceSoloCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetInstanceBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
@@ -159,6 +160,7 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, ClearTopologyInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceMuteInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceSoloInputCodec>();
+        services.AddSingleton<IInputCodec, SetInstanceBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
@@ -179,6 +181,9 @@ public static class ManagedServices
             "action_done");
         services.AddCommandEndpoint<SetInstanceSoloCommand, StateWriteStatus>(
             "set_instance_solo",
+            "action_done");
+        services.AddCommandEndpoint<SetInstanceBypassCommand, StateWriteStatus>(
+            "set_instance_bypass",
             "action_done");
         services.AddCommandEndpoint<SetProcessorBypassCommand, StateWriteStatus>(
             "set_processor_bypass",
@@ -201,7 +206,8 @@ public static class ManagedServices
             new ProtocolService(
                 serviceProvider.GetRequiredService<CommandDecoder>(),
                 serviceProvider.GetRequiredService<CommandEndpointRegistry>(),
-                serviceProvider.GetRequiredService<IProtocolTransport>()));
+                serviceProvider.GetRequiredService<IProtocolTransport>(),
+                serviceProvider.GetRequiredService<IManagedLogger>()));
         services.AddSingleton<IInstanceLifecycleService>(serviceProvider =>
             serviceProvider.GetRequiredService<InstanceRegistry>());
         services.AddSingleton<IInstancePreparationService, InstancePreparationService>();

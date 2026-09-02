@@ -8,7 +8,7 @@ namespace consolidator::max
 {
 
 [[nodiscard]] bool ConsumePublishedDspState(
-    SharedDspExchange& exchange,
+    DspStateExchange& exchange,
     std::uint32_t& consumerIndex,
     DspSnapshot& destination) noexcept;
 

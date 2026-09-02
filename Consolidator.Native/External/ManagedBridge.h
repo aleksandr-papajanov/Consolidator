@@ -24,7 +24,7 @@ public:
     [[nodiscard]] InstanceId RegisterInstance(
         void* context,
         ManagedOutputCallback outputCallback,
-        SharedDspExchange* dspExchange,
+        DspStateExchange* dspExchange,
         AudioInputHandle* audioInputHandle) const;
 
     void UnregisterInstance(InstanceId instanceId) const;

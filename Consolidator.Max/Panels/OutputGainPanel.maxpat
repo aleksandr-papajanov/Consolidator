@@ -15,7 +15,7 @@
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
-					"filename" : "DialControl.js",
+					"filename" : "Project:/js/Controls/Dial/DialControl.js",
 					"id" : "level",
 					"jsarguments" : [ "LEVEL", -36.0, 36.0, 0, 1.0, 1, "dB" ],
 					"maxclass" : "v8ui",
@@ -27,7 +27,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 117.0, 0.0, 78.0, 78.0 ],
 					"textfile" : 					{
-						"filename" : "DialControl.js",
+						"filename" : "Project:/js/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -39,7 +39,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "DialControl.js",
+					"filename" : "Project:/js/Controls/Dial/DialControl.js",
 					"id" : "target",
 					"jsarguments" : [ "TARGET", -36.0, 0.0, 0, 1.0, 1, "dB" ],
 					"maxclass" : "v8ui",
@@ -51,7 +51,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 208.0, 0.0, 78.0, 78.0 ],
 					"textfile" : 					{
-						"filename" : "DialControl.js",
+						"filename" : "Project:/js/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -63,7 +63,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "ToggleControl.js",
+					"filename" : "Project:/js/Controls/Toggle/ToggleControl.js",
 					"id" : "limiter",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
@@ -74,7 +74,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 143.0, 91.0, 117.0, 26.0 ],
 					"textfile" : 					{
-						"filename" : "ToggleControl.js",
+						"filename" : "Project:/js/Controls/Toggle/ToggleControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -135,7 +135,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "PanelBindingHostV8.js",
+					"filename" : "Project:/js/PanelBindingHostV8.js",
 					"id" : "router",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -147,7 +147,7 @@
 ,
 					"text" : "v8 Project:/js/PanelBindingHostV8.js",
 					"textfile" : 					{
-						"filename" : "PanelBindingHostV8.js",
+						"filename" : "Project:/js/PanelBindingHostV8.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

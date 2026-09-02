@@ -221,7 +221,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "ConsolidatorUiHost.js",
+					"filename" : "Project:/js/ConsolidatorUiHost.js",
 					"id" : "host",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
@@ -234,7 +234,7 @@
 ,
 					"text" : "v8 Project:/js/ConsolidatorUiHost.js bridge.local",
 					"textfile" : 					{
-						"filename" : "ConsolidatorUiHost.js",
+						"filename" : "Project:/js/ConsolidatorUiHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -269,7 +269,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "LiveInstanceHost.js",
+					"filename" : "Project:/js/LiveInstanceHost.js",
 					"id" : "live-instance-host",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -282,7 +282,7 @@
 ,
 					"text" : "v8 Project:/js/LiveInstanceHost.js",
 					"textfile" : 					{
-						"filename" : "LiveInstanceHost.js",
+						"filename" : "Project:/js/LiveInstanceHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -377,7 +377,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "PanelSelector.js",
+					"filename" : "Project:/js/PanelSelector.js",
 					"id" : "panel-selector",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -389,7 +389,7 @@
 ,
 					"text" : "v8 Project:/js/PanelSelector.js",
 					"textfile" : 					{
-						"filename" : "PanelSelector.js",
+						"filename" : "Project:/js/PanelSelector.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

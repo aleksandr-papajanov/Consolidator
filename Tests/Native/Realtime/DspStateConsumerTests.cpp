@@ -7,7 +7,7 @@ namespace consolidator::tests
 
 bool RunDspStateConsumerTests()
 {
-    consolidator::max::SharedDspExchange exchange{};
+    consolidator::max::DspStateExchange exchange{};
     exchange.snapshots[1].inputLevel = 2.0F;
     exchange.publishedIndex = 1;
     std::uint32_t consumerIndex = 0;

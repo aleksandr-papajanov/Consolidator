@@ -53,6 +53,9 @@ internal sealed class ActivityObserver
     public IStateValueObserver<float> ObserveFilterGain(int bankId, int filterId) =>
         new ValueObserver<float>(this, (observer, value) => observer.SetFilterGain(bankId, filterId, value));
 
+    public IStateValueObserver<bool> ObserveActive(Action<bool> setActive) =>
+        new ValueObserver<bool>(this, (_, value) => setActive(!value));
+
     public void Refresh()
     {
         for (var index = 0; index < _statuses.Length; index++)

@@ -174,6 +174,11 @@ class ConsolidatorUiHost
     setTrackName(args)
     {
         args = args || [];
+        if (typeof post === "function")
+        {
+            post("[Consolidator][TrackName] UiApplication received=" +
+                JSON.stringify(args) + "\n");
+        }
         if (args.length && String(args[0]) === "name") {
             args = args.slice(1);
         }
@@ -183,6 +188,12 @@ class ConsolidatorUiHost
             name = name.substring(1, name.length - 1);
         }
         this.trackName = name;
+        if (typeof post === "function")
+        {
+            post("[Consolidator][TrackName] UiApplication parsed=" +
+                JSON.stringify(name) + " instanceId=" +
+                JSON.stringify(this.instanceId) + "\n");
+        }
         if (this.instanceId !== undefined) {
             this.client.state.set("label", name, undefined, 0, "local");
         }

@@ -16,15 +16,21 @@ function loadMaxClass(relativePath, className) {
   var absolutePath = path.join(root, relativePath);
   var source = fs.readFileSync(absolutePath, "utf8");
   var factory = vm.runInThisContext(
-    "(function (require, mgraphics, outlet, Task) {\n" +
+    "(function (require, mgraphics, outlet, Task, jsarguments) {\n" +
       source + "\nreturn " + className + ";\n})",
     { filename: relativePath },
   );
+  var task = global.Task || function (callback) {
+    this.callback = callback;
+    this.cancel = function () {};
+    this.schedule = function () {};
+  };
   return factory(
     createRequire(absolutePath),
     global.mgraphics,
     global.outlet,
-    global.Task,
+    task,
+    [],
   );
 }
 
@@ -105,9 +111,7 @@ function testDialBindingUsesMessageTransportAndIntents() {
     ["presentation_begin", []],
     ["enabled", [1]],
     ["active", [1]],
-    ["activeIndex", [0]],
-    ["displayIndex", [0]],
-    ["ringCount", [1]],
+    ["scope", [0, 0, 0, 0, 0, 0]],
     ["limits", [0, 0, 1]],
     ["set", [0, 0.5]],
     ["presentation_end", []],
@@ -117,8 +121,8 @@ function testDialBindingUsesMessageTransportAndIntents() {
   binding.handleIntent("gestureBegan", [0, "group"]);
   binding.handleIntent("gestureEnded", [0, "group"]);
   assert.deepStrictEqual(intents, [
-    ["setValue", 0, 0.75, "local"],
-    ["resetValue", 0, "group"],
+    ["setValue", 0, 0.75, null],
+    ["resetValue", 0, undefined],
     ["beginGesture", 0],
     ["endGesture", 0],
   ]);
@@ -222,6 +226,7 @@ function testButtonBindingPreservesPresentationMetadata() {
     ["set", [1]],
     ["enabled", [1]],
     ["active", [1]],
+    ["scope", [0, 0, 0, 0, 0, 0]],
     ["mode", ["momentary"]],
     ["label", ["SOLO"]],
     ["presentation_end", []],
@@ -716,7 +721,7 @@ function testAnalyzerConfigurationRecalculatesCurvesForSampleRate() {
   var previous = presenter.curves[0].values.slice(0);
 
   protocolHandlers.analyzer_configuration([1, 8, 32000]);
-  assert.strictEqual(presenter.sampleRate, 48000);
+  assert.strictEqual(presenter.sampleRate, 32000);
   protocolHandlers.analyzer_configuration([1, 7, 44100]);
 
   assert.strictEqual(presenter.sampleRate, 44100);
@@ -751,9 +756,10 @@ function testEqualizerPresenterBuildsAllBanksCurveFromRawState() {
   });
 
   protocolHandlers.analyzer_equalizer_state([
-    1, 2, 8, 2, 1,
-    1, 2,
+    1, 2, 8, 2, 0,
+    1, 1,
     1, "bell", 0.707, 3, "frequency", 1000, "q", 1, "gain", 6,
+    1, 1,
     1, "bell", 0.707, 3, "frequency", 2000, "q", 1, "gain", 6,
   ]);
   assert.strictEqual(presenter.allBanksCurve.active, false);
@@ -761,8 +767,9 @@ function testEqualizerPresenterBuildsAllBanksCurveFromRawState() {
 
   protocolHandlers.analyzer_equalizer_state([
     1, 2, 7, 2, 1,
-    1, 2,
+    1, 1,
     1, "bell", 0.707, 3, "frequency", 1000, "q", 1, "gain", 6,
+    1, 1,
     1, "bell", 0.707, 3, "frequency", 2000, "q", 1, "gain", 6,
   ]);
 
@@ -980,10 +987,9 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   beginCallback(12, { status: "accepted" });
 
   assert.deepStrictEqual(calls, [
-    ["gestureBegan", [1], null],
-    ["filterMoved", [1, 0.4, 0.6, "group"], 12],
+    ["gestureBegan", [1, "group"], null],
     ["filterMoved", [1, 0.5, 0.7, "group"], 12],
-    ["filterCommit", [1, "group"], 12],
+    ["filterCommit", [1, 0.5, 0.7, "group"], 12],
     ["gestureEnded", [], 12],
   ]);
 
@@ -992,10 +998,9 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
     ["end", 12],
   ]);
   assert.deepStrictEqual(calls, [
-    ["gestureBegan", [1], null],
-    ["filterMoved", [1, 0.4, 0.6, "group"], 12],
+    ["gestureBegan", [1, "group"], null],
     ["filterMoved", [1, 0.5, 0.7, "group"], 12],
-    ["filterCommit", [1, "group"], 12],
+    ["filterCommit", [1, 0.5, 0.7, "group"], 12],
     ["gestureEnded", [], 12],
   ]);
   commitCallback({ status: "accepted", error: null });
@@ -1220,7 +1225,7 @@ function testUiApplicationLoadsAsCommonJsV8Module() {
 function testFeaturePresenterSetEnumeratesTypedPresenters() {
   var set = new FeaturePresenterSet();
   set.addDial("threshold", { value: 0.5 });
-  set.addButton("bypass", { value: false });
+  set.addToggle("bypass", { value: false });
   var entries = [];
   set.forEach(function (name, presenter, type) {
     entries.push([name, typeof presenter, type]);
@@ -1228,7 +1233,7 @@ function testFeaturePresenterSetEnumeratesTypedPresenters() {
 
   assert.deepStrictEqual(entries, [
     ["threshold", "object", "dial"],
-    ["bypass", "object", "button"],
+    ["bypass", "object", "toggle"],
   ]);
   set.destroy();
 }
@@ -1293,7 +1298,7 @@ function testDialDisplayScaleDoesNotChangePhysicalValue() {
     ],
   });
 
-  assert.strictEqual(presenter.presentation.rings[0].display.value, "50.0%");
+  assert.strictEqual(presenter.presentation.rings[0].value, 0.5);
   presenter.setValue(0, 0.25);
   assert.strictEqual(value.value, 0.25);
   presenter.destroy();
@@ -1330,6 +1335,7 @@ function testEqualizerPositionForwardsFinalWriteCallback() {
   var received = null;
   var callback = function () {};
   var parameters = EqualizerController.prototype.createBankParameters.call({}, [{
+    definition: { type: "bell" },
     frequency: {},
     gain: {},
     q: {},
@@ -1368,7 +1374,6 @@ function testMessageControlsConstructCompletePresentation() {
     "DialControl",
   );
   var dialControl = new DialControl();
-  dialControl.setRingCount(1);
   dialControl.setPresentationLimits(0, 0.1, 0.9);
   dialControl.setPresentationValue(0, 0.4);
   assert.strictEqual(dialControl.presentation.rings.length, 1);
@@ -1378,6 +1383,14 @@ function testMessageControlsConstructCompletePresentation() {
     maximum: 0.9,
     visualization: null,
     color: null,
+    display: {
+      minimum: 0,
+      maximum: 1,
+      logarithmic: false,
+      scale: 1,
+      decimals: 2,
+      suffix: "",
+    },
   });
   dialControl.dragging = true;
   dialControl.dragIndex = 0;
@@ -1430,7 +1443,7 @@ function testMessageControlsConstructCompletePresentation() {
     null,
   );
   assert.strictEqual(bankManagerControl.presentation.groupAction.enabled, true);
-  assert.strictEqual(bankManagerControl.presentation.clearAction.armed, true);
+  assert.strictEqual(bankManagerControl.presentation.clearAction.enabled, true);
   assert.strictEqual(
     bankManagerControl.presentation.rows[0].processors[0].markerActive,
     false,
@@ -1620,8 +1633,8 @@ function testBankManagerForwardsInstanceControlModifiers() {
   bankManagerControl.selectAt(instanceButtonsX + 8, 5, true, true);
   bankManagerControl.selectAt(instanceButtonsX + 24, 5, true, true);
   assert.deepStrictEqual(intents, [
-    ["instanceSoloChanged", [1, 1, 1]],
-    ["instanceMuteChanged", [1, 1]],
+    ["instanceSoloChanged", ["instance.1", 1, 1]],
+    ["instanceMuteChanged", ["instance.1", 1, 1]],
   ]);
 }
 function testBankManagerEqualizerResetReachesStateClient() {
@@ -1650,20 +1663,13 @@ function testBankManagerEqualizerResetReachesStateClient() {
         resetCalls.push(Array.prototype.slice.call(arguments));
       },
     },
+    scope: { mode: "group" },
   };
   var controller = new BankManagerController(context);
-  bankManagerControl.emit = function (name, values) {
-    controller.handleIntent(name, values);
-  };
-  bankManagerControl.flashReset = function () {};
-
-  var x = bankManagerControl.primaryWidth(presentation.rows) +
-    6 + 32 + 16 + 1 + 4;
-  var y = 3 * 32 + 16 + 1 + 4;
-  bankManagerControl.selectAt(x, y, false, true);
+  controller.resetInstance();
 
   assert.deepStrictEqual(resetCalls, [[
-    "equalizer", undefined, 0, "group",
+    "dsp", undefined, 0, "group_instance",
   ]]);
 }
 function testBankManagerPresentsGroupingSelectionAsActive() {
@@ -1783,7 +1789,14 @@ function testBankBypassStateReachesControlAndInvertsNextClick() {
     enabled: true,
     selectedPanel: "equalizer",
     focusedBankBypassed: false,
-    rows: [],
+    rows: [{
+      local: true,
+      processors: [{
+        processorId: "equalizer",
+        effectActive: true,
+        bypassed: false,
+      }],
+    }],
     groupAction: null,
     ungroupAction: null,
     clearAction: { enabled: false },
@@ -1809,6 +1822,7 @@ function testBankBypassStateReachesControlAndInvertsNextClick() {
       else if (selector === "bank_bypass_patch") control.patchBankBypass(args[0]);
     },
   );
+  control.presentation.rows = viewModel.rows;
 
   assert.strictEqual(control.presentation.focusedBankBypassed, false);
   viewModel.focusedBankBypassed = true;

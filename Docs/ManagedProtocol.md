@@ -229,6 +229,15 @@ their classification reserves a later managed coalescing policy.
 The command surface contains state read/write, state reset, history framing,
 history jumps, UI initialization, target observation, instance activity and
 registry snapshots.
+Instance controls use the same target resolution for mute and solo. A grouped
+bank resolves to all members, while an ungrouped bank resolves to its single
+instance. The bank manager sends an additive solo gesture as a local instance operation
+when the clicked instance's focused bank is ungrouped, even when group scope is
+active. This lets Shift-click add or remove one ungrouped instance. If that
+focused bank belongs to a group, the additive gesture keeps group scope and adds
+or removes the complete group. A non-additive solo gesture keeps the current
+scope; an ungrouped instance is treated as a single-instance group. Selecting
+another grouped bank is the explicit way to solo a different group.
 `initialize` returns the external's managed instance ID and transient UI context.
 The default context is `equalizer`. `observe_target` receives
 `targetInstanceId`, `bankId` and one strict context symbol (`input`, `saturator`,
@@ -288,13 +297,14 @@ its instance-level `mute` and `solo` values. Each registry bank entry also carri
 filter with non-zero gain. Managed emits `registry_bank_effect_changed` only
 when that derived status changes; instance mute and solo changes use their
 corresponding registry deltas. Instance controls use dedicated
-`set_instance_mute` and `set_instance_solo` commands; direct protocol writes to
-the instance `mute` and `solo` paths are rejected. Each command carries an
-explicit `local` or `group` scope. Managed obtains the target bank from the
-source `SelectionContext`; no row, instance, or bank address is present in the
-command body. Group resolution never traverses another group on the same track
-and never falls back to the instance when the bank is ungrouped. Solo also carries
-an `exclusive` or `additive` selection mode. Both handlers update the resolved
+`set_instance_mute`, `set_instance_solo`, and `set_instance_bypass` commands;
+direct protocol writes to the instance `mute`, `solo`, and `bypass` paths are
+rejected. Each command carries an
+explicit target instance ID, `local` or `group` scope, and `exclusive` or
+`additive` selection mode. Managed resolves the target bank at the focused
+equalizer-bank index through `ContextualBankResolver`. Group resolution never
+traverses another group on the same track and falls back to the target instance
+when the bank is ungrouped. Both handlers update the resolved
 local instance values in one atomic state transaction without creating a
 history point. Later topology changes do not migrate the stored mute or solo
 values. Command handlers remain in Core and do not move routing or state
@@ -303,8 +313,9 @@ mutation into codecs.
 After the common command-frame header, the request bodies are:
 
 ```text
-set_instance_mute local|group 0|1
-set_instance_solo local|group 0|1 exclusive|additive
+set_instance_mute instanceId local|group 0|1 exclusive|additive
+set_instance_solo instanceId local|group 0|1 exclusive|additive
+set_instance_bypass instanceId local|group 0|1 exclusive|additive
 ```
 
 Each registry instance also carries five instance-owned processor statuses.

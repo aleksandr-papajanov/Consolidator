@@ -13,6 +13,7 @@ const BankManagerControlOptions = {
     text: UiColors.base.text,
     focused: UiColors.controls.active,
     remote: UiColors.base.text,
+    solo: UiColors.devices.solo,
     mute: UiColors.devices.mute,
     disabled: UiColors.base.disabledText,
     separator: UiColors.base.lines,
@@ -144,7 +145,7 @@ class BankManagerControl
     bankGridX(rows)
     {
         let gridWidth = this.bankCount(rows) * BankManagerControlOptions.bankSize;
-        let instanceButtonWidth = BankManagerControlOptions.bankSize * 3;
+        let instanceButtonWidth = BankManagerControlOptions.bankSize * 4;
         return Math.max(0, this.actionsColumnX() - BankManagerControlOptions.columnGap -
             gridWidth -
             instanceButtonWidth - BankManagerControlOptions.deviceColumnGap);
@@ -694,7 +695,7 @@ class BankManagerControl
             mgraphics.rectangle(
                 buttonsX,
                 y,
-                3 * BankManagerControlOptions.bankSize,
+                4 * BankManagerControlOptions.bankSize,
                 1
             );
             mgraphics.fill();
@@ -715,7 +716,8 @@ class BankManagerControl
         [
             { label: "S", active: Boolean(row.solo), color: BankManagerControlOptions.solo },
             { label: "M", active: Boolean(row.mute), color: BankManagerControlOptions.mute },
-            { label: "R", active: Boolean(this.actionFlash["instance:" + row.instanceId]), color: UiColors.devices.reset }
+            { label: "R", active: Boolean(this.actionFlash["instance:" + row.instanceId]), color: UiColors.devices.reset },
+            { label: "B", active: Boolean(row.bypass), color: UiColors.devices.reset }
         ].forEach((button, index) => {
             let buttonX = x + index * BankManagerControlOptions.bankSize;
             if (button.active) {
@@ -972,22 +974,31 @@ class BankManagerControl
         let instanceButtonsX = this.bankGridRight(rows) +
             BankManagerControlOptions.deviceColumnGap;
         if (x >= instanceButtonsX &&
-                x < instanceButtonsX + BankManagerControlOptions.bankSize * 3) {
+                x < instanceButtonsX + BankManagerControlOptions.bankSize * 4) {
             let buttonIndex = Math.floor(
                 (x - instanceButtonsX) / BankManagerControlOptions.bankSize
             );
             if (buttonIndex === 0) {
                 this.emit("instanceSoloChanged", [
+                    row.instanceId,
                     row.solo ? 0 : 1,
                     extendSelection ? 1 : 0
                 ]);
             } else if (buttonIndex === 1) {
                 this.emit("instanceMuteChanged", [
-                    row.mute ? 0 : 1
+                    row.instanceId,
+                    row.mute ? 0 : 1,
+                    extendSelection ? 1 : 0
                 ]);
-            } else {
+            } else if (buttonIndex === 2) {
                 this.flashAction("instance:" + row.instanceId);
                 this.emit("instanceResetRequested");
+            } else {
+                this.emit("instanceBypassChanged", [
+                    row.instanceId,
+                    row.bypass ? 0 : 1,
+                    extendSelection ? 1 : 0
+                ]);
             }
             return;
         }
@@ -1149,7 +1160,8 @@ class BankManagerControl
     label,
     local,
     solo,
-    mute)
+    mute,
+    bypass)
     {
         if (!this.pendingPresentation) {
             return;
@@ -1162,6 +1174,7 @@ class BankManagerControl
             local: Number(local) !== 0,
             solo: Number(solo) !== 0,
             mute: Number(mute) !== 0,
+            bypass: Number(bypass) !== 0,
             processors: [],
             banks: []
         };
@@ -1350,7 +1363,8 @@ class BankManagerControl
     label,
     local,
     solo,
-    mute)
+    mute,
+    bypass)
     {
         let rowIndex = Number(index);
         let row = this.presentation.rows[rowIndex];
@@ -1363,6 +1377,7 @@ class BankManagerControl
         row.local = Number(local) !== 0;
         row.solo = Number(solo) !== 0;
         row.mute = Number(mute) !== 0;
+        row.bypass = Number(bypass) !== 0;
         if (!row.processors) row.processors = [];
     }
 

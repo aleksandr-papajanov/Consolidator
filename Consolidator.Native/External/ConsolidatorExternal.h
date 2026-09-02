@@ -290,6 +290,16 @@ public:
         }
     };
 
+    c74::min::message<> setInstanceBypass{
+        this,
+        "set_instance_bypass",
+        MIN_FUNCTION
+        {
+            ForwardMessage("set_instance_bypass", args);
+            return {};
+        }
+    };
+
     c74::min::message<> setProcessorBypass{
         this,
         "set_processor_bypass",
@@ -415,7 +425,7 @@ private:
     ManagedBridge managed_;
     InstanceId instanceId_{};
     AudioInputHandle audioInputHandle_{};
-    SharedDspExchange dspExchange_{};
+    DspStateExchange dspExchange_{};
     DspSnapshot dspState_{};
     std::uint32_t consumerDspIndex_{};
     DspParameterSmoother dspParameterSmoother_;

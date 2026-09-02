@@ -9,7 +9,6 @@ using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Protocol.Decoding;
-using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.State;
 using Consolidator.Managed.Tests.Support;
 using Xunit;

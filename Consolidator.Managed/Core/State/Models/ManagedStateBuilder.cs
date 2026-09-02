@@ -4,7 +4,6 @@ using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.Core.State.Observers;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.Observers;
-using Consolidator.Managed.State.Tree;
 
 namespace Consolidator.Managed.Core.State.Models;
 
@@ -41,7 +40,7 @@ internal sealed class ManagedStateBuilder
         _stateRegistry.CreateRoot(instanceId);
         try
         {
-            var runtime = DspDefaults.CreateRuntime();
+            var runtime = new DspRuntimeState();
             var context = new StateModelContext(instanceId, _stateValues, runtime);
             var transient = new InstanceTransientState(instanceId, _topologyObserver);
             var instance = CreateInstance(context);
@@ -73,13 +72,18 @@ internal sealed class ManagedStateBuilder
             instancePath.Append(StateNodeIds.Solo),
             StateValueDefinitions.Common.CopyValueWithoutHistory,
             _audibilityObserver.ObserveSolo(context.InstanceId, context.Runtime));
+        var bypass = CreateInstanceValue(
+            context,
+            instancePath.Append(StateNodeIds.Bypass),
+            StateValueDefinitions.Common.CopyValueWithoutHistory,
+            new StateProjectionObserver<bool>(value => context.Runtime.InstanceBypass = value));
         var banks = Enumerable.Range(0, DspConstants.BankCount)
             .Select(index => CreateBank(
                 context,
                 instancePath.Append(StateNodeIds.Bank).Append(StateNodeIds.BankAt(index)),
                 (BankId)index))
             .ToArray();
-        return new InstanceState(context.InstanceId, label, mute, solo, banks);
+        return new InstanceState(context.InstanceId, label, mute, solo, bypass, banks);
     }
 
     private BankState CreateBank(StateModelContext context, StatePath path, BankId id)
@@ -98,12 +102,21 @@ internal sealed class ManagedStateBuilder
     private DspState CreateDsp(StateModelContext context)
     {
         var dspPath = new StatePath([StateNodeIds.Dsp]);
-        var inputGain = CreateInput(context, dspPath.Append(StateNodeIds.InputGain));
-        var saturator = CreateSaturator(context, dspPath.Append(StateNodeIds.Saturator));
-        var compressor = CreateCompressor(context, dspPath.Append(StateNodeIds.Compressor));
+        var activity = new ActivityObserver(context.InstanceId, _activitySink);
+        var inputGain = CreateInput(
+            context,
+            dspPath.Append(StateNodeIds.InputGain),
+            activity);
+        var saturator = CreateSaturator(
+            context,
+            dspPath.Append(StateNodeIds.Saturator),
+            activity);
+        var compressor = CreateCompressor(
+            context,
+            dspPath.Append(StateNodeIds.Compressor),
+            activity);
         var polish = CreatePolish(context, dspPath.Append(StateNodeIds.Polish));
         var equalizer = CreateEqualizer(context, dspPath.Append(StateNodeIds.Equalizer));
-        var activity = new ActivityObserver(context.InstanceId, _activitySink);
         var equalizerBanks = Enumerable.Range(0, DspConstants.BankCount)
             .Select(index => CreateEqualizerBank(
                 context,
@@ -128,7 +141,10 @@ internal sealed class ManagedStateBuilder
         return dsp;
     }
 
-    private InputState CreateInput(StateModelContext context, StatePath path)
+    private InputState CreateInput(
+        StateModelContext context,
+        StatePath path,
+        ActivityObserver activity)
     {
         var runtime = context.Runtime;
         return new InputState(
@@ -145,7 +161,9 @@ internal sealed class ManagedStateBuilder
             CreateDetector(
                 context,
                 path.Append(StateNodeIds.Detector),
-                index => new DspFilterActiveObserver(active => runtime.SetDetectorFilterActive(index, active))));
+                runtime,
+                0,
+                index => activity.ObserveActive(active => runtime[index].Active = active ? 1U : 0U)));
     }
 
     private FilterState CreateFilter(
@@ -153,13 +171,20 @@ internal sealed class ManagedStateBuilder
         StateValueCreationContext valueContext,
         FilterDefinition definition,
         IReadOnlyList<IStateValueObserver<bool>> bypassObservers,
-        IReadOnlyList<IStateValueObserver<float>> gainObservers)
+        IReadOnlyList<IStateValueObserver<float>> gainObservers,
+        Action<FilterDefinition> initialize,
+        Action<float> setFrequency,
+        Action<float> setGain,
+        Action<float> setQ)
     {
+        initialize(definition);
         var gain = CreateParameter(
             context,
             valueContext with { Path = valueContext.Path.Append(definition.Gain.Node) },
             definition.Gain.Definition,
-            gainObservers.ToArray());
+            gainObservers
+                .Append(new StateProjectionObserver<float>(setGain))
+                .ToArray());
         var bypass = context.Values.Create(
             valueContext with { Path = valueContext.Path.Append(StateNodeIds.Bypass) },
             StateValueDefinitions.Common.CopyValueWithoutHistory,
@@ -176,20 +201,36 @@ internal sealed class ManagedStateBuilder
                 CreateParameter(
                     context,
                     valueContext with { Path = valueContext.Path.Append(fixedQ.Frequency.Node) },
-                    fixedQ.Frequency.Definition)),
+                    fixedQ.Frequency.Definition,
+                    new StateProjectionObserver<float>(setFrequency))),
             BellFilterDefinition bell => new BellFilterState(
                 definition, gain, bypass, solo,
                 CreateParameter(
                     context,
                     valueContext with { Path = valueContext.Path.Append(bell.Frequency.Node) },
-                    bell.Frequency.Definition),
+                    bell.Frequency.Definition,
+                    new StateProjectionObserver<float>(setFrequency)),
                 CreateParameter(
                     context,
                     valueContext with { Path = valueContext.Path.Append(bell.Q.Node) },
-                    bell.Q.Definition)),
+                    bell.Q.Definition,
+                    new StateProjectionObserver<float>(setQ))),
             _ => throw new InvalidOperationException("Unknown filter definition.")
         };
     }
+
+    private static DspFilterType GetDspFilterType(FilterDefinition definition) => definition switch
+    {
+        GainFilterDefinition => DspFilterType.Gain,
+        TiltFilterDefinition => DspFilterType.Tilt,
+        LowShelfFilterDefinition => DspFilterType.LowShelf,
+        HighShelfFilterDefinition => DspFilterType.HighShelf,
+        BellFilterDefinition => DspFilterType.Bell,
+        _ => throw new InvalidOperationException("Unknown filter definition.")
+    };
+
+    private static float GetFixedQ(FilterDefinition definition) =>
+        definition is FixedQFilterDefinition fixedQ ? fixedQ.FixedQ : 0.0F;
 
     private static StateValue<TValue> CreateParameter<TValue>(
         StateModelContext context,
@@ -203,6 +244,8 @@ internal sealed class ManagedStateBuilder
     private DetectorState CreateDetector(
         StateModelContext context,
         StatePath path,
+        DspRuntimeState runtime,
+        int runtimeOffset,
         Func<int, IStateValueObserver<bool>> observerFactory)
     {
         return new DetectorState(
@@ -214,7 +257,16 @@ internal sealed class ManagedStateBuilder
                         path.Append(StateNodeIds.Filter).Append(StateNodeIds.FilterAt(index))),
                     definition,
                     [observerFactory(index)],
-                    []))
+                    [],
+                    filterDefinition =>
+                    {
+                        ref var filter = ref runtime[runtimeOffset + index];
+                        filter.Type = (uint)GetDspFilterType(filterDefinition);
+                        filter.FixedQ = GetFixedQ(filterDefinition);
+                    },
+                    frequency => runtime[runtimeOffset + index].FrequencyHz = frequency,
+                    gain => runtime[runtimeOffset + index].GainDb = gain,
+                    q => runtime[runtimeOffset + index].Q = q))
                 .ToArray());
     }
 
@@ -225,12 +277,13 @@ internal sealed class ManagedStateBuilder
             ActivityObserver activity)
         {
             var runtime = context.Runtime;
+            var bank = runtime.EqualizerBanks[bankIndex];
             var bypass = CreateBankValue(
                 context,
                 path.Append(StateNodeIds.Bypass),
                 StateValueDefinitions.Common.CopyValueWithoutHistory,
                 new StateProjectionObserver<bool>(value =>
-                    runtime.SetEqualizerBankActive(bankIndex, !value)),
+                    bank.Active = !value),
                 activity.ObserveBankBypass(bankIndex));
             var solo = CreateBankValue(
                 context,
@@ -242,13 +295,24 @@ internal sealed class ManagedStateBuilder
                     StateValueCreationContext.Bank(
                         context.InstanceId,
                         path.Append(StateNodeIds.Filter).Append(StateNodeIds.FilterAt(index))),
-                    definition,
-                    [
-                        new DspFilterActiveObserver(activeValue =>
-                            runtime.SetEqualizerFilterActive(bankIndex, index, activeValue)),
-                        activity.ObserveFilterBypass(bankIndex, index)
-                    ],
-                    [activity.ObserveFilterGain(bankIndex, index)]))
+                        definition,
+                        [
+                            activity.ObserveActive(activeValue => bank[index].Active = activeValue ? 1U : 0U),
+                            activity.ObserveFilterBypass(bankIndex, index)
+                        ],
+                        [activity.ObserveFilterGain(bankIndex, index)],
+                        filterDefinition =>
+                        {
+                            ref var filter = ref bank[index];
+                            filter.Type = (uint)GetDspFilterType(filterDefinition);
+                            filter.FixedQ = GetFixedQ(filterDefinition);
+                        },
+                        frequency => bank[index].FrequencyHz = frequency,
+                        gain => bank[index].GainDb = gain,
+                        q =>
+                        {
+                            bank[index].Q = q;
+                        }))
                 .ToArray();
             return new EqualizerBankState(
                 bypass,
@@ -268,7 +332,10 @@ internal sealed class ManagedStateBuilder
                 new StateProjectionObserver<bool>(value => runtime.PolishBypass = value)));
     }
 
-    private SaturatorState CreateSaturator(StateModelContext context, StatePath path)
+    private SaturatorState CreateSaturator(
+        StateModelContext context,
+        StatePath path,
+        ActivityObserver activity)
     {
         var runtime = context.Runtime;
         return new SaturatorState(
@@ -289,11 +356,18 @@ internal sealed class ManagedStateBuilder
             CreateDetector(
                 context,
                 path.Append(StateNodeIds.Detector),
-                index => new DspFilterActiveObserver(active =>
-                    runtime.SetDetectorFilterActive(DspConstants.DetectorFilterCount + index, active))));
+                runtime,
+                DspConstants.DetectorFilterCount,
+                index => activity.ObserveActive(active =>
+                {
+                    runtime[DspConstants.DetectorFilterCount + index].Active = active ? 1U : 0U;
+                })));
     }
 
-    private CompressorState CreateCompressor(StateModelContext context, StatePath path)
+    private CompressorState CreateCompressor(
+        StateModelContext context,
+        StatePath path,
+        ActivityObserver activity)
     {
         var runtime = context.Runtime;
         return new CompressorState(
@@ -318,8 +392,12 @@ internal sealed class ManagedStateBuilder
             CreateDetector(
                 context,
                 path.Append(StateNodeIds.Detector),
-                index => new DspFilterActiveObserver(active =>
-                    runtime.SetDetectorFilterActive(DspConstants.DetectorFilterCount * 2 + index, active))));
+                runtime,
+                DspConstants.DetectorFilterCount * 2,
+                index => activity.ObserveActive(active =>
+                {
+                    runtime[DspConstants.DetectorFilterCount * 2 + index].Active = active ? 1U : 0U;
+                })));
     }
 
     private EqualizerState CreateEqualizer(StateModelContext context, StatePath path)

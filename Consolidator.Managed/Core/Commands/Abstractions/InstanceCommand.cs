@@ -2,6 +2,7 @@ using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Models;
 using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.State;
+using Consolidator.Managed.Core.Commands.Definitions;
 
 namespace Consolidator.Managed.Core.Commands.Abstractions;
 
@@ -19,6 +20,16 @@ public interface IInstanceCommand<TResult>
 public interface ITargetedInstanceCommand
 {
     InstanceId? TargetInstanceId { get; }
+}
+
+public interface IInstanceControlCommand
+    : IInstanceCommand<StateWriteStatus>, ITargetedInstanceCommand
+{
+    InstanceControlScope TargetScope { get; }
+
+    bool RequestedValue { get; }
+
+    SoloSelectionMode Mode { get; }
 }
 
 public sealed class InstanceCommandContext

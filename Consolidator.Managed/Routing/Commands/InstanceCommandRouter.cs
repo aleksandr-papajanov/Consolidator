@@ -54,12 +54,9 @@ public sealed class InstanceCommandRouter
                         $"Source instance was not found: {sourceInstanceId}."));
             }
 
-            var requestedTargetInstanceIds = command is ITargetedInstanceCommand
-                    { TargetInstanceId: { } explicitTarget }
-                    ? [explicitTarget]
-                    : command.Scope is CommandScope.Coordinator
-                    ? [sourceInstanceId]
-                    : ResolveTargets(sourceInstanceId, command.Scope);
+            var requestedTargetInstanceIds = ResolveTargetInstanceIds(
+                sourceInstanceId,
+                command);
             var bankTarget = command is ITargetedInstanceCommand
                 { TargetInstanceId: { } targetInstanceId }
                     ? _bankResolver.Resolve(sourceInstanceId, targetInstanceId)
@@ -107,8 +104,42 @@ public sealed class InstanceCommandRouter
         };
     }
 
+    private IReadOnlyList<InstanceId> ResolveTargetInstanceIds<TResult>(
+        InstanceId sourceInstanceId,
+        IInstanceCommand<TResult> command)
+    {
+        if (command is ITargetedInstanceCommand
+            { TargetInstanceId: { } explicitTarget })
+        {
+            return [explicitTarget];
+        }
+
+        if (command is WriteStateCommand writeCommand &&
+            IsLocalInstanceLabelWrite(writeCommand))
+        {
+            return [sourceInstanceId];
+        }
+
+        if (command.Scope is CommandScope.Coordinator)
+        {
+            return [sourceInstanceId];
+        }
+
+        return ResolveTargets(sourceInstanceId, command.Scope);
+    }
+
     private static bool IsScopedGroupReset(ResetStateCommand command) =>
         command.ResetMode is ResetScope.Group;
+
+    private static bool IsLocalInstanceLabelWrite(WriteStateCommand command)
+    {
+        return command.WriteMode is WriteScope.Local &&
+            command.Entries.Count > 0 &&
+            command.Entries.All(entry =>
+                entry.Path.Nodes.Count == 2 &&
+                entry.Path.Nodes[0] == StateNodeIds.Instance &&
+                entry.Path.Nodes[1] == StateNodeIds.Label);
+    }
 
     private static bool UsesGroupPropagation<TResult>(IInstanceCommand<TResult> command) =>
         command switch

@@ -19,14 +19,14 @@ internal sealed class AudibilityObserver
         InstanceId instanceId,
         DspRuntimeState runtime)
     {
-        return new ValueObserver(this, instanceId, runtime, true);
+        return new ValueObserver(this, instanceId, runtime, false);
     }
 
     public IStateValueObserver<bool> ObserveSolo(
         InstanceId instanceId,
         DspRuntimeState runtime)
     {
-        return new ValueObserver(this, instanceId, runtime, false);
+        return new ValueObserver(this, instanceId, runtime, true);
     }
 
     public void Refresh()
@@ -40,13 +40,14 @@ internal sealed class AudibilityObserver
         var hasSolo = instances.Any(instance => instance.Solo);
         foreach (var instance in instances)
         {
-            var audible = !instance.Mute &&
-                (!hasSolo || instance.Solo);
-            if (instance.Runtime.Audible != audible)
+            var audible = !instance.Mute && (!hasSolo || instance.Solo);
+            if (instance.Runtime.Audible == audible)
             {
-                instance.Runtime.Audible = audible;
-                _dspChanges.MarkChanged(instance.InstanceId);
+                continue;
             }
+
+            instance.Runtime.Audible = audible;
+            _dspChanges.MarkChanged(instance.InstanceId);
         }
     }
 
@@ -77,13 +78,13 @@ internal sealed class AudibilityObserver
 
     private void Attach(
         InstanceEntry entry,
-        bool mute,
+        bool solo,
         bool value)
     {
         lock (_lock)
         {
             entry.ObserverCount++;
-            SetValue(entry, mute, value);
+            SetValue(entry, solo, value);
         }
 
         Refresh();
@@ -91,12 +92,12 @@ internal sealed class AudibilityObserver
 
     private void Change(
         InstanceEntry entry,
-        bool mute,
+        bool solo,
         bool value)
     {
         lock (_lock)
         {
-            SetValue(entry, mute, value);
+            SetValue(entry, solo, value);
         }
 
         Refresh();
@@ -118,16 +119,16 @@ internal sealed class AudibilityObserver
 
     private static void SetValue(
         InstanceEntry entry,
-        bool mute,
+        bool solo,
         bool value)
     {
-        if (mute)
+        if (solo)
         {
-            entry.Mute = value;
+            entry.Solo = value;
         }
         else
         {
-            entry.Solo = value;
+            entry.Mute = value;
         }
     }
 
@@ -136,25 +137,25 @@ internal sealed class AudibilityObserver
         private readonly AudibilityObserver _owner;
         private readonly InstanceId _instanceId;
         private readonly DspRuntimeState _runtime;
-        private readonly bool _mute;
+        private readonly bool _solo;
         private InstanceEntry? _entry;
 
         public ValueObserver(
             AudibilityObserver owner,
             InstanceId instanceId,
             DspRuntimeState runtime,
-            bool mute)
+            bool solo)
         {
             _owner = owner;
             _instanceId = instanceId;
             _runtime = runtime;
-            _mute = mute;
+            _solo = solo;
         }
 
         public void Attach(StateValue<bool> value)
         {
             _entry = _owner.GetOrCreate(_instanceId, _runtime);
-            _owner.Attach(_entry, _mute, value.Value);
+            _owner.Attach(_entry, _solo, value.Value);
         }
 
         public void ValueChanged(
@@ -165,7 +166,7 @@ internal sealed class AudibilityObserver
             _owner.Change(
                 _entry ?? throw new InvalidOperationException(
                     "Observer is not attached."),
-                _mute,
+                _solo,
                 currentValue);
         }
 

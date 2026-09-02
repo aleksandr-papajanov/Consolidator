@@ -5,7 +5,7 @@ using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Core.Services;
 
-internal sealed class InstanceActivityCoordinator
+internal sealed class ActiveInstanceCoordinator
 {
     private readonly FftAnalyzer _analyzer;
     private readonly IPresentationTransport _presentation;
@@ -13,7 +13,7 @@ internal sealed class InstanceActivityCoordinator
     private readonly object _lock = new();
     private InstanceId? _activeInstanceId;
 
-    public InstanceActivityCoordinator(
+    public ActiveInstanceCoordinator(
         FftAnalyzer analyzer,
         IPresentationTransport presentation,
         RegistryChangePublisher registryChanges)

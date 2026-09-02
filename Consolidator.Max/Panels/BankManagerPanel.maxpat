@@ -16,7 +16,7 @@
 		"boxes" : [ 			{
 				"box" : 				{
 					"border" : 0,
-					"filename" : "BankManagerControl.js",
+					"filename" : "Project:/js/Controls/BankManager/BankManagerControl.js",
 					"id" : "control",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
@@ -27,7 +27,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 0.0, 0.0, 806.0, 169.0 ],
 					"textfile" : 					{
-						"filename" : "BankManagerControl.js",
+						"filename" : "Project:/js/Controls/BankManager/BankManagerControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -52,7 +52,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "PanelBindingHostV8.js",
+					"filename" : "Project:/js/PanelBindingHostV8.js",
 					"id" : "router",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -64,7 +64,7 @@
 ,
 					"text" : "v8 Project:/js/PanelBindingHostV8.js",
 					"textfile" : 					{
-						"filename" : "PanelBindingHostV8.js",
+						"filename" : "Project:/js/PanelBindingHostV8.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

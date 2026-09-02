@@ -4,38 +4,8 @@ using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.State;
-using Consolidator.Managed.Protocol.Notifications;
-using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
-
-internal sealed class InitializeUiCommandHandler
-    : CommandHandler<InitializeUiCommand, UiInitializationResult>
-{
-    private readonly StateHistory _history;
-    private readonly HistoryStatePublisher _historyStatePublisher;
-
-    public InitializeUiCommandHandler(
-        StateHistory history,
-        HistoryStatePublisher historyStatePublisher)
-    {
-        _history = history;
-        _historyStatePublisher = historyStatePublisher;
-    }
-
-    public override ValueTask<UiInitializationResult> HandleAsync(
-        InitializeUiCommand command,
-        InstanceCommandContext context,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        _historyStatePublisher.Publish(_history.Snapshot);
-        return ValueTask.FromResult(
-            new UiInitializationResult(
-                context.InstanceId.Value,
-                context.State.Transient.Selection.SelectedProcessor));
-    }
-}
 
 internal sealed class ObserveTargetCommandHandler
     : CommandHandler<ObserveTargetCommand, TargetStateSnapshotResult>
@@ -82,26 +52,5 @@ internal sealed class ObserveTargetCommandHandler
         }
         return ValueTask.FromResult(
             _projector.Project(target.State, command.BankId, command.SnapshotContext));
-    }
-}
-
-internal sealed class SetInstanceActiveCommandHandler
-    : CommandHandler<SetInstanceActiveCommand, CommandAcknowledgement>
-{
-    private readonly InstanceActivityCoordinator _activity;
-
-    public SetInstanceActiveCommandHandler(InstanceActivityCoordinator activity)
-    {
-        _activity = activity;
-    }
-
-    public override ValueTask<CommandAcknowledgement> HandleAsync(
-        SetInstanceActiveCommand command,
-        InstanceCommandContext context,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        _activity.SetInstanceActive(context.InstanceId, command.Active);
-        return ValueTask.FromResult(new CommandAcknowledgement());
     }
 }

@@ -72,6 +72,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 state.Instance.Label.Value,
                 state.Instance.Mute.Value,
                 state.Instance.Solo.Value,
+                state.Instance.Bypass.Value,
                 state.Activity.Snapshot(),
                 state.Instance.Banks
                     .Select(bank => (
@@ -221,6 +222,7 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                 instance.State.Instance.Label.Value,
                 instance.State.Instance.Mute.Value,
                 instance.State.Instance.Solo.Value,
+                instance.State.Instance.Bypass.Value,
                 instance.State.Activity.Snapshot(),
                 instance.State.Instance.Banks
                     .Select(bank => new RegistryBankSnapshot(

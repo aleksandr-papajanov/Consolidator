@@ -1,6 +1,30 @@
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Consolidator.Managed.Core.Dsp;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct FilterSnapshot
+{
+    public uint Active;
+    public uint Type;
+    public float FrequencyHz;
+    public float GainDb;
+    public float Q;
+    public float FixedQ;
+}
+
+[InlineArray(49)]
+public struct EqualizerFilterSnapshotBuffer
+{
+    private FilterSnapshot _element;
+}
+
+[InlineArray(6)]
+public struct DetectorFilterSnapshotBuffer
+{
+    private FilterSnapshot _element;
+}
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct DspSnapshot
@@ -38,6 +62,7 @@ public unsafe struct DspSnapshot
     public uint OutputLimiter;
 
     public uint Audible;
+    public uint InstanceBypass;
     public uint InputGainActive;
     public uint SaturatorActive;
     public uint CompressorActive;
@@ -45,9 +70,9 @@ public unsafe struct DspSnapshot
     public uint OutputGainActive;
     public fixed uint EqualizerBanksActive[7];
 
-    public fixed uint EqualizerFiltersActive[49];
+    public EqualizerFilterSnapshotBuffer EqualizerFilters;
 
-    public fixed uint DetectorFiltersActive[6];
+    public DetectorFilterSnapshotBuffer DetectorFilters;
 }
 
 

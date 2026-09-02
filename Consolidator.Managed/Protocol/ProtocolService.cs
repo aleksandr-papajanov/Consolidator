@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading.Channels;
 
 using Consolidator.Managed.Core.Commands.Definitions;
+using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Protocol.Decoding;
 using Consolidator.Managed.Protocol.Dispatch;
@@ -18,6 +19,7 @@ internal sealed class ProtocolService : IDisposable
     private readonly CommandDecoder _decoder;
     private readonly CommandEndpointRegistry _endpoints;
     private readonly IProtocolTransport _transport;
+    private readonly IManagedLogger _logger;
     private readonly Channel<QueuedCommand> _commands = Channel.CreateBounded<QueuedCommand>(
         new BoundedChannelOptions(QueueCapacity)
         {
@@ -34,15 +36,18 @@ internal sealed class ProtocolService : IDisposable
     public ProtocolService(
         CommandDecoder decoder,
         CommandEndpointRegistry endpoints,
-        IProtocolTransport transport)
+        IProtocolTransport transport,
+        IManagedLogger logger)
     {
         ArgumentNullException.ThrowIfNull(decoder);
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(transport);
+        ArgumentNullException.ThrowIfNull(logger);
 
         _decoder = decoder;
         _endpoints = endpoints;
         _transport = transport;
+        _logger = logger;
         _worker = Task.Run(ProcessCommandsAsync);
     }
 
@@ -57,6 +62,12 @@ internal sealed class ProtocolService : IDisposable
         }
         catch (Exception exception)
         {
+            if (exception is not FormatException && exception is not ProtocolException)
+            {
+                _logger.Error(
+                    $"Protocol decode boundary failed for '{message.Selector}' " +
+                    $"from instance {message.SourceInstanceId}: {exception}");
+            }
             SendError(message, exception);
             return;
         }
@@ -147,6 +158,8 @@ internal sealed class ProtocolService : IDisposable
                     }
                     catch (Exception exception)
                     {
+                        _logger.Error(
+                            $"Protocol barrier failed: {exception}");
                         queued.Completion!.SetException(exception);
                     }
 
@@ -185,6 +198,10 @@ internal sealed class ProtocolService : IDisposable
                 }
                 catch (Exception exception)
                 {
+                    _logger.Error(
+                        $"Protocol command execution failed for '{command.Selector}' " +
+                        $"from instance {command.SourceInstanceId}, request " +
+                        $"{command.RequestId}: {exception}");
                     _transport.Send(ProtocolErrorEncoder.Encode(
                         command.SourceInstanceId,
                         command.RequestId,
@@ -199,6 +216,10 @@ internal sealed class ProtocolService : IDisposable
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception exception)
+        {
+            _logger.Error($"Protocol worker boundary failed: {exception}");
         }
     }
 

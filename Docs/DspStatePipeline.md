@@ -4,8 +4,10 @@
 
 The Managed state tree is the only source of truth for user parameters. Value
 observers project committed changes into the per-instance `DspRuntimeState`, and
-the resulting fixed-layout `DspSnapshot` is published to Native. The audio
-callback reads only that published snapshot.
+the resulting fixed-layout `DspSnapshot` is published to Native. The snapshot
+also carries fixed structured slots for equalizer and detector filter type,
+activity, frequency, gain, Q and fixed Q. The audio callback reads only that
+published snapshot.
 
 Managed does not maintain a second analyzer copy of filter state, coefficient
 caches, dirty-bank maps, or rendered curve arrays. Coefficient and response

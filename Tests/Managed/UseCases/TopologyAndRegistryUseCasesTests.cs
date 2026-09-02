@@ -225,6 +225,48 @@ public sealed class TopologyAndRegistryUseCasesTests
     }
 
     [Fact]
+    public void AdditiveSoloAddsTheCompleteGroupWhenFocusedBankChangesGroups()
+    {
+        using var application = new ManagedApplicationFixture();
+        var trackA = application.RegisterInstance();
+        var trackB = application.RegisterInstance();
+        var trackC = application.RegisterInstance();
+        var trackD = application.RegisterInstance();
+
+        WriteGroup(application, trackA, trackA, 0, 1);
+        WriteGroup(application, trackA, trackC, 0, 1);
+        WriteGroup(application, trackB, trackB, 0, 2);
+        WriteGroup(application, trackB, trackD, 0, 2);
+
+        SendSolo(application, trackA, trackA, 0, true, false, true);
+        SendSolo(application, trackB, trackB, 0, true, true, true);
+
+        AssertSolo(application, trackA, true);
+        AssertSolo(application, trackB, true);
+        AssertSolo(application, trackC, true);
+        AssertSolo(application, trackD, true);
+    }
+
+    [Fact]
+    public void GroupScopeTreatsAnUngroupedTargetAsAStandaloneInstance()
+    {
+        using var application = new ManagedApplicationFixture();
+        var grouped = application.RegisterInstance();
+        var groupPeer = application.RegisterInstance();
+        var ungrouped = application.RegisterInstance();
+
+        WriteGroup(application, grouped, grouped, 0, 1);
+        WriteGroup(application, grouped, groupPeer, 0, 1);
+
+        SendSolo(application, grouped, grouped, 0, true, false, true);
+        SendSolo(application, grouped, ungrouped, 0, true, false, true);
+
+        AssertSolo(application, grouped, false);
+        AssertSolo(application, groupPeer, false);
+        AssertSolo(application, ungrouped, true);
+    }
+
+    [Fact]
     public void SoloRecognizesAGroupWhenANewTrackJoinsAfterTheGroupExists()
     {
         using var application = new ManagedApplicationFixture();
@@ -313,14 +355,14 @@ public sealed class TopologyAndRegistryUseCasesTests
     }
 
     [Fact]
-    public void UngroupedInstanceControlTargetDoesNotFallBackToTheInstance()
+    public void UngroupedInstanceControlTargetFallsBackToTheInstance()
     {
         using var application = new ManagedApplicationFixture();
         var instance = application.RegisterInstance();
 
         SendMute(application, instance, instance, 0, true, true);
 
-        AssertMute(application, instance, false);
+        AssertMute(application, instance, true);
     }
 
     [Fact]
@@ -432,6 +474,7 @@ public sealed class TopologyAndRegistryUseCasesTests
             Symbol("equalizer"));
         application.Send(source, "set_instance_solo", new[]
         {
+            Symbol(target.InstanceId.Value.ToString()),
             Symbol(group ? "group" : "local"),
             Integer(enabled ? 1 : 0),
             Symbol(additive ? "additive" : "exclusive")
@@ -444,7 +487,8 @@ public sealed class TopologyAndRegistryUseCasesTests
         TestInstance target,
         int? bankId,
         bool muted,
-        bool group)
+        bool group,
+        bool additive = false)
     {
         application.Send(
             source,
@@ -455,8 +499,10 @@ public sealed class TopologyAndRegistryUseCasesTests
         application.Send(
             source,
             "set_instance_mute",
+            Symbol(target.InstanceId.Value.ToString()),
             Symbol(group ? "group" : "local"),
-            Integer(muted ? 1 : 0));
+            Integer(muted ? 1 : 0),
+            Symbol(additive ? "additive" : "exclusive"));
     }
 
     private static void AssertSolo(

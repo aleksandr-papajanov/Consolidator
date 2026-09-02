@@ -18,7 +18,7 @@ Managed instance registry
 
 ## Managed to Native: DSP State
 
-Each native external owns one `SharedDspExchange` and passes its pointer during
+Each native external owns one `DspStateExchange` and passes its pointer during
 instance registration. The exchange has three snapshots plus `publishedIndex`,
 and `consumerIndex`. Managed reads the published and consumer-protected slots,
 writes the only remaining slot, and publishes its index with `Volatile.Write`.
@@ -40,12 +40,15 @@ snapshot. The exchange remains a POD layout; C++ applies `std::atomic_ref` to
 its two publication fields.
 
 `DspSnapshot` contains the current scalar runtime controls for input/output
-level, saturator, compressor, Polish, and equalizer state. The per-instance `StateTree`
-is authoritative; its value observers maintain the small `DspRuntimeState` projection
-from which the fixed-layout snapshot is published. Boolean markers use
-`uint32` values in the ABI (`0` or `1`) so the
-C# and C++ layouts remain explicit and blittable. Filter-bank values and
-compiled coefficients are a separate future extension of this snapshot.
+level, saturator, compressor, Polish, and equalizer state, together with fixed
+structured slots for equalizer and detector filters. Each slot carries activity,
+filter type, frequency, gain, Q and fixed Q; parameters not supported by a
+filter type are zero. The per-instance `StateTree` is authoritative; its value
+observers maintain the small `DspRuntimeState` projection from which the
+fixed-layout snapshot is published. Boolean markers use `uint32` values in the
+ABI (`0` or `1`) so the C# and C++ layouts remain explicit and blittable. The
+snapshot carries raw filter data, not compiled coefficients; Native DSP
+compilation remains a later consumer of these slots.
 Snapshot structs have no domain defaults. The initial macro-control state is
 created by Managed `DspDefaults` and compiled before the first publish.
 `Prepare(sampleRate, maximumFrameCount)` is reserved for updating the DSP
@@ -320,10 +323,11 @@ its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
 `ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute`,
-`set_instance_solo` and `set_processor_bypass` as relative Max messages. They
-carry only `local` or `group`, the value, and the processor ID when applicable.
-Managed resolves
-the target instance and exact group from the source `SelectionContext`.
+`set_instance_solo`, `set_instance_bypass`, and `set_processor_bypass` as
+relative Max messages. Solo, mute, and instance bypass carry the target
+instance ID and selection mode. Managed resolves the
+target instance and exact group from the source `SelectionContext` through
+`ContextualBankResolver`.
 Exact group resolution and all instance-state
 mutations are computed in Managed.
 

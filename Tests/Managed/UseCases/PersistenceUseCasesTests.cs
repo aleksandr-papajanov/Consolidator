@@ -97,6 +97,7 @@ public sealed class PersistenceUseCasesTests
         application.Send(
             restoredInstance,
             "set_instance_solo",
+            Symbol(restoredInstance.InstanceId.Value.ToString()),
             Symbol("local"),
             Integer(1),
             Symbol("exclusive"));

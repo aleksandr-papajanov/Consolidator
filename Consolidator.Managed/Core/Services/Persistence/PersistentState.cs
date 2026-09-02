@@ -8,7 +8,7 @@ internal sealed record PersistentStateV4(
     PersistentBank[] Banks,
     PersistentDsp Dsp);
 
-internal sealed record PersistentInstance(bool Mute, bool Solo);
+internal sealed record PersistentInstance(bool Mute, bool Solo, bool Bypass);
 
 internal sealed record PersistentBank(uint? Group);
 

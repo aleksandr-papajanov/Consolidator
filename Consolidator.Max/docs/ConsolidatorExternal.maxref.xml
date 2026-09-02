@@ -79,6 +79,11 @@
 			<description></description>
 		</method>
 
+		<method name='set_instance_bypass'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='set_processor_bypass'>
 			<digest></digest>
 			<description></description>

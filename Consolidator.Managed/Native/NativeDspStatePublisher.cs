@@ -5,9 +5,9 @@ namespace Consolidator.Managed.Native;
 public unsafe sealed class NativeDspStatePublisher : IDspStatePublisher
 {
     private readonly object _publishLock = new();
-    private SharedDspExchange* _exchange;
+    private DspStateExchange* _exchange;
 
-    public NativeDspStatePublisher(SharedDspExchange* exchange)
+    public NativeDspStatePublisher(DspStateExchange* exchange)
     {
         if (exchange == null)
         {

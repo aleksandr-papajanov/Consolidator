@@ -18,6 +18,7 @@ public sealed record RegistryInstanceSnapshot(
     string Label,
     bool Mute,
     bool Solo,
+    bool Bypass,
     IReadOnlyList<ProcessorStatus> Processors,
     IReadOnlyList<RegistryBankSnapshot> Banks);
 

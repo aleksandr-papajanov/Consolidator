@@ -38,7 +38,8 @@ class BankManagerControlBinding extends ControlBinding
                 row.label || "",
                 row.local ? 1 : 0,
                 row.solo ? 1 : 0,
-                row.mute ? 1 : 0
+                row.mute ? 1 : 0,
+                row.bypass ? 1 : 0
             ]);
             this.sendProcessors("processor", row, rowIndex);
             (row.banks || []).forEach((bank) => {
@@ -194,13 +195,21 @@ class BankManagerControlBinding extends ControlBinding
         rowIndex
     )
     {
+        if (typeof post === "function")
+        {
+            post("[Consolidator][TrackName] BankManagerControlBinding " +
+                selector + " row=" + rowIndex + " instanceId=" +
+                JSON.stringify(row.instanceId) + " label=" +
+                JSON.stringify(row.label) + "\n");
+        }
         this.send(selector, [
             rowIndex,
             row.instanceId,
             row.label || "",
             row.local ? 1 : 0,
             row.solo ? 1 : 0,
-            row.mute ? 1 : 0
+            row.mute ? 1 : 0,
+            row.bypass ? 1 : 0
         ]);
     }
     

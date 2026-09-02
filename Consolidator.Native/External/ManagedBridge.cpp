@@ -79,7 +79,7 @@ private:
     using RegisterInstanceFn = InstanceId (__cdecl *)(
         void*,
         ManagedOutputCallback,
-        SharedDspExchange*,
+        DspStateExchange*,
         AudioInputHandle*);
 
     using UnregisterInstanceFn = void (__cdecl *)(InstanceId);
@@ -252,7 +252,7 @@ bool ManagedBridge::IsLoaded() const noexcept
 InstanceId ManagedBridge::RegisterInstance(
     void* context,
     ManagedOutputCallback outputCallback,
-    SharedDspExchange* dspExchange,
+    DspStateExchange* dspExchange,
     AudioInputHandle* audioInputHandle) const
 {
     const auto* runtime = implementation_->runtime;

@@ -20,6 +20,7 @@ class RegistryClient
         protocol.on("registry_label_changed", this.handleDelta.bind(this, "registry_label_changed"));
         protocol.on("registry_instance_mute_changed", this.handleDelta.bind(this, "registry_instance_mute_changed"));
         protocol.on("registry_instance_solo_changed", this.handleDelta.bind(this, "registry_instance_solo_changed"));
+        protocol.on("registry_instance_bypass_changed", this.handleDelta.bind(this, "registry_instance_bypass_changed"));
         protocol.on("registry_processor", this.handleProcessor.bind(this));
         protocol.on("registry_processor_changed", this.handleDelta.bind(this, "registry_processor_changed"));
         protocol.on("registry_processor_markers_changed", this.handleProcessorMarkersChanged.bind(this));
@@ -49,6 +50,11 @@ class RegistryClient
     
     handleDelta(selector, args)
     {
+        if (selector === "registry_label_changed" && typeof post === "function")
+        {
+            post("[Consolidator][TrackName] RegistryClient delta=" +
+                JSON.stringify(args) + "\n");
+        }
         let previousRevision = Number(args[1]);
         let revision = Number(args[2]);
         if (!isFinite(previousRevision) || !isFinite(revision)) {
@@ -70,6 +76,8 @@ class RegistryClient
             this.applyInstanceBooleanChanged(args, "mute");
         } else if (selector === "registry_instance_solo_changed") {
             this.applyInstanceBooleanChanged(args, "solo");
+        } else if (selector === "registry_instance_bypass_changed") {
+            this.applyInstanceBooleanChanged(args, "bypass");
         } else if (selector === "registry_processor_changed") {
             this.applyProcessorChanged(args);
         } else if (selector === "registry_bank_group_changed") {
@@ -91,10 +99,11 @@ class RegistryClient
             label: String(args[4]),
             mute: Number(args[5]) !== 0,
             solo: Number(args[6]) !== 0,
+            bypass: Number(args[7]) !== 0,
             processors: [],
             banks: []
         };
-        let processorCount = Number(args[7]);
+        let processorCount = Number(args[8]);
         for (let index = 0; index < processorCount; index += 1) {
             let position = 8 + index * 3;
             instance.processors.push({
@@ -104,9 +113,9 @@ class RegistryClient
                 bypassed: Number(args[position + 2]) !== 0
             });
         }
-        let count = Number(args[8 + processorCount * 3]);
+        let count = Number(args[9 + processorCount * 3]);
         for (let index = 0; index < count; index += 1) {
-            let position = 9 + processorCount * 3 + index * 3;
+            let position = 10 + processorCount * 3 + index * 3;
             instance.banks.push({
                 bankId: args[position],
                 groupId: args[position + 1] === "none" ? null : args[position + 1],
@@ -129,6 +138,12 @@ class RegistryClient
     applyLabelChanged(args)
     {
         let instanceId = String(args[3]);
+        if (typeof post === "function")
+        {
+            post("[Consolidator][TrackName] RegistryClient apply instanceId=" +
+                JSON.stringify(instanceId) + " label=" +
+                JSON.stringify(args[4]) + "\n");
+        }
         this.snapshot.instances.forEach((instance) => {
             if (String(instance.instanceId) === instanceId) instance.label = String(args[4]);
         });
@@ -302,6 +317,7 @@ class RegistryClient
             label: String(args[4]),
             mute: Number(args[5]) !== 0,
             solo: Number(args[6]) !== 0,
+            bypass: Number(args[7]) !== 0,
             processors: [],
             banks: []
         };

@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Commands.Definitions;
-using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Protocol.Dispatch;
 using Consolidator.Managed.Protocol.Messages;
@@ -104,22 +103,40 @@ internal sealed class SetInstanceMuteInputCodec : IInputCodec
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header)
     {
+        var targetPosition = header.Position;
+        if (targetPosition >= atoms.Length)
+        {
+            throw new FormatException("Missing target instance id.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[targetPosition++]));
         var targetScope = InstanceControlInputCodecSupport.ReadScope(
             atoms,
-            header,
+            header with { Position = targetPosition },
             out var valuePosition);
-        if (atoms.Length != valuePosition + 1 ||
+        if (atoms.Length != valuePosition + 2 ||
             atoms[valuePosition].Type != AtomType.Integer ||
-            atoms[valuePosition].Integer is < 0 or > 1)
+            atoms[valuePosition].Integer is < 0 or > 1 ||
+            atoms[valuePosition + 1].Type != AtomType.Symbol)
         {
             throw new FormatException("Invalid set_instance_mute frame.");
         }
+
+        var mode = atoms[valuePosition + 1].Symbol switch
+        {
+            "exclusive" => SoloSelectionMode.Exclusive,
+            "additive" => SoloSelectionMode.Additive,
+            _ => throw new FormatException("Invalid mute selection mode.")
+        };
 
         return CommandCodecSupport.Success(
             header,
             new SetInstanceMuteCommand(
                 targetScope,
-                atoms[valuePosition].Integer == 1));
+                atoms[valuePosition].Integer == 1,
+                mode,
+                targetInstanceId));
     }
 }
 
@@ -131,9 +148,17 @@ internal sealed class SetInstanceSoloInputCodec : IInputCodec
         ReadOnlySpan<Atom> atoms,
         CommandFrameHeader header)
     {
+        var targetPosition = header.Position;
+        if (targetPosition >= atoms.Length)
+        {
+            throw new FormatException("Missing target instance id.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[targetPosition++]));
         var targetScope = InstanceControlInputCodecSupport.ReadScope(
             atoms,
-            header,
+            targetPosition,
             out var valuePosition);
         if (atoms.Length != valuePosition + 2 ||
             atoms[valuePosition].Type != AtomType.Integer ||
@@ -154,7 +179,48 @@ internal sealed class SetInstanceSoloInputCodec : IInputCodec
             new SetInstanceSoloCommand(
                 targetScope,
                 atoms[valuePosition].Integer == 1,
-                mode));
+                mode,
+                targetInstanceId));
+    }
+}
+
+internal sealed class SetInstanceBypassInputCodec : IInputCodec
+{
+    public string Selector => "set_instance_bypass";
+
+    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
+    {
+        var targetPosition = header.Position;
+        if (targetPosition >= atoms.Length)
+        {
+            throw new FormatException("Missing target instance id.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[targetPosition++]));
+        var targetScope = InstanceControlInputCodecSupport.ReadScope(
+            atoms, targetPosition, out var valuePosition);
+        if (atoms.Length != valuePosition + 2 ||
+            atoms[valuePosition].Type != AtomType.Integer ||
+            atoms[valuePosition].Integer is < 0 or > 1 ||
+            atoms[valuePosition + 1].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid set_instance_bypass frame.");
+        }
+
+        var mode = atoms[valuePosition + 1].Symbol switch
+        {
+            "exclusive" => SoloSelectionMode.Exclusive,
+            "additive" => SoloSelectionMode.Additive,
+            _ => throw new FormatException("Invalid bypass selection mode.")
+        };
+        return CommandCodecSupport.Success(
+            header,
+            new SetInstanceBypassCommand(
+                targetScope,
+                atoms[valuePosition].Integer == 1,
+                mode,
+                targetInstanceId));
     }
 }
 
@@ -201,19 +267,27 @@ internal static class InstanceControlInputCodecSupport
         CommandFrameHeader header,
         out int valuePosition)
     {
-        if (atoms.Length < header.Position + 2 ||
-            atoms[header.Position].Type != AtomType.Symbol)
+        return ReadScope(atoms, header.Position, out valuePosition);
+    }
+
+    public static InstanceControlScope ReadScope(
+        ReadOnlySpan<Atom> atoms,
+        int position,
+        out int valuePosition)
+    {
+        if (atoms.Length < position + 2 ||
+            atoms[position].Type != AtomType.Symbol)
         {
             throw new FormatException("Invalid instance control frame.");
         }
 
-        valuePosition = header.Position + 1;
-        if (atoms[header.Position].Symbol == "local")
+        valuePosition = position + 1;
+        if (atoms[position].Symbol == "local")
         {
             return InstanceControlScope.Instance;
         }
 
-        if (atoms[header.Position].Symbol != "group")
+        if (atoms[position].Symbol != "group")
         {
             throw new FormatException("Invalid instance control group target.");
         }

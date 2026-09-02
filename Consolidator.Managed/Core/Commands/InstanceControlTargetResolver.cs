@@ -31,10 +31,44 @@ internal sealed class InstanceControlTargetResolver
             return false;
         }
 
+        return TryResolve(scope, selectedBank.Value, out instanceIds);
+    }
+
+    public bool TryResolve(
+        InstanceControlScope scope,
+        InstanceCommandContext context,
+        InstanceId targetInstanceId,
+        out IReadOnlyList<InstanceId> instanceIds)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.BankTarget is null ||
+            context.BankTarget.TargetBank.InstanceId != targetInstanceId)
+        {
+            instanceIds = Array.Empty<InstanceId>();
+            return false;
+        }
+
+        return TryResolve(
+            scope,
+            context.BankTarget.TargetBank,
+            out instanceIds);
+    }
+
+    private bool TryResolve(
+        InstanceControlScope scope,
+        BankAddress targetBank,
+        out IReadOnlyList<InstanceId> instanceIds)
+    {
+        if (!_instances.Contains(targetBank.InstanceId))
+        {
+            instanceIds = Array.Empty<InstanceId>();
+            return false;
+        }
+
         if (scope is InstanceControlScope.Instance)
         {
-            instanceIds = [selectedBank.Value.InstanceId];
-            return _instances.Contains(selectedBank.Value.InstanceId);
+            instanceIds = [targetBank.InstanceId];
+            return true;
         }
 
         if (scope is not InstanceControlScope.BankGroup)
@@ -43,8 +77,10 @@ internal sealed class InstanceControlTargetResolver
             return false;
         }
 
-        instanceIds = _topology.GetBankGroupInstanceIds(
-            selectedBank.Value);
-        return instanceIds.Count > 0;
+        var groupInstanceIds = _topology.GetBankGroupInstanceIds(targetBank);
+        instanceIds = groupInstanceIds.Count > 0
+            ? groupInstanceIds
+            : [targetBank.InstanceId];
+        return true;
     }
 }

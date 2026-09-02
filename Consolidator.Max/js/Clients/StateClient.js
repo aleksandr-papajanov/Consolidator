@@ -44,6 +44,16 @@ class StateClient
         if (entries.length > MAX_BATCH_SIZE) {
             throw new Error("State batch cannot exceed 16 entries.");
         }
+        if (typeof post === "function" && entries.some((entry) => {
+            let path = Array.isArray(entry.path) ? entry.path.join(".") : entry.path;
+            return String(path) === "label";
+        }))
+        {
+            post("[Consolidator][TrackName] StateClient write scope=" +
+                JSON.stringify(scope) + " instanceId=" +
+                JSON.stringify(instanceId) + " entries=" +
+                JSON.stringify(entries) + "\n");
+        }
         let coalescingTransactionId = transactionId || 0;
         let body = [String(scope)];
         if (scope === "topology") body.push(String(instanceId));
@@ -51,7 +61,10 @@ class StateClient
         entries.forEach((entry) => {
             body.push("entry");
             body = body.concat(this.encodePath(entry.path));
-            body.push("value", this.encodeValue(entry.path, entry.value));
+            body.push(
+                "value",
+                this.encodeValue(entry.path, entry.value),
+                "copy");
         }, this);
         return this.protocol.request("write", body, callback);
     }

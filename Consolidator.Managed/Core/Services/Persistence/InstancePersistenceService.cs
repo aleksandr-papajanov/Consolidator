@@ -6,7 +6,6 @@ using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.State.Models;
-using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Services.Persistence;
@@ -66,7 +65,8 @@ internal sealed class InstancePersistenceService
         CurrentSchema,
         new PersistentInstance(
             state.Instance.Mute.Value,
-            state.Instance.Solo.Value),
+            state.Instance.Solo.Value,
+            state.Instance.Bypass.Value),
         state.Instance.Banks
             .Select(bank => new PersistentBank(bank.Group.Value?.Value))
             .ToArray(),
@@ -138,6 +138,7 @@ internal sealed class InstancePersistenceService
         using var transaction = new StateHistoryTransaction();
         state.Instance.Mute.PrepareBaseline(snapshot.Instance.Mute, transaction);
         state.Instance.Solo.PrepareBaseline(snapshot.Instance.Solo, transaction);
+        state.Instance.Bypass.PrepareBaseline(snapshot.Instance.Bypass, transaction);
         for (var index = 0; index < DspConstants.BankCount; index++)
         {
             state.Instance.Banks[index].Group.PrepareBaseline(
