@@ -64,7 +64,8 @@ public sealed class CommandExecutor
                 command is SetInstanceMuteCommand ||
                 command is SetInstanceSoloCommand ||
                 command is SetInstanceBypassCommand ||
-                command is SetProcessorBypassCommand) &&
+                command is SetProcessorBypassCommand ||
+                command is SetBankBypassCommand) &&
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {

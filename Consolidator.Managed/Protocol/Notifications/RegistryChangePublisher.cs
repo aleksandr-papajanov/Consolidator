@@ -48,7 +48,7 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink, IRegistryCh
         bool solo,
         bool bypass,
         IReadOnlyList<ProcessorStatus> processors,
-        IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive)> banks)
+        IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive, bool Bypassed)> banks)
     {
         var payload = new List<Atom>(6 + banks.Count * 3)
         {
@@ -71,6 +71,7 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink, IRegistryCh
             payload.Add(Integer(bank.BankId));
             payload.Add(bank.GroupId is { } group ? Integer(group) : Symbol("none"));
             payload.Add(Integer(bank.EffectActive ? 1 : 0));
+            payload.Add(Integer(bank.Bypassed ? 1 : 0));
         }
         Publish("registry_instance_added", payload.ToArray());
     }
@@ -109,6 +110,16 @@ internal sealed class RegistryChangePublisher : IActivityStatusSink, IRegistryCh
             Symbol(instanceId.Value.ToString()),
             Integer(bankId),
             Integer(effectActive ? 1 : 0));
+
+    public void BankBypassChanged(
+        InstanceId instanceId,
+        int bankId,
+        bool bypassed) =>
+        Publish(
+            "registry_bank_bypass_changed",
+            Symbol(instanceId.Value.ToString()),
+            Integer(bankId),
+            Integer(bypassed ? 1 : 0));
 
     public void ProcessorActivityChanged(InstanceId instanceId, ProcessorStatus status) =>
         Publish(

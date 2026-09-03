@@ -57,7 +57,8 @@ public sealed class CommandRoundTripTests
             Symbol("input_gain"),
             Symbol("level"),
             Symbol("value"),
-            Float(5.5));
+            Float(5.5),
+            Symbol("copy"));
         instance.WaitForResponse("101");
 
         Assert.Equal(5.5F, instance.PublishedGain);
@@ -132,7 +133,8 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("gain"),
             Symbol("value"),
-            Float(4.5));
+            Float(4.5),
+            Symbol("copy"));
         instance.WaitForResponse("2");
 
         var activeNotification = Assert.Single(
@@ -175,7 +177,8 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("gain"),
             Symbol("value"),
-            Float(0));
+            Float(0),
+            Symbol("copy"));
         instance.WaitForResponse("3");
 
         var notification = Assert.Single(
@@ -296,7 +299,8 @@ public sealed class CommandRoundTripTests
             Integer(bank),
             Symbol("group"),
             Symbol("value"),
-            Integer(group));
+            Integer(group),
+            Symbol("copy"));
         source.WaitForResponse(requestId);
     }
 
@@ -319,7 +323,8 @@ public sealed class CommandRoundTripTests
             Symbol("input_gain"),
             Symbol("level"),
             Symbol("value"),
-            Float(gain));
+            Float(gain),
+            Symbol("copy"));
         instance.WaitForResponse(requestId);
         var error = instance.Frames.SingleOrDefault(
             frame => frame.Selector == "error");
@@ -383,7 +388,8 @@ public sealed class CommandRoundTripTests
             Integer(1),
             Symbol("gain"),
             Symbol("value"),
-            Float(gain));
+            Float(gain),
+            Symbol("copy"));
         source.WaitForResponse(requestId);
     }
 

@@ -75,7 +75,8 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                     .Select(bank => (
                         (int)bank.Id,
                         bank.Group.Value?.Value,
-                        state.Activity.BankActivity((int)bank.Id)))
+                        state.Activity.BankActivity((int)bank.Id),
+                        state.Instance.Banks[(int)bank.Id].Bypass.Value))
                     .ToArray());
 
             return instanceId;
@@ -179,7 +180,8 @@ public sealed class InstanceRegistry : IDisposable, IInstanceLifecycleService
                     .Select(bank => new RegistryBankSnapshot(
                         (int)bank.Id,
                         bank.Group.Value?.Value,
-                        instance.State.Activity.BankActivity((int)bank.Id)))
+                        instance.State.Activity.BankActivity((int)bank.Id),
+                        instance.State.Instance.Banks[(int)bank.Id].Bypass.Value))
                     .ToArray()))
             .ToArray();
         var groups = snapshots

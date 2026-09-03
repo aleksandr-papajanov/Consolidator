@@ -229,9 +229,18 @@ internal sealed class SetProcessorBypassInputCodec : IInputCodec
 
     public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
     {
-        var processor = ProcessorControlInputCodecSupport.ReadProcessor(atoms, header);
+        if (atoms.Length < header.Position + 4)
+        {
+            throw new FormatException("Invalid set_processor_bypass frame.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[header.Position]));
+        var processor = ProcessorControlInputCodecSupport.ReadProcessor(
+            atoms,
+            header with { Position = header.Position + 1 });
         var targetScope = InstanceControlInputCodecSupport.ReadScope(
-            atoms, header with { Position = header.Position + 1 }, out var valuePosition);
+            atoms, header.Position + 2, out var valuePosition);
         if (atoms.Length != valuePosition + 1 ||
             atoms[valuePosition].Type != AtomType.Integer ||
             atoms[valuePosition].Integer is < 0 or > 1)
@@ -240,7 +249,43 @@ internal sealed class SetProcessorBypassInputCodec : IInputCodec
         }
 
         return CommandCodecSupport.Success(header, new SetProcessorBypassCommand(
-            processor, targetScope, atoms[valuePosition].Integer == 1));
+            processor, targetScope, atoms[valuePosition].Integer == 1, targetInstanceId));
+    }
+}
+
+internal sealed class SetBankBypassInputCodec : IInputCodec
+{
+    public string Selector => "set_bank_bypass";
+
+    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
+    {
+        if (atoms.Length < header.Position + 4)
+        {
+            throw new FormatException("Invalid set_bank_bypass frame.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[header.Position]));
+        var bankIndexPosition = header.Position + 1;
+        if (atoms[bankIndexPosition].Type != AtomType.Integer ||
+            atoms[bankIndexPosition].Integer is < 0 or >= 7)
+        {
+            throw new FormatException("Bank index is out of range.");
+        }
+        var targetScope = InstanceControlInputCodecSupport.ReadScope(
+            atoms, bankIndexPosition + 1, out var valuePosition);
+        if (atoms.Length != valuePosition + 1 ||
+            atoms[valuePosition].Type != AtomType.Integer ||
+            atoms[valuePosition].Integer is < 0 or > 1)
+        {
+            throw new FormatException("Invalid set_bank_bypass frame.");
+        }
+
+        return CommandCodecSupport.Success(header, new SetBankBypassCommand(
+            targetScope,
+            atoms[valuePosition].Integer == 1,
+            targetInstanceId,
+            (int)atoms[bankIndexPosition].Integer));
     }
 }
 

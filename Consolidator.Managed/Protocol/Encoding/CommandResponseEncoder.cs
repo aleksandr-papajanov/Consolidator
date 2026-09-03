@@ -100,7 +100,8 @@ internal sealed class CommandResponseEncoder
                 outputs.Add(Output(target, "registry_bank", Header(target, requestId)
                     .Concat([Symbol(instance.InstanceId.ToString()), Integer(bank.BankId),
                         bank.GroupId is { } group ? Integer(group) : Symbol("none"),
-                        Integer(bank.EffectActive ? 1 : 0)]).ToArray()));
+                        Integer(bank.EffectActive ? 1 : 0),
+                        Integer(bank.Bypassed ? 1 : 0)]).ToArray()));
             }
         }
         foreach (var group in registry.Groups)

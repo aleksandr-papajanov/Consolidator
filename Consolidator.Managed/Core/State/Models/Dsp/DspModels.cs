@@ -25,7 +25,6 @@ public sealed record DspState
         CompressorState compressor,
         PolishState polish,
         EqualizerState equalizer,
-        EqualizerBankState[] equalizerBanks,
         ActivityObserver activity,
         OutputState outputGain)
     {
@@ -34,7 +33,6 @@ public sealed record DspState
         ArgumentNullException.ThrowIfNull(compressor);
         ArgumentNullException.ThrowIfNull(polish);
         ArgumentNullException.ThrowIfNull(equalizer);
-        ArgumentNullException.ThrowIfNull(equalizerBanks);
         ArgumentNullException.ThrowIfNull(activity);
         ArgumentNullException.ThrowIfNull(outputGain);
 
@@ -43,7 +41,6 @@ public sealed record DspState
         Compressor = compressor;
         Polish = polish;
         Equalizer = equalizer;
-        EqualizerBanks = equalizerBanks;
         Activity = activity;
         OutputGain = outputGain;
     }
@@ -53,14 +50,11 @@ public sealed record DspState
     public CompressorState Compressor { get; }
     public PolishState Polish { get; }
     public EqualizerState Equalizer { get; }
-    public EqualizerBankState[] EqualizerBanks { get; }
     internal ActivityObserver Activity { get; }
     public OutputState OutputGain { get; }
 }
 
 public sealed record EqualizerBankState(
-    StateValue<bool> Bypass,
-    StateValue<bool> Solo,
     FilterState[] Filters);
 
 public sealed record EqualizerState(StateValue<bool> Bypass);

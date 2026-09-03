@@ -57,7 +57,15 @@ public sealed class InstanceCommandRouter
             var requestedTargetInstanceIds = ResolveTargetInstanceIds(
                 sourceInstanceId,
                 command);
-            var bankTarget = command is ITargetedInstanceCommand
+            var bankTarget = command is ITargetedBankCommand targetedBankCommand
+                ? _bankResolver.Resolve(sourceInstanceId,
+                    targetedBankCommand.TargetInstanceId!.Value,
+                    targetedBankCommand.BankIndex)
+                : command is ITargetedInstanceCommand
+                { TargetInstanceId: { } resetTargetInstanceId }
+                    && command is ResetStateCommand { BankIndex: { } resetBankIndex }
+                ? _bankResolver.Resolve(sourceInstanceId, resetTargetInstanceId, resetBankIndex)
+                : command is ITargetedInstanceCommand
                 { TargetInstanceId: { } targetInstanceId }
                     ? _bankResolver.Resolve(sourceInstanceId, targetInstanceId)
                     : command is ResetStateCommand or WriteStateCommand

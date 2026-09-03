@@ -240,6 +240,7 @@ class BankManagerViewModel
                         Boolean(selectedBanks[String(instance.instanceId) + ":" + String(bankId)]),
                     groupId: bank.groupId,
                     effectActive: Boolean(bank.effectActive),
+                    bypassed: Boolean(bank.bypassed),
                     color: bank.groupId === undefined || bank.groupId === null ? null : bankManagerGroupColor(bank.groupId),
                     opacity: 1
                 };
@@ -301,6 +302,7 @@ class BankManagerViewModel
                             ]),
                         groupId: bank.groupId,
                         effectActive: Boolean(bank.effectActive),
+                        bypassed: Boolean(bank.bypassed),
                         color: bank.groupId === undefined || bank.groupId === null
                             ? null : bankManagerGroupColor(bank.groupId),
                         opacity: 1

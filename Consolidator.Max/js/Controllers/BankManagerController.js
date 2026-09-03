@@ -13,6 +13,13 @@ class BankManagerController
                 this.refreshHistoryTarget();
             }, false) : null;
     }
+
+    debug(message)
+    {
+        if (typeof post === "function") {
+            post("[Consolidator][TrackName] BankManagerController " + message + "\n");
+        }
+    }
     
     selectBank(
         instanceId,
@@ -51,6 +58,44 @@ class BankManagerController
             target.instanceId,
             target.bankId,
             panel,
+            (response) => this.acceptSnapshot(response));
+    }
+
+    selectProcessor(instanceId, processorId)
+    {
+        let current = this.context.viewModel.focusedSelection;
+        this.debug("processorSelected instanceId=" + instanceId +
+            " processorId=" + processorId +
+            " current=" + JSON.stringify(current));
+        if (!current) {
+            this.debug("ignored: no focused selection");
+            return;
+        }
+        if (String(current.instanceId) === String(instanceId)) {
+            this.debug("same instance: selectPanel " + processorId);
+            this.selectPanel(processorId);
+            return;
+        }
+
+        let row = this.context.viewModel.rows.filter((candidate) => {
+            return String(candidate.instanceId) === String(instanceId);
+        })[0];
+        let bank = row && row.banks.filter((candidate) => {
+            return Number(candidate.bankId) === Number(current.bankId);
+        })[0];
+        if (!bank) {
+            this.debug("ignored: bank index " + current.bankId +
+                " not found on instance " + instanceId);
+            return;
+        }
+
+        this.debug("different instance: select bank=" + bank.bankId +
+            " and panel=" + processorId);
+        this.context.viewModel.setFocusedBank(instanceId, bank.bankId);
+        this.context.uiTarget.show(
+            instanceId,
+            bank.bankId,
+            processorId,
             (response) => this.acceptSnapshot(response));
     }
 
@@ -188,6 +233,9 @@ class BankManagerController
             this.selectBank(values[0], values[1], Number(values[2]) !== 0);
             break;
         case "panelSelected": this.selectPanel(values[0]); break;
+        case "processorSelected":
+            this.selectProcessor(values[0], values[1]);
+            break;
         case "rowSelected": this.selectRow(values[0]); break;
         case "groupRequested": this.groupSelectedBanks(); break;
         case "ungroupRequested": this.ungroupFocusedBank(); break;
@@ -223,27 +271,48 @@ class BankManagerController
             this.resetInstance();
             break;
         case "processorBypassChanged":
-            this.setProcessorBypass(values[0], Number(values[1]) !== 0);
+            this.debug("processorBypassChanged values=" + JSON.stringify(values));
+            if (values.length >= 3) {
+                this.setProcessorBypass(
+                    values[0],
+                    values[1],
+                    Number(values[2]) !== 0
+                );
+            } else {
+                let current = this.context.viewModel.focusedSelection;
+                if (current) {
+                    this.setProcessorBypass(
+                        current.instanceId,
+                        values[0],
+                        Number(values[1]) !== 0
+                    );
+                }
+            }
             break;
         case "bankBypassChanged":
-            this.context.state.set(
-                "equalizer.bank.bypass",
-                Number(values[0]) !== 0,
-                (response) => {
-                },
-                0,
-                this.context.scope.mode);
+            this.debug("bankBypassChanged values=" + JSON.stringify(values));
+            if (values.length >= 3) {
+                this.setBankBypass(
+                    values[0],
+                    values[1],
+                    Number(values[2]) !== 0
+                );
+            } else {
+                let current = this.context.viewModel.focusedSelection;
+                if (current) {
+                    this.setBankBypass(
+                        current.instanceId,
+                        current.bankId,
+                        Number(values[0]) !== 0
+                    );
+                }
+            }
             break;
         case "bankResetRequested":
-            this.context.state.reset(
-                "equalizer.bank",
-                (response) => {
-                },
-                0,
-                this.context.scope.mode);
+            this.resetBank(values[0], values[1]);
             break;
         case "processorResetRequested":
-            this.resetProcessor(values[0]);
+            this.resetProcessor(values[0], values[1]);
             break;
         }
     }
@@ -323,14 +392,21 @@ class BankManagerController
         );
     }
 
-    setProcessorBypass(processorId, value)
+    setProcessorBypass(instanceId, processorId, value)
     {
         this.context.protocol.request("set_processor_bypass",
-            [processorId, this.context.scope.mode, value ? 1 : 0]);
+            [instanceId, processorId, this.context.scope.mode, value ? 1 : 0]);
+    }
+
+    setBankBypass(instanceId, bankId, value)
+    {
+        this.context.protocol.request(
+            "set_bank_bypass",
+            [instanceId, bankId, this.context.scope.mode, value ? 1 : 0]);
     }
 
 
-    resetProcessor(processorId)
+    resetProcessor(processorId, instanceId)
     {
         let paths = {
             input: "input_gain",
@@ -342,12 +418,18 @@ class BankManagerController
         };
         let path = paths[String(processorId)];
         if (!path) return;
-        this.context.state.reset(
-            path,
-            undefined,
-            0,
-            this.context.scope.mode
-        );
+        if (instanceId === undefined || instanceId === null) return;
+        this.context.state.resetTargeted(
+            instanceId, null, path, undefined, 0, this.context.scope.mode);
+    }
+
+    resetBank(instanceId, bankId)
+    {
+        if (instanceId === undefined || instanceId === null ||
+                bankId === undefined || bankId === null) return;
+        this.context.state.resetTargeted(
+            instanceId, Number(bankId), "equalizer.bank", undefined,
+            0, this.context.scope.mode);
     }
 
     setSolo(instanceId, value, additive)

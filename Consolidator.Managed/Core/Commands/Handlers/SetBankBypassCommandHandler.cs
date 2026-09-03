@@ -1,5 +1,4 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
-using Consolidator.Managed.Core.Commands.Accessors;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.State;
@@ -7,14 +6,14 @@ using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
-internal sealed class SetProcessorBypassCommandHandler
-    : CommandHandler<SetProcessorBypassCommand, StateWriteStatus>
+internal sealed class SetBankBypassCommandHandler
+    : CommandHandler<SetBankBypassCommand, StateWriteStatus>
 {
     private readonly InstanceRegistry _instances;
     private readonly InstanceControlTargetResolver _targets;
     private readonly StateHistory _history;
 
-    public SetProcessorBypassCommandHandler(
+    public SetBankBypassCommandHandler(
         InstanceRegistry instances,
         InstanceControlTargetResolver targets,
         StateHistory history)
@@ -25,12 +24,15 @@ internal sealed class SetProcessorBypassCommandHandler
     }
 
     public override ValueTask<StateWriteStatus> HandleAsync(
-        SetProcessorBypassCommand command,
+        SetBankBypassCommand command,
         InstanceCommandContext context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (command.TargetInstanceId is not { } targetInstanceId ||
+            context.BankTarget is not { } bankTarget ||
+            bankTarget.TargetBank.InstanceId != targetInstanceId ||
+            bankTarget.TargetBank.BankIndex != command.BankIndex ||
             !_targets.TryResolve(
                 command.TargetScope,
                 context,
@@ -40,11 +42,11 @@ internal sealed class SetProcessorBypassCommandHandler
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }
 
+        var bankIndex = command.BankIndex;
         var values = ids.Select(_instances.FindInstance)
             .Where(instance => instance is not null)
-            .Select(instance => ProcessorStateAccess.Bypass(instance!.State, command.ProcessorId))
-            .Where(value => value is not null && value.Value != command.Bypassed)
-            .Select(value => value!)
+            .Select(instance => instance!.State.Instance.Banks[bankIndex].Bypass)
+            .Where(value => value.Value != command.Bypassed)
             .ToArray();
         if (values.Length == 0) return ValueTask.FromResult(StateWriteStatus.Unchanged);
 

@@ -143,6 +143,18 @@ class AnalyzerPresenter extends PresentationObservable
             listeners[index](this.spectrum, this.referenceSpectrum);
         }
     }
+
+    subscribeSpectrum(callback, immediate)
+    {
+        this.spectrumListeners.push(callback);
+        if (immediate && this.spectrum) {
+            callback(this.spectrum, this.referenceSpectrum);
+        }
+        return () => {
+            this.spectrumListeners = this.spectrumListeners.filter(
+                (listener) => { return listener !== callback; });
+        };
+    }
     
     subscribeCurves(callback, immediate)
     {

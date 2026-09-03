@@ -51,8 +51,10 @@ public sealed record StateWriteEntry(
 public sealed record ResetStateCommand(
     StatePath Target,
     ulong TransactionId,
-    ResetScope ResetMode) :
-    IInstanceCommand<CommandAcknowledgement>
+    ResetScope ResetMode,
+    InstanceId? TargetInstanceId = null,
+    int? BankIndex = null) :
+    IInstanceCommand<CommandAcknowledgement>, ITargetedInstanceCommand
 {
     public CommandScope Scope => CommandScope.FocusedBank;
 }

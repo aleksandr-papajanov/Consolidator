@@ -21,7 +21,7 @@ public interface IRegistryChangeSink
         bool solo,
         bool bypass,
         IReadOnlyList<ProcessorStatus> processors,
-        IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive)> banks);
+        IReadOnlyList<(int BankId, uint? GroupId, bool EffectActive, bool Bypassed)> banks);
 
     void InstanceRemoved(ulong instanceId);
 

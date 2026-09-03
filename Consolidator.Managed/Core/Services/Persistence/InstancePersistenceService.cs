@@ -4,13 +4,14 @@ using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Settings;
+using Consolidator.Managed.Core.State.Models.Instance;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Services.Persistence;
 
 internal sealed class InstancePersistenceService
 {
-    private const int CurrentSchema = 4;
+    private const int CurrentSchema = 5;
     private readonly InstanceRegistry _instances;
     private readonly IOperationGate _operationGate;
     private readonly IPersistenceChangeSink _persistenceChanges;
@@ -72,7 +73,7 @@ internal sealed class InstancePersistenceService
             CreateInput(state.Dsp.InputGain),
             CreateSaturator(state.Dsp.Saturator),
             CreateCompressor(state.Dsp.Compressor),
-            CreateEqualizer(state.Dsp.Equalizer, state.Dsp.EqualizerBanks),
+            CreateEqualizer(state.Dsp.Equalizer, state.Instance.Banks),
             CreatePolish(state.Dsp.Polish),
             CreateOutput(state.Dsp.OutputGain)));
 
@@ -101,12 +102,11 @@ internal sealed class InstancePersistenceService
 
     private static PersistentEqualizer CreateEqualizer(
         EqualizerState equalizer,
-        IReadOnlyList<EqualizerBankState> banks) => new(
+        IReadOnlyList<BankState> banks) => new(
         equalizer.Bypass.Value,
         banks.Select(bank => new PersistentEqualizerBank(
             bank.Bypass.Value,
-            bank.Solo.Value,
-            bank.Filters.Select(CreateFilter).ToArray())).ToArray());
+            bank.Equalizer.Filters.Select(CreateFilter).ToArray())).ToArray());
 
     private static PersistentFilter CreateFilter(FilterState value) => value switch
     {
@@ -114,20 +114,17 @@ internal sealed class InstancePersistenceService
             null,
             null,
             gain.GainDb.Value,
-            gain.Bypass.Value,
-            gain.Solo.Value),
+            gain.Bypass.Value),
         FixedQFilterState fixedQ => new(
             fixedQ.FrequencyHz.Value,
             null,
             fixedQ.GainDb.Value,
-            fixedQ.Bypass.Value,
-            fixedQ.Solo.Value),
+            fixedQ.Bypass.Value),
         BellFilterState bell => new(
             bell.FrequencyHz.Value,
             bell.Q.Value,
             bell.GainDb.Value,
-            bell.Bypass.Value,
-            bell.Solo.Value),
+            bell.Bypass.Value),
         _ => throw new InvalidOperationException("Unknown filter state.")
     };
 
@@ -156,10 +153,9 @@ internal sealed class InstancePersistenceService
         for (var bankIndex = 0; bankIndex < DspConstants.BankCount; bankIndex++)
         {
             var source = snapshot.Dsp.Equalizer.Banks[bankIndex];
-            var target = state.Dsp.EqualizerBanks[bankIndex];
+            var target = state.Instance.Banks[bankIndex];
             target.Bypass.PrepareBaseline(source.Bypass, transaction);
-            target.Solo.PrepareBaseline(source.Solo, transaction);
-            ApplyFilters(target.Filters, source.Filters, transaction);
+            ApplyFilters(target.Equalizer.Filters, source.Filters, transaction);
         }
         ApplyOutput(state.Dsp.OutputGain, snapshot.Dsp.Output, transaction);
         transaction.Commit();
@@ -267,9 +263,6 @@ internal sealed class InstancePersistenceService
                 transaction);
             target[index].Bypass.PrepareBaseline(
                 source[index].Bypass,
-                transaction);
-            target[index].Solo.PrepareBaseline(
-                source[index].Solo,
                 transaction);
         }
     }

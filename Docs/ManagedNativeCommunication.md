@@ -320,9 +320,10 @@ its own async execution gate for non-broadcast commands. Cancellation
 propagates through the command and is not converted into a regular execution
 error. The protocol decoding and result formatting boundaries are defined by
 `ManagedProtocol.md`. The Native Max bridge exposes `set_instance_mute`,
-`set_instance_solo`, `set_instance_bypass`, and `set_processor_bypass` as
-relative Max messages. Solo, mute, and instance bypass carry the target
-instance ID and selection mode. Managed resolves the
+`set_instance_solo`, `set_instance_bypass`, `set_processor_bypass`, and
+`set_bank_bypass` as Max messages. Solo, mute, instance bypass, processor
+bypass, and bank bypass carry the target instance ID; bank bypass also carries
+the bank index. Managed resolves the
 target instance and exact group from the source `SelectionContext` through
 `ContextualBankResolver`.
 Exact group resolution and all instance-state

@@ -154,6 +154,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, SetInstanceSoloCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
+        services.AddSingleton<ICommandHandler, SetBankBypassCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -171,6 +172,7 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, SetInstanceSoloInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
+        services.AddSingleton<IInputCodec, SetBankBypassInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -196,6 +198,9 @@ public static class ManagedServices
             "action_done");
         services.AddCommandEndpoint<SetProcessorBypassCommand, StateWriteStatus>(
             "set_processor_bypass",
+            "action_done");
+        services.AddCommandEndpoint<SetBankBypassCommand, StateWriteStatus>(
+            "set_bank_bypass",
             "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>

@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 661.0, 158.0, 685.0, 780.0 ],
+		"rect" : [ 794.0, 118.0, 685.0, 780.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
@@ -23,9 +23,9 @@
 					"numoutlets" : 2,
 					"outlettype" : [ "", "" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 0.0, 0.0, 671.0, 169.0 ],
+					"patching_rect" : [ 0.0, 0.0, 481.0, 169.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 806.0, 169.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 481.0, 169.0 ],
 					"textfile" : 					{
 						"filename" : "Project:/js/Controls/BankManager/BankManagerControl.js",
 						"flags" : 0,

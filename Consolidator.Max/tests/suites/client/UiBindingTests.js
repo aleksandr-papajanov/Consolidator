@@ -1484,21 +1484,6 @@ function testBankManagerForwardsShiftSelection() {
   ]]);
 }
 
-function testBankManagerPanelClickWaitsForSnapshot() {
-  var control = new BankManagerControl();
-  var emitted = [];
-  control.presentation = { enabled: true, selectedPanel: "equalizer" };
-  control.panelAt = function () { return "compressor"; };
-  control.emit = function (name, values) {
-    emitted.push([name].concat(values || []));
-  };
-
-  control.selectAt(10, 10, false, false);
-
-  assert.strictEqual(control.presentation.selectedPanel, "equalizer");
-  assert.deepStrictEqual(emitted, [["panelSelected", "compressor"]]);
-}
-
 function testPanelTransitionAppliesSelectionAfterSnapshot() {
   var snapshotCallback = null;
   var context = {
@@ -1523,7 +1508,7 @@ function testPanelTransitionAppliesSelectionAfterSnapshot() {
   snapshotCallback({ snapshotContext: "compressor", error: null });
   assert.strictEqual(context.viewModel.selectedPanel, "compressor");
 }
-function testBankManagerForwardsInstanceControlModifiers() {
+function testBankManagerUsesExclusiveSoloAndAdditiveMuteBypass() {
   var intents = [];
   var presentation = new BankManagerPresentation();
   presentation.rows = [{
@@ -1542,11 +1527,13 @@ function testBankManagerForwardsInstanceControlModifiers() {
   global.mgraphics.size = [800, 400];
   var instanceButtonsX = bankManagerControl.bankGridRight(presentation.rows) +
     4 + 4;
-  bankManagerControl.selectAt(instanceButtonsX + 8, 5, true, true);
-  bankManagerControl.selectAt(instanceButtonsX + 24, 5, true, true);
+  bankManagerControl.selectAt(instanceButtonsX + 8, 5, false, true);
+  bankManagerControl.selectAt(instanceButtonsX + 24, 5, false, true);
+  bankManagerControl.selectAt(instanceButtonsX + 56, 5, false, true);
   assert.deepStrictEqual(intents, [
-    ["instanceSoloChanged", ["instance.1", 1, 1]],
+    ["instanceSoloChanged", ["instance.1", 1, 0]],
     ["instanceMuteChanged", ["instance.1", 1, 1]],
+    ["instanceBypassChanged", ["instance.1", 1, 1]],
   ]);
 }
 function testBankManagerEqualizerResetReachesStateClient() {
@@ -1695,7 +1682,7 @@ function testManagedMarkerReachesBankManagerControlBinding() {
   presenter.destroy();
   viewModel.destroy();
 }
-function testBankBypassStateReachesControlAndInvertsNextClick() {
+function testBankBypassStateReachesControl() {
   var stateChangedListener = null;
   var viewModel = {
     enabled: true,
@@ -1740,11 +1727,6 @@ function testBankBypassStateReachesControlAndInvertsNextClick() {
   viewModel.focusedBankBypassed = true;
   stateChangedListener(viewModel, { selector: "bank_bypass_changed" });
   assert.strictEqual(control.presentation.focusedBankBypassed, true);
-
-  var controlX = control.primaryWidth() + 6 + 3 * 64 + 32 + 1;
-  var button = control.panelControlAt(controlX, 20);
-  assert.strictEqual(button.type, "bankBypass");
-  assert.strictEqual(button.value, false);
 
   binding.destroy();
   presenter.destroy();
@@ -1791,11 +1773,10 @@ testDetectorPositionUsesOneStateBatch();
 testDetectorBypassIsInvertedForPresentation();
 testMessageControlsConstructCompletePresentation();
 testBankManagerForwardsShiftSelection();
-testBankManagerPanelClickWaitsForSnapshot();
 testPanelTransitionAppliesSelectionAfterSnapshot();
-testBankManagerForwardsInstanceControlModifiers();
+testBankManagerUsesExclusiveSoloAndAdditiveMuteBypass();
 testBankManagerEqualizerResetReachesStateClient();
 testBankManagerPresentsGroupingSelectionAsActive();
 testManagedMarkerReachesBankManagerControlBinding();
-testBankBypassStateReachesControlAndInvertsNextClick();
+testBankBypassStateReachesControl();
 console.log("UiBindingTests passed");

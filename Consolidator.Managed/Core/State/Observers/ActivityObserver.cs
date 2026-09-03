@@ -77,6 +77,7 @@ internal sealed class ActivityObserver
     private void SetBankBypass(int bankId, bool value)
     {
         _bankBypasses[bankId] = value;
+        _sink.BankBypassChanged(_instanceId, bankId, value);
         RefreshBank(bankId, true);
     }
 

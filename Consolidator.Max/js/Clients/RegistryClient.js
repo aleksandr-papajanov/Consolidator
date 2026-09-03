@@ -26,6 +26,7 @@ class RegistryClient
         protocol.on("registry_processor_markers_changed", this.handleProcessorMarkersChanged.bind(this));
         protocol.on("registry_bank_group_changed", this.handleDelta.bind(this, "registry_bank_group_changed"));
         protocol.on("registry_bank_effect_changed", this.handleDelta.bind(this, "registry_bank_effect_changed"));
+        protocol.on("registry_bank_bypass_changed", this.handleDelta.bind(this, "registry_bank_bypass_changed"));
         protocol.on("error", this.handleError.bind(this));
     }
     
@@ -84,6 +85,8 @@ class RegistryClient
             this.applyBankGroupChanged(args);
         } else if (selector === "registry_bank_effect_changed") {
             this.applyBankEffectChanged(args);
+        } else if (selector === "registry_bank_bypass_changed") {
+            this.applyBankBypassChanged(args);
         } else {
             return;
         }
@@ -115,11 +118,12 @@ class RegistryClient
         }
         let count = Number(args[9 + processorCount * 3]);
         for (let index = 0; index < count; index += 1) {
-            let position = 10 + processorCount * 3 + index * 3;
+            let position = 10 + processorCount * 3 + index * 4;
             instance.banks.push({
                 bankId: args[position],
                 groupId: args[position + 1] === "none" ? null : args[position + 1],
-                effectActive: Number(args[position + 2]) !== 0
+                effectActive: Number(args[position + 2]) !== 0,
+                bypassed: Number(args[position + 3]) !== 0
             });
         }
         this.snapshot.instances.push(instance);
@@ -182,6 +186,19 @@ class RegistryClient
             if (String(instance.instanceId) !== instanceId) return;
             instance.banks.forEach((bank) => {
                 if (Number(bank.bankId) === bankId) bank.effectActive = effectActive;
+            });
+        });
+    }
+
+    applyBankBypassChanged(args)
+    {
+        let instanceId = String(args[3]);
+        let bankId = Number(args[4]);
+        let bypassed = Number(args[5]) !== 0;
+        this.snapshot.instances.forEach((instance) => {
+            if (String(instance.instanceId) !== instanceId) return;
+            instance.banks.forEach((bank) => {
+                if (Number(bank.bankId) === bankId) bank.bypassed = bypassed;
             });
         });
     }
@@ -348,7 +365,8 @@ class RegistryClient
         instance.banks.push({
             bankId: args[4],
             groupId: args[5] === "none" ? null : args[5],
-            effectActive: Number(args[6]) !== 0
+            effectActive: Number(args[6]) !== 0,
+            bypassed: Number(args[7]) !== 0
         });
     }
     

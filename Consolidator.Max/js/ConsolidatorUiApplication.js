@@ -209,6 +209,11 @@ class ConsolidatorUiHost
         values
     )
     {
+        if (typeof post === "function") {
+            post("[Consolidator][TrackName] UiApplication intent control=" +
+                controlName + " intent=" + intent + " values=" +
+                JSON.stringify(values || []) + "\n");
+        }
         if (intent === "gestureBegan") {
             this.metricsGestureActive = true;
             this.sendMetrics();

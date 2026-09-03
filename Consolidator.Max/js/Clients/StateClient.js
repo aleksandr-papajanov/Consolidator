@@ -3,7 +3,7 @@ const MAX_BATCH_SIZE = 16;
 class StateClient
 {
     // Relative write/reset transport. Managed resolves the selected target and
-    // bank from the source SelectionContext. Explicit targeting is topology-only.
+    // bank from the source SelectionContext unless a command is explicitly targeted.
     constructor(protocol, scope)
     {
         this.protocol = protocol;
@@ -76,6 +76,19 @@ class StateClient
         return this.protocol.request(
             "reset",
             frame,
+            callback
+        );
+    }
+
+    resetTargeted(targetInstanceId, bankIndex, path, callback, transactionId, scope)
+    {
+        let bank = bankIndex === undefined || bankIndex === null
+            ? "none" : Number(bankIndex);
+        return this.protocol.request(
+            "reset",
+            ["target", String(targetInstanceId), bank,
+                String(transactionId || 0), scope || this.scope.mode]
+                .concat(this.encodePath(path)),
             callback
         );
     }

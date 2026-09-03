@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 236.0, 105.0, 865.0, 720.0 ],
+		"rect" : [ 34.0, 77.0, 1612.0, 891.0 ],
 		"openinpresentation" : 1,
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
@@ -36,9 +36,9 @@
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_invisible" : 1,
-							"parameter_longname" : "",
+							"parameter_longname" : "ConsolidatorExternal",
 							"parameter_modmode" : 0,
-							"parameter_shortname" : "",
+							"parameter_shortname" : "ConsolidatorExternal",
 							"parameter_type" : 3
 						}
 
@@ -72,7 +72,7 @@
 					"outlettype" : [ "", "" ],
 					"patching_rect" : [ 52.0, 286.0, 1074.0, 169.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 0.0, 0.0, 806.0, 169.0 ],
+					"presentation_rect" : [ 0.0, 0.0, 884.0, 169.0 ],
 					"viewvisibility" : 1
 				}
 

@@ -57,7 +57,19 @@ public sealed record SetInstanceBypassCommand(
 public sealed record SetProcessorBypassCommand(
     ProcessorId ProcessorId,
     InstanceControlScope TargetScope,
-    bool Bypassed) : IInstanceCommand<StateWriteStatus>
+    bool Bypassed,
+    InstanceId? TargetInstanceId = null) :
+    IInstanceCommand<StateWriteStatus>, ITargetedInstanceCommand
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}
+
+public sealed record SetBankBypassCommand(
+    InstanceControlScope TargetScope,
+    bool Bypassed,
+    InstanceId? TargetInstanceId,
+    int BankIndex) :
+    IInstanceCommand<StateWriteStatus>, ITargetedBankCommand
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }

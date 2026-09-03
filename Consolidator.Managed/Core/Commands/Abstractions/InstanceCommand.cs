@@ -21,6 +21,11 @@ public interface ITargetedInstanceCommand
     InstanceId? TargetInstanceId { get; }
 }
 
+public interface ITargetedBankCommand : ITargetedInstanceCommand
+{
+    int BankIndex { get; }
+}
+
 public interface IInstanceControlCommand
     : IInstanceCommand<StateWriteStatus>, ITargetedInstanceCommand
 {

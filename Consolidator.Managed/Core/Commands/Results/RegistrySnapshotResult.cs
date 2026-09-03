@@ -23,7 +23,8 @@ public sealed record RegistryInstanceSnapshot(
 public sealed record RegistryBankSnapshot(
     int BankId,
     uint? GroupId,
-    bool EffectActive);
+    bool EffectActive,
+    bool Bypassed);
 
 public sealed record RegistryGroupSnapshot(
     uint GroupId,

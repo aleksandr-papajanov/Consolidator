@@ -52,15 +52,13 @@ internal sealed record PersistentEqualizer(
 
 internal sealed record PersistentEqualizerBank(
     bool Bypass,
-    bool Solo,
     PersistentFilter[] Filters);
 
 internal sealed record PersistentFilter(
     float? FrequencyHz,
     float? Q,
     float GainDb,
-    bool Bypass,
-    bool Solo);
+    bool Bypass);
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

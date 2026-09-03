@@ -191,11 +191,11 @@ history jumps, UI initialization, target observation, instance activity and
 registry snapshots.
 Instance controls use the same target resolution for mute and solo. A grouped
 bank resolves to all members, while an ungrouped bank resolves to its single
-instance. The bank manager sends an additive solo gesture as a local instance operation
-when the clicked instance's focused bank is ungrouped, even when group scope is
-active. This lets Shift-click add or remove one ungrouped instance. If that
-focused bank belongs to a group, the additive gesture keeps group scope and adds
-or removes the complete group. A non-additive solo gesture keeps the current
+instance. In the bank manager, `S` is exclusive on a regular click and becomes
+additive with Shift-click; `M` and `B` are always additive, so regular clicks
+can accumulate mute or bypass across instances. If the clicked instance's
+focused bank belongs to a group, additive operations keep group scope and add
+or remove the complete group. A non-additive solo gesture keeps the current
 scope; an ungrouped instance is treated as a single-instance group. Selecting
 another grouped bank is the explicit way to solo a different group.
 `initialize` returns the external's managed instance ID and transient UI context.
@@ -222,6 +222,18 @@ Its body is:
 ```text
 reset transactionId local|group|group_instance statePath...
 ```
+
+Targeted reset uses the same `reset` selector and addresses the target before
+the transaction fields:
+
+```text
+reset target targetInstanceId bankIndex|none transactionId local|group|group_instance statePath...
+```
+
+`bankIndex` is required for an equalizer bank reset and is `none` for a
+processor reset. Targeted reset never changes selection and can address an
+instance other than the source external. The Bank Manager uses targeted reset
+only for Ctrl/Command-double-click; an ordinary double-click does not reset.
 
 Processor-panel `R` uses `local` for a regular click and `group` for a
 Ctrl/Command-click. Managed resolves the focused-bank context for the source
@@ -254,15 +266,16 @@ the next history mutation. Registry reads current managed state
 and returns a structured atom sequence. Each registry instance entry carries
 its instance-level `mute` and `solo` values. Each registry bank entry also carries
 `effectActive`, which is true when the bank is not bypassed and has an active
-filter with non-zero gain. Managed emits `registry_bank_effect_changed` only
-when that derived status changes; instance mute and solo changes use their
-corresponding registry deltas. Instance controls use dedicated
+filter with non-zero gain. Each bank entry also carries its raw `bypassed`
+value. Managed emits `registry_bank_effect_changed` and
+`registry_bank_bypass_changed` when the corresponding bank status changes;
+instance mute and solo changes use their corresponding registry deltas. Instance controls use dedicated
 `set_instance_mute`, `set_instance_solo`, and `set_instance_bypass` commands;
 direct protocol writes to the instance `mute`, `solo`, and `bypass` paths are
 rejected. Each command carries an
-explicit target instance ID, `local` or `group` scope, and `exclusive` or
-`additive` selection mode. Managed resolves the target bank at the focused
-equalizer-bank index through `ContextualBankResolver`. Group resolution never
+ explicit target instance ID, `local` or `group` scope, and `exclusive` or
+`additive` selection mode. Bank bypass controls carry an explicit bank index.
+Managed resolves that target through `ContextualBankResolver`. Group resolution never
 traverses another group on the same track and falls back to the target instance
 when the bank is ungrouped. Both handlers update the resolved
 local instance values in one atomic state transaction without creating a
@@ -286,10 +299,23 @@ viewer-specific `markerActive` value after `effectActive`. Managed recalculates
 that value from exact topology and focused-bank changes and publishes targeted
 `registry_processor_markers_changed` batches containing the changed processors
 grouped by instance. Marker frames do not advance the global registry revision because the
-projection can differ between viewers at the same revision. Processor
-bypass uses the dedicated `set_processor_bypass` command. Direct writes to
-instance-owned processor bypass values are rejected. The full contract is documented in
-[ProcessorActivity.md](ProcessorActivity.md).
+projection can differ between viewers at the same revision. Processor bypass
+uses the dedicated `set_processor_bypass` command. Bank bypass uses the
+dedicated `set_bank_bypass` command. Both commands carry an explicit target
+instance and do not change the source UI selection. Direct writes to
+instance-owned processor bypass values are rejected. The full contract is
+documented in [ProcessorActivity.md](ProcessorActivity.md).
+
+The request bodies are:
+
+```text
+set_processor_bypass targetInstanceId processorId local|group 0|1
+set_bank_bypass targetInstanceId bankIndex local|group 0|1
+```
+
+`bankIndex` is zero-based and must be in the range `0..6`. The target bank group
+is resolved for the explicit target instance at that index; a missing target or
+bank context is rejected without falling back to the source selection.
 
 Where a `bankId` is part of an observation, topology, registry, or notification
 contract, it is zero-based and uses the range `0..6`. The protocol,

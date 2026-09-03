@@ -43,8 +43,9 @@ internal sealed class ManagedStateBuilder
             var runtime = new DspRuntimeState();
             var context = new StateModelContext(instanceId, _stateValues, runtime);
             var transient = new InstanceTransientState(instanceId, _topologyObserver);
-            var instance = CreateInstance(context);
-            var dsp = CreateDsp(context);
+            var activity = new ActivityObserver(context.InstanceId, _activitySink);
+            var instance = CreateInstance(context, activity);
+            var dsp = CreateDsp(context, activity);
             var root = _stateRegistry.GetRoot(instanceId);
             return new ManagedState(instance, transient, dsp, dsp.Activity, runtime, root);
         }
@@ -55,7 +56,9 @@ internal sealed class ManagedStateBuilder
         }
     }
 
-    private InstanceState CreateInstance(StateModelContext context)
+    private InstanceState CreateInstance(
+        StateModelContext context,
+        ActivityObserver activity)
     {
         var instancePath = new StatePath([StateNodeIds.Instance]);
         var label = CreateInstanceValue(
@@ -81,12 +84,17 @@ internal sealed class ManagedStateBuilder
             .Select(index => CreateBank(
                 context,
                 instancePath.Append(StateNodeIds.Bank).Append(StateNodeIds.BankAt(index)),
-                (BankId)index))
+                (BankId)index,
+                activity))
             .ToArray();
         return new InstanceState(context.InstanceId, label, mute, solo, bypass, banks);
     }
 
-    private BankState CreateBank(StateModelContext context, StatePath path, BankId id)
+    private BankState CreateBank(
+        StateModelContext context,
+        StatePath path,
+        BankId id,
+        ActivityObserver activity)
     {
         var initialGroup = id == BankId.Bank6 ? new GroupId(0) : (GroupId?)null;
         var group = context.Values.Create(
@@ -96,13 +104,35 @@ internal sealed class ManagedStateBuilder
                 StateValueEditScope.Local),
             new StateValueDefinition<GroupId?>(initialGroup),
             observers: [_topologyObserver.ObserveBankGroup(new BankAddress(context.InstanceId, (int)id))]);
-        return new BankState(id, group);
+        var bypass = CreateBankValue(
+            context,
+            new StatePath([
+                StateNodeIds.Dsp,
+                StateNodeIds.Equalizer,
+                StateNodeIds.EqualizerBank,
+                StateNodeIds.BankAt((int)id),
+                StateNodeIds.Bypass]),
+            StateValueDefinitions.Common.CopyValueWithoutHistory,
+            new StateProjectionObserver<bool>(value =>
+                context.Runtime.EqualizerBanks[(int)id].Active = !value),
+            activity.ObserveBankBypass((int)id));
+        var equalizer = CreateEqualizerBank(
+            context,
+            new StatePath([
+                StateNodeIds.Dsp,
+                StateNodeIds.Equalizer,
+                StateNodeIds.EqualizerBank,
+                StateNodeIds.BankAt((int)id)]),
+            (int)id,
+            activity);
+        return new BankState(id, group, bypass, equalizer);
     }
 
-    private DspState CreateDsp(StateModelContext context)
+    private DspState CreateDsp(
+        StateModelContext context,
+        ActivityObserver activity)
     {
         var dspPath = new StatePath([StateNodeIds.Dsp]);
-        var activity = new ActivityObserver(context.InstanceId, _activitySink);
         var inputGain = CreateInput(
             context,
             dspPath.Append(StateNodeIds.InputGain),
@@ -117,16 +147,6 @@ internal sealed class ManagedStateBuilder
             activity);
         var polish = CreatePolish(context, dspPath.Append(StateNodeIds.Polish));
         var equalizer = CreateEqualizer(context, dspPath.Append(StateNodeIds.Equalizer));
-        var equalizerBanks = Enumerable.Range(0, DspConstants.BankCount)
-            .Select(index => CreateEqualizerBank(
-                context,
-                dspPath
-                    .Append(StateNodeIds.Equalizer)
-                    .Append(StateNodeIds.EqualizerBank)
-                    .Append(StateNodeIds.BankAt(index)),
-                index,
-                activity))
-            .ToArray();
         var outputGain = CreateOutput(context, dspPath.Append(StateNodeIds.OutputGain));
         var dsp = new DspState(
             inputGain,
@@ -134,7 +154,6 @@ internal sealed class ManagedStateBuilder
             compressor,
             polish,
             equalizer,
-            equalizerBanks,
             activity,
             outputGain);
         activity.Initialize(dsp);
@@ -189,22 +208,18 @@ internal sealed class ManagedStateBuilder
             valueContext with { Path = valueContext.Path.Append(StateNodeIds.Bypass) },
             StateValueDefinitions.Common.CopyValueWithoutHistory,
             bypassObservers.ToArray());
-        var solo = context.Values.Create(
-            valueContext with { Path = valueContext.Path.Append(StateNodeIds.Solo) },
-            StateValueDefinitions.Common.CopyValueWithoutHistory);
-
         return definition switch
         {
-            GainFilterDefinition => new GainFilterState(definition, gain, bypass, solo),
+            GainFilterDefinition => new GainFilterState(definition, gain, bypass),
             FixedQFilterDefinition fixedQ => new FixedQFilterState(
-                definition, gain, bypass, solo,
+                definition, gain, bypass,
                 CreateParameter(
                     context,
                     valueContext with { Path = valueContext.Path.Append(fixedQ.Frequency.Node) },
                     fixedQ.Frequency.Definition,
                     new StateProjectionObserver<float>(setFrequency))),
             BellFilterDefinition bell => new BellFilterState(
-                definition, gain, bypass, solo,
+                definition, gain, bypass,
                 CreateParameter(
                     context,
                     valueContext with { Path = valueContext.Path.Append(bell.Frequency.Node) },
@@ -278,17 +293,6 @@ internal sealed class ManagedStateBuilder
         {
             var runtime = context.Runtime;
             var bank = runtime.EqualizerBanks[bankIndex];
-            var bypass = CreateBankValue(
-                context,
-                path.Append(StateNodeIds.Bypass),
-                StateValueDefinitions.Common.CopyValueWithoutHistory,
-                new StateProjectionObserver<bool>(value =>
-                    bank.Active = !value),
-                activity.ObserveBankBypass(bankIndex));
-            var solo = CreateBankValue(
-                context,
-                path.Append(StateNodeIds.Solo),
-                StateValueDefinitions.Common.CopyValueWithoutHistory);
             var filters = StateValueDefinitions.EqualizerDefinitions
                 .Select((definition, index) => CreateFilter(
                     context,
@@ -315,8 +319,6 @@ internal sealed class ManagedStateBuilder
                         }))
                 .ToArray();
             return new EqualizerBankState(
-                bypass,
-                solo,
                 filters);
         }
 

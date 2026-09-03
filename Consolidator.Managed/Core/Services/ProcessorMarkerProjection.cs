@@ -50,12 +50,11 @@ internal sealed class ProcessorMarkerProjection
         var rowBank = new BankAddress(
             new InstanceId(instance.InstanceId),
             focusedBank.Value.BankIndex);
-        var members = contextualBank?.Group?.Members ?? [rowBank];
         return instance.Processors.Select(processor =>
             new RegistryProcessorMarkerSnapshot(
                 instance.InstanceId,
                 processor.ProcessorId,
-                members.Any(member => IsActive(member, processor.ProcessorId, instances))));
+                IsActive(rowBank, processor.ProcessorId, instances)));
     }
 
     private static bool IsActive(

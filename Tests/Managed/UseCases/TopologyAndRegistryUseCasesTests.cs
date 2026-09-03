@@ -122,7 +122,7 @@ public sealed class TopologyAndRegistryUseCasesTests
         WriteGroup(application, viewer, viewer, 0, 7);
         WriteGroup(application, viewer, remote, 1, 7);
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             viewer.Output.Messages,
             message => IsProcessorMarkerChange(
                 message,
@@ -138,13 +138,6 @@ public sealed class TopologyAndRegistryUseCasesTests
             Integer(1),
             Symbol("equalizer"));
 
-        Assert.Contains(
-            viewer.Output.Messages,
-            message => IsProcessorMarkerChange(
-                message,
-                viewer.InstanceId.Value,
-                "equalizer",
-                false));
         Assert.Contains(
             viewer.Output.Messages,
             message => IsProcessorMarkerChange(

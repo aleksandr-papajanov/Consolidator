@@ -15,6 +15,17 @@ internal sealed class ContextualBankResolver
         InstanceId targetInstanceId)
     {
         var selectedBank = _topology.ResolveFocusedBankAddress(viewerInstanceId);
+        return selectedBank is { } bank
+            ? Resolve(viewerInstanceId, targetInstanceId, bank.BankIndex)
+            : null;
+    }
+
+    public ContextualBankTarget? Resolve(
+        InstanceId viewerInstanceId,
+        InstanceId targetInstanceId,
+        int bankIndex)
+    {
+        var selectedBank = _topology.ResolveFocusedBankAddress(viewerInstanceId);
         if (selectedBank is null)
         {
             return null;
@@ -22,7 +33,7 @@ internal sealed class ContextualBankResolver
 
         var targetBank = new BankAddress(
             targetInstanceId,
-            selectedBank.Value.BankIndex);
+            bankIndex);
         var members = _topology.GetConnectedBankPeers(targetBank);
         var group = _topology.TryGetBankGroup(targetBank, out var groupId)
             ? new BankGroupSnapshot(groupId, members)

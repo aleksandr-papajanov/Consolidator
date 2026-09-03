@@ -64,6 +64,7 @@ class BankManagerPresenter extends PresentationObservable
                         groupId: bank.groupId === undefined || bank.groupId === null
                             ? null : bank.groupId,
                         effectActive: Boolean(bank.effectActive),
+                        bypassed: Boolean(bank.bypassed),
                         color: bank.color || null,
                         textColor: bank.textColor || null,
                         opacity: bank.opacity === undefined ? 1 : bank.opacity

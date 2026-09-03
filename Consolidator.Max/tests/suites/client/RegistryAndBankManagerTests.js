@@ -670,9 +670,9 @@ function testBankManagerControllerKeepsGroupScopeForAdditiveGroupedSolo() {
 
 function testBankManagerControllerSendsProcessorControls() {
   var fixture = makeBankManagerControllerFixture();
-  fixture.controller.handleIntent("processorBypassChanged", ["compressor", 1, 0]);
+  fixture.controller.handleIntent("processorBypassChanged", ["remote", "compressor", 1]);
   assert.deepStrictEqual(fixture.calls.requests, [
-     ["set_processor_bypass", ["compressor", "local", 1]],
+     ["set_processor_bypass", ["remote", "compressor", "local", 1]],
   ]);
 }
 function testBankManagerShiftExtendsGroupingSelection() {

@@ -74,7 +74,7 @@ public sealed class PersistenceUseCasesTests
         var payload = persistence.CaptureCommitted(instance.InstanceId);
         var invalidPayload = Encoding.UTF8.GetBytes(
             Encoding.UTF8.GetString(payload).Replace(
-                "\"schema\":4",
+                "\"schema\":5",
                 "\"schema\":3",
                 StringComparison.Ordinal));
         var before = instance.Dsp.Latest.CompressorAttack;

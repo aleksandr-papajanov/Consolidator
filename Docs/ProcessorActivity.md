@@ -7,7 +7,9 @@ its `thick` and `air` macro values together with its bypass state.
 Managed owns one local activity observer for the six instance-owned
 processors and all seven equalizer banks. JavaScript presents the published
 activity values directly. The row-level activity markers beside the track name
-remain part of the presentation.
+remain part of the presentation. When a focused bank belongs to a group, each
+row's marker is resolved from that row's own grouped bank; activity is not
+aggregated from the other group members.
 
 Each processor status contains `processorId`, `effectActive`, and `bypassed`.
 Equalizer bank activity remains a
@@ -37,17 +39,19 @@ when the processor is active. Its separate navigation marker is not drawn.
 The processor controls `B`, `R`, `BB`, and `BR` are disabled while the processor
 is inactive. `BB` and `BR` remain available only for the equalizer panel.
 
-Processor bypass uses a source-relative command:
+Processor bypass uses an explicitly targeted command:
 
 ```text
-set_processor_bypass processorId local|group 0|1
+set_processor_bypass targetInstanceId processorId local|group 0|1
+set_bank_bypass targetInstanceId bankIndex local|group 0|1
 ```
 
-Managed resolves the selected target and bank from the source instance's
-`SelectionContext`; rendered row, instance, and bank IDs are not command
-addresses. Group targets are resolved by `InstanceControlTargetResolver`. An
-ungrouped bank is rejected without falling back to its instance. Processor control
-transactions do not create history points. Direct state writes to
+Managed resolves the target instance directly and uses the source instance's
+focused bank only to resolve the corresponding group scope. Bank bypass uses
+the explicitly supplied zero-based bank index. Group targets are resolved by
+`InstanceControlTargetResolver`. An ungrouped bank is rejected without falling
+back to its instance. Processor and bank bypass transactions do not create
+history points or change UI selection. Direct state writes to
 instance-owned processor bypass values are rejected. Processor controls expose
 only bypass and reset operations.
 
@@ -55,6 +59,10 @@ The processor panel also exposes an `R` control. A regular click sends a local
 reset for the complete processor. Ctrl/Command-click sends the same reset with
 group scope, using the focused bank to resolve processor peers. Reset changes
 are history-backed and restore each addressed value to its own initial value.
+
+In the Bank Manager, a regular click on a processor marker or bank selects it.
+Ctrl/Command-click toggles bypass for the selected processor or focused bank.
+Bypassed processors and banks show a cross indicator in their cells.
 When the equalizer panel is selected, its two panel controls are `BB` and `BR`:
 `BB` bypasses the focused equalizer bank and `BR` resets that bank. They use the
 same local/group scope and history behavior as the processor controls.

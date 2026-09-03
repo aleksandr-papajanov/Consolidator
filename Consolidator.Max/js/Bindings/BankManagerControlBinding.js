@@ -231,7 +231,8 @@ class BankManagerControlBinding extends ControlBinding
             bank.opacity === undefined ? 1 : bank.opacity,
             bank.groupId === undefined || bank.groupId === null
                 ? -1 : Number(bank.groupId),
-            bank.effectActive ? 1 : 0
+            bank.effectActive ? 1 : 0,
+            bank.bypassed ? 1 : 0
         ].concat(
             this.colorArguments(bank.color),
             this.colorArguments(bank.textColor)
@@ -303,6 +304,10 @@ class BankManagerControlBinding extends ControlBinding
     
     handleIntent(name, values)
     {
+        if (typeof post === "function") {
+            post("[Consolidator][TrackName] BankManagerControlBinding intent=" +
+                name + " values=" + JSON.stringify(values || []) + "\n");
+        }
         this.controller.handleIntent(name, values);
     }
 }
