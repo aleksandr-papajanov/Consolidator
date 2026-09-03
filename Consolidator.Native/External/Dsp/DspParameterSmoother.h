@@ -4,7 +4,7 @@
 
 #include "SharedDspState.h"
 
-namespace consolidator::max
+namespace consolidator::max::dsp
 {
 
 class DspParameterSmoother
@@ -31,4 +31,4 @@ private:
     std::size_t remainingSamples_{};
 };
 
-} // namespace consolidator::max
+} // namespace consolidator::max::dsp

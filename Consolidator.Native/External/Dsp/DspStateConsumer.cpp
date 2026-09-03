@@ -2,7 +2,7 @@
 
 #include <atomic>
 
-namespace consolidator::max
+namespace consolidator::max::dsp
 {
 
 bool ConsumePublishedDspState(
@@ -29,4 +29,4 @@ bool ConsumePublishedDspState(
     return true;
 }
 
-} // namespace consolidator::max
+} // namespace consolidator::max::dsp

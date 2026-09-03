@@ -7,7 +7,7 @@
 
 #include "ManagedInterop.h"
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 class ManagedBridge
@@ -56,4 +56,4 @@ private:
     std::unique_ptr<Implementation> implementation_;
 };
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

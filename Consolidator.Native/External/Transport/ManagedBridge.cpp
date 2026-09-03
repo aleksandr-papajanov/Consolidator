@@ -9,7 +9,7 @@
 
 #include "c74_min_api.h"
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 namespace
@@ -391,4 +391,4 @@ bool ManagedBridge::RestorePersistence(
     return result;
 }
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

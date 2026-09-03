@@ -15,7 +15,6 @@ public sealed class FftAnalyzer :
     IDisposable
 {
     private const int FftSize = 1024;
-    private const int HopSize = FftSize / 2;
     private const int QueueLength = 4;
     private const int SpectrumBinCount = FftSize / 2 + 1;
     private const int SpectrumIntervalMilliseconds = 33;
@@ -224,7 +223,7 @@ public sealed class FftAnalyzer :
             return;
         }
 
-        if (capture.TryReadWindow(_window, FftSize, HopSize))
+        if (capture.TryReadWindow(_window, FftSize))
         {
             AnalyzeWindow(sourceInstanceId, capture);
         }

@@ -54,14 +54,19 @@
     <ClCompile Include="Contracts\PersistenceBlobCodecTests.cpp" />
     <ClCompile Include="Contracts\PersistenceRestoreGateTests.cpp" />
     <ClCompile Include="Realtime\DspParameterSmootherTests.cpp" />
+    <ClCompile Include="Realtime\DspRuntimeGraphTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
-    <ClCompile Include="..\..\Consolidator.Native\External\DspParameterSmoother.cpp" />
-    <ClCompile Include="..\..\Consolidator.Native\External\DspStateConsumer.cpp" />
-    <ClCompile Include="..\..\Consolidator.Native\External\PersistenceBlobCodec.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParameterSmoother.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspExecution.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParallelStage.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspProcessors.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspRuntimeGraph.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspStateConsumer.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Transport\PersistenceBlobCodec.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Consolidator.Native\External\PersistenceBlobCodec.h" />
-    <ClInclude Include="..\..\Consolidator.Native\External\PersistenceRestoreGate.h" />
+    <ClInclude Include="..\..\Consolidator.Native\External\Transport\PersistenceBlobCodec.h" />
+    <ClInclude Include="..\..\Consolidator.Native\External\Transport\PersistenceRestoreGate.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

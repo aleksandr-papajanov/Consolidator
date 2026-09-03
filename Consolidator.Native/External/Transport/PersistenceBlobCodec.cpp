@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 std::optional<std::vector<double>> PersistenceBlobCodec::Encode(
@@ -99,4 +99,4 @@ std::optional<std::string> PersistenceBlobCodec::Decode(
     return payload;
 }
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

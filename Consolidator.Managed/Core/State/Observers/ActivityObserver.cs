@@ -1,3 +1,4 @@
+using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Settings;
 using Consolidator.Managed.State;
@@ -7,7 +8,7 @@ namespace Consolidator.Managed.Core.State.Observers;
 
 internal sealed class ActivityObserver
 {
-    public const float ActivityEpsilon = 0.0001F;
+    public const float ActivityEpsilon = DspActivityCalculator.ActivityEpsilon;
 
     private readonly InstanceId _instanceId;
     private DspState _dsp = null!;
@@ -116,9 +117,10 @@ internal sealed class ActivityObserver
     {
         ProcessorId.Input => new(
             processorId,
-            MathF.Abs(_dsp.InputGain.Level.Value) > ActivityEpsilon ||
-                MathF.Abs(_dsp.InputGain.Width.Value - 100.0F) > ActivityEpsilon ||
-                _dsp.InputGain.Leveler.Value,
+            DspActivityCalculator.IsInputGainActive(
+                _dsp.InputGain.Level.Value,
+                _dsp.InputGain.Width.Value,
+                _dsp.InputGain.Leveler.Value),
             _dsp.InputGain.Bypass.Value),
         ProcessorId.Saturator => new(
             processorId,

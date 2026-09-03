@@ -102,24 +102,35 @@
   <!-- Sources -->
   <ItemGroup>
     <ClCompile Include="External\ConsolidatorExternal.cpp" />
-    <ClCompile Include="External\AtomCodec.cpp" />
-    <ClCompile Include="External\DspParameterSmoother.cpp" />
-    <ClCompile Include="External\DspStateConsumer.cpp" />
-    <ClCompile Include="External\ManagedBridge.cpp" />
-    <ClCompile Include="External\PersistenceBlobCodec.cpp" />
+    <ClCompile Include="External\Transport\AtomCodec.cpp" />
+    <ClCompile Include="External\Dsp\DspParameterSmoother.cpp" />
+    <ClCompile Include="External\Dsp\DspExecution.cpp" />
+    <ClCompile Include="External\Dsp\DspParallelStage.cpp" />
+    <ClCompile Include="External\Dsp\DspProcessors.cpp" />
+    <ClCompile Include="External\Dsp\DspRuntimeGraph.cpp" />
+    <ClCompile Include="External\Dsp\DspStateConsumer.cpp" />
+    <ClCompile Include="External\Transport\ManagedBridge.cpp" />
+    <ClCompile Include="External\Transport\PersistenceBlobCodec.cpp" />
     <ClCompile Include="External\MinApiImplementation.cpp" />
   </ItemGroup>
   <!-- Headers -->
   <ItemGroup>
     <ClInclude Include="External\ConsolidatorExternal.h" />
-    <ClInclude Include="External\AtomCodec.h" />
-    <ClInclude Include="External\DspParameterSmoother.h" />
-    <ClInclude Include="External\DspStateConsumer.h" />
-    <ClInclude Include="External\ManagedBridge.h" />
-    <ClInclude Include="External\ManagedInterop.h" />
-    <ClInclude Include="External\PersistenceBlobCodec.h" />
-    <ClInclude Include="External\PersistenceRestoreGate.h" />
-    <ClInclude Include="External\SharedDspState.h" />
+    <ClInclude Include="External\Transport\AtomCodec.h" />
+    <ClInclude Include="External\Dsp\DspParameterSmoother.h" />
+    <ClInclude Include="External\Dsp\DspExecution.h" />
+    <ClInclude Include="External\Dsp\DspProcessingPrimitives.h" />
+    <ClInclude Include="External\Dsp\DspParallelStage.h" />
+    <ClInclude Include="External\Dsp\DspProcessingContext.h" />
+    <ClInclude Include="External\Dsp\DspProcessor.h" />
+    <ClInclude Include="External\Dsp\DspProcessors.h" />
+    <ClInclude Include="External\Dsp\DspRuntimeGraph.h" />
+    <ClInclude Include="External\Dsp\DspStateConsumer.h" />
+    <ClInclude Include="External\Transport\ManagedBridge.h" />
+    <ClInclude Include="External\Transport\ManagedInterop.h" />
+    <ClInclude Include="External\Transport\PersistenceBlobCodec.h" />
+    <ClInclude Include="External\Transport\PersistenceRestoreGate.h" />
+    <ClInclude Include="External\Dsp\SharedDspState.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!-- Deploy the external for the InteropSandbox ConsolidatorV3 patch. -->

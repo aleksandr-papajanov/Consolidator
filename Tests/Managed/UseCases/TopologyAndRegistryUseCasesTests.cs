@@ -97,7 +97,7 @@ public sealed class TopologyAndRegistryUseCasesTests
     }
 
     [Fact]
-    public void ProcessorMarkersFollowExactTopologyAndViewerFocus()
+    public void ProcessorMarkersReportInstanceActivityAcrossBanks()
     {
         using var application = new ManagedApplicationFixture();
         var viewer = application.RegisterInstance();
@@ -117,6 +117,12 @@ public sealed class TopologyAndRegistryUseCasesTests
             message.Atoms[3].Symbol == viewer.InstanceId.Value.ToString() &&
             message.Atoms[4].Symbol == "equalizer");
         Assert.Equal(0, initialMarker.Atoms[6].Integer);
+
+        var remoteMarker = viewer.Output.Messages.Single(message =>
+            message.Selector == "registry_processor" &&
+            message.Atoms[3].Symbol == remote.InstanceId.Value.ToString() &&
+            message.Atoms[4].Symbol == "equalizer");
+        Assert.Equal(1, remoteMarker.Atoms[6].Integer);
 
         viewer.Output.Clear();
         WriteGroup(application, viewer, viewer, 0, 7);
@@ -138,7 +144,7 @@ public sealed class TopologyAndRegistryUseCasesTests
             Integer(1),
             Symbol("equalizer"));
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             viewer.Output.Messages,
             message => IsProcessorMarkerChange(
                 message,

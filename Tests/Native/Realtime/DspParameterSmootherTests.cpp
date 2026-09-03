@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include "DspParameterSmoother.h"
+#include "Dsp/DspParameterSmoother.h"
 
 namespace consolidator::tests
 {
@@ -19,7 +19,7 @@ bool IsClose(float actual, float expected)
 
 bool RunDspParameterSmootherTests()
 {
-    consolidator::max::DspParameterSmoother smoother;
+    consolidator::max::dsp::DspParameterSmoother smoother;
     smoother.Prepare(1000.0);
 
     auto target = smoother.Current();

@@ -55,8 +55,7 @@ internal sealed class AudioCapture
 
     public bool TryReadWindow(
         IReadOnlyList<double> window,
-        int windowSize,
-        int hopSize)
+        int windowSize)
     {
         var readIndex = _readIndex;
         var writeIndex = Volatile.Read(ref _writeIndex);
@@ -82,7 +81,9 @@ internal sealed class AudioCapture
                 0);
         }
 
-        Volatile.Write(ref _readIndex, readIndex + hopSize);
+            // This analyzer is latest-window only. Discard samples accumulated while
+            // the worker was waiting for its next publication interval.
+            Volatile.Write(ref _readIndex, writeIndex);
         return true;
     }
 }

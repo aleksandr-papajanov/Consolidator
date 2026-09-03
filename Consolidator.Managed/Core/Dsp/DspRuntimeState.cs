@@ -27,7 +27,11 @@ public unsafe sealed class DspRuntimeState
     public float InputLevel
     {
         get => _snapshot.InputLevel;
-        set => _snapshot.InputLevel = value;
+        set
+        {
+            _snapshot.InputLevel = value;
+            RefreshInputGainActivity();
+        }
     }
 
     public float InputTarget
@@ -39,13 +43,21 @@ public unsafe sealed class DspRuntimeState
     public float InputWidth
     {
         get => _snapshot.InputWidth;
-        set => _snapshot.InputWidth = value;
+        set
+        {
+            _snapshot.InputWidth = value;
+            RefreshInputGainActivity();
+        }
     }
 
     public bool InputLeveler
     {
         get => _snapshot.InputLeveler != 0;
-        set => _snapshot.InputLeveler = value ? 1U : 0U;
+        set
+        {
+            _snapshot.InputLeveler = value ? 1U : 0U;
+            RefreshInputGainActivity();
+        }
     }
 
     public bool InputGainBypass
@@ -247,6 +259,16 @@ public unsafe sealed class DspRuntimeState
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
+    }
+
+    private void RefreshInputGainActivity()
+    {
+        _snapshot.InputGainActive = DspActivityCalculator.IsInputGainActive(
+            _snapshot.InputLevel,
+            _snapshot.InputWidth,
+            _snapshot.InputLeveler != 0)
+                ? 1U
+                : 0U;
     }
 
     private ref FilterSnapshot GetDetectorFilter(int index)

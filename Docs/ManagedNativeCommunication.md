@@ -51,10 +51,12 @@ snapshot carries raw filter data, not compiled coefficients; Native DSP
 compilation remains a later consumer of these slots.
 Snapshot structs have no domain defaults. The initial macro-control state is
 created by Managed `DspDefaults` and compiled before the first publish.
-`Prepare(sampleRate, maximumFrameCount)` is reserved for updating the DSP
-compilation context after audio configuration; it must not reset or republish
-parameter state. Managed writes the exchange and native reads it, so telemetry
-must use a separate native-owned channel.
+`Prepare(sampleRate, maximumFrameCount)` updates the native DSP compilation
+context and the Managed analyzer context after audio configuration; it must not
+reset or republish parameter state. Native creates its per-instance DSP graph
+and its bounded parallel branch storage during this control/setup operation.
+Managed writes the exchange and native reads it, so telemetry must use a
+separate native-owned channel.
 
 Each Max external owns one managed instance. The instance ID addresses all control and audio calls for that external.
 
@@ -500,11 +502,13 @@ The singleton `FftAnalyzer` is the audio input implementation. It writes the
 four input channels into a preallocated bounded SPSC sample ring on the
 callback and performs FFT on a managed worker. The ring accepts arbitrary audio
 vector sizes, drops newest samples on overflow, and counts dropped samples
-atomically. The worker reads complete 1024-sample windows with a 512-sample
-hop and applies a Hann window before FFT, so vector boundaries do not discard
-the remainder of an input block. It publishes `fft` output only to the active
-viewer of the selected source instance; the output contains protocol version,
-source instance ID, FFT size, main spectrum bins and reference spectrum bins.
+atomically. The worker reads the latest complete 1024-sample window at its
+33 ms publication interval and applies a Hann window before FFT. Samples that
+arrive while the worker is waiting are intentionally skipped, so the ring does
+not accumulate stale audio or overflow during normal realtime capture. It
+publishes `fft` output only to the active viewer of the selected source
+instance; the output contains protocol version, source instance ID, FFT size,
+main spectrum bins and reference spectrum bins.
 
 `FftAnalyzer` owns its capture rings directly; there is no separate analyzer
 registry or Managed curve cache. Instance activity gates spectrum capture.

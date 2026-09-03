@@ -1,6 +1,6 @@
 #include "AtomCodec.h"
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 std::optional<std::vector<NativeAtom>> AtomCodec::Encode(
@@ -40,4 +40,4 @@ std::optional<std::vector<NativeAtom>> AtomCodec::Encode(
     return result;
 }
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

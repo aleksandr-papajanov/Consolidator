@@ -3,10 +3,12 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "SharedDspState.h"
+#include "../Dsp/SharedDspState.h"
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
+
+using consolidator::max::dsp::DspStateExchange;
 
 enum class NativeAtomType : std::uint8_t
 {
@@ -51,4 +53,4 @@ using ManagedRestorePersistence = int (__cdecl *)(
     const char*,
     std::size_t);
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

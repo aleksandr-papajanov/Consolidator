@@ -1,6 +1,6 @@
 #pragma once
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 class PersistenceRestoreGate
@@ -25,4 +25,4 @@ private:
     bool localChangeNotificationActive_{};
 };
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

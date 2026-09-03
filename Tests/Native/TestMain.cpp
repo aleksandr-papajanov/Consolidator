@@ -12,12 +12,15 @@ int main()
         consolidator::tests::RunDspParameterSmootherTests();
     const auto dspStateConsumerSucceeded =
         consolidator::tests::RunDspStateConsumerTests();
+    const auto dspRuntimeGraphSucceeded =
+        consolidator::tests::RunDspRuntimeGraphTests();
 
     if (!abiSucceeded ||
         !persistenceBlobSucceeded ||
         !persistenceRestoreGateSucceeded ||
         !dspParameterSmootherSucceeded ||
-        !dspStateConsumerSucceeded)
+        !dspStateConsumerSucceeded ||
+        !dspRuntimeGraphSucceeded)
     {
         return 1;
     }

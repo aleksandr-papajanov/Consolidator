@@ -1,13 +1,13 @@
 #include "TestSupport.h"
 
-#include "PersistenceRestoreGate.h"
+#include "Transport/PersistenceRestoreGate.h"
 
 namespace consolidator::tests
 {
 
 bool RunPersistenceRestoreGateTests()
 {
-    consolidator::max::PersistenceRestoreGate gate;
+    consolidator::max::transport::PersistenceRestoreGate gate;
 
     if (!Expect(
             gate.ShouldRestore(),

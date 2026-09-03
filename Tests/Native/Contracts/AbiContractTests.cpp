@@ -4,17 +4,17 @@
 #include <cstdint>
 #include <type_traits>
 
-#include "ManagedInterop.h"
+#include "Transport/ManagedInterop.h"
 
 namespace consolidator::tests
 {
 
 bool RunAbiContractTests()
 {
-    using consolidator::max::DspSnapshot;
-    using consolidator::max::NativeAtom;
-    using consolidator::max::NativeAtomType;
-    using consolidator::max::DspStateExchange;
+    using consolidator::max::dsp::DspSnapshot;
+    using consolidator::max::transport::NativeAtom;
+    using consolidator::max::transport::NativeAtomType;
+    using consolidator::max::dsp::DspStateExchange;
 
     static_assert(std::is_standard_layout_v<NativeAtom>);
     static_assert(std::is_standard_layout_v<DspSnapshot>);

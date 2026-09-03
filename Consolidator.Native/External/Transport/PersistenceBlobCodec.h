@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 class PersistenceBlobCodec
@@ -36,4 +36,4 @@ private:
         MaximumAttributeAtoms);
 };
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

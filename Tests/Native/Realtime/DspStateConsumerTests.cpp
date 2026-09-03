@@ -1,21 +1,21 @@
 #include "TestSupport.h"
 
-#include "DspStateConsumer.h"
+#include "Dsp/DspStateConsumer.h"
 
 namespace consolidator::tests
 {
 
 bool RunDspStateConsumerTests()
 {
-    consolidator::max::DspStateExchange exchange{};
+    consolidator::max::dsp::DspStateExchange exchange{};
     exchange.snapshots[1].inputLevel = 2.0F;
     exchange.publishedIndex = 1;
     std::uint32_t consumerIndex = 0;
-    consolidator::max::DspSnapshot local{};
+    consolidator::max::dsp::DspSnapshot local{};
 
     auto succeeded = true;
     succeeded &= Expect(
-        consolidator::max::ConsumePublishedDspState(
+        consolidator::max::dsp::ConsumePublishedDspState(
             exchange,
             consumerIndex,
             local),
@@ -28,7 +28,7 @@ bool RunDspStateConsumerTests()
 
     exchange.snapshots[1].inputLevel = 5.0F;
     succeeded &= Expect(
-        !consolidator::max::ConsumePublishedDspState(
+        !consolidator::max::dsp::ConsumePublishedDspState(
             exchange,
             consumerIndex,
             local) &&
@@ -37,7 +37,7 @@ bool RunDspStateConsumerTests()
 
     exchange.publishedIndex = 7;
     succeeded &= Expect(
-        !consolidator::max::ConsumePublishedDspState(
+        !consolidator::max::dsp::ConsumePublishedDspState(
             exchange,
             consumerIndex,
             local) &&

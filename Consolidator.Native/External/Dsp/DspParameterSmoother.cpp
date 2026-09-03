@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace consolidator::max
+namespace consolidator::max::dsp
 {
 
 DspParameterSmoother::DspParameterSmoother() noexcept
@@ -51,24 +51,19 @@ void DspParameterSmoother::SetTarget(
     current_.outputTarget = previous.outputTarget;
 
     target_ = target;
-    remainingSamples_ = static_cast<std::size_t>(
-        std::max(1.0, std::round(sampleRate_ * kRampDurationSeconds)));
+    remainingSamples_ = static_cast<std::size_t>(std::max(1.0, std::round(sampleRate_ * kRampDurationSeconds)));
     const auto divisor = static_cast<float>(remainingSamples_);
 
     step_.inputLevel = (target_.inputLevel - current_.inputLevel) / divisor;
     step_.inputTarget = (target_.inputTarget - current_.inputTarget) / divisor;
     step_.inputWidth = (target_.inputWidth - current_.inputWidth) / divisor;
-    step_.saturatorDrive =
-        (target_.saturatorDrive - current_.saturatorDrive) / divisor;
-    step_.saturatorOutputDb =
-        (target_.saturatorOutputDb - current_.saturatorOutputDb) / divisor;
-    step_.saturatorCurve =
-        (target_.saturatorCurve - current_.saturatorCurve) / divisor;
+    step_.saturatorDrive = (target_.saturatorDrive - current_.saturatorDrive) / divisor;
+    step_.saturatorOutputDb = (target_.saturatorOutputDb - current_.saturatorOutputDb) / divisor;
+    step_.saturatorCurve = (target_.saturatorCurve - current_.saturatorCurve) / divisor;
     step_.compressorAttack = (target_.compressorAttack - current_.compressorAttack) / divisor;
     step_.compressorSustain = (target_.compressorSustain - current_.compressorSustain) / divisor;
     step_.compressorCompression = (target_.compressorCompression - current_.compressorCompression) / divisor;
-    step_.compressorOutputDb =
-        (target_.compressorOutputDb - current_.compressorOutputDb) / divisor;
+    step_.compressorOutputDb = (target_.compressorOutputDb - current_.compressorOutputDb) / divisor;
     step_.polishThick = (target_.polishThick - current_.polishThick) / divisor;
     step_.polishAir = (target_.polishAir - current_.polishAir) / divisor;
     step_.outputLevel = (target_.outputLevel - current_.outputLevel) / divisor;
@@ -111,4 +106,4 @@ const DspSnapshot& DspParameterSmoother::Current() const noexcept
     return current_;
 }
 
-} // namespace consolidator::max
+} // namespace consolidator::max::dsp

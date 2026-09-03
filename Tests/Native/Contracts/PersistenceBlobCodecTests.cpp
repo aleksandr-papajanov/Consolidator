@@ -4,14 +4,14 @@
 #include <string>
 #include <vector>
 
-#include "PersistenceBlobCodec.h"
+#include "Transport/PersistenceBlobCodec.h"
 
 namespace consolidator::tests
 {
 
 bool RunPersistenceBlobCodecTests()
 {
-    using consolidator::max::PersistenceBlobCodec;
+    using consolidator::max::transport::PersistenceBlobCodec;
 
     std::string payload = "{\"schema\":1}";
     payload.push_back('\0');

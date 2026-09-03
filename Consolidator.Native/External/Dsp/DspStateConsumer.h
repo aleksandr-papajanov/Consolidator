@@ -4,7 +4,7 @@
 
 #include "SharedDspState.h"
 
-namespace consolidator::max
+namespace consolidator::max::dsp
 {
 
 [[nodiscard]] bool ConsumePublishedDspState(
@@ -12,4 +12,4 @@ namespace consolidator::max
     std::uint32_t& consumerIndex,
     DspSnapshot& destination) noexcept;
 
-} // namespace consolidator::max
+} // namespace consolidator::max::dsp

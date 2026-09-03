@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace consolidator::max
+namespace consolidator::max::dsp
 {
 
 struct FilterSnapshot
@@ -69,4 +69,4 @@ static_assert(offsetof(DspStateExchange, snapshots) == 0);
 static_assert(offsetof(DspStateExchange, publishedIndex) == 4428);
 static_assert(offsetof(DspStateExchange, consumerIndex) == 4432);
 
-} // namespace consolidator::max
+} // namespace consolidator::max::dsp

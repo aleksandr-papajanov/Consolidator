@@ -6,7 +6,7 @@
 #include "ManagedInterop.h"
 #include "c74_min_api.h"
 
-namespace consolidator::max
+namespace consolidator::max::transport
 {
 
 class AtomCodec
@@ -15,4 +15,4 @@ public:
     [[nodiscard]] static std::optional<std::vector<NativeAtom>> Encode(const c74::min::atoms& atoms);
 };
 
-} // namespace consolidator::max
+} // namespace consolidator::max::transport

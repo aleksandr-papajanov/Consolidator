@@ -24,5 +24,6 @@ bool RunPersistenceBlobCodecTests();
 bool RunPersistenceRestoreGateTests();
 bool RunDspParameterSmootherTests();
 bool RunDspStateConsumerTests();
+bool RunDspRuntimeGraphTests();
 
 } // namespace consolidator::tests
