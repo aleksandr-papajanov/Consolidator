@@ -182,21 +182,29 @@ identity algorithm slots until their transfer functions are implemented.
 
 ## Parameter policy
 
-Each processor owns smoothing for the continuous values it consumes. Discrete
-flags and processor markers are applied immediately when a snapshot is accepted.
-Filter coefficient smoothing and derived-state compilation belong to future
-processor implementations and must not be added to Managed state.
+`DspParameterRamp` is the reusable ten-millisecond linear smoothing primitive.
+Each processor owns one instance for every continuous scalar it consumes and
+sets only its target when a snapshot is accepted. Implemented algorithms read
+`NextValue()` per sample; identity algorithm slots advance the same state in
+O(1) per block so later implementations inherit continuous runtime state.
+Unchanged targets do not restart a ramp, and retargeting continues from the
+current audio-owned value.
+
+Width, Leveler target, Saturator drive and curve, Compressor attack, sustain and
+amount, Polish Thick and Air, and Limiter target use this common mechanism.
+Discrete flags, enum values and processor markers are applied immediately.
+Filter frequency, gain and Q are deliberately excluded: detector and equalizer
+implementations must compile and transition stable coefficients instead of
+blindly interpolating the raw snapshot fields.
 
 `InputLevel` uses the Managed range `-36..36 dB`. `InputProcessor` calculates
-one multiplicative step when a new target is accepted and advances it for ten
-milliseconds while processing samples. No logarithmic conversion occurs in the
-per-sample loop. A transition back to neutral continues processing until unity
-is reached even after Managed clears the input activity marker.
-Saturator output, Compressor output and final Output level use the same
-processor-owned ramp. Unrelated snapshot publications do not restart an active
-ramp whose target has not changed. When Saturator or Compressor becomes neutral,
-its inactive runtime state is synchronized to the new targets so reactivation
-cannot resume a stale gain ramp.
+the linear gain target once when a snapshot is accepted. `DspGainRamp` delegates
+sample progression to `DspParameterRamp`, so no logarithmic conversion occurs
+in the per-sample loop. Input, Saturator output, Compressor output and final
+Output level all use this wrapper. A transition back to neutral continues until
+unity is reached even after Managed clears the input activity marker. When an
+inactive processor is skipped, its scalar ramps are synchronized to their new
+targets so later reactivation cannot resume stale parameter state.
 
 ## Testing contract
 
@@ -211,6 +219,8 @@ The native foundation tests verify:
 - initial and later snapshot publications are consumed directly by the
   audio-owned runtime without a Managed output callback;
 - input gain retargeting preserves its current ramp position;
+- the common scalar ramp advances by sample count, preserves unchanged targets,
+  retargets from its current value and resets to its target;
 - detector routes use processor-owned buffers;
 - compressor parallel processing applies output gain before adding wet to dry;
 - compressor parallel summing leaves channels excluded by the plan untouched;

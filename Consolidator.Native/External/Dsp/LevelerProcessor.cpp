@@ -6,23 +6,24 @@ namespace consolidator::max::dsp
 void LevelerProcessor::Prepare(
     const DspProcessingContext& context) noexcept
 {
-    (void)context;
+    targetDb_.Prepare(context);
 }
 
 void LevelerProcessor::Reset() noexcept
 {
+    targetDb_.Reset();
 }
 
 void LevelerProcessor::SetParameters(
     const DspSnapshot& snapshot) noexcept
 {
-    targetDb_ = snapshot.inputTarget;
+    targetDb_.SetTarget(snapshot.inputTarget);
 }
 
 void LevelerProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
-    (void)frame;
+    targetDb_.Advance(frame.main.frameCount);
 }
 
 } // namespace consolidator::max::dsp

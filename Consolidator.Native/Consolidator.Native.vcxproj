@@ -108,6 +108,7 @@
     <ClCompile Include="External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DspExecution.cpp" />
     <ClCompile Include="External\Dsp\DspGainRamp.cpp" />
+    <ClCompile Include="External\Dsp\DspParameterRamp.cpp" />
     <ClCompile Include="External\Dsp\DspParallelStage.cpp" />
     <ClCompile Include="External\Dsp\DspRuntime.cpp" />
     <ClCompile Include="External\Dsp\DspRuntimeGraph.cpp" />
@@ -134,6 +135,7 @@
     <ClInclude Include="External\Dsp\DspExecution.h" />
     <ClInclude Include="External\Dsp\DspProcessingPrimitives.h" />
     <ClInclude Include="External\Dsp\DspParallelStage.h" />
+    <ClInclude Include="External\Dsp\DspParameterRamp.h" />
     <ClInclude Include="External\Dsp\DspProcessingContext.h" />
     <ClInclude Include="External\Dsp\DspProcessor.h" />
     <ClInclude Include="External\Dsp\DspProcessors.h" />

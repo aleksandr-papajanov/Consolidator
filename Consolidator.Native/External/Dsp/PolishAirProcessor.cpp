@@ -6,23 +6,24 @@ namespace consolidator::max::dsp
 void PolishAirProcessor::Prepare(
     const DspProcessingContext& context) noexcept
 {
-    (void)context;
+    amount_.Prepare(context);
 }
 
 void PolishAirProcessor::Reset() noexcept
 {
+    amount_.Reset();
 }
 
 void PolishAirProcessor::SetParameters(
     const DspSnapshot& snapshot) noexcept
 {
-    amount_ = snapshot.polishAir;
+    amount_.SetTarget(snapshot.polishAir);
 }
 
 void PolishAirProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
-    (void)frame;
+    amount_.Advance(frame.main.frameCount);
 }
 
 } // namespace consolidator::max::dsp

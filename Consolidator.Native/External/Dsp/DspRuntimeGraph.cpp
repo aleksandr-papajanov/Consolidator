@@ -56,6 +56,10 @@ void DspRuntimeGraph::SetParameters(
     {
         compressor_.SynchronizeInactiveState();
     }
+    if (!policy_.polishActive && snapshot.polishBypass == 0)
+    {
+        polish_.SynchronizeInactiveState();
+    }
 }
 
 void DspRuntimeGraph::SetProcessingPlan(

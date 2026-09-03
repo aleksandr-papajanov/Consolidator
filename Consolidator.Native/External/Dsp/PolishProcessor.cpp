@@ -106,4 +106,10 @@ void PolishProcessor::Process(
     }
 }
 
+void PolishProcessor::SynchronizeInactiveState() noexcept
+{
+    thick_.Reset();
+    air_.Reset();
+}
+
 } // namespace consolidator::max::dsp

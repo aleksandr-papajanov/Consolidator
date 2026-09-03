@@ -53,6 +53,7 @@
     <ClCompile Include="Contracts\AbiContractTests.cpp" />
     <ClCompile Include="Contracts\PersistenceBlobCodecTests.cpp" />
     <ClCompile Include="Contracts\PersistenceRestoreGateTests.cpp" />
+    <ClCompile Include="Realtime\DspParameterRampTests.cpp" />
     <ClCompile Include="Realtime\DspRuntimeTests.cpp" />
     <ClCompile Include="Realtime\DspRuntimeGraphTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
@@ -61,6 +62,7 @@
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspExecution.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspGainRamp.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParameterRamp.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParallelStage.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspRuntime.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspRuntimeGraph.cpp" />

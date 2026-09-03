@@ -65,7 +65,9 @@ first stereo pair enters native DSP. Reference channels are analysis inputs,
 not an external DSP sidechain. Leveler, Saturator and Compressor derive private
 detector signals from the current main audio at their positions in the graph.
 
-Native processors apply a 10 ms ramp to the continuous runtime parameters they
-consume. Discrete bypass, active, audibility, bank, and filter markers are
-applied immediately. Ramp and algorithm history belong to the single
-audio-owned graph and are advanced only on the audio thread.
+Native processors apply the shared 10 ms parameter ramp to the continuous
+scalar controls they consume. Discrete bypass, active, audibility, bank, and
+filter markers are applied immediately. Filter parameters transition through
+future stable coefficient compilation rather than the generic scalar ramp.
+Ramp and algorithm history belong to the single audio-owned graph and are
+advanced only on the audio thread.

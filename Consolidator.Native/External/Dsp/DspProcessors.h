@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "DspParameterRamp.h"
 #include "DspProcessor.h"
 
 namespace consolidator::max::dsp
@@ -23,11 +24,7 @@ public:
     [[nodiscard]] bool RequiresProcessing() const noexcept;
 
 private:
-    double currentGain_{ 1.0 };
-    double targetGain_{ 1.0 };
-    double gainRatio_{ 1.0 };
-    std::size_t rampSampleCount_{ 1 };
-    std::size_t remainingSamples_{};
+    DspParameterRamp gain_{ 1.0 };
 };
 
 class DetectorProcessor final : public DspProcessor
@@ -58,7 +55,7 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float targetDb_{};
+    DspParameterRamp targetDb_;
 };
 
 class InputProcessor final : public DspProcessor
@@ -77,11 +74,7 @@ private:
     DspGainRamp level_;
     DetectorProcessor levelerDetector_{ 0 };
     LevelerProcessor leveler_;
-    float currentWidth_{ 100.0F };
-    float targetWidth_{ 100.0F };
-    float widthStep_{};
-    std::size_t widthRampSampleCount_{ 1 };
-    std::size_t widthRemainingSamples_{};
+    DspParameterRamp width_{ 100.0 };
 };
 
 class SaturationProcessor final : public DspProcessor
@@ -93,8 +86,8 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float drive_{};
-    float curve_{ 0.5F };
+    DspParameterRamp drive_;
+    DspParameterRamp curve_{ 0.5 };
     bool split_{};
 };
 
@@ -122,8 +115,8 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float attack_{};
-    float sustain_{};
+    DspParameterRamp attack_;
+    DspParameterRamp sustain_;
 };
 
 class CompressionProcessor final : public DspProcessor
@@ -135,7 +128,7 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float amount_{};
+    DspParameterRamp amount_;
     std::uint32_t character_{};
 };
 
@@ -177,7 +170,7 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float amount_{};
+    DspParameterRamp amount_;
 };
 
 class PolishAirProcessor final : public DspProcessor
@@ -189,7 +182,7 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float amount_{};
+    DspParameterRamp amount_;
 };
 
 class PolishProcessor final : public DspProcessor
@@ -199,6 +192,7 @@ public:
     void Reset() noexcept override;
     void SetParameters(const DspSnapshot& snapshot) noexcept override;
     void Process(DspProcessingFrame& frame) noexcept override;
+    void SynchronizeInactiveState() noexcept;
 
 private:
     PolishThickProcessor thick_;
@@ -218,7 +212,7 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    float targetDb_{ -1.0F };
+    DspParameterRamp targetDb_{ -1.0 };
 };
 
 class OutputProcessor final : public DspProcessor

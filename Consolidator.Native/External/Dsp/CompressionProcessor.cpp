@@ -6,24 +6,25 @@ namespace consolidator::max::dsp
 void CompressionProcessor::Prepare(
     const DspProcessingContext& context) noexcept
 {
-    (void)context;
+    amount_.Prepare(context);
 }
 
 void CompressionProcessor::Reset() noexcept
 {
+    amount_.Reset();
 }
 
 void CompressionProcessor::SetParameters(
     const DspSnapshot& snapshot) noexcept
 {
-    amount_ = snapshot.compressorCompression;
+    amount_.SetTarget(snapshot.compressorCompression);
     character_ = snapshot.compressorCharacter;
 }
 
 void CompressionProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
-    (void)frame;
+    amount_.Advance(frame.main.frameCount);
 }
 
 } // namespace consolidator::max::dsp

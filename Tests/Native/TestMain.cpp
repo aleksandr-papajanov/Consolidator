@@ -8,6 +8,8 @@ int main()
         consolidator::tests::RunPersistenceBlobCodecTests();
     const auto persistenceRestoreGateSucceeded =
         consolidator::tests::RunPersistenceRestoreGateTests();
+    const auto dspParameterRampSucceeded =
+        consolidator::tests::RunDspParameterRampTests();
     const auto dspRuntimeSucceeded =
         consolidator::tests::RunDspRuntimeTests();
     const auto dspStateConsumerSucceeded =
@@ -18,6 +20,7 @@ int main()
     if (!abiSucceeded ||
         !persistenceBlobSucceeded ||
         !persistenceRestoreGateSucceeded ||
+        !dspParameterRampSucceeded ||
         !dspRuntimeSucceeded ||
         !dspStateConsumerSucceeded ||
         !dspRuntimeGraphSucceeded)

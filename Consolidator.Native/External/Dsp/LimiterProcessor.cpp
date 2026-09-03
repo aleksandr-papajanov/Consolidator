@@ -6,23 +6,24 @@ namespace consolidator::max::dsp
 void LimiterProcessor::Prepare(
     const DspProcessingContext& context) noexcept
 {
-    (void)context;
+    targetDb_.Prepare(context);
 }
 
 void LimiterProcessor::Reset() noexcept
 {
+    targetDb_.Reset();
 }
 
 void LimiterProcessor::SetParameters(
     const DspSnapshot& snapshot) noexcept
 {
-    targetDb_ = snapshot.outputTarget;
+    targetDb_.SetTarget(snapshot.outputTarget);
 }
 
 void LimiterProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
-    (void)frame;
+    targetDb_.Advance(frame.main.frameCount);
 }
 
 } // namespace consolidator::max::dsp

@@ -22,6 +22,10 @@ void OutputProcessor::SetParameters(
     level_.SetTargetDb(snapshot.outputLevel);
     limiter_.SetParameters(snapshot);
     limiterEnabled_ = snapshot.outputLimiter != 0;
+    if (!limiterEnabled_)
+    {
+        limiter_.Reset();
+    }
 }
 
 void OutputProcessor::Process(
