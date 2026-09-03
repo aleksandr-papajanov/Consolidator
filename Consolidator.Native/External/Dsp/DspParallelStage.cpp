@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "DspProcessingPrimitives.h"
+
 namespace consolidator::max::dsp
 {
 
@@ -9,25 +11,20 @@ void DspParallelStage::Prepare(const DspProcessingContext& context)
 {
     branchLeft_.assign(context.maximumFrameCount, 0.0);
     branchRight_.assign(context.maximumFrameCount, 0.0);
-    enabled_ = false;
 }
 
 void DspParallelStage::Reset() noexcept
 {
-    enabled_ = false;
-}
-
-void DspParallelStage::SetEnabled(bool enabled) noexcept
-{
-    enabled_ = enabled;
+    std::fill(branchLeft_.begin(), branchLeft_.end(), 0.0);
+    std::fill(branchRight_.begin(), branchRight_.end(), 0.0);
 }
 
 void DspParallelStage::Process(
-    DspProcessingFrame& frame) noexcept
+    DspProcessingFrame& frame,
+    DspProcessor& processor) noexcept
 {
     auto& main = frame.main;
-    if (!enabled_ ||
-        main.frameCount > branchLeft_.size() ||
+    if (main.frameCount > branchLeft_.size() ||
         main.frameCount > branchRight_.size())
     {
         return;
@@ -41,35 +38,19 @@ void DspParallelStage::Process(
     {
         std::copy_n(main.right, main.frameCount, branchRight_.data());
     }
-    ProcessBranch(
-        branchLeft_.data(),
-        branchRight_.data(),
-        frame.externalSidechain,
-        main.frameCount);
-
-    for (std::size_t index = 0; index < main.frameCount; ++index)
-    {
-        if (main.left != nullptr)
-        {
-            main.left[index] = (main.left[index] + branchLeft_[index]) * 0.5;
-        }
-        if (main.right != nullptr)
-        {
-            main.right[index] = (main.right[index] + branchRight_[index]) * 0.5;
-        }
-    }
-}
-
-void DspParallelStage::ProcessBranch(
-    double* left,
-    double* right,
-    const DspSidechainBuffer& sidechain,
-    std::size_t frameCount) noexcept
-{
-    (void)left;
-    (void)right;
-    (void)sidechain;
-    (void)frameCount;
+    DspAudioBuffer branch{
+        main.left == nullptr ? nullptr : branchLeft_.data(),
+        main.right == nullptr ? nullptr : branchRight_.data(),
+        main.frameCount
+    };
+    DspProcessingFrame branchFrame{
+        branch,
+        frame.detectorSignal,
+        frame.plan,
+        frame.policy
+    };
+    processor.Process(branchFrame);
+    DspParallelMixer::Add(main, branch, frame.plan.channelMode);
 }
 
 } // namespace consolidator::max::dsp

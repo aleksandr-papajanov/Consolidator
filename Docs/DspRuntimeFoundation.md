@@ -11,7 +11,8 @@ Native files are separated by ownership scope:
 
 - `Consolidator.Native/External/Dsp` uses the `consolidator::max::dsp`
   namespace for realtime processors, graph orchestration, smoothing, and the
-  shared DSP state layout.
+  shared DSP state layout. Each processor implementation has its own `.cpp`
+  translation unit; `DspProcessors.h` contains their shared public contracts.
 - `Consolidator.Native/External/Transport` uses the
   `consolidator::max::transport` namespace for atoms, Managed bridge, ABI
   declarations, and persistence transport helpers.
@@ -23,7 +24,7 @@ Managed StateValue
     -> DspRuntimeState
     -> DspSnapshot
     -> DspStateExchange
-    -> DspParameterSmoother
+    -> DspRuntime
     -> DspRuntimeGraph
     -> main audio output
 ```
@@ -38,16 +39,28 @@ Each external owns one fixed graph with this order:
 
 ```text
 InputProcessor
-  -> EqualizerDetectorProcessor
-  -> LevelerProcessor
-  -> SaturatorProcessor
-    -> CompressorProcessor
-    -> EqualizerProcessor
-    -> CompressorParallelStage
-    -> PolishProcessor
-    -> PolishParallelStage
-  -> OutputProcessor
-  -> LimiterProcessor
+  -> Width
+  -> Input level
+  -> [internal detector EQ -> Leveler]
+SaturatorProcessor
+  -> internal detector EQ
+  -> saturation (drive, curve, optional split bands)
+  -> saturator output gain
+CompressorParallelStage
+  -> dry path
+  -> wet path: internal detector EQ
+       -> transient shaper (attack, sustain)
+       -> compression
+       -> compressor output gain
+  -> dry + wet when parallel is enabled
+EqualizerProcessor
+PolishProcessor
+  -> Thick branch
+  -> Air branch
+  -> equal 50/50 branch mix
+OutputProcessor
+  -> output level
+  -> limiter
 ```
 
 Input and Output are processors rather than special gain operations. This
@@ -57,8 +70,10 @@ state consistent with the other devices.
 The graph uses a static set of processor members instead of a heap-owned
 processor list. Processor dispatch is therefore explicit and the audio path
 has no registry lookup or allocation. `DspProcessor` is the lifecycle and
-processing contract; `InputProcessor` applies the input level as dB gain and
-the remaining processors currently implement identity behavior.
+processing contract. Width and the four explicit level/output gain stages are
+implemented. Leveler, saturation, transient shaping, compression, equalization,
+Polish coloration and limiting currently retain identity behavior inside their
+final routing positions.
 
 ## Execution policy
 
@@ -78,7 +93,7 @@ The policy defines these graph-wide decisions:
   process both lanes;
 - `inputLeveler` gates the separate `LevelerProcessor`;
 - `saturatorSplit` selects the bounded frequency-band dispatch contract;
-- `compressorParallel` gates the reusable parallel branch and equal mix;
+- `compressorParallel` preserves dry audio and adds the processed wet branch;
 - `outputLimiter` gates the separate `LimiterProcessor`.
 
 The policy is derived orchestration state, not a second parameter source.
@@ -92,20 +107,21 @@ When the host does not provide a vector size, the graph uses the documented
 bounded capacity of 4096 frames; blocks larger than that are rejected rather
 than causing an audio-thread allocation.
 
-`SetParameters(snapshot)` is called only on the control/setup path. The
-external prepares one of three graph slots, publishes it with an atomic index,
-and the audio callback acquires that slot with a reader reservation. A graph
-slot is not reused while an audio callback still owns it, so processors may
-compile coefficients or update derived state during `SetParameters` without
-mutating the graph currently used by audio. `Reset()` is reserved for an
-explicit audio lifecycle reset.
+Each external owns one `DspRuntime` and one audio-owned `DspRuntimeGraph`.
+At the beginning of a block, `DspRuntime` claims and copies the newest
+`DspSnapshot` directly from `DspStateExchange`, independently of Managed
+protocol output or UI activity, and applies it to that graph. Processor history,
+envelopes and other realtime state therefore remain continuous across parameter
+publications. `SetParameters(snapshot)` is realtime-safe: it may update scalar
+targets or select precompiled immutable data, but may not allocate, lock, log,
+or rebuild unbounded state. `Reset()` is reserved for an explicit audio
+lifecycle reset.
 
-`ProcessBlock()` is realtime code. It accepts caller-owned main buffers and
-non-owning sidechain views, performs no allocation, locking, logging, or Max
-calls, and returns without touching audio if its inputs are invalid or exceed
-the prepared capacity. If a graph slot cannot be acquired during a concurrent
-publication, the external leaves its already-copied output as passthrough for
-that block.
+`ProcessBlock()` is realtime code. It accepts caller-owned main buffers;
+detector views are created only inside device processors from preallocated
+storage. Processing performs no allocation, locking, logging, or Max calls and
+returns without touching audio if its inputs are invalid or exceed the prepared
+capacity.
 
 ## Channel and frequency scope
 
@@ -130,44 +146,57 @@ contract.
 
 ## Sidechain and parallel processing
 
-Every processor receives the main stereo buffer and a separate read-only
-sidechain view. The external reference inputs are connected as the external
-sidechain and are intentionally not copied into the main output.
+Detector sidechains are internal device signals. The Max reference inputs are
+used only by Managed analysis and never enter the native DSP graph. A device
+detector copies the current main signal at that exact point in the chain into
+preallocated buffers, applies its detector EQ there, and exposes the result as a
+read-only control signal. The listening algorithm modifies only the main path;
+detector EQ audio is never mixed into the output.
 
-`DspParallelStage` owns preallocated branch buffers and provides the branch
-lifecycle and mix boundary needed for parallel devices. The graph owns
-separate instances for compressor parallel processing and the two-branch
-Polish topology. Compressor parallel mode is disabled unless its snapshot flag
-is enabled; Polish branches are enabled with the Polish device. Until concrete
-algorithms are supplied, branch processing and mixing remain identity
-operations. Enabling parallel work must never allocate on the audio thread.
+`DspParallelStage` owns preallocated compressor branch buffers. It preserves the
+dry signal, runs the complete detector/transient/compression/output chain on the
+wet branch, then adds wet to dry. Because compressor output gain runs before the
+sum, it controls how much compressed signal is added. Without parallel mode the
+same complete compressor chain processes main audio in place.
 
-The processing frame carries two sidechain views: the external sidechain input
-and the detector sidechain route. `EqualizerDetectorProcessor` is the explicit
-producer stage for detector material; the leveler and compressor consume that
-route while applying their processing to the main signal. Until detector
-processing is implemented, the graph initializes the detector route from the
-external sidechain as a pass-through. The sidechain is listened to by a device
-while its processing is applied to the main signal.
+Polish owns two separate preallocated copies of its input. Thick and Air process
+their own branches and are mixed 50/50. Equal averaging is the current explicit
+unity-safe policy: two identity branches reproduce the input instead of doubling
+it. Enabling either parallel topology must never allocate on the audio thread.
+
+The processing frame carries the current internal detector route. Input,
+Saturator and Compressor each own a `DetectorProcessor` with preallocated output
+buffers and their corresponding pair of detector-filter snapshot slots. Input
+captures after width and input level, Saturator captures its device input, and
+Compressor captures the wet-branch input before transient shaping. Future
+detector filtering modifies only those owned buffers; the main audio remains
+separate.
 
 `DspProcessingPrimitives.h` provides reusable boundaries for future devices:
 `SelectChannels` selects allowed lanes, `DspFrequencyBandRunner` iterates
 selected ranges without audio-thread allocation, and `DspParallelMixer`
-defines a 50/50 wet/dry mix. The leveler, compressor, and Polish topology are
-represented by separate processor slots and routing boundaries. Detector
-filtering, crossovers, dual Polish branches, limiting, and all other concrete
-audio operations remain outside this foundation.
+defines the compressor wet-into-dry sum. The leveler, compressor, and Polish
+topology is represented by separate processor slots and routing boundaries.
+Detector filtering, crossovers, coloration, dynamics, and limiting remain
+identity algorithm slots until their transfer functions are implemented.
 
 ## Parameter policy
 
-The existing native smoother owns the transition from published parameters to
-continuous runtime values. Discrete flags and processor markers remain
-immediate. Filter coefficient smoothing and derived-state compilation belong to
-future processor implementations and must not be added to Managed state.
+Each processor owns smoothing for the continuous values it consumes. Discrete
+flags and processor markers are applied immediately when a snapshot is accepted.
+Filter coefficient smoothing and derived-state compilation belong to future
+processor implementations and must not be added to Managed state.
 
-`InputLevel` uses the Managed range `-36..36 dB`. Native converts it to linear
-gain during `SetParameters`; `InputProcessor::Process` only multiplies the
-selected main lanes, so logarithmic conversion remains outside the audio loop.
+`InputLevel` uses the Managed range `-36..36 dB`. `InputProcessor` calculates
+one multiplicative step when a new target is accepted and advances it for ten
+milliseconds while processing samples. No logarithmic conversion occurs in the
+per-sample loop. A transition back to neutral continues processing until unity
+is reached even after Managed clears the input activity marker.
+Saturator output, Compressor output and final Output level use the same
+processor-owned ramp. Unrelated snapshot publications do not restart an active
+ramp whose target has not changed. When Saturator or Compressor becomes neutral,
+its inactive runtime state is synchronized to the new targets so reactivation
+cannot resume a stale gain ramp.
 
 ## Testing contract
 
@@ -177,10 +206,16 @@ The native foundation tests verify:
 - the complete identity graph preserves main audio;
 - `InputLevel` applies the expected dB gain to stereo audio;
 - input gain bypass preserves the original signal;
-- sidechain buffers are accepted without becoming output;
+- detector buffers copy current main audio without becoming output;
 - an oversized block is rejected without partial processing;
-- the existing snapshot exchange and parameter smoother contracts remain
-  unchanged.
+- initial and later snapshot publications are consumed directly by the
+  audio-owned runtime without a Managed output callback;
+- input gain retargeting preserves its current ramp position;
+- detector routes use processor-owned buffers;
+- compressor parallel processing applies output gain before adding wet to dry;
+- compressor parallel summing leaves channels excluded by the plan untouched;
+- neutralizing and reactivating Saturator does not restore stale output gain;
+- equal Thick/Air identity branches preserve unity.
 
 Additional audio algorithms, coefficient correctness, latency, denormal
 handling, and Max host integration are outside this scope.

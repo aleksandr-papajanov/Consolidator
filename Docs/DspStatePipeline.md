@@ -55,10 +55,17 @@ the dedicated native analysis outlet.
 State mutation, observer notification, DSP snapshot publication, focus changes,
 and analyzer configuration are control-path operations. JavaScript curve
 calculation and drawing run in the Max UI scheduler. The audio callback only
-copies into the bounded capture ring and reads the published native DSP state;
-it does not call Max UI code, allocate, block, log, or perform FFT work.
+copies into the bounded capture ring, claims the newest published DSP snapshot
+and runs the native graph. DSP publication consumption does not depend on a
+protocol callback, qelem drain, or UI activity. The callback does not call Max
+UI code, allocate, block, log, or perform FFT work.
 
-The native audio path applies a 10 ms linear ramp to continuous runtime snapshot
-parameters. Discrete bypass, active, audibility, bank, and filter
-markers are applied immediately. Ramp state belongs to the external instance
-and is advanced only on the audio thread.
+All four Max inputs remain available to Managed spectrum capture, but only the
+first stereo pair enters native DSP. Reference channels are analysis inputs,
+not an external DSP sidechain. Leveler, Saturator and Compressor derive private
+detector signals from the current main audio at their positions in the graph.
+
+Native processors apply a 10 ms ramp to the continuous runtime parameters they
+consume. Discrete bypass, active, audibility, bank, and filter markers are
+applied immediately. Ramp and algorithm history belong to the single
+audio-owned graph and are advanced only on the audio thread.

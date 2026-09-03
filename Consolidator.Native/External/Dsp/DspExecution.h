@@ -13,6 +13,7 @@ struct DspExecutionPolicy
     bool audible{};
     bool instanceBypassed{};
     bool inputActive{};
+    bool inputBypassed{};
     bool levelerEnabled{};
     bool saturatorActive{};
     bool saturatorSplit{};
@@ -21,6 +22,7 @@ struct DspExecutionPolicy
     bool equalizerActive{};
     bool polishActive{};
     bool outputActive{};
+    bool outputBypassed{};
     bool limiterEnabled{};
     bool widthProcessingRequired{};
     DspChannelMode channelMode{ DspChannelMode::Stereo };
@@ -29,8 +31,7 @@ struct DspExecutionPolicy
 struct DspProcessingFrame
 {
     DspAudioBuffer main{};
-    DspSidechainBuffer externalSidechain{};
-    DspSidechainBuffer detectorSidechain{};
+    DspDetectorBuffer detectorSignal{};
     const DspProcessingPlan& plan;
     const DspExecutionPolicy& policy;
 };

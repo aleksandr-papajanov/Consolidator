@@ -38,6 +38,9 @@ the payload copy has explicit ownership and does not require a retry loop.
 If `publishedIndex` equals the native local reading index, there is no new
 snapshot. The exchange remains a POD layout; C++ applies `std::atomic_ref` to
 its two publication fields.
+This consume path is independent of Managed protocol callbacks and the Max
+qelem. Initial state and changes for inactive presentation instances therefore
+reach DSP on the next audio block even when no UI frame is delivered.
 
 `DspSnapshot` contains the current scalar runtime controls for input/output
 level, saturator, compressor, Polish, and equalizer state, together with fixed
@@ -55,6 +58,8 @@ created by Managed `DspDefaults` and compiled before the first publish.
 context and the Managed analyzer context after audio configuration; it must not
 reset or republish parameter state. Native creates its per-instance DSP graph
 and its bounded parallel branch storage during this control/setup operation.
+The graph itself is audio-owned and is not swapped on parameter publications;
+processor history and smoothing state survive every accepted snapshot.
 Managed writes the exchange and native reads it, so telemetry must use a
 separate native-owned channel.
 
@@ -497,6 +502,9 @@ shared operation lock. The adapter forwards to the singleton
 `FftAnalyzer`. Unregistration releases the audio handle after removing the
 instance ID. Audio handlers must remain real-time safe: no Max outlet calls,
 blocking locks, or unbounded allocation on the audio thread.
+All four Max inputs are available to this analysis path. Native DSP processes
+only the first stereo pair; the reference pair is not an external DSP sidechain.
+Device detectors derive private sidechain signals from the current main audio.
 
 The singleton `FftAnalyzer` is the audio input implementation. It writes the
 four input channels into a preallocated bounded SPSC sample ring on the

@@ -22,7 +22,7 @@ inline bool Expect(
 bool RunAbiContractTests();
 bool RunPersistenceBlobCodecTests();
 bool RunPersistenceRestoreGateTests();
-bool RunDspParameterSmootherTests();
+bool RunDspRuntimeTests();
 bool RunDspStateConsumerTests();
 bool RunDspRuntimeGraphTests();
 

@@ -33,24 +33,30 @@ struct DspChannelView
 class DspParallelMixer final
 {
 public:
-    static void MixEqual(
+    static void Add(
         DspAudioBuffer& destination,
-        const DspAudioBuffer& processed) noexcept
+        const DspAudioBuffer& processed,
+        DspChannelMode channelMode) noexcept
     {
+        const auto processLeft = channelMode != DspChannelMode::Right;
+        const auto processRight = channelMode != DspChannelMode::Left;
         for (std::size_t index = 0; index < destination.frameCount; ++index)
         {
-            if (destination.left != nullptr && processed.left != nullptr)
+            if (processLeft &&
+                destination.left != nullptr &&
+                processed.left != nullptr)
             {
-                destination.left[index] =
-                    (destination.left[index] + processed.left[index]) * 0.5;
+                destination.left[index] += processed.left[index];
             }
-            if (destination.right != nullptr && processed.right != nullptr)
+            if (processRight &&
+                destination.right != nullptr &&
+                processed.right != nullptr)
             {
-                destination.right[index] =
-                    (destination.right[index] + processed.right[index]) * 0.5;
+                destination.right[index] += processed.right[index];
             }
         }
     }
+
 };
 
 class DspFrequencyBandRunner final

@@ -11,7 +11,7 @@ class DspProcessor
 public:
     virtual ~DspProcessor() = default;
 
-    virtual void Prepare(const DspProcessingContext& context) noexcept = 0;
+    virtual void Prepare(const DspProcessingContext& context) = 0;
     virtual void Reset() noexcept = 0;
     virtual void SetParameters(const DspSnapshot& snapshot) noexcept = 0;
     virtual void Process(DspProcessingFrame& frame) noexcept = 0;

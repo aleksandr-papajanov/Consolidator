@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <array>
 #include <deque>
 #include <mutex>
 #include <optional>
@@ -9,9 +8,7 @@
 #include <variant>
 #include <vector>
 
-#include "Dsp/DspParameterSmoother.h"
-#include "Dsp/DspRuntimeGraph.h"
-#include "Dsp/DspStateConsumer.h"
+#include "Dsp/DspRuntime.h"
 #include "Dsp/SharedDspState.h"
 #include "Transport/AtomCodec.h"
 #include "Transport/ManagedBridge.h"
@@ -22,11 +19,8 @@
 namespace consolidator::max
 {
 
-using dsp::DspParameterSmoother;
-using dsp::DspRuntimeGraph;
-using dsp::DspSnapshot;
+using dsp::DspRuntime;
 using dsp::DspStateExchange;
-using dsp::ConsumePublishedDspState;
 using transport::AudioInputHandle;
 using transport::AtomCodec;
 using transport::InstanceId;
@@ -440,18 +434,9 @@ private:
     void Prepare(
         const c74::min::atoms& atoms);
 
-    void PreparePublishedDspState() noexcept;
-
-    [[nodiscard]] DspRuntimeGraph* AcquireDspGraph(
-        std::uint32_t& graphIndex) noexcept;
-
-    void ReleaseDspGraph(std::uint32_t graphIndex) noexcept;
-
-    void ApplyDspRamp(
+    void ProcessDsp(
         double* mainLeft,
         double* mainRight,
-        const double* sidechainLeft,
-        const double* sidechainRight,
         std::size_t frameCount) noexcept;
 
     void ReportMetrics() const;
@@ -460,12 +445,7 @@ private:
     InstanceId instanceId_{};
     AudioInputHandle audioInputHandle_{};
     DspStateExchange dspExchange_{};
-    DspSnapshot dspState_{};
-    std::uint32_t consumerDspIndex_{};
-    DspParameterSmoother dspParameterSmoother_;
-    std::array<DspRuntimeGraph, 3> dspRuntimeGraphs_{};
-    std::atomic_uint32_t activeDspGraphIndex_{};
-    std::array<std::atomic_uint32_t, 3> dspGraphStates_{};
+    DspRuntime dspRuntime_;
 
     c74::min::queue<> outputQueue_{
         this,

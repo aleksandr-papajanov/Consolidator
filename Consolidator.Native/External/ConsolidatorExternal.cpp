@@ -21,8 +21,6 @@ namespace
 
 constexpr std::size_t kMaxControlFramesPerDrain = 32;
 constexpr std::size_t kMaxControlAtomsPerDrain = 4096;
-constexpr std::uint32_t kDspGraphWriterBit = 0x80000000U;
-
 }
 
 ConsolidatorExternal::ConsolidatorExternal()
@@ -219,7 +217,6 @@ void ConsolidatorExternal::ReceiveManagedOutput(
 void ConsolidatorExternal::DrainManagedOutput()
 {
     const auto drainStarted = std::chrono::steady_clock::now();
-    PreparePublishedDspState();
     std::deque<OutputFrame> controlFrames;
     std::optional<OutputFrame> fftFrame;
     std::size_t controlAtomCount = 0;
@@ -360,18 +357,7 @@ void ConsolidatorExternal::Prepare(
             maximumFrameCount = static_cast<std::size_t>(maximumFrameValue);
         }
     }
-    dspParameterSmoother_.Prepare(sampleRate);
-    for (auto& graph : dspRuntimeGraphs_)
-    {
-        graph.Prepare(sampleRate, maximumFrameCount);
-        graph.SetParameters(dspState_);
-    }
-
-    activeDspGraphIndex_.store(0, std::memory_order_release);
-    for (auto& state : dspGraphStates_)
-    {
-        state.store(0, std::memory_order_release);
-    }
+    dspRuntime_.Prepare(sampleRate, maximumFrameCount);
 
     managed_.Prepare(
         instanceId_,
@@ -419,122 +405,23 @@ void ConsolidatorExternal::operator()(
         frameCount,
         output.samples(3));
 
-    ApplyDspRamp(
+    ProcessDsp(
         output.samples(0),
         output.samples(1),
-        input.samples(3),
-        input.samples(4),
         frameCount);
 }
 
-void ConsolidatorExternal::PreparePublishedDspState() noexcept
-{
-    if (!ConsumePublishedDspState(
-            dspExchange_,
-            consumerDspIndex_,
-            dspState_))
-    {
-        return;
-    }
-
-    dspParameterSmoother_.SetTarget(dspState_);
-
-    const auto activeIndex = activeDspGraphIndex_.load(
-        std::memory_order_acquire);
-    for (std::uint32_t index = 0; index < dspRuntimeGraphs_.size(); ++index)
-    {
-        if (index == activeIndex)
-        {
-            continue;
-        }
-
-        auto state = dspGraphStates_[index].load(std::memory_order_acquire);
-        if (state != 0 ||
-            !dspGraphStates_[index].compare_exchange_strong(
-                state,
-                kDspGraphWriterBit,
-                std::memory_order_acquire,
-                std::memory_order_relaxed))
-        {
-            continue;
-        }
-
-        auto preparedSnapshot = dspParameterSmoother_.Current();
-        preparedSnapshot.inputLevel = dspState_.inputLevel;
-        dspRuntimeGraphs_[index].SetParameters(preparedSnapshot);
-        dspGraphStates_[index].store(0, std::memory_order_release);
-        activeDspGraphIndex_.store(index, std::memory_order_release);
-        return;
-    }
-}
-
-DspRuntimeGraph* ConsolidatorExternal::AcquireDspGraph(
-    std::uint32_t& graphIndex) noexcept
-{
-    for (std::size_t attempt = 0; attempt < 2; ++attempt)
-    {
-        const auto activeIndex = activeDspGraphIndex_.load(
-            std::memory_order_acquire);
-        auto state = dspGraphStates_[activeIndex].load(
-            std::memory_order_acquire);
-
-        while ((state & kDspGraphWriterBit) == 0)
-        {
-            if (dspGraphStates_[activeIndex].compare_exchange_weak(
-                    state,
-                    state + 1,
-                    std::memory_order_acquire,
-                    std::memory_order_relaxed))
-            {
-                if (activeDspGraphIndex_.load(std::memory_order_acquire) ==
-                    activeIndex)
-                {
-                    graphIndex = activeIndex;
-                    return &dspRuntimeGraphs_[activeIndex];
-                }
-
-                dspGraphStates_[activeIndex].fetch_sub(
-                    1,
-                    std::memory_order_release);
-                break;
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-void ConsolidatorExternal::ReleaseDspGraph(
-    std::uint32_t graphIndex) noexcept
-{
-    dspGraphStates_[graphIndex].fetch_sub(
-        1,
-        std::memory_order_release);
-}
-
-void ConsolidatorExternal::ApplyDspRamp(
+void ConsolidatorExternal::ProcessDsp(
     double* mainLeft,
     double* mainRight,
-    const double* sidechainLeft,
-    const double* sidechainRight,
     std::size_t frameCount) noexcept
 {
-    std::uint32_t graphIndex{};
-    auto* graph = AcquireDspGraph(graphIndex);
-    if (graph == nullptr)
-    {
-        return;
-    }
-
-    graph->ProcessBlock(
+    dspRuntime_.ProcessBlock(
+        dspExchange_,
         mainLeft,
         mainRight,
-        sidechainLeft,
-        sidechainRight,
         frameCount);
-    ReleaseDspGraph(graphIndex);
 }
-
 
 } // namespace consolidator::max
 

@@ -53,15 +53,29 @@
     <ClCompile Include="Contracts\AbiContractTests.cpp" />
     <ClCompile Include="Contracts\PersistenceBlobCodecTests.cpp" />
     <ClCompile Include="Contracts\PersistenceRestoreGateTests.cpp" />
-    <ClCompile Include="Realtime\DspParameterSmootherTests.cpp" />
+    <ClCompile Include="Realtime\DspRuntimeTests.cpp" />
     <ClCompile Include="Realtime\DspRuntimeGraphTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
-    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParameterSmoother.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\CompressionProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\CompressorProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspExecution.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspGainRamp.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParallelStage.cpp" />
-    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspProcessors.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspRuntime.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspRuntimeGraph.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspStateConsumer.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\EqualizerProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\InputProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\LevelerProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\LimiterProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\OutputProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\PolishAirProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\PolishProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\PolishThickProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\SaturationProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\SaturatorProcessor.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\TransientShaperProcessor.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Transport\PersistenceBlobCodec.cpp" />
   </ItemGroup>
   <ItemGroup>

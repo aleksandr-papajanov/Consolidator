@@ -100,7 +100,7 @@ struct DspAudioBuffer
     std::size_t frameCount{};
 };
 
-struct DspSidechainBuffer
+struct DspDetectorBuffer
 {
     const double* left{};
     const double* right{};

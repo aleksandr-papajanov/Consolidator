@@ -17,31 +17,23 @@ void DspRuntimeGraph::Prepare(
         : maximumFrameCount;
 
     input_.Prepare(context_);
-    equalizerDetector_.Prepare(context_);
-    leveler_.Prepare(context_);
     saturator_.Prepare(context_);
     compressor_.Prepare(context_);
-    equalizer_.Prepare(context_);
     compressorParallel_.Prepare(context_);
-    polishParallel_.Prepare(context_);
+    equalizer_.Prepare(context_);
     polish_.Prepare(context_);
     output_.Prepare(context_);
-    limiter_.Prepare(context_);
 }
 
 void DspRuntimeGraph::Reset() noexcept
 {
     input_.Reset();
-    equalizerDetector_.Reset();
-    leveler_.Reset();
     saturator_.Reset();
     compressor_.Reset();
-    equalizer_.Reset();
     compressorParallel_.Reset();
-    polishParallel_.Reset();
+    equalizer_.Reset();
     polish_.Reset();
     output_.Reset();
-    limiter_.Reset();
 }
 
 void DspRuntimeGraph::SetParameters(
@@ -49,17 +41,21 @@ void DspRuntimeGraph::SetParameters(
 {
     snapshot_ = snapshot;
     policy_ = BuildExecutionPolicy(snapshot_, plan_);
-    compressorParallel_.SetEnabled(policy_.compressorParallel);
-    polishParallel_.SetEnabled(policy_.polishActive);
     input_.SetParameters(snapshot);
-    equalizerDetector_.SetParameters(snapshot);
-    leveler_.SetParameters(snapshot);
     saturator_.SetParameters(snapshot);
     compressor_.SetParameters(snapshot);
     equalizer_.SetParameters(snapshot);
     polish_.SetParameters(snapshot);
     output_.SetParameters(snapshot);
-    limiter_.SetParameters(snapshot);
+
+    if (!policy_.saturatorActive && snapshot.saturatorBypass == 0)
+    {
+        saturator_.SynchronizeInactiveState();
+    }
+    if (!policy_.compressorActive && snapshot.compressorBypass == 0)
+    {
+        compressor_.SynchronizeInactiveState();
+    }
 }
 
 void DspRuntimeGraph::SetProcessingPlan(
@@ -77,8 +73,6 @@ void DspRuntimeGraph::SetProcessingPlan(
 void DspRuntimeGraph::ProcessBlock(
     double* mainLeft,
     double* mainRight,
-    const double* sidechainLeft,
-    const double* sidechainRight,
     std::size_t frameCount) noexcept
 {
     const auto leftRequired = plan_.channelMode != DspChannelMode::Right;
@@ -112,26 +106,16 @@ void DspRuntimeGraph::ProcessBlock(
     }
 
     DspAudioBuffer main{ mainLeft, mainRight, frameCount };
-    const DspSidechainBuffer externalSidechain{ sidechainLeft, sidechainRight };
     DspProcessingFrame frame{
         main,
-        externalSidechain,
-        externalSidechain,
+        {},
         plan_,
         policy_ };
 
-    if (policy_.inputActive)
+    if (!policy_.inputBypassed &&
+        (policy_.inputActive || input_.RequiresProcessing()))
     {
         input_.Process(frame);
-    }
-    if (policy_.equalizerActive)
-    {
-        equalizerDetector_.Process(frame);
-        frame.detectorSidechain = frame.externalSidechain;
-    }
-    if (policy_.levelerEnabled)
-    {
-        leveler_.Process(frame);
     }
     if (policy_.saturatorActive)
     {
@@ -139,28 +123,29 @@ void DspRuntimeGraph::ProcessBlock(
     }
     if (policy_.compressorActive)
     {
-        compressor_.Process(frame);
+        if (policy_.compressorParallel)
+        {
+            compressorParallel_.Process(frame, compressor_);
+        }
+        else
+        {
+            compressor_.Process(frame);
+        }
     }
     if (policy_.equalizerActive)
     {
         equalizer_.Process(frame);
     }
-    if (policy_.compressorParallel)
-    {
-        compressorParallel_.Process(frame);
-    }
     if (policy_.polishActive)
     {
         polish_.Process(frame);
-        polishParallel_.Process(frame);
     }
-    if (policy_.outputActive)
+    if (!policy_.outputBypassed &&
+        (policy_.outputActive ||
+            policy_.limiterEnabled ||
+            output_.RequiresProcessing()))
     {
         output_.Process(frame);
-    }
-    if (policy_.limiterEnabled)
-    {
-        limiter_.Process(frame);
     }
 }
 

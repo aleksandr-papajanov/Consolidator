@@ -103,12 +103,26 @@
   <ItemGroup>
     <ClCompile Include="External\ConsolidatorExternal.cpp" />
     <ClCompile Include="External\Transport\AtomCodec.cpp" />
-    <ClCompile Include="External\Dsp\DspParameterSmoother.cpp" />
+    <ClCompile Include="External\Dsp\CompressionProcessor.cpp" />
+    <ClCompile Include="External\Dsp\CompressorProcessor.cpp" />
+    <ClCompile Include="External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DspExecution.cpp" />
+    <ClCompile Include="External\Dsp\DspGainRamp.cpp" />
     <ClCompile Include="External\Dsp\DspParallelStage.cpp" />
-    <ClCompile Include="External\Dsp\DspProcessors.cpp" />
+    <ClCompile Include="External\Dsp\DspRuntime.cpp" />
     <ClCompile Include="External\Dsp\DspRuntimeGraph.cpp" />
     <ClCompile Include="External\Dsp\DspStateConsumer.cpp" />
+    <ClCompile Include="External\Dsp\EqualizerProcessor.cpp" />
+    <ClCompile Include="External\Dsp\InputProcessor.cpp" />
+    <ClCompile Include="External\Dsp\LevelerProcessor.cpp" />
+    <ClCompile Include="External\Dsp\LimiterProcessor.cpp" />
+    <ClCompile Include="External\Dsp\OutputProcessor.cpp" />
+    <ClCompile Include="External\Dsp\PolishAirProcessor.cpp" />
+    <ClCompile Include="External\Dsp\PolishProcessor.cpp" />
+    <ClCompile Include="External\Dsp\PolishThickProcessor.cpp" />
+    <ClCompile Include="External\Dsp\SaturationProcessor.cpp" />
+    <ClCompile Include="External\Dsp\SaturatorProcessor.cpp" />
+    <ClCompile Include="External\Dsp\TransientShaperProcessor.cpp" />
     <ClCompile Include="External\Transport\ManagedBridge.cpp" />
     <ClCompile Include="External\Transport\PersistenceBlobCodec.cpp" />
     <ClCompile Include="External\MinApiImplementation.cpp" />
@@ -117,13 +131,13 @@
   <ItemGroup>
     <ClInclude Include="External\ConsolidatorExternal.h" />
     <ClInclude Include="External\Transport\AtomCodec.h" />
-    <ClInclude Include="External\Dsp\DspParameterSmoother.h" />
     <ClInclude Include="External\Dsp\DspExecution.h" />
     <ClInclude Include="External\Dsp\DspProcessingPrimitives.h" />
     <ClInclude Include="External\Dsp\DspParallelStage.h" />
     <ClInclude Include="External\Dsp\DspProcessingContext.h" />
     <ClInclude Include="External\Dsp\DspProcessor.h" />
     <ClInclude Include="External\Dsp\DspProcessors.h" />
+    <ClInclude Include="External\Dsp\DspRuntime.h" />
     <ClInclude Include="External\Dsp\DspRuntimeGraph.h" />
     <ClInclude Include="External\Dsp\DspStateConsumer.h" />
     <ClInclude Include="External\Transport\ManagedBridge.h" />
