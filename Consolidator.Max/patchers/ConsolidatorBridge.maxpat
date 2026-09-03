@@ -103,7 +103,7 @@
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
 					"maxclass" : "bpatcher",
-					"name" : "InputGainPanel.maxpat",
+					"name" : "InputPanel.maxpat",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
@@ -129,7 +129,7 @@
 					"lockeddragscroll" : 0,
 					"lockedsize" : 0,
 					"maxclass" : "bpatcher",
-					"name" : "OutputGainPanel.maxpat",
+					"name" : "OutputPanel.maxpat",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"offset" : [ 0.0, 0.0 ],
@@ -221,7 +221,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/ConsolidatorUiHost.js",
+					"filename" : "Project:/js/Hosts/ConsolidatorUiHost.js",
 					"id" : "host",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
@@ -232,9 +232,9 @@
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "v8 Project:/js/ConsolidatorUiHost.js bridge.local",
+					"text" : "v8 Project:/js/Hosts/ConsolidatorUiHost.js bridge.local",
 					"textfile" : 					{
-						"filename" : "Project:/js/ConsolidatorUiHost.js",
+						"filename" : "Project:/js/Hosts/ConsolidatorUiHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -377,7 +377,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/PanelSelector.js",
+					"filename" : "Project:/js/Hosts/PanelSelector.js",
 					"id" : "panel-selector",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -387,9 +387,9 @@
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "v8 Project:/js/PanelSelector.js",
+					"text" : "v8 Project:/js/Hosts/PanelSelector.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/PanelSelector.js",
+						"filename" : "Project:/js/Hosts/PanelSelector.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

@@ -20,7 +20,7 @@ function loadMaxClass(relativePath, className) {
 
 function testMultiValueTogglePresenterPublishesOptionsAndWritesIndex() {
   var MultiValueTogglePresenter = require(
-    path.join(root, "js/Presenters/MultiValueToggle/MultiValueTogglePresenter.js")
+    path.join(root, "js/Shared/Controls/MultiValueToggle/MultiValueTogglePresenter.js")
   ).MultiValueTogglePresenter;
   var writes = [];
   var source = {
@@ -48,7 +48,7 @@ function testMultiValueToggleControlCyclesAndEmitsSelectedIndex() {
     emissions.push([outletIndex, values]);
   };
   var MultiValueToggleControl = loadMaxClass(
-    "js/Controls/MultiValueToggle/MultiValueToggleControl.js",
+    "js/Shared/Controls/MultiValueToggle/MultiValueToggleControl.js",
     "MultiValueToggleControl",
   );
   var control = new MultiValueToggleControl();

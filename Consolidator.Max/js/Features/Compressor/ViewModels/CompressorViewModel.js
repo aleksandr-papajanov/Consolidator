@@ -1,0 +1,51 @@
+const { StateValueViewModel } = require("../../../Shared/ViewModels/StateValueViewModel.js");
+const { DetectorFilterViewModel } = require(
+    "../../../Shared/ViewModels/DetectorFilterViewModel.js");
+const { DetectorFilterDefinitions } = require("../../../Shared/ViewModels/FilterCatalog.js");
+
+class CompressorViewModel
+{
+    constructor(state)
+    {
+        this.attack = new StateValueViewModel(state, "compressor.attack");
+        this.sustain = new StateValueViewModel(state, "compressor.sustain");
+        this.compression = new StateValueViewModel(state, "compressor.compression");
+        this.character = new StateValueViewModel(state, "compressor.character");
+        this.parallel = new StateValueViewModel(state, "compressor.parallel");
+        this.output = new StateValueViewModel(state, "compressor.output");
+        this.detectorFilters = [1, 2].map((filterId) => {
+            return new DetectorFilterViewModel(state, "compressor", filterId,
+                DetectorFilterDefinitions[filterId - 1]);
+        });
+    }
+    
+    getStateValues()
+    {
+        return [
+            this.attack,
+            this.sustain,
+            this.compression,
+            this.character,
+            this.parallel,
+            this.output
+        ].concat(this.detectorFilters.reduce((values, filter) => {
+            return values.concat(filter.getStateValues());
+        }, []));
+    }
+    
+    destroy()
+    {
+        this.attack.destroy();
+        this.sustain.destroy();
+        this.compression.destroy();
+        this.character.destroy();
+        this.parallel.destroy();
+        this.output.destroy();
+        this.detectorFilters.forEach((filter) => { filter.destroy(); });
+    }
+}
+
+
+module.exports = {
+    CompressorViewModel: CompressorViewModel
+};

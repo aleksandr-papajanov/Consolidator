@@ -15,7 +15,7 @@
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
-					"filename" : "Project:/js/Controls/Dial/DialControl.js",
+					"filename" : "Project:/js/Shared/Controls/Dial/DialControl.js",
 					"id" : "thick",
 					"jsarguments" : [ "THICK", 0.0, 1.0, 0, 100.0, 1, "%" ],
 					"maxclass" : "v8ui",
@@ -27,7 +27,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 117.0, 0.0, 78.0, 78.0 ],
 					"textfile" : 					{
-						"filename" : "Project:/js/Controls/Dial/DialControl.js",
+						"filename" : "Project:/js/Shared/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -39,7 +39,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/Controls/Dial/DialControl.js",
+					"filename" : "Project:/js/Shared/Controls/Dial/DialControl.js",
 					"id" : "air",
 					"jsarguments" : [ "AIR", 0.0, 1.0, 0, 100.0, 1, "%" ],
 					"maxclass" : "v8ui",
@@ -51,7 +51,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 208.0, 0.0, 78.0, 78.0 ],
 					"textfile" : 					{
-						"filename" : "Project:/js/Controls/Dial/DialControl.js",
+						"filename" : "Project:/js/Shared/Controls/Dial/DialControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -100,7 +100,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/PanelBindingHostV8.js",
+					"filename" : "Project:/js/Hosts/PanelBindingHostV8.js",
 					"id" : "router",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -110,9 +110,9 @@
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "v8 Project:/js/PanelBindingHostV8.js",
+					"text" : "v8 Project:/js/Hosts/PanelBindingHostV8.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/PanelBindingHostV8.js",
+						"filename" : "Project:/js/Hosts/PanelBindingHostV8.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

@@ -16,8 +16,8 @@ Project:/Panels/BankManagerPanel.maxpat
 Panel-local JS objects reference files through the Max Project:
 
 ```text
-Project:/js/Controls/Analyzer/AnalyzerControl.js
-Project:/js/PanelBindingHostV8.js
+Project:/js/Features/Analyzer/Controls/AnalyzerControl.js
+Project:/js/Hosts/PanelBindingHostV8.js
 ```
 
 These paths are resolved from the Max Project root. The panels must be opened
@@ -73,7 +73,7 @@ a bounded live rate. Curves are calculated locally from the focused parameter
 presentation, the raw all-bank equalizer projection and the observed source's
 prepared sample rate; spectrum and curve redraws are independently coalesced.
 
-All Max UI RGBA colors are defined in `js/Theme/UiColors.js`. The config is
+All Max UI RGBA colors are defined in `js/Shared/Theme/UiColors.js`. The config is
 organized by semantic role: base colors, reusable control colors, bank-group
 colors, device colors and analyzer colors. Controls and presenters consume
 the shared config; new UI colors should be added there instead of being

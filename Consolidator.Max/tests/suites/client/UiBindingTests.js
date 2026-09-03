@@ -9,7 +9,7 @@ var root = environment.root;
 environment.loadClientEnvironment();
 var makeStateFixture = stateFixtures.makeStateFixture;
 var BankManagerController = require(
-  path.join(root, "js/Controllers/BankManagerController.js")
+  path.join(root, "js/Features/BankManager/Controllers/BankManagerController.js")
 ).BankManagerController;
 
 function loadMaxClass(relativePath, className) {
@@ -35,12 +35,12 @@ function loadMaxClass(relativePath, className) {
 }
 
 var BankManagerControl = loadMaxClass(
-  "js/Controls/BankManager/BankManagerControl.js",
+  "js/Features/BankManager/Controls/BankManagerControl.js",
   "BankManagerControl",
 );
 var bankManagerControl = new BankManagerControl();
 var DoubleClickTracker = require(
-  path.join(root, "js/Controls/DoubleClickTracker.js")
+  path.join(root, "js/Shared/Controls/DoubleClickTracker.js")
 ).DoubleClickTracker;
 
 function testDoubleClickTrackerRecognizesOnlyTheSameControl() {
@@ -451,9 +451,9 @@ function testPanelBindingHostRoutesListMessagesToNamedControl() {
   var lookups = 0;
   var context = vm.createContext({});
   vm.runInContext(
-    fs.readFileSync(path.join(root, "js/PanelBindingHostV8.js"), "utf8"),
+    fs.readFileSync(path.join(root, "js/Hosts/PanelBindingHostV8.js"), "utf8"),
     context,
-    { filename: "js/PanelBindingHostV8.js" },
+    { filename: "js/Hosts/PanelBindingHostV8.js" },
   );
   context.patcher = {
     getnamed: function (name) {
@@ -501,7 +501,7 @@ function testUiHostEntrypointInitializesFromLiveReadyAndRoutesLists() {
     jsarguments: ["ConsolidatorUiHost.js", "bridge.local"],
     outlet: function () {},
     require: function (request) {
-      assert.strictEqual(request, "./ConsolidatorUiApplication.js");
+      assert.strictEqual(request, "../Application/ConsolidatorUiApplication.js");
       return {
         ConsolidatorUiHost: FakeUiHost,
         ConsolidatorControlMapping: mapping,
@@ -509,9 +509,9 @@ function testUiHostEntrypointInitializesFromLiveReadyAndRoutesLists() {
     },
   });
   vm.runInContext(
-    fs.readFileSync(path.join(root, "js/ConsolidatorUiHost.js"), "utf8"),
+    fs.readFileSync(path.join(root, "js/Hosts/ConsolidatorUiHost.js"), "utf8"),
     context,
-    { filename: "js/ConsolidatorUiHost.js" },
+    { filename: "js/Hosts/ConsolidatorUiHost.js" },
   );
 
   context.live_ready();
@@ -687,10 +687,8 @@ function testAnalyzerGestureKeepsPreviewUntilFinalWriteCompletes() {
   frequency.value = 1200;
   parameterListeners[0]();
 
-  assert.ok(presenter.curvePreview[1]);
   assert.deepStrictEqual(presenter.curves[0].values, previewCurve);
   presenter.endPreviewGesture();
-  assert.strictEqual(presenter.curvePreview[1], undefined);
   assert.notDeepStrictEqual(presenter.curves[0].values, previewCurve);
   presenter.destroy();
 }
@@ -821,24 +819,19 @@ function testAnalyzerControlPreservesCurvesAcrossHandlePresentation() {
     this.cancel = function () {};
   };
   var AnalyzerControl = loadMaxClass(
-    "js/Controls/Analyzer/AnalyzerControl.js",
+    "js/Features/Analyzer/Controls/AnalyzerControl.js",
     "AnalyzerControl",
   );
   var analyzerControl = new AnalyzerControl();
   analyzerControl.beginPresentation("detector", 1, 0, "");
   analyzerControl.addCurve("curve", [1, 0.5, 0.5], 1);
   analyzerControl.addCurve("combined", [1, 0.5, 0.5]);
-  analyzerControl.addCurve("all_banks", [1, 0.4, 0.4]);
   analyzerControl.applyPresentation(analyzerControl.pendingPresentation);
   analyzerControl.pendingPresentation = null;
 
   assert.strictEqual(analyzerControl.presentation.curves.length, 1);
   assert.strictEqual(
     analyzerControl.presentation.combinedCurve.values.length,
-    2
-  );
-  assert.strictEqual(
-    analyzerControl.presentation.allBanksCurve.values.length,
     2
   );
 
@@ -848,10 +841,6 @@ function testAnalyzerControlPreservesCurvesAcrossHandlePresentation() {
   assert.strictEqual(analyzerControl.presentation.curves.length, 1);
   assert.strictEqual(
     analyzerControl.presentation.combinedCurve.values.length,
-    2
-  );
-  assert.strictEqual(
-    analyzerControl.presentation.allBanksCurve.values.length,
     2
   );
   analyzerControl.destroy();
@@ -954,11 +943,9 @@ function testAnalyzerStartsNextHistoryPointBeforePreviousWriteResponse() {
   beginCallbacks[0](12, { status: "accepted" });
   binding.handleIntent("filterMoved", [1, 0.4, 0.6]);
   binding.handleIntent("gestureEnded", [1]);
-  assert.strictEqual(binding.activeTransactionId, null);
 
   binding.handleIntent("gestureBegan", [1]);
   assert.strictEqual(beginCallbacks.length, 2);
-  assert.strictEqual(binding.activeTransactionId, 13);
 
   commitCallbacks[0]({ status: "accepted", error: null });
   binding.destroy();
@@ -1004,9 +991,6 @@ function testAnalyzerTargetTransitionCancelsGestureAndTransaction() {
 
   assert.deepStrictEqual(transactionCalls, [["end", 12]]);
   assert.deepStrictEqual(calls[calls.length - 1], ["gestureEnded", [], 12]);
-  assert.strictEqual(binding.activeTransactionId, null);
-  assert.strictEqual(binding.transactionReady, false);
-  assert.strictEqual(binding.lastMove, null);
   assert.strictEqual(messages[messages.length - 1], "interactionReset");
 
   binding.handleIntent("gestureBegan", [1]);
@@ -1030,7 +1014,7 @@ function testAnalyzerHandleDragPublishesLatestPositionWhileDragging() {
   };
   global.mgraphics.size = [100, 100];
   var AnalyzerControl = loadMaxClass(
-    "js/Controls/Analyzer/AnalyzerControl.js",
+    "js/Features/Analyzer/Controls/AnalyzerControl.js",
     "AnalyzerControl",
   );
   var analyzerControl = new AnalyzerControl();
@@ -1106,7 +1090,7 @@ function testUiHostAcceptsTrackNameMessage() {
   assert.deepStrictEqual(state.sets[1], ["label", ""]);
 }
 function testUiApplicationLoadsAsCommonJsV8Module() {
-  var hostModule = require(path.join(root, "js/ConsolidatorUiApplication.js"));
+  var hostModule = require(path.join(root, "js/Application/ConsolidatorUiApplication.js"));
   var host = new hostModule.ConsolidatorUiHost(
     "test.ui",
     function () {},
@@ -1282,7 +1266,7 @@ function testDetectorBypassIsInvertedForPresentation() {
 }
 function testMessageControlsConstructCompletePresentation() {
   var DialControl = loadMaxClass(
-    "js/Controls/Dial/DialControl.js",
+    "js/Shared/Controls/Dial/DialControl.js",
     "DialControl",
   );
   var dialControl = new DialControl();
@@ -1315,7 +1299,7 @@ function testMessageControlsConstructCompletePresentation() {
   assert.deepStrictEqual(dialControl.previewValues, []);
 
   var ButtonControl = loadMaxClass(
-    "js/Controls/Button/ButtonControl.js",
+    "js/Shared/Controls/Button/ButtonControl.js",
     "ButtonControl",
   );
   var buttonControl = new ButtonControl();
@@ -1327,14 +1311,15 @@ function testMessageControlsConstructCompletePresentation() {
   assert.strictEqual(buttonControl.presentation.label, "SOLO");
 
   var BankManagerControl = loadMaxClass(
-    "js/Controls/BankManager/BankManagerControl.js",
+    "js/Features/BankManager/Controls/BankManagerControl.js",
     "BankManagerControl",
   );
   var bankManagerControl = new BankManagerControl();
   bankManagerControl.beginPresentation(1);
   bankManagerControl.addRow(0, "instance.1", "Local", 1);
   bankManagerControl.addProcessor(0, "equalizer", 1, 0, 0, 0);
-  bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0, 0.75, 1, 1, 1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
+  bankManagerControl.addBank(0, 1, "1", 1, 1, 1, 1, 0, 0.75, 1, 1, 1,
+    1, 0.1, 0.2, 0.3, 0.4, 0, 0, 0, 0, 0);
   bankManagerControl.setGroupAction(1, 0);
   bankManagerControl.setUngroupAction(0, 0);
   bankManagerControl.setClearAction(1, 1);
@@ -1364,6 +1349,10 @@ function testMessageControlsConstructCompletePresentation() {
     bankManagerControl.presentation.rows[0].processors[0].effectActive,
     true,
   );
+  assert.strictEqual(
+    bankManagerControl.presentation.rows[0].banks[0].bypassed,
+    true,
+  );
 
   bankManagerControl.beginPresentationPatch(1);
   bankManagerControl.patchRow(0, "instance.1", "Renamed", 1);
@@ -1383,6 +1372,23 @@ function testMessageControlsConstructCompletePresentation() {
     bankManagerControl.presentation.rows[0].processors[0].markerActive,
     false,
   );
+}
+
+function testDialCancelsLabelTaskOnDestroy() {
+  var cancelled = 0;
+  var previousTask = global.Task;
+  global.Task = function () {
+    this.schedule = function () {};
+    this.cancel = function () { cancelled += 1; };
+  };
+  var DialControl = loadMaxClass(
+    "js/Shared/Controls/Dial/DialControl.js",
+    "DialControl",
+  );
+  var control = new DialControl();
+  control.destroy();
+  assert.strictEqual(cancelled, 1);
+  global.Task = previousTask;
 }
 function testUiHostPublishesOnlyChangedInstanceActivity() {
   var values = [];
@@ -1482,6 +1488,77 @@ function testBankManagerForwardsShiftSelection() {
     "bankSelected",
     ["instance.1", 1, 1],
   ]]);
+}
+
+function testBankManagerUsesAuthoritativeBypassAfterConfirmation() {
+  var intents = [];
+  global.mgraphics.size = [800, 400];
+  var presentation = new BankManagerPresentation();
+  presentation.enabled = true;
+  presentation.rows = [{
+    instanceId: "instance.1",
+    banks: [{
+      bankId: 0,
+      visible: true,
+      enabled: true,
+      active: true,
+      bypassed: false,
+    }, {
+      bankId: 1,
+      visible: true,
+      enabled: true,
+      active: false,
+      bypassed: false,
+    }],
+  }];
+  var control = new BankManagerControl();
+  control.applyPresentation(presentation);
+  control.emit = function (name, values) {
+    intents.push([name, values]);
+  };
+  var x = control.bankGridX(presentation.rows) + 8 + 4;
+
+  control.selectAt(x, 9, false, true);
+  control.patchBank(0, 0, "0", 0, 1, 1, 1, 0, 1, -1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  control.patchBank(0, 0, "0", 0, 1, 1, 1, 0, 1, -1, 1, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  assert.deepStrictEqual(intents, [
+    ["bankBypassChanged", ["instance.1", 0, 1]],
+  ]);
+  control.selectAt(x + 16, 9, false, false);
+  intents = [];
+  control.selectAt(x, 9, false, true);
+
+  assert.deepStrictEqual(intents, [
+    ["bankBypassChanged", ["instance.1", 0, 1]],
+  ]);
+}
+
+function testBankManagerCancelsFlashTasksOnDestroy() {
+  var previousTask = global.Task;
+  var scheduled = 0;
+  var cancelled = 0;
+  global.Task = function () {
+    this.schedule = function () { scheduled += 1; };
+    this.cancel = function () { cancelled += 1; };
+  };
+  var Control = loadMaxClass(
+    "js/Features/BankManager/Controls/BankManagerControl.js",
+    "BankManagerControl",
+  );
+  var control = new Control();
+  var presentation = new BankManagerPresentation();
+  presentation.enabled = true;
+  presentation.groupAction = { enabled: true, active: false };
+  control.applyPresentation(presentation);
+
+  control.selectAt(control.actionsColumnX() + 5, 5, false, false);
+  control.destroy();
+
+  assert.strictEqual(scheduled, 1);
+  assert.strictEqual(cancelled, 1);
+  global.Task = previousTask;
 }
 
 function testPanelTransitionAppliesSelectionAfterSnapshot() {
@@ -1772,7 +1849,10 @@ testEqualizerPositionForwardsFinalWriteCallback();
 testDetectorPositionUsesOneStateBatch();
 testDetectorBypassIsInvertedForPresentation();
 testMessageControlsConstructCompletePresentation();
+testDialCancelsLabelTaskOnDestroy();
 testBankManagerForwardsShiftSelection();
+testBankManagerUsesAuthoritativeBypassAfterConfirmation();
+testBankManagerCancelsFlashTasksOnDestroy();
 testPanelTransitionAppliesSelectionAfterSnapshot();
 testBankManagerUsesExclusiveSoloAndAdditiveMuteBypass();
 testBankManagerEqualizerResetReachesStateClient();

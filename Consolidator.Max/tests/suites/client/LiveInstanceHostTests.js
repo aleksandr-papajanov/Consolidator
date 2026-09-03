@@ -17,9 +17,9 @@ function loadHost(LiveAPI, outputs)
             outputs.push([index, Array.prototype.slice.call(message)]);
         },
     });
-    var sourcePath = path.join(environment.root, "js/LiveInstanceHost.js");
+    var sourcePath = path.join(environment.root, "js/Hosts/LiveInstanceHost.js");
     vm.runInContext(fs.readFileSync(sourcePath, "utf8"), context, {
-        filename: "js/LiveInstanceHost.js",
+        filename: "js/Hosts/LiveInstanceHost.js",
     });
     return vm.runInContext(
         "new LiveInstanceHost(LiveAPI, function (message) { " +

@@ -107,8 +107,8 @@ frames and control priority, bounded drain batches, repeated queue scheduling,
 teardown with pending work, and the allocation-free audio ring including wrap
 and overflow behavior.
 
-JavaScript suites must cover analyzer-only FFT presentation, focused and
-all-bank local curve calculation and preview, sample-rate configuration, one
+JavaScript suites must cover analyzer-only FFT presentation, focused-bank
+local curve calculation and preview, sample-rate configuration, one
 redraw per FFT update,
 instance activity changes with Live selection
 or inactive, targeted registry row deltas, single revision-gap resync, latest

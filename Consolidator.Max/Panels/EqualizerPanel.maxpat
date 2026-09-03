@@ -15,7 +15,7 @@
 		"gridsize" : [ 13.0, 13.0 ],
 		"boxes" : [ 			{
 				"box" : 				{
-					"filename" : "Project:/js/Controls/Analyzer/AnalyzerControl.js",
+					"filename" : "Project:/js/Features/Analyzer/Controls/AnalyzerControl.js",
 					"id" : "analyzer",
 					"maxclass" : "v8ui",
 					"numinlets" : 1,
@@ -26,7 +26,7 @@
 					"presentation" : 1,
 					"presentation_rect" : [ 0.0, 0.0, 403.0, 169.0 ],
 					"textfile" : 					{
-						"filename" : "Project:/js/Controls/Analyzer/AnalyzerControl.js",
+						"filename" : "Project:/js/Features/Analyzer/Controls/AnalyzerControl.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1
@@ -51,7 +51,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/PanelBindingHostV8.js",
+					"filename" : "Project:/js/Hosts/PanelBindingHostV8.js",
 					"id" : "router",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -61,9 +61,9 @@
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "v8 Project:/js/PanelBindingHostV8.js",
+					"text" : "v8 Project:/js/Hosts/PanelBindingHostV8.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/PanelBindingHostV8.js",
+						"filename" : "Project:/js/Hosts/PanelBindingHostV8.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

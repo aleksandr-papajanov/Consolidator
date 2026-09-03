@@ -20,23 +20,24 @@ objects use the legacy JavaScript engine.
 
 ### JavaScript files
 
-There are 63 `.js` files under `Consolidator.Max/js`. Max-facing controls are
+There are 121 `.js` files under `Consolidator.Max/js`. Max-facing controls are
 direct `v8ui` entrypoints; reusable application layers are CommonJS modules.
 
 | Category | Files | Target | Status |
 | --- | ---: | --- | --- |
-| Clients | 8 | `v8` library/module | CommonJS classes completed; consumed by the V8 host |
-| ViewModels | 11 | `v8` library/module | all feature ViewModels migrated to CommonJS classes |
-| Presenters | 15 | `v8` library/module | all presenters and presentation DTOs migrated to CommonJS |
-| Bindings | 8 | `v8` library/module | CommonJS classes completed |
-| Controllers | 8 | `v8` library/module | CommonJS classes completed |
-| Hosts and application | 4 | `v8` object/module | three Max entrypoints plus `ConsolidatorUiApplication` |
-| Drawing controls and support | 9 | `v8ui` object/support | six direct controls plus analyzer support modules |
+| Clients | 14 | `v8` library/module | transport, wire codecs, snapshot assemblers and state clients |
+| ViewModels | 16 | `v8` library/module | feature state plus BankManager row, action and delta helpers |
+| Presenters | 22 | `v8` library/module | presentation DTOs, curve calculation and parameter editors |
+| Bindings | 11 | `v8` library/module | message encoders and gesture transaction sessions |
+| Controllers | 13 | `v8` library/module | feature controllers and focused BankManager services |
+| Hosts and application | 9 | `v8` object/module | Max entrypoints, composition, mapping and binding installation |
+| Drawing controls and support | 35 | `v8ui` object/support | thin entrypoints with control cores, renderers and interaction helpers |
+| Theme | 1 | shared module | immutable UI color definitions |
 
-The counts include `PanelBindingHostV8.js` in Hosts; the removed legacy host is
-not part of the current file count.
-The controls-scope files include the six drawing controls and
-`AnalyzerLayout.js`, `AnalyzerRenderer.js` and `AnalyzerViewState.js`.
+The counts include `PanelBindingHostV8.js` in Hosts. The removed legacy host is
+not part of the current file count. Drawing entrypoints contain only Max
+callbacks and configuration; reusable state, rendering, geometry and gesture
+logic lives in adjacent CommonJS modules.
 
 ### Max objects in patchers
 
@@ -61,8 +62,8 @@ invalid and prevents the UI object from being created.
 | --- | --- | --- |
 | `include(...)` | 0 directives in product JS | modules use explicit CommonJS `require` |
 | global variables | Max entrypoint state and message functions only | classes and helpers remain lexical or module-scoped |
-| `Task` | two timers in `AnalyzerControl.js` | retain in `v8ui`; cancel during control teardown |
-| `mgraphics` | six drawing controls | retain only in direct `v8ui` entrypoints; analyzer renderer receives a graphics context |
+| `Task` | Analyzer redraw/move, Dial label restore and BankManager feedback | retain in the drawing-control scope; cancel during control teardown |
+| `mgraphics` | six drawing-control scopes | retain in direct `v8ui` entrypoints and their UI-only support modules |
 | `arrayfromargs` | 0 uses | V8 rest parameters normalize callback arguments |
 | `outlet` | hosts and all drawing controls | retain at Max object boundaries only |
  | numeric list envelope | `ConsolidatorUiHost.js`, `PanelBindingHostV8.js` | bridge prefixes dynamic messages with sentinel `0`; V8 calls `list()` only for lists beginning with a number |

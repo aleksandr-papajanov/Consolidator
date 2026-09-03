@@ -69,3 +69,39 @@ Managed when state writes are received.
 
 Each track row exposes the instance-level `S` and `M` controls. Device and bank
 solo controls are not part of the UI or protocol.
+
+## BankManager control structure
+
+The `BankManagerControl.js` V8UI entrypoint owns only Max callbacks. Feature
+composition lives in `BankManagerControlCore`; its collaborators have one UI
+responsibility each:
+
+- `BankManagerLayout` calculates columns, rows, hit regions and scroll bounds;
+- `BankManagerRenderer` draws the current presentation without producing intents;
+- `BankManagerInteraction` translates pointer and wheel input into intents;
+- `BankManagerPresentationState` assembles full presentations and applies patches;
+- `BankManagerFeedback` owns short-lived action flashes and optimistic bypass values.
+
+The presentation stream remains authoritative. Optimistic bypass values are removed
+when the corresponding presentation confirms them. Full and patched bank records
+both carry bypass state. All flash tasks are owned by the V8UI control and cancelled
+from `notifydeleted`.
+
+## JavaScript module boundaries
+
+Max-facing drawing files are thin selector adapters. Button, Dial, Analyzer,
+MultiValueToggle and BankManager keep reusable state and rendering outside their
+entrypoints. Dial label timers and Analyzer scheduling are cancelled from
+`notifydeleted`; delayed callbacks do not redraw a destroyed control.
+
+The application host delegates component construction, control-binding
+installation, varname mapping and track-name parsing to separate modules. Client
+wire decoding is isolated from request/lifecycle orchestration: registry and state
+snapshots have dedicated assemblers/codecs, while registry deltas have a dedicated
+applier. Protocol subscriptions are released by each client during destruction.
+
+Analyzer scale conversion, biquad curve calculation, curve publication and
+parameter editing are separate responsibilities. The removed all-bank curve path
+had no producer and is not part of the presentation contract. Dial ring generation
+and value editing are likewise independent of its presenter, and gesture
+transaction state is owned by the binding session rather than the message encoder.

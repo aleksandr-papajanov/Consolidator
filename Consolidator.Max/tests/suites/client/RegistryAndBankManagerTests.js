@@ -226,7 +226,7 @@ function testBankEffectDeltaSendsInactiveBankPatchToControl() {
       rowIndex: 0,
     },
   };
-  binding.applyDelta(presentation, presentation.delta);
+  binding.applyPresentation(presentation);
 
   var bankPatch = sent.filter(function (message) {
     return message[0] === "bank_patch";
@@ -237,6 +237,47 @@ function testBankEffectDeltaSendsInactiveBankPatchToControl() {
   assert.strictEqual(bankPatch[1][10], 0);
   assert.deepStrictEqual(sent[sent.length - 1], ["presentation_patch_end", []]);
   binding.destroy();
+}
+
+function testBankBypassDeltaReachesControlPatch() {
+  var sent = [];
+  var registry = {
+    subscribe: function () { return function () {}; },
+    fetch: function () {},
+  };
+  var viewModel = new BankManagerViewModel(registry, "7");
+  var snapshot = {
+    revision: 1,
+    instances: [{
+      instanceId: "7",
+      label: "Track",
+      processors: [],
+      banks: [{ bankId: 0, bypassed: false }],
+    }],
+    groups: [],
+  };
+  viewModel.applyRegistrySnapshot(snapshot);
+  var presenter = new BankManagerPresenter(viewModel);
+  var binding = new BankManagerControlBinding(
+    {},
+    presenter,
+    function (selector, args) { sent.push([selector, args]); },
+  );
+  sent = [];
+
+  viewModel.applyRegistryUpdate(snapshot, {
+    selector: "registry_bank_bypass_changed",
+    args: [1, 1, 2, "7", 0, 1],
+  });
+
+  var bankPatch = sent.filter(function (message) {
+    return message[0] === "bank_patch";
+  })[0];
+  assert.ok(bankPatch);
+  assert.strictEqual(bankPatch[1][11], 1);
+  binding.destroy();
+  presenter.destroy();
+  viewModel.destroy();
 }
 
 function testViewModelUsesManagedProcessorMarkers() {
@@ -327,6 +368,31 @@ function testRegistryDeltaDuringFetchIsRetained() {
   client.handleControl("registry_begin", [1, "ui.main", "2", "21", 0, 0]);
   client.handleControl("registry_done", [1, "ui.main", "2"]);
   assert.strictEqual(client.registry.get().revision, 21);
+}
+
+function testRegistryInstanceDeltaDecodesProcessorAfterCount() {
+  var client = new ConsolidatorClient("ui.main", function () {});
+  client.registry.snapshot = { revision: 20, instances: [], groups: [] };
+
+  client.handleControl("registry_instance_added", [
+    1, 20, 21, "7", "Kick", 0, 0, 0,
+    1, "equalizer", 1, 0,
+    1, 0, "none", 1, 0,
+  ]);
+
+  assert.deepStrictEqual(client.registry.get().instances[0].processors, [{
+    processorId: "equalizer",
+    effectActive: true,
+    markerActive: false,
+    bypassed: false,
+  }]);
+  assert.deepStrictEqual(client.registry.get().instances[0].banks, [{
+    bankId: 0,
+    groupId: null,
+    effectActive: true,
+    bypassed: false,
+  }]);
+  client.destroy();
 }
 function testRegistryDoesNotPublishStaleSnapshotOverLabelDelta() {
   var sent = [];
@@ -769,8 +835,10 @@ testRegistrySnapshotRoundTrip();
 testRegistryProcessorDeltaPatchesOneRow();
 testEqualizerGainRoundTripUpdatesBankActivityMarker();
 testBankEffectDeltaSendsInactiveBankPatchToControl();
+testBankBypassDeltaReachesControlPatch();
 testViewModelUsesManagedProcessorMarkers();
 testRegistryDeltaDuringFetchIsRetained();
+testRegistryInstanceDeltaDecodesProcessorAfterCount();
 testRegistryDoesNotPublishStaleSnapshotOverLabelDelta();
 testRegistryDeltaFetchesWhenIdle();
 testRegistrySameRevisionDoesNotNotifyAgain();
