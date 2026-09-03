@@ -1,6 +1,3 @@
-const { UiColors } = require("../../../Shared/Theme/UiColors.js");
-const { BankManagerControlOptions } = require("./BankManagerControlOptions.js");
-
 function isGroupedBank(bank)
 {
     if (!bank || bank.groupId === undefined || bank.groupId === null) return false;
@@ -29,22 +26,8 @@ function fillRectangle(graphics, color, x, y, width, height)
     graphics.fill();
 }
 
-function paintBypassIndicator(graphics, x, y)
-{
-    graphics.set_source_rgba.apply(graphics, UiColors.devices.mute);
-    graphics.set_line_width(1);
-    graphics.move_to(x + 3, y + 3);
-    graphics.line_to(x + BankManagerControlOptions.bankSize - 3,
-        y + BankManagerControlOptions.bankSize - 3);
-    graphics.stroke();
-    graphics.move_to(x + BankManagerControlOptions.bankSize - 3, y + 3);
-    graphics.line_to(x + 3, y + BankManagerControlOptions.bankSize - 3);
-    graphics.stroke();
-}
-
 module.exports = {
     fillRectangle: fillRectangle,
     groupLabel: groupLabel,
-    isGroupedBank: isGroupedBank,
-    paintBypassIndicator: paintBypassIndicator
+    isGroupedBank: isGroupedBank
 };

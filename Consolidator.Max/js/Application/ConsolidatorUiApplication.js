@@ -23,7 +23,6 @@ class ConsolidatorUiHost
         this.lifecycle = "created";
         this.instanceActive = false;
         this.publishedInstanceActive = null;
-        this.metricsGestureActive = false;
         this.snapshotContext = "equalizer";
     }
 
@@ -113,23 +112,7 @@ class ConsolidatorUiHost
 
     handleUiIntent(controlName, intent, values)
     {
-        if (intent === "gestureBegan") {
-            this.metricsGestureActive = true;
-            this.sendMetrics();
-        }
         this.bindings.handle(controlName, intent, values);
-        if (intent === "gestureEnded") {
-            this.metricsGestureActive = false;
-            this.sendMetrics();
-        }
-        else if (intent !== "gestureBegan" && !this.metricsGestureActive) {
-            this.sendMetrics();
-        }
-    }
-
-    sendMetrics()
-    {
-        this.sendNative(["metrics"]);
     }
 
     bindControls()
@@ -214,7 +197,6 @@ class ConsolidatorUiHost
             this.client.setInstanceActive(false);
         }
         destroyUiHostComponents(this);
-        this.metricsGestureActive = false;
         this.sendNative = () => {};
     }
 }

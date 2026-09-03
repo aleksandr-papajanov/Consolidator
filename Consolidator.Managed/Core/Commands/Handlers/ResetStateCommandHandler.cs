@@ -36,6 +36,7 @@ public sealed class ResetStateCommandHandler
                 $"Reset target contains no resettable state values: {command.Target}.");
         }
 
+        _history.AdvanceHistoryPoint();
         transaction.Commit();
 
         return ValueTask.FromResult(new CommandAcknowledgement());

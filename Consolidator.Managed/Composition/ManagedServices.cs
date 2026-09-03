@@ -84,6 +84,8 @@ public static class ManagedServices
         services.AddSingleton<IManagedLogger>(serviceProvider =>
             new NativeLogService(
                 serviceProvider.GetRequiredService<NativeLogSink>()));
+        services.AddSingleton(RuntimeMetrics.Shared);
+        services.AddSingleton<RuntimeMetricsMonitor>();
         services.AddSingleton<StateHistory>();
         services.AddSingleton<DspStateChangeTracker>();
         services.AddSingleton<TopologyIndex>();
@@ -242,11 +244,13 @@ public static class ManagedServices
                 serviceProvider.GetRequiredService<DspStateChangeTracker>(),
                 serviceProvider.GetRequiredService<IHistoryStateSink>()));
 
-        return services.BuildServiceProvider(
+        var provider = services.BuildServiceProvider(
             new ServiceProviderOptions
             {
                 ValidateOnBuild = true,
                 ValidateScopes = true
             });
+        provider.GetRequiredService<RuntimeMetricsMonitor>();
+        return provider;
     }
 }

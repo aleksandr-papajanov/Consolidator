@@ -14,7 +14,6 @@ internal sealed class ActivityObserver
     private readonly IActivityStatusSink _sink;
     private readonly bool[] _filterBypasses = new bool[DspConstants.EqualizerFilterCount * DspConstants.BankCount];
     private readonly float[] _filterGains = new float[DspConstants.EqualizerFilterCount * DspConstants.BankCount];
-    private readonly bool[] _bankBypasses = new bool[DspConstants.BankCount];
     private readonly bool[] _bankActivities = new bool[DspConstants.BankCount];
     private readonly ProcessorStatus[] _statuses;
 
@@ -76,7 +75,6 @@ internal sealed class ActivityObserver
 
     private void SetBankBypass(int bankId, bool value)
     {
-        _bankBypasses[bankId] = value;
         _sink.BankBypassChanged(_instanceId, bankId, value);
         RefreshBank(bankId, true);
     }
@@ -95,13 +93,9 @@ internal sealed class ActivityObserver
 
     private void RefreshBank(int bankId, bool publish)
     {
-        var active = !_bankBypasses[bankId];
-        if (active)
-        {
-            active = Enumerable.Range(0, DspConstants.EqualizerFilterCount)
-                .Any(filterId => !_filterBypasses[FilterIndex(bankId, filterId)] &&
-                    MathF.Abs(_filterGains[FilterIndex(bankId, filterId)]) > ActivityEpsilon);
-        }
+        var active = Enumerable.Range(0, DspConstants.EqualizerFilterCount)
+            .Any(filterId => !_filterBypasses[FilterIndex(bankId, filterId)] &&
+                MathF.Abs(_filterGains[FilterIndex(bankId, filterId)]) > ActivityEpsilon);
 
         if (_bankActivities[bankId] == active)
         {
@@ -122,40 +116,35 @@ internal sealed class ActivityObserver
     {
         ProcessorId.Input => new(
             processorId,
-            !_dsp.InputGain.Bypass.Value &&
-            (MathF.Abs(_dsp.InputGain.Level.Value) > ActivityEpsilon ||
+            MathF.Abs(_dsp.InputGain.Level.Value) > ActivityEpsilon ||
                 MathF.Abs(_dsp.InputGain.Width.Value - 100.0F) > ActivityEpsilon ||
-                _dsp.InputGain.Leveler.Value),
+                _dsp.InputGain.Leveler.Value,
             _dsp.InputGain.Bypass.Value),
         ProcessorId.Saturator => new(
             processorId,
-            !_dsp.Saturator.Bypass.Value &&
-                (MathF.Abs(_dsp.Saturator.Drive.Value) > ActivityEpsilon ||
-                    MathF.Abs(_dsp.Saturator.OutputDb.Value) > ActivityEpsilon),
+            MathF.Abs(_dsp.Saturator.Drive.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Saturator.OutputDb.Value) > ActivityEpsilon,
             _dsp.Saturator.Bypass.Value),
         ProcessorId.Compressor => new(
             processorId,
-            !_dsp.Compressor.Bypass.Value &&
-                (MathF.Abs(_dsp.Compressor.Attack.Value) > ActivityEpsilon ||
-                    MathF.Abs(_dsp.Compressor.Sustain.Value) > ActivityEpsilon ||
-                    MathF.Abs(_dsp.Compressor.Compression.Value) > ActivityEpsilon ||
-                    MathF.Abs(_dsp.Compressor.OutputDb.Value) > ActivityEpsilon),
+            MathF.Abs(_dsp.Compressor.Attack.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Compressor.Sustain.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Compressor.Compression.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Compressor.OutputDb.Value) > ActivityEpsilon,
             _dsp.Compressor.Bypass.Value),
         ProcessorId.Equalizer => new(
             processorId,
-            !_dsp.Equalizer.Bypass.Value && _bankActivities.Any(active => active),
+            _bankActivities.Any(active => active),
             _dsp.Equalizer.Bypass.Value),
         ProcessorId.Polish => new(
             processorId,
-            !_dsp.Polish.Bypass.Value &&
-                (MathF.Abs(_dsp.Polish.Thick.Value) > ActivityEpsilon ||
-                    MathF.Abs(_dsp.Polish.Air.Value) > ActivityEpsilon),
+            MathF.Abs(_dsp.Polish.Thick.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Polish.Air.Value) > ActivityEpsilon,
             _dsp.Polish.Bypass.Value),
         ProcessorId.Output => new(
             processorId,
-            !_dsp.OutputGain.Bypass.Value &&
-                (MathF.Abs(_dsp.OutputGain.Level.Value) > ActivityEpsilon ||
-                    _dsp.OutputGain.Limiter.Value),
+            MathF.Abs(_dsp.OutputGain.Level.Value) > ActivityEpsilon ||
+                _dsp.OutputGain.Limiter.Value,
             _dsp.OutputGain.Bypass.Value),
         _ => throw new ArgumentOutOfRangeException(nameof(processorId))
     };

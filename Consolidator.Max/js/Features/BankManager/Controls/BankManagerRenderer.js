@@ -5,8 +5,7 @@ const { BankManagerActionRenderer } = require("./BankManagerActionRenderer.js");
 const {
     fillRectangle,
     groupLabel,
-    isGroupedBank,
-    paintBypassIndicator
+    isGroupedBank
 } = require("./BankManagerDrawing.js");
 
 class BankManagerRenderer
@@ -102,11 +101,10 @@ class BankManagerRenderer
         let bankHeight = active ? options.rowHeight : options.bankSize;
         if (active) fillRectangle(graphics, selectionColor,
             x, y, options.bankSize, bankHeight);
-        if (bank.effectActive) fillRectangle(graphics,
-            options.deviceColors.equalizer, x + 1, y + 1, 3, 3);
-        if (bank.active && feedback.bypassValue(
-                instanceId, bank.bankId, bank.bypassed)) {
-            paintBypassIndicator(graphics, x, y);
+        if (bank.effectActive) {
+            this.paintActivityMarker(graphics,
+                bank.bypassed ? options.disabled : options.deviceColors.equalizer,
+                x, y);
         }
         if (!isGroupedBank(bank)) return;
         graphics.set_source_rgba.apply(graphics, textColor);
@@ -135,13 +133,18 @@ class BankManagerRenderer
             if (selected) fillRectangle(graphics,
                 processor.effectActive ? color : options.separator,
                 x, y, options.bankSize, options.bankSize);
-            if (feedback.bypassValue(
-                    row.instanceId, processorId, processor.bypassed)) {
-                paintBypassIndicator(graphics, x, y);
+            if (processor.markerActive) {
+                this.paintActivityMarker(graphics,
+                    processor.bypassed ? options.disabled : color, x, y);
             }
-            if (processor.markerActive) fillRectangle(
-                graphics, color, x + 1, y + 1, 3, 3);
         });
+    }
+
+    paintActivityMarker(graphics, color, x, y)
+    {
+        fillRectangle(graphics, BankManagerControlOptions.background,
+            x + 1, y + 1, 5, 5);
+        fillRectangle(graphics, color, x + 2, y + 2, 3, 3);
     }
 
     paintInstanceButtons(graphics, presentation, row, x, y, feedback)

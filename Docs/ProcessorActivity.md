@@ -2,18 +2,21 @@
 
 The processor set now includes the Polish device in addition to input,
 saturator, compressor, equalizer, and output. Polish activity is derived from
-its `thick` and `air` macro values together with its bypass state.
+its `thick` and `air` macro values. Bypass is exposed separately so an active
+device can be rendered with a disabled marker color.
 
 Managed owns one local activity observer for the six instance-owned
 processors and all seven equalizer banks. JavaScript presents the published
 activity values directly. The row-level activity markers beside the track name
 remain part of the presentation. When a focused bank belongs to a group, each
-row's marker is resolved from that row's own grouped bank; activity is not
-aggregated from the other group members.
+row's marker is resolved from the equalizer device activity: it is active when
+at least one bank in the instance is active, regardless of the focused bank or
+group membership.
 
 Each processor status contains `processorId`, `effectActive`, and `bypassed`.
-Equalizer bank activity remains a
-separate bank-owned status, calculated by the same observer.
+Equalizer bank activity remains a separate bank-owned status, calculated by the
+same observer. Activity describes active content independently of bypass;
+bypass is carried separately for presentation.
 
 Activity uses a small epsilon of `0.0001` to distinguish neutral from changed
 control values. Input is active for non-zero `level`, Width different from its

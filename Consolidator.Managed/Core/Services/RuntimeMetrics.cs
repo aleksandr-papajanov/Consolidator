@@ -46,6 +46,21 @@ public sealed class RuntimeMetrics
     public InstanceMetrics ForInstance(ulong instanceId) =>
         _instances.GetOrAdd(instanceId, static _ => new InstanceMetrics());
 
+    public RuntimeMetricsMonitor.MetricsSample CaptureSample()
+    {
+        var nativeInputCalls = Interlocked.Read(ref _nativeInputCalls);
+        var nativeInputTicks = Interlocked.Read(ref _nativeInputTicks);
+        var operations = Interlocked.Read(ref _controlOperations);
+        var operationTicks = Interlocked.Read(ref _controlOperationTicks);
+
+        return new RuntimeMetricsMonitor.MetricsSample(
+            nativeInputCalls,
+            AverageMilliseconds(nativeInputCalls, nativeInputTicks),
+            operations,
+            AverageMilliseconds(operations, operationTicks),
+            _instances.Values.Sum(instance => instance.DroppedAudioSamples));
+    }
+
     public string FormatSnapshot()
     {
         var builder = new StringBuilder();
@@ -84,6 +99,11 @@ public sealed class RuntimeMetrics
 
         return builder.ToString();
     }
+
+    private static double AverageMilliseconds(long count, long ticks) =>
+        count == 0
+            ? 0
+            : ticks * 1000.0 / Stopwatch.Frequency / count;
 
     public sealed class InstanceMetrics
     {

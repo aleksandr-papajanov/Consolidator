@@ -35,10 +35,18 @@ internal sealed class ResetInputCodec : IInputCodec
             }
 
             targetInstanceId = new InstanceId(CommandCodecSupport.ReadWireId(atoms[position + 1]));
-            bankIndex = atoms[position + 2].Type == AtomType.Symbol &&
-                atoms[position + 2].Symbol == "none"
-                ? null
-                : checked((int)CommandCodecSupport.ReadWireId(atoms[position + 2]));
+            if (atoms[position + 2].Type == AtomType.Symbol && atoms[position + 2].Symbol == "none")
+            {
+                bankIndex = null;
+            }
+            else if (atoms[position + 2].Type == AtomType.Integer)
+            {
+                bankIndex = checked((int)atoms[position + 2].Integer);
+            }
+            else
+            {
+                throw new FormatException("Bank index must be an integer or none.");
+            }
             position += 3;
         }
 

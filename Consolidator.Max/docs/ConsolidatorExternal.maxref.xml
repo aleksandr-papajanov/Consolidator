@@ -29,6 +29,11 @@
 
 	<methodlist>
 
+		<method name='set_bank_bypass'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='initialize'>
 			<digest></digest>
 			<description></description>

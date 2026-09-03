@@ -310,6 +310,16 @@ public:
         }
     };
 
+    c74::min::message<> setBankBypass{
+        this,
+        "set_bank_bypass",
+        MIN_FUNCTION
+        {
+            ForwardMessage("set_bank_bypass", args);
+            return {};
+        }
+    };
+
     c74::min::message<> beginHistory{
         this,
         "begin_history",

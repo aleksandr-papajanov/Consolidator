@@ -79,7 +79,6 @@ internal sealed class ProcessorMarkerProjection
             return processor.EffectActive;
         }
 
-        return !processor.Bypassed && instance.Banks.Any(
-            bank => bank.BankId == member.BankIndex && bank.EffectActive);
+        return instance.Banks.Any(bank => bank.EffectActive);
     }
 }
