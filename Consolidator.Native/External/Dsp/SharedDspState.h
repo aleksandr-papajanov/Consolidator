@@ -55,18 +55,38 @@ struct DspSnapshot
     FilterSnapshot detectorFilters[6];
 };
 
+struct DspTelemetryExchange
+{
+    std::uint32_t sequence{};
+    std::uint32_t valuesPresent{};
+    std::uint32_t inputLevelBits{};
+    std::uint32_t inputLevelFastBits{};
+    std::uint32_t outputLevelBits{};
+};
+
+enum class DspTelemetryValues : std::uint32_t
+{
+    None = 0,
+    InputLevel = 1U << 0,
+    InputLevelFast = 1U << 1,
+    OutputLevel = 1U << 2
+};
+
 struct DspStateExchange
 {
     DspSnapshot snapshots[3];
     std::uint32_t publishedIndex{};
     std::uint32_t consumerIndex{};
+    DspTelemetryExchange telemetry{};
 };
 
 static_assert(sizeof(FilterSnapshot) == 24);
 static_assert(sizeof(DspSnapshot) == 1476);
-static_assert(sizeof(DspStateExchange) == 4436);
+static_assert(sizeof(DspTelemetryExchange) == 20);
+static_assert(sizeof(DspStateExchange) == 4456);
 static_assert(offsetof(DspStateExchange, snapshots) == 0);
 static_assert(offsetof(DspStateExchange, publishedIndex) == 4428);
 static_assert(offsetof(DspStateExchange, consumerIndex) == 4432);
+static_assert(offsetof(DspStateExchange, telemetry) == 4436);
 
 } // namespace consolidator::max::dsp

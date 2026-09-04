@@ -24,6 +24,8 @@ private:
     DspRuntimeGraph graph_;
     DspSnapshot snapshot_{};
     std::uint32_t consumerIndex_{};
+    double outputMeanSquare_{};
+    double outputRmsTimeSamples_{ 1.0 };
 };
 
 } // namespace consolidator::max::dsp

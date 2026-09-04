@@ -26,5 +26,6 @@ bool RunDspParameterRampTests();
 bool RunDspRuntimeTests();
 bool RunDspStateConsumerTests();
 bool RunDspRuntimeGraphTests();
+bool RunLevelerProcessorTests();
 
 } // namespace consolidator::tests

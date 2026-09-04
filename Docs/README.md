@@ -17,6 +17,7 @@
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
 | [`DspStatePipeline.md`](DspStatePipeline.md) | DSP snapshot publication, local JavaScript curves, analyzer configuration и FFT capture. |
 | [`DspRuntimeFoundation.md`](DspRuntimeFoundation.md) | Native DSP runtime graph, processor lifecycle, sidechain and parallel processing foundation. |
+| [`DspTelemetry.md`](DspTelemetry.md) | Latest-only native DSP telemetry, active-instance demand, realtime exchange and automated-control ownership. |
 | [`FilterCatalog.md`](FilterCatalog.md) | Filter kinds, parameter capabilities and legacy-derived defaults. |
 | [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
 | [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |

@@ -22,8 +22,8 @@ The expected activation sequence is:
 live.thisdevice bang
 → resolve this_device and its canonical parent track
 → publish track_name
-→ publish instance_active 1 for the resolved `this_device`
-→ observe selected_track for later focus changes
+→ observe and read the current selected_track
+→ publish the correct initial instance_active value
 → set_instance_active acknowledgement
 → observe_target
 → target_state_snapshot
@@ -64,11 +64,12 @@ function trackNameChanged(values)
 }
 ```
 
-Activation starts with the device instance itself: after `this_device` and its
-canonical parent track resolve successfully, the host publishes
-`instance_active 1`. The selected-track observer then owns subsequent
-transitions away from and back to the device. The host does not poll Live or infer activation
-from structural `tracks`/`devices` changes.
+After `this_device` and its canonical parent track resolve successfully, the
+host installs the selected-track observer, reads its current value and only
+then publishes the initial activity. This prevents every device in a loading
+Live Set from briefly claiming the singleton presentation and telemetry viewer;
+the selected-track observer owns all subsequent transitions. The host does not
+poll Live or infer activation from structural `tracks`/`devices` changes.
 
 ## Diagnostic layers
 
@@ -100,7 +101,7 @@ protocol behavior. They do not provide the real `LiveAPI`, `patcher`,
 `mgraphics`, `Task` or Max message dispatcher.
 
 `LiveInstanceHostTests.js` must enforce the real `(callback, path)` constructor
-shape, the own-device activation path and later selected-track/device callbacks.
+shape, initial selected-track activity and later selected-track/device callbacks.
 A fake that accepts a path as the first constructor argument hides a host-only
 failure.
 

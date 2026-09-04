@@ -67,4 +67,31 @@ public sealed class PublishedLibraryContractTests
         Assert.NotEqual((nuint)0, restartedInstance.AudioInputHandle);
         Assert.Equal(0.0F, restartedInstance.PublishedGain);
     }
+
+    [Fact]
+    public void ActiveInstanceReceivesTelemetryFromItsSharedExchange()
+    {
+        using var instance = _library.Register();
+        _library.Send(
+            instance,
+            "set_instance_active",
+            InputAtom.Integer(1),
+            InputAtom.Symbol("test"),
+            InputAtom.Symbol("199"),
+            InputAtom.Integer(1));
+        instance.WaitForResponse("199");
+        instance.ClearFrames();
+
+        instance.PublishInputLevelTelemetry(2, -12.5F);
+
+        var telemetry = instance.WaitForFrame("dsp_telemetry");
+        Assert.Equal(8, telemetry.Atoms.Count);
+        Assert.Equal(1, telemetry.Atoms[0].IntegerValue);
+        Assert.Equal((long)instance.InstanceId, telemetry.Atoms[1].IntegerValue);
+        Assert.Equal(2, telemetry.Atoms[2].IntegerValue);
+        Assert.Equal(2, telemetry.Atoms[3].IntegerValue);
+        Assert.Equal("input_gain.level", telemetry.Atoms[4].SymbolValue);
+        Assert.Equal(-12.5, telemetry.Atoms[5].FloatValue);
+        Assert.Equal("input_gain.level_fast", telemetry.Atoms[6].SymbolValue);
+    }
 }

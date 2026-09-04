@@ -40,6 +40,13 @@ class BankManagerPresentationPatcher
         this.confirmBypass(row.instanceId, next.processorId, next.bypassed);
     }
 
+    level(rowIndex, alpha)
+    {
+        const row = this.presentation.rows[Number(rowIndex)];
+        if (!row) return;
+        row.outputLevelAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+    }
+
     bank(args)
     {
         let row = this.presentation.rows[Number(args[0])];

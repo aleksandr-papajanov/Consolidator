@@ -15,12 +15,20 @@ void DetectorProcessor::Prepare(
 {
     left_.assign(context.maximumFrameCount, 0.0);
     right_.assign(context.maximumFrameCount, 0.0);
+    for (auto& filter : filters_)
+    {
+        filter.Prepare(context);
+    }
 }
 
 void DetectorProcessor::Reset() noexcept
 {
     std::fill(left_.begin(), left_.end(), 0.0);
     std::fill(right_.begin(), right_.end(), 0.0);
+    for (auto& filter : filters_)
+    {
+        filter.Reset();
+    }
 }
 
 void DetectorProcessor::SetParameters(
@@ -28,7 +36,8 @@ void DetectorProcessor::SetParameters(
 {
     for (std::size_t index = 0; index < kFilterCount; ++index)
     {
-        filters_[index] = snapshot.detectorFilters[filterOffset_ + index];
+        filters_[index].SetParameters(
+            snapshot.detectorFilters[filterOffset_ + index]);
     }
 }
 
@@ -49,9 +58,18 @@ void DetectorProcessor::Process(
     {
         std::copy_n(frame.main.right, frameCount, right_.data());
     }
-    frame.detectorSignal = {
+    DspAudioBuffer detector{
         frame.main.left == nullptr ? nullptr : left_.data(),
-        frame.main.right == nullptr ? nullptr : right_.data()
+        frame.main.right == nullptr ? nullptr : right_.data(),
+        frameCount
+    };
+    for (auto& filter : filters_)
+    {
+        filter.Process(detector, frame.plan.channelMode);
+    }
+    frame.detectorSignal = {
+        detector.left,
+        detector.right
     };
 }
 

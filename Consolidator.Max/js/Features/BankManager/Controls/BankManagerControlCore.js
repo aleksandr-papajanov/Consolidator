@@ -212,6 +212,11 @@ class BankManagerControlCore
         this.presentationState.patchRow(...args);
     }
 
+    patchLevel(rowIndex, alpha)
+    {
+        this.presentationState.patchLevel(rowIndex, alpha);
+    }
+
     patchProcessor(...args)
     {
         this.presentationState.patchProcessor(...args);

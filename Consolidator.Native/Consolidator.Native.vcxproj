@@ -68,6 +68,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>
         _DEBUG;WIN32;_WINDOWS;MAXAPI_USE_MSCRT;WIN_VERSION;_USE_MATH_DEFINES;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)
       </PreprocessorDefinitions>
@@ -88,6 +89,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>
         NDEBUG;WIN32;_WINDOWS;MAXAPI_USE_MSCRT;WIN_VERSION;_USE_MATH_DEFINES;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)
       </PreprocessorDefinitions>
@@ -106,6 +108,7 @@
     <ClCompile Include="External\Dsp\CompressionProcessor.cpp" />
     <ClCompile Include="External\Dsp\CompressorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DetectorProcessor.cpp" />
+    <ClCompile Include="External\Dsp\DspBiquad.cpp" />
     <ClCompile Include="External\Dsp\DspExecution.cpp" />
     <ClCompile Include="External\Dsp\DspGainRamp.cpp" />
     <ClCompile Include="External\Dsp\DspParameterRamp.cpp" />
@@ -133,6 +136,7 @@
     <ClInclude Include="External\ConsolidatorExternal.h" />
     <ClInclude Include="External\Transport\AtomCodec.h" />
     <ClInclude Include="External\Dsp\DspExecution.h" />
+    <ClInclude Include="External\Dsp\DspBiquad.h" />
     <ClInclude Include="External\Dsp\DspProcessingPrimitives.h" />
     <ClInclude Include="External\Dsp\DspParallelStage.h" />
     <ClInclude Include="External\Dsp\DspParameterRamp.h" />

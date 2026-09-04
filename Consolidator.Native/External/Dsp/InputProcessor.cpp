@@ -5,7 +5,6 @@ namespace consolidator::max::dsp
 
 void InputProcessor::Prepare(const DspProcessingContext& context)
 {
-    level_.Prepare(context);
     levelerDetector_.Prepare(context);
     leveler_.Prepare(context);
     width_.Prepare(context);
@@ -13,7 +12,6 @@ void InputProcessor::Prepare(const DspProcessingContext& context)
 
 void InputProcessor::Reset() noexcept
 {
-    level_.Reset();
     levelerDetector_.Reset();
     leveler_.Reset();
     width_.Reset();
@@ -22,33 +20,51 @@ void InputProcessor::Reset() noexcept
 void InputProcessor::SetParameters(
     const DspSnapshot& snapshot) noexcept
 {
-    level_.SetTargetDb(snapshot.inputLevel);
     levelerDetector_.SetParameters(snapshot);
     leveler_.SetParameters(snapshot);
+    width_.SetTarget(snapshot.inputWidth);
     if (snapshot.inputLeveler == 0)
     {
-        leveler_.Reset();
+        levelerDetector_.Reset();
     }
-    width_.SetTarget(snapshot.inputWidth);
 }
 
 void InputProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
     ProcessWidth(frame);
-    level_.Process(frame.main, frame.plan.channelMode);
     if (frame.policy.levelerEnabled)
     {
         levelerDetector_.Process(frame);
-        leveler_.Process(frame);
     }
+    leveler_.Process(frame);
 }
 
 bool InputProcessor::RequiresProcessing() const noexcept
 {
-    return level_.RequiresProcessing() ||
+    return leveler_.RequiresProcessing() ||
         width_.IsSmoothing() ||
         width_.CurrentValue() != 100.0;
+}
+
+bool InputProcessor::IsLevelerEnabled() const noexcept
+{
+    return leveler_.IsEnabled();
+}
+
+float InputProcessor::SlowInputLevelDb() const noexcept
+{
+    return leveler_.SlowInputLevelDb();
+}
+
+float InputProcessor::EffectiveInputLevelDb() const noexcept
+{
+    return leveler_.EffectiveInputLevelDb();
+}
+
+float InputProcessor::FastInputLevelDb() const noexcept
+{
+    return leveler_.FastInputLevelDb();
 }
 
 void InputProcessor::ProcessWidth(

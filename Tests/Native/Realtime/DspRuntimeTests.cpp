@@ -1,6 +1,7 @@
 #include "TestSupport.h"
 
 #include <array>
+#include <bit>
 #include <cmath>
 
 #include "Dsp/DspRuntime.h"
@@ -74,6 +75,38 @@ bool RunDspRuntimeTests()
         left == std::array<double, 5>{} &&
             right == std::array<double, 5>{},
         "A DSP publication was not applied without a Managed output callback.");
+
+    consolidator::max::dsp::DspRuntime telemetryRuntime;
+    telemetryRuntime.Prepare(1000.0, 5);
+    consolidator::max::dsp::DspStateExchange telemetryExchange{};
+    telemetryExchange.snapshots[1].audible = 1;
+    telemetryExchange.snapshots[1].inputGainActive = 1;
+    telemetryExchange.snapshots[1].inputLeveler = 1;
+    telemetryExchange.snapshots[1].inputTarget = -18.0F;
+    telemetryExchange.publishedIndex = 1;
+    left.fill(0.5);
+    right.fill(0.5);
+    telemetryRuntime.ProcessBlock(
+        telemetryExchange,
+        left.data(),
+        right.data(),
+        left.size());
+    succeeded &= Expect(
+        telemetryExchange.telemetry.sequence == 2 &&
+            telemetryExchange.telemetry.valuesPresent ==
+                (static_cast<std::uint32_t>(
+                    consolidator::max::dsp::DspTelemetryValues::InputLevel) |
+                static_cast<std::uint32_t>(
+                    consolidator::max::dsp::DspTelemetryValues::InputLevelFast) |
+                static_cast<std::uint32_t>(
+                    consolidator::max::dsp::DspTelemetryValues::OutputLevel)) &&
+            std::isfinite(std::bit_cast<float>(
+                telemetryExchange.telemetry.inputLevelBits)) &&
+            std::isfinite(std::bit_cast<float>(
+                telemetryExchange.telemetry.inputLevelFastBits)) &&
+            std::isfinite(std::bit_cast<float>(
+                telemetryExchange.telemetry.outputLevelBits)),
+        "DSP runtime did not publish a stable Leveler telemetry snapshot.");
     return succeeded;
 }
 

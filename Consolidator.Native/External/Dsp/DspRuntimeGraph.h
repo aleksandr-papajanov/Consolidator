@@ -21,6 +21,9 @@ public:
 
     [[nodiscard]] const DspProcessingContext& Context() const noexcept;
     [[nodiscard]] const DspProcessingPlan& ProcessingPlan() const noexcept;
+    [[nodiscard]] bool HasInputLevelTelemetry() const noexcept;
+    [[nodiscard]] float InputLevelTelemetry() const noexcept;
+    [[nodiscard]] float FastInputLevelTelemetry() const noexcept;
 
 private:
     DspProcessingContext context_{};

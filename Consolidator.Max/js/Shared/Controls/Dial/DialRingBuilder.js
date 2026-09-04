@@ -68,6 +68,7 @@ class DialRingBuilder
                     physicalMaximum,
                     logarithmic
                 ),
+                relative: Boolean(configuration.relative),
                 maximum: normalizePresentationValue(
                     maximum,
                     physicalMinimum,
@@ -82,6 +83,10 @@ class DialRingBuilder
                         physicalMaximum,
                         logarithmic
                     ),
+                visible: Boolean(presentationBindingValue(
+                    configuration.visible,
+                    true
+                )),
                 visualization: this.buildVisualization(
                     presentationBindingValue(
                         configuration.visualization,

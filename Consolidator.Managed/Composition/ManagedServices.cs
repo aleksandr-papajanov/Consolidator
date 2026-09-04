@@ -77,6 +77,11 @@ public static class ManagedServices
             serviceProvider.GetRequiredService<PresentationOutputGate>());
         services.AddSingleton<IInstancePresentationLifecycle>(serviceProvider =>
             serviceProvider.GetRequiredService<PresentationOutputGate>());
+        services.AddSingleton<DspTelemetryService>();
+        services.AddSingleton<IDspTelemetryLifecycle>(serviceProvider =>
+            serviceProvider.GetRequiredService<DspTelemetryService>());
+        services.AddSingleton<IInputLevelerTelemetry>(serviceProvider =>
+            serviceProvider.GetRequiredService<DspTelemetryService>());
         services.AddSingleton<ActiveInstanceCoordinator>();
         services.AddSingleton<IProtocolOutputRegistry>(serviceProvider =>
             serviceProvider.GetRequiredService<NativeOutputService>());
@@ -157,6 +162,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, SetInstanceBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetBankBypassCommandHandler>();
+        services.AddSingleton<ICommandHandler, DisableInputLevelerCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -175,6 +181,7 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, SetInstanceBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetBankBypassInputCodec>();
+        services.AddSingleton<IInputCodec, DisableInputLevelerInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -203,6 +210,9 @@ public static class ManagedServices
             "action_done");
         services.AddCommandEndpoint<SetBankBypassCommand, StateWriteStatus>(
             "set_bank_bypass",
+            "action_done");
+        services.AddCommandEndpoint<DisableInputLevelerCommand, StateWriteStatus>(
+            "disable_input_leveler",
             "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>

@@ -113,6 +113,9 @@ function testDialBindingUsesMessageTransportAndIntents() {
     ["active", [1]],
     ["scope", [0, 0, 0, 0, 0, 0]],
     ["limits", [0, 0, 1]],
+    ["color", [0, 0, 0, 0, 0, 0]],
+    ["visible", [0, 1]],
+    ["relative", [0, 0]],
     ["set", [0, 0.5]],
     ["presentation_end", []],
   ]);
@@ -419,11 +422,8 @@ function testBankManagerBindingPatchesRegistryAddition() {
 }
 function testUiHostRoutesIntentsByControlVarname() {
   var calls = [];
-  var nativeMessages = [];
   var host = Object.create(ConsolidatorUiHost.prototype);
   host.bindings = new ControlBindings();
-  host.sendNative = function (message) { nativeMessages.push(message); };
-  host.metricsGestureActive = false;
   host.sendControlMessage = function () {};
   host.bind("input_gain", function () {
     return {
@@ -443,7 +443,6 @@ function testUiHostRoutesIntentsByControlVarname() {
     ["valueChanged", [0, 0.75]],
     ["gestureEnded", [0]],
   ]);
-  assert.deepStrictEqual(nativeMessages, [["metrics"], ["metrics"]]);
   host.bindings.destroy();
 }
 function testPanelBindingHostRoutesListMessagesToNamedControl() {
@@ -890,21 +889,24 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   assert.deepStrictEqual(calls, [
     ["gestureBegan", [1, "group"], null],
     ["filterMoved", [1, 0.5, 0.7, "group"], 12],
-    ["filterCommit", [1, 0.5, 0.7, "group"], 12],
-    ["gestureEnded", [], 12],
+    ["filterCommit", [1, 0.5, 0.7, "group"], null],
   ]);
 
   assert.deepStrictEqual(transactionCalls, [
     ["begin"],
     ["end", 12],
   ]);
+  commitCallback({ status: "accepted", error: null });
   assert.deepStrictEqual(calls, [
     ["gestureBegan", [1, "group"], null],
     ["filterMoved", [1, 0.5, 0.7, "group"], 12],
-    ["filterCommit", [1, 0.5, 0.7, "group"], 12],
+    ["filterCommit", [1, 0.5, 0.7, "group"], null],
     ["gestureEnded", [], 12],
   ]);
-  commitCallback({ status: "accepted", error: null });
+  assert.deepStrictEqual(transactionCalls, [
+    ["begin"],
+    ["end", 12],
+  ]);
   binding.destroy();
 }
 
@@ -1199,6 +1201,170 @@ function testDialDisplayScaleDoesNotChangePhysicalValue() {
   assert.strictEqual(value.value, 0.25);
   presenter.destroy();
 }
+function testInputLevelUsesTelemetryWhileLevelerRuns() {
+  var callbacks = {};
+  var batches = [];
+  var state = {
+    applyingSnapshot: false,
+    subscribe: function (path, callback) {
+      callbacks[path] = callback;
+      return function () {};
+    },
+    subscribeStatus: function (callback, immediate) {
+      if (immediate) callback({ ready: true });
+      return function () {};
+    },
+    onTargetSnapshotCompleted: function () { return function () {}; },
+    set: function () {},
+    setMany: function (entries, callback, transactionId) {
+      batches.push([entries, callback, transactionId]);
+    },
+    disableInputLeveler: function (callback) {
+      batches.push(["disable", callback]);
+    },
+    reset: function () {},
+  };
+  var InputViewModel = require(
+    path.join(root, "js/Features/Input/ViewModels/InputViewModel.js")
+  ).InputViewModel;
+  var InputController = require(
+    path.join(root, "js/Features/Input/Controllers/InputController.js")
+  ).InputController;
+  var viewModel = new InputViewModel(state);
+  var controller = new InputController(viewModel);
+  var entry = function (value) {
+    return {
+      value: value,
+      status: "ready",
+      physicalMin: -36,
+      physicalMax: 36,
+      min: -36,
+      max: 36,
+      instanceId: "7",
+    };
+  };
+
+  callbacks["input_gain.level"](entry(0));
+  callbacks["input_gain.leveler"](entry(false));
+  assert.strictEqual(viewModel.level.enabled, true);
+  assert.strictEqual(controller.presenters.presenters.level.presenter
+    .presentation.rings[1].visible, false);
+
+  viewModel.leveler.set(true, undefined, 9);
+  assert.deepStrictEqual(batches, [[[
+    { path: "input_gain.leveler", value: true },
+  ], undefined, 9]]);
+  batches = [];
+
+  callbacks["input_gain.leveler"](entry(1));
+  callbacks["input_gain.level"](entry(-12));
+  assert.strictEqual(controller.presenters.presenters.level.presenter
+    .presentation.rings[1].value, 0.5);
+  callbacks["input_gain.level_fast"](entry(-3));
+  assert.strictEqual(viewModel.level.enabled, false);
+  var levelRings = controller.presenters.presenters.level.presenter
+    .presentation.rings;
+  assert.strictEqual(levelRings.length, 2);
+  assert.strictEqual(levelRings[1].visible, true);
+  assert.strictEqual(levelRings[1].relative, true);
+  assert.strictEqual(levelRings[0].value, 1 / 3);
+  assert.strictEqual(levelRings[1].value, 0.25);
+  callbacks["input_gain.level_fast"](entry(3));
+  levelRings = controller.presenters.presenters.level.presenter
+    .presentation.rings;
+  assert.strictEqual(levelRings[0].value, 1 / 3);
+  assert.strictEqual(levelRings[1].value, 0.75);
+  viewModel.level.set(-6, undefined, 10);
+  assert.deepStrictEqual(batches, []);
+
+  viewModel.leveler.set(false, undefined, 11);
+  assert.deepStrictEqual(batches, [["disable", undefined]]);
+  controller.destroy();
+  viewModel.destroy();
+}
+
+function testLevelerToggleBindingUsesLevelerWriteContract() {
+  var callbacks = {};
+  var batches = [];
+  var state = {
+    applyingSnapshot: false,
+    subscribe: function (path, callback) {
+      callbacks[path] = callback;
+      return function () {};
+    },
+    subscribeStatus: function (callback, immediate) {
+      if (immediate) callback({ ready: true });
+      return function () {};
+    },
+    onTargetSnapshotCompleted: function () { return function () {}; },
+    set: function () {
+      throw new Error("Leveler toggle must not bypass LevelerViewModel.");
+    },
+    setMany: function (entries, callback, transactionId) {
+      batches.push([entries, callback, transactionId]);
+    },
+    disableInputLeveler: function (callback) {
+      batches.push(["disable", callback]);
+    },
+    reset: function () {},
+  };
+  var InputViewModel = require(
+    path.join(root, "js/Features/Input/ViewModels/InputViewModel.js")
+  ).InputViewModel;
+  var InputController = require(
+    path.join(root, "js/Features/Input/Controllers/InputController.js")
+  ).InputController;
+  var ToggleControlBinding = require(
+    path.join(root, "js/Shared/Controls/Toggle/ToggleControlBinding.js")
+  ).ToggleControlBinding;
+  var viewModel = new InputViewModel(state);
+  var controller = new InputController(viewModel);
+  var presenter = controller.presenters.presenters.leveler.presenter;
+  var transactionCallback = null;
+  var transactions = {
+    begin: function (callback) {
+      transactionCallback = callback;
+      return 21;
+    },
+    end: function () {},
+  };
+  var binding = new ToggleControlBinding(
+    presenter,
+    function () {},
+    transactions,
+  );
+  var entry = function (value) {
+    return {
+      value: value,
+      status: "ready",
+      physicalMin: -36,
+      physicalMax: 36,
+      min: -36,
+      max: 36,
+      instanceId: "7",
+    };
+  };
+
+  callbacks["input_gain.level"](entry(0));
+  callbacks["input_gain.leveler"](entry(false));
+  binding.handleIntent("valueChanged", [1]);
+  transactionCallback(21, { status: "accepted" });
+  assert.deepStrictEqual(batches, [[[
+    { path: "input_gain.leveler", value: true },
+  ], undefined, 21]]);
+
+  batches = [];
+  callbacks["input_gain.leveler"](entry(true));
+  callbacks["input_gain.level"](entry(-12));
+  binding.handleIntent("valueChanged", [0]);
+  transactionCallback(21, { status: "accepted" });
+  assert.deepStrictEqual(batches, [["disable", undefined]]);
+
+  binding.destroy();
+  controller.destroy();
+  viewModel.destroy();
+}
+
 function testConsolidatorInitializesDetectorState() {
   var state = makeStateFixture();
   var analysis = {
@@ -1277,6 +1443,7 @@ function testMessageControlsConstructCompletePresentation() {
     value: 0.4,
     minimum: 0.1,
     maximum: 0.9,
+    visible: true,
     visualization: null,
     color: null,
     display: {
@@ -1843,6 +2010,8 @@ testFeaturePresenterSetTracksSourceAvailability();
 testPresentationObservableBatchesOneRebuildAndStopsAfterDestroy();
 testDialDisplayScaleDoesNotChangePhysicalValue();
 testDialUsesPhysicalRangeOutsideGroupScope();
+testInputLevelUsesTelemetryWhileLevelerRuns();
+testLevelerToggleBindingUsesLevelerWriteContract();
 testConsolidatorInitializesDetectorState();
 testFilterPositionUsesOneStateBatch();
 testEqualizerPositionForwardsFinalWriteCallback();

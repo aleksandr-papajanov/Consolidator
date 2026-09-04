@@ -34,6 +34,9 @@ public static unsafe partial class NativeApi
     private static ActiveInstanceCoordinator ActivityCoordinator =>
         ManagedServices.Provider.GetRequiredService<ActiveInstanceCoordinator>();
 
+    private static DspTelemetryService TelemetryService =>
+        ManagedServices.Provider.GetRequiredService<DspTelemetryService>();
+
     private static InstancePersistenceService PersistenceService =>
         ManagedServices.Provider.GetRequiredService<InstancePersistenceService>();
 
@@ -85,8 +88,10 @@ public static unsafe partial class NativeApi
 
             *audioInputHandle = 0;
 
+            var telemetry = TelemetryService;
             var publisher = new NativeDspStatePublisher(dspExchange);
             instanceId = LifecycleService.RegisterInstance(publisher);
+            telemetry.RegisterSource(instanceId, dspExchange);
             OutputRegistry.Register(
                 instanceId.Value,
                 new NativeOutput(context, outputCallback));
@@ -102,6 +107,7 @@ public static unsafe partial class NativeApi
                 handle.Free();
                 handle = default;
                 ActivityCoordinator.Unregister(instanceId.Value);
+                TelemetryService.RemoveInstance(instanceId);
                 OutputRegistry.Unregister(instanceId.Value);
                 LifecycleService.UnregisterInstance(instanceId);
                 return 0;
@@ -127,6 +133,7 @@ public static unsafe partial class NativeApi
                 if (instanceId.IsValid)
                 {
                     ActivityCoordinator.Unregister(instanceId.Value);
+                    TelemetryService.RemoveInstance(instanceId);
                     OutputRegistry.Unregister(instanceId.Value);
                     LifecycleService.UnregisterInstance(instanceId);
                 }
@@ -164,6 +171,7 @@ public static unsafe partial class NativeApi
             ReportPendingAudioBoundaryExceptions();
             ProtocolService.CancelInstance(instanceId);
             ActivityCoordinator.Unregister(instanceId);
+            TelemetryService.RemoveInstance(new InstanceId(instanceId));
             OutputRegistry.Unregister(instanceId);
             LifecycleService.UnregisterInstance(new InstanceId(instanceId));
 

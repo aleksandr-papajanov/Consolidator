@@ -154,6 +154,7 @@ public sealed class InstanceCommandRouter
         {
             ResetStateCommand reset => IsScopedGroupReset(reset),
             WriteStateCommand write => write.WriteMode is WriteScope.Group,
+            DisableInputLevelerCommand => false,
             _ => true
         };
 

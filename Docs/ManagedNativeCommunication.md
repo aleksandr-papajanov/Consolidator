@@ -19,8 +19,9 @@ Managed instance registry
 ## Managed to Native: DSP State
 
 Each native external owns one `DspStateExchange` and passes its pointer during
-instance registration. The exchange has three snapshots plus `publishedIndex`,
-and `consumerIndex`. Managed reads the published and consumer-protected slots,
+instance registration. The exchange has three parameter snapshots,
+`publishedIndex`, `consumerIndex`, and a separate native-written telemetry
+snapshot. Managed reads the published and consumer-protected parameter slots,
 writes the only remaining slot, and publishes its index with `Volatile.Write`.
 The publisher serializes this read-select-write-publish sequence with a
 Managed control-side lock, so one publisher has a single writer even when
@@ -60,8 +61,9 @@ reset or republish parameter state. Native creates its per-instance DSP graph
 and its bounded parallel branch storage during this control/setup operation.
 The graph itself is audio-owned and is not swapped on parameter publications;
 processor history and smoothing state survive every accepted snapshot.
-Managed writes the exchange and native reads it, so telemetry must use a
-separate native-owned channel.
+Parameter publication and telemetry use opposite ownership directions and
+independent synchronization fields inside the fixed exchange. The complete
+telemetry contract is described in [`DspTelemetry.md`](DspTelemetry.md).
 
 Each Max external owns one managed instance. The instance ID addresses all control and audio calls for that external.
 
@@ -389,6 +391,11 @@ frames use `controlOutput`. The Max bridge
 connects the analysis outlet to the UI host's protocol input separately from
 control output.
 
+`dsp_telemetry` and the aggregated `track_levels` frame also use
+`analysisOutput`. Each has its own latest-only pending slot, independent of FFT
+and of the other telemetry kind. Their shared-memory publication and active-UI
+demand contracts are defined in [`DspTelemetry.md`](DspTelemetry.md).
+
 Each drain processes at most 32 lossless control frames and 4096 control atoms,
 then processes the latest available analysis frames. If any queue or slot still has work, the qelem is
 scheduled again. Repeated `queue.set()` calls coalesce while the qelem is
@@ -404,16 +411,13 @@ Sending the `metrics` control message requests a diagnostic snapshot. Managed
 reports native-input and control-operation time, FFT rate per instance,
 registry snapshot/delta counts, dropped audio blocks and process Managed
 allocation totals through the control-path log sink. Native
-reports current control FIFO depth, replaced and skipped FFT frames, and the
+reports current control FIFO depth, replaced and skipped latest-analysis frames, and the
 most recent Max queue drain duration. Audio-path metric updates use atomic
 counters only; they do not log or allocate.
 
-`ConsolidatorUiHost` sends diagnostic snapshots around UI activity. Continuous
-gestures report once at `gestureBegan` and once at `gestureEnded`; intermediate
-`valueChanged` and `filterMoved` intents do not emit metrics. Discrete button,
-reset, selection and bank-manager intents emit one snapshot after dispatch. This
-keeps diagnostics correlated with user activity without continuously loading the
-Max scheduler or flooding the console during a drag.
+`ConsolidatorUiHost` does not request diagnostic snapshots from UI intents.
+The selector is reserved for explicit manual investigation, while continuous
+health monitoring remains the responsibility of `RuntimeMetricsMonitor`.
 
 Instance activity is also the presentation lifecycle boundary. Inactive UI hosts
 do not receive state presentation and keep their control bindings

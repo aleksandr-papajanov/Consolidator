@@ -15,6 +15,13 @@ snapshots, allocation totals, registry activity, presentation discards and
 zero-valued counters are not posted. The monitor does not post recovery or
 heartbeat messages.
 
+`dropped_audio_samples` counts samples discarded by the latest-only FFT capture
+ring; it does not mean that the DSP audio output dropped samples. The active
+analyzer capture reserves four spectrum-publication intervals at the prepared
+sample rate, so ordinary worker scheduling jitter does not produce this warning.
+Sustained warnings indicate that the analyzer worker was unable to consume a
+window for longer than that backlog.
+
 The `metrics` selector remains an explicit native diagnostic request and is not
 sent by Max UI intent handling. Its snapshot is intended for manual
 investigation, not continuous monitoring.

@@ -36,6 +36,9 @@ class DialControlBinding extends ControlBinding
             this.sendScope(presentation);
             this.send("presentation_begin");
             (presentation.rings || []).forEach((ring, index) => {
+                this.sendColor(index, ring.color);
+                this.send("visible", [index, ring.visible === false ? 0 : 1]);
+                this.send("relative", [index, ring.relative ? 1 : 0]);
                 if (this.presentation.rings[index].value !== ring.value) {
                     this.send("set", [index, ring.value]);
                 }
@@ -50,6 +53,9 @@ class DialControlBinding extends ControlBinding
         this.sendScope(presentation);
         (presentation.rings || []).forEach((ring, index) => {
             this.send("limits", [index, ring.minimum, ring.maximum]);
+            this.sendColor(index, ring.color);
+            this.send("visible", [index, ring.visible === false ? 0 : 1]);
+            this.send("relative", [index, ring.relative ? 1 : 0]);
             this.send("set", [index, ring.value]);
         });
         this.send("presentation_end");
@@ -62,6 +68,13 @@ class DialControlBinding extends ControlBinding
         let color = presentation.scopeColor;
         let hasColor = color && color.length >= 4;
         this.send("scope", [presentation.scopeActive ? 1 : 0, hasColor ? 1 : 0]
+            .concat(hasColor ? color : [0, 0, 0, 0]));
+    }
+
+    sendColor(index, color)
+    {
+        const hasColor = color && color.length >= 4;
+        this.send("color", [index, hasColor ? 1 : 0]
             .concat(hasColor ? color : [0, 0, 0, 0]));
     }
 
@@ -78,6 +91,9 @@ class DialControlBinding extends ControlBinding
             let second = rings[index];
             if (first.minimum !== second.minimum ||
                     first.maximum !== second.maximum ||
+                    Boolean(first.visible !== false) !==
+                        Boolean(second.visible !== false) ||
+                    Boolean(first.relative) !== Boolean(second.relative) ||
                     !sameVisualization(first.visualization, second.visualization) ||
                     !sameArray(first.color, second.color) ||
                     (first.display || {}).value !== (second.display || {}).value) {

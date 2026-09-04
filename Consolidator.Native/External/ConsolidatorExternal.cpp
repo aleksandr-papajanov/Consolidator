@@ -182,26 +182,37 @@ void ConsolidatorExternal::ReceiveManagedOutput(
     {
         std::lock_guard lock{ outputMutex_ };
 
-        if (frame.selector == "fft")
+        if (frame.selector == "fft" ||
+            frame.selector == "dsp_telemetry" ||
+            frame.selector == "track_levels")
         {
+            auto* pendingFrame = &pendingTrackLevelsFrame_;
+            if (frame.selector == "fft")
+            {
+                pendingFrame = &pendingFftFrame_;
+            }
+            else if (frame.selector == "dsp_telemetry")
+            {
+                pendingFrame = &pendingTelemetryFrame_;
+            }
             if (frame.atoms.size() > 1)
             {
                 if (std::holds_alternative<std::int64_t>(frame.atoms[1]))
                 {
-                    if (pendingFftFrame_)
+                    if (*pendingFrame)
                     {
-                        replacedFftFrames_.fetch_add(1, std::memory_order_relaxed);
+                        replacedAnalysisFrames_.fetch_add(1, std::memory_order_relaxed);
                     }
-                    pendingFftFrame_ = std::move(frame);
+                    *pendingFrame = std::move(frame);
                 }
                 else
                 {
-                    skippedFftFrames_.fetch_add(1, std::memory_order_relaxed);
+                    skippedAnalysisFrames_.fetch_add(1, std::memory_order_relaxed);
                 }
             }
             else
             {
-                skippedFftFrames_.fetch_add(1, std::memory_order_relaxed);
+                skippedAnalysisFrames_.fetch_add(1, std::memory_order_relaxed);
             }
         }
         else
@@ -219,6 +230,8 @@ void ConsolidatorExternal::DrainManagedOutput()
     const auto drainStarted = std::chrono::steady_clock::now();
     std::deque<OutputFrame> controlFrames;
     std::optional<OutputFrame> fftFrame;
+    std::optional<OutputFrame> telemetryFrame;
+    std::optional<OutputFrame> trackLevelsFrame;
     std::size_t controlAtomCount = 0;
 
     {
@@ -242,6 +255,8 @@ void ConsolidatorExternal::DrainManagedOutput()
         }
 
         fftFrame.swap(pendingFftFrame_);
+        telemetryFrame.swap(pendingTelemetryFrame_);
+        trackLevelsFrame.swap(pendingTrackLevelsFrame_);
     }
 
     const auto sendFrame = [this](OutputFrame& frame)
@@ -274,7 +289,9 @@ void ConsolidatorExternal::DrainManagedOutput()
                 value);
         }
 
-        if (frame.selector == "fft")
+        if (frame.selector == "fft" ||
+            frame.selector == "dsp_telemetry" ||
+            frame.selector == "track_levels")
         {
             analysisOutput.send(output);
         }
@@ -302,12 +319,22 @@ void ConsolidatorExternal::DrainManagedOutput()
     {
         sendFrame(*fftFrame);
     }
+    if (telemetryFrame)
+    {
+        sendFrame(*telemetryFrame);
+    }
+    if (trackLevelsFrame)
+    {
+        sendFrame(*trackLevelsFrame);
+    }
 
     bool hasPendingWork = false;
     {
         std::lock_guard lock{ outputMutex_ };
         hasPendingWork = !pendingControl_.empty() ||
-            pendingFftFrame_.has_value();
+            pendingFftFrame_.has_value() ||
+            pendingTelemetryFrame_.has_value() ||
+            pendingTrackLevelsFrame_.has_value();
     }
 
     if (hasPendingWork)
@@ -326,13 +353,13 @@ void ConsolidatorExternal::DrainManagedOutput()
 void ConsolidatorExternal::ReportMetrics() const
 {
     c74::max::post(
-        "Consolidator metrics: instance=%llu control_depth=%zu replaced_fft=%llu skipped_fft=%llu drain_us=%llu",
+        "Consolidator metrics: instance=%llu control_depth=%zu replaced_analysis=%llu skipped_analysis=%llu drain_us=%llu",
         static_cast<unsigned long long>(instanceId_),
         controlQueueDepth_.load(std::memory_order_relaxed),
         static_cast<unsigned long long>(
-            replacedFftFrames_.load(std::memory_order_relaxed)),
+            replacedAnalysisFrames_.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(
-            skippedFftFrames_.load(std::memory_order_relaxed)),
+            skippedAnalysisFrames_.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(
             lastDrainMicroseconds_.load(std::memory_order_relaxed)));
 }

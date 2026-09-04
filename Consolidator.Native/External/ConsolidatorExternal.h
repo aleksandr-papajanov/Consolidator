@@ -331,6 +331,16 @@ public:
         }
     };
 
+    c74::min::message<> disableInputLeveler{
+        this,
+        "disable_input_leveler",
+        MIN_FUNCTION
+        {
+            ForwardMessage("disable_input_leveler", args);
+            return {};
+        }
+    };
+
     c74::min::message<> beginHistory{
         this,
         "begin_history",
@@ -459,9 +469,11 @@ private:
     std::mutex outputMutex_;
     std::deque<OutputFrame> pendingControl_;
     std::optional<OutputFrame> pendingFftFrame_;
+    std::optional<OutputFrame> pendingTelemetryFrame_;
+    std::optional<OutputFrame> pendingTrackLevelsFrame_;
     std::atomic_size_t controlQueueDepth_{};
-    std::atomic_uint64_t replacedFftFrames_{};
-    std::atomic_uint64_t skippedFftFrames_{};
+    std::atomic_uint64_t replacedAnalysisFrames_{};
+    std::atomic_uint64_t skippedAnalysisFrames_{};
     std::atomic_uint64_t lastDrainMicroseconds_{};
     std::atomic_bool persistenceDirty_{};
     PersistenceRestoreGate persistenceRestoreGate_;

@@ -4,7 +4,7 @@ function colorFromArguments(hasColor, red, green, blue, alpha)
         ? null : [Number(red), Number(green), Number(blue), Number(alpha)];
 }
 
-function createRow(instanceId, label, local, solo, mute, bypass)
+function createRow(instanceId, label, local, solo, mute, bypass, outputLevelAlpha)
 {
     return {
         instanceId: instanceId,
@@ -13,6 +13,7 @@ function createRow(instanceId, label, local, solo, mute, bypass)
         solo: Number(solo) !== 0,
         mute: Number(mute) !== 0,
         bypass: Number(bypass) !== 0,
+        outputLevelAlpha: Math.max(0, Math.min(1, Number(outputLevelAlpha) || 0)),
         processors: [],
         banks: []
     };

@@ -14,13 +14,17 @@ public sealed unsafe class NativeBoundaryContractTests
         Assert.Equal(16, Marshal.SizeOf<NativeAtom>());
         Assert.Equal(24, Marshal.SizeOf<FilterSnapshot>());
         Assert.Equal(1476, Marshal.SizeOf<DspSnapshot>());
-        Assert.Equal(4436, Marshal.SizeOf<DspStateExchange>());
+        Assert.Equal(20, Marshal.SizeOf<DspTelemetryExchange>());
+        Assert.Equal(4456, Marshal.SizeOf<DspStateExchange>());
         Assert.Equal(
             4428,
             Marshal.OffsetOf<DspStateExchange>(nameof(DspStateExchange.PublishedIndex)).ToInt32());
         Assert.Equal(
             4432,
             Marshal.OffsetOf<DspStateExchange>(nameof(DspStateExchange.ConsumerIndex)).ToInt32());
+        Assert.Equal(
+            4436,
+            Marshal.OffsetOf<DspStateExchange>(nameof(DspStateExchange.Telemetry)).ToInt32());
 
         var symbol = Marshal.StringToCoTaskMemUTF8("ready");
         try
@@ -67,5 +71,27 @@ public sealed unsafe class NativeBoundaryContractTests
 
             Assert.True(rejected);
         }
+    }
+
+    [Fact]
+    public void DspTelemetryReaderAcceptsOnlyAStablePublishedSnapshot()
+    {
+        var exchange = new DspStateExchange();
+        exchange.Telemetry.Sequence = 2;
+        exchange.Telemetry.ValuesPresent =
+            (uint)(DspTelemetryValues.InputLevel | DspTelemetryValues.InputLevelFast);
+        exchange.Telemetry.InputLevelBits = (uint)BitConverter.SingleToInt32Bits(-12.0F);
+        exchange.Telemetry.InputLevelFastBits = (uint)BitConverter.SingleToInt32Bits(-6.0F);
+
+        Assert.True(DspTelemetryReader.TryRead(&exchange, out var snapshot));
+        Assert.Equal(2U, snapshot.Sequence);
+        Assert.Equal(
+            (uint)(DspTelemetryValues.InputLevel | DspTelemetryValues.InputLevelFast),
+            snapshot.ValuesPresent);
+        Assert.Equal(-12.0F, snapshot.InputLevelDb);
+        Assert.Equal(-6.0F, snapshot.InputLevelFastDb);
+
+        exchange.Telemetry.Sequence = 3;
+        Assert.False(DspTelemetryReader.TryRead(&exchange, out _));
     }
 }

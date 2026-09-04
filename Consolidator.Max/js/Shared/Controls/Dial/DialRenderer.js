@@ -55,12 +55,30 @@ class DialRenderer
 
     paintRing(presentation, ring, value, centerX, centerY, radius)
     {
+        if (ring.visible === false)
+        {
+            return;
+        }
+
         let options = DialControlOptions;
         let color = this.color(ring.color,
             presentation.enabled && presentation.active
                 ? options.active : options.inactive);
         if (presentation.scopeColor && presentation.scopeColor.length >= 4) {
             color = presentation.scopeColor;
+        }
+        if (ring.relative) {
+            const centerValue = clamp(Number(value), 0, 1);
+            const anchor = 0.5;
+            this.arcRange(
+                centerX,
+                centerY,
+                radius,
+                Math.min(anchor, centerValue),
+                Math.max(anchor, centerValue),
+                color,
+                options.lineWidth);
+            return;
         }
         if (!presentation.groupScope) {
             this.arc(centerX, centerY, radius, 1, options.ring,
@@ -122,11 +140,25 @@ class DialRenderer
         mgraphics.rectangle(0, 0, width, height);
         mgraphics.fill();
 
-        let ring = (presentation.rings || [])[0];
-        if (!ring) return;
+        let rings = presentation.rings || [];
+        if (rings.length === 0) return;
+        rings.forEach((ring, index) => {
+            let value = previewValues[index] === undefined
+                ? ring.value : previewValues[index];
+            let ringRadius = radius - index * DialControlOptions.indicatorWidth * 3;
+            if (ringRadius > 0) {
+                this.paintRing(
+                    presentation,
+                    ring,
+                    value,
+                    centerX,
+                    centerY,
+                    ringRadius);
+            }
+        });
+        let ring = rings[0];
         let value = previewValues[0] === undefined
             ? ring.value : previewValues[0];
-        this.paintRing(presentation, ring, value, centerX, centerY, radius);
         if (!presentation.label) return;
         mgraphics.select_font_face(UiColors.typography.controlLabelFontFamily);
         mgraphics.set_font_size(UiColors.typography.controlLabelFontSize);

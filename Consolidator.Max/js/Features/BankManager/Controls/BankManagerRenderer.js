@@ -57,15 +57,16 @@ class BankManagerRenderer
         let options = BankManagerControlOptions;
         let y = rowIndex * options.rowHeight - layout.scrollPosition;
         if (y + options.rowHeight < 0 || y + options.rowHeight > layout.height) return;
+        graphics.set_font_size(options.fontSize);
+        this.paintOutputLevel(graphics, row, y);
         graphics.set_source_rgba.apply(graphics,
             row.local ? options.focused : options.remote);
-        graphics.set_font_size(options.fontSize);
         let label = String(row.label || "");
-        let labelWidth = layout.labelWidth() - 2;
+        let labelWidth = layout.labelWidth() - 12;
         while (label.length > 0 && graphics.text_measure(label)[0] > labelWidth) {
             label = label.substring(0, label.length - 1);
         }
-        graphics.move_to(2, y + 12);
+        graphics.move_to(12, y + 12);
         graphics.show_text(label);
         this.paintProcessorMarkers(
             graphics, presentation, row, y, layout, feedback);
@@ -79,6 +80,20 @@ class BankManagerRenderer
         });
         this.paintInstanceButtons(graphics, presentation, row,
             layout.instanceButtonsX(), y, feedback);
+    }
+
+    paintOutputLevel(graphics, row, y)
+    {
+        const color = BankManagerControlOptions.outputLevel;
+        const alpha = Math.max(0, Math.min(1,
+            Number(row.outputLevelAlpha) || 0));
+        graphics.set_source_rgba(
+            color[0],
+            color[1],
+            color[2],
+            alpha * (color[3] === undefined ? 1 : color[3]));
+        graphics.ellipse(2, y + 5, 6, 6);
+        graphics.fill();
     }
 
     paintBank(graphics, bank, x, y, highlighted, instanceId, feedback)

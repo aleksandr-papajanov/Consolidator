@@ -269,7 +269,7 @@
 			}
 , 			{
 				"box" : 				{
-					"filename" : "Project:/js/LiveInstanceHost.js",
+					"filename" : "Project:/js/Hosts/LiveInstanceHost.js",
 					"id" : "live-instance-host",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
@@ -280,9 +280,9 @@
 						"parameter_enable" : 0
 					}
 ,
-					"text" : "v8 Project:/js/LiveInstanceHost.js",
+					"text" : "v8 Project:/js/Hosts/LiveInstanceHost.js",
 					"textfile" : 					{
-						"filename" : "Project:/js/LiveInstanceHost.js",
+						"filename" : "Project:/js/Hosts/LiveInstanceHost.js",
 						"flags" : 0,
 						"embed" : 0,
 						"autowatch" : 1

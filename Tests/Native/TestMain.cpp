@@ -16,6 +16,8 @@ int main()
         consolidator::tests::RunDspStateConsumerTests();
     const auto dspRuntimeGraphSucceeded =
         consolidator::tests::RunDspRuntimeGraphTests();
+    const auto levelerProcessorSucceeded =
+        consolidator::tests::RunLevelerProcessorTests();
 
     if (!abiSucceeded ||
         !persistenceBlobSucceeded ||
@@ -23,7 +25,8 @@ int main()
         !dspParameterRampSucceeded ||
         !dspRuntimeSucceeded ||
         !dspStateConsumerSucceeded ||
-        !dspRuntimeGraphSucceeded)
+        !dspRuntimeGraphSucceeded ||
+        !levelerProcessorSucceeded)
     {
         return 1;
     }

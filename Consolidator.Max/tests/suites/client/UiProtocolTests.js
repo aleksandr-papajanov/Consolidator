@@ -146,6 +146,31 @@ function testCallbacklessGestureWritesDoNotAccumulatePendingRequests() {
   assert.deepStrictEqual(Object.keys(protocol.pending), []);
 }
 
+function testDspTelemetryUpdatesOnlyTheCurrentTargetAndRejectsStaleFrames() {
+  var client = new ConsolidatorClient("ui", function () {});
+  client.uiTarget.show("4", 2, "input");
+  client.handleControl("target_state_snapshot", [
+    1, "ui", "1", "4", 2, "input", 1,
+    "input_gain.level", 0, -36, 36, -36, 36,
+  ]);
+
+  client.handleControl("dsp_telemetry", [
+    1, "5", 2, 1, "input_gain.level", -3,
+  ]);
+  assert.strictEqual(client.targetState.cache["input_gain.level"].value, 0);
+
+  client.handleControl("dsp_telemetry", [
+    1, "4", 4, 1, "input_gain.level", -12,
+  ]);
+  assert.strictEqual(client.targetState.cache["input_gain.level"].value, -12);
+
+  client.handleControl("dsp_telemetry", [
+    1, "4", 2, 1, "input_gain.level", -6,
+  ]);
+  assert.strictEqual(client.targetState.cache["input_gain.level"].value, -12);
+  client.destroy();
+}
+
 function testWriteWithCallbackIsNotEligibleForGestureCoalescing() {
   var frames = [];
   var protocol = new NativeProtocolClient("ui", function (frame) {
@@ -165,6 +190,30 @@ function testWriteWithCallbackIsNotEligibleForGestureCoalescing() {
   assert.deepStrictEqual(Object.keys(protocol.pending), []);
 }
 
+function testLevelerToggleUsesTheCurrentGroupScope() {
+  var frames = [];
+  var client = new ConsolidatorClient("ui", function (frame) {
+    frames.push(frame);
+  });
+  client.scope.setGroupContext(true, [1, 1, 1, 1]);
+  client.scope.toggle();
+  client.targetState.target = { instanceId: "4", bankId: 2 };
+  var input = new InputViewModel(client.targetState);
+
+  input.leveler.set(true, undefined, 9);
+
+  assert.deepStrictEqual(frames[0], [
+    "write", 1, "ui", "1", "group", "9", 1,
+    "entry", "input_gain", "leveler", "value", true, "copy",
+  ]);
+  input.leveler.set(false, undefined, 10);
+  assert.deepStrictEqual(frames[1], [
+    "disable_input_leveler", 1, "ui", "2", "4", 2, "group",
+  ]);
+  input.destroy();
+  client.destroy();
+}
+
 testInitializationUsesExternalIdentityFromManaged();
 testInstanceActivityUsesTheInstanceCommand();
 testTargetSnapshotAndPushUpdateUseSemanticPaths();
@@ -172,6 +221,8 @@ testUiTargetReportsSnapshotCompletion();
 testObservedEqualizerPathsAreExpandedForWrites();
 testTargetSnapshotNotifiesStateValueOnceAfterCompletion();
 testStaleTargetSnapshotDoesNotResumeLatestTransition();
+testDspTelemetryUpdatesOnlyTheCurrentTargetAndRejectsStaleFrames();
 testCallbacklessGestureWritesDoNotAccumulatePendingRequests();
 testWriteWithCallbackIsNotEligibleForGestureCoalescing();
+testLevelerToggleUsesTheCurrentGroupScope();
 console.log("UiProtocolTests passed");

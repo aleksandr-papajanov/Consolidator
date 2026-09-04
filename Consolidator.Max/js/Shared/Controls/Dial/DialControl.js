@@ -57,6 +57,18 @@ function limits(index, minimum, maximum) {
     dialControl.setPresentationLimits(
         Number(index), Number(minimum), Number(maximum));
 }
+function color(index, hasColor, red, green, blue, alpha) {
+    dialControl.setPresentationColor(
+        Number(index), Number(hasColor), Number(red), Number(green),
+        Number(blue), Number(alpha));
+}
+function visible(index, value)
+{
+    dialControl.setPresentationVisible(Number(index), Number(value));
+}
+function relative(index, value) {
+    dialControl.setPresentationRelative(Number(index), Number(value));
+}
 function enabled(value) {
     dialControl.presentation.enabled = Number(value) !== 0;
     dialControl.requestRedraw();

@@ -70,6 +70,12 @@ Managed when state writes are received.
 Each track row exposes the instance-level `S` and `M` controls. Device and bank
 solo controls are not part of the UI or protocol.
 
+Each track name has a six-pixel lime output-level dot. Its alpha is derived
+nonlinearly from the track's final 300 ms RMS telemetry over `-60..0 dBFS`.
+Managed batches all instance values into one latest-only analysis frame, and the
+Bank Manager applies dedicated `level_patch` updates without refetching or
+rebuilding registry rows.
+
 ## BankManager control structure
 
 The `BankManagerControl.js` V8UI entrypoint owns only Max callbacks. Feature
@@ -105,3 +111,7 @@ parameter editing are separate responsibilities. The removed all-bank curve path
 had no producer and is not part of the presentation contract. Dial ring generation
 and value editing are likewise independent of its presenter, and gesture
 transaction state is owned by the binding session rather than the message encoder.
+Ring visibility is part of the dial presentation, so transient DSP indicators
+can be hidden without changing ring topology or rebuilding a Max control.
+Relative dial rings use the normalized midpoint as zero and draw only the span
+from that center to the current value; they do not invent a minimum visible span.

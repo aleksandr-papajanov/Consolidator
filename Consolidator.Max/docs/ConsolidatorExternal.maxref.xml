@@ -94,6 +94,11 @@
 			<description></description>
 		</method>
 
+		<method name='disable_input_leveler'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='begin_history'>
 			<digest></digest>
 			<description></description>

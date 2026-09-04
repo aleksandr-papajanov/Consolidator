@@ -82,6 +82,7 @@ class DialPresenter extends PresentationObservable
             subscribe(ring.physicalMaximum);
             subscribe(ring.defaultValue);
             subscribe(ring.physicalStep);
+            subscribe(ring.visible);
             subscribe(ring.visualization);
             subscribe(ring.color);
         }

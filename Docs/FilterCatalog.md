@@ -6,13 +6,13 @@ for available parameters, ranges and initial values. Wire names are owned by
 `Protocol/Encoding/FilterProtocolNames`. The Max UI mirrors only the
 presentation capabilities needed to bind controls.
 
-The legacy standard equalizer layout was:
+The standard Equalizer layout is:
 
 ```text
 Gain, Tilt, LowShelf, HighShelf, Bell, Bell, Bell
 ```
 
-The detector layout for both compressor and saturator was:
+The detector layout for Input Leveler, Saturator and Compressor is:
 
 ```text
 LowShelf, Bell
@@ -26,3 +26,18 @@ state parameter. Their default frequencies are `1000, 100, 10000, 1000, 2000,
 Gain filters expose only gain. JavaScript uses these local definitions together
 with the parameter bindings; no filter catalog or analyzer state frame is
 transported.
+
+## Biquad contract
+
+JavaScript curve presentation and Native audio processing use the same
+normalized formulas. Frequency is limited to `0.499 * sampleRate` before
+coefficient calculation. For gain `G`, `A = 10^(G / 40)`; Bell, LowShelf and
+HighShelf use the same `omega`, `alpha = sin(omega) / (2Q)` and normalized
+RBJ-style coefficients. Gain uses the equivalent linear multiplier
+`10^(G / 20)`. Tilt is a two-stage cascade of LowShelf at `-G` followed by
+HighShelf at `+G`.
+
+Native processes every stage as transposed direct form II with independent
+left and right state. Parameter, filter-activity, bank-activity and Equalizer
+bypass changes compile a new stable cascade and crossfade the old and new
+outputs over 10 ms; raw coefficients are never interpolated.

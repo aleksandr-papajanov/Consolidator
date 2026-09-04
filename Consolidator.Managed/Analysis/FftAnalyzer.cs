@@ -19,6 +19,8 @@ public sealed class FftAnalyzer :
     private const int SpectrumBinCount = FftSize / 2 + 1;
     private const int SpectrumIntervalMilliseconds = 33;
     private const double DefaultSampleRate = 48000.0;
+    private static readonly TimeSpan SpectrumInterval =
+        TimeSpan.FromMilliseconds(SpectrumIntervalMilliseconds);
 
     private readonly ConcurrentDictionary<InstanceId, AudioCapture> _captures = new();
     private readonly ConcurrentDictionary<InstanceId, BankAddress?> _focusedBanks = new();
@@ -66,8 +68,7 @@ public sealed class FftAnalyzer :
         if (maximumFrameCount != 0 &&
             IsSourceDemanded(instanceId))
         {
-            var blockSize = (int)Math.Min(maximumFrameCount, 8192);
-            PrepareCapture(instanceId, blockSize);
+            _captures[instanceId] = CreateCapture(preparation);
         }
 
     }
@@ -199,7 +200,7 @@ public sealed class FftAnalyzer :
             var timestamp = Stopwatch.GetTimestamp();
             if (lastSpectrumProcessing == 0 ||
                 Stopwatch.GetElapsedTime(lastSpectrumProcessing, timestamp) >=
-                    TimeSpan.FromMilliseconds(SpectrumIntervalMilliseconds))
+                    SpectrumInterval)
             {
                 ProcessNextCapture();
                 lastSpectrumProcessing = timestamp;
@@ -267,19 +268,26 @@ public sealed class FftAnalyzer :
 
     private void PrepareCapture(InstanceId sourceInstanceId)
     {
-        var blockSize = _preparations.TryGetValue(
+        var preparation = _preparations.TryGetValue(
             sourceInstanceId,
-            out var preparation) && preparation.MaximumFrameCount != 0
-                ? (int)Math.Min(preparation.MaximumFrameCount, 8192)
-                : FftSize;
-        PrepareCapture(sourceInstanceId, blockSize);
-    }
-
-    private void PrepareCapture(InstanceId sourceInstanceId, int blockSize)
-    {
+            out var current)
+                ? current
+                : new Preparation(DefaultSampleRate, FftSize);
         _captures.GetOrAdd(
             sourceInstanceId,
-            _ => new AudioCapture(blockSize, QueueLength));
+            _ => CreateCapture(preparation));
+    }
+
+    private static AudioCapture CreateCapture(Preparation preparation)
+    {
+        var blockSize = preparation.MaximumFrameCount != 0
+            ? (int)Math.Min(preparation.MaximumFrameCount, 8192)
+            : FftSize;
+        return new AudioCapture(
+            blockSize,
+            QueueLength,
+            preparation.SampleRate,
+            SpectrumInterval);
     }
 
     private void StopCapture(BankAddress? previous, BankAddress? current)

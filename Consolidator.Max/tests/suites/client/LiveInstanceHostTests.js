@@ -28,7 +28,7 @@ function loadHost(LiveAPI, outputs)
     );
 }
 
-function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
+function testDevicePublishesInitialSelectedTrackActivity()
 {
     var outputs = [];
     var observers = {};
@@ -61,7 +61,7 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
             property: "",
             get: function (property)
             {
-                if (property === "selected_track") return ["id", 42];
+                if (property === "selected_track") return ["id", 43];
                 throw new Error("Unexpected property " + property);
             },
         };
@@ -74,16 +74,16 @@ function testSelectedDevicePublishesTrackNameAndExclusiveActivity()
 
     assert.deepStrictEqual(outputs, [
         [0, ["track_name", "Lead Vocal"]],
-        [0, ["instance_active", 1]],
+        [0, ["instance_active", 0]],
     ]);
     assert.strictEqual(observers["id 42"].property, "name");
     assert.strictEqual(observers["live_set view"].property, "selected_track");
     observers["live_set view"].callback(["selected_track", "id", 43]);
-    assert.deepStrictEqual(outputs[2], [0, ["instance_active", 0]]);
+    assert.strictEqual(outputs.length, 2);
     observers["live_set view"].callback(["selected_track", "id", 42]);
-    assert.deepStrictEqual(outputs[3], [0, ["instance_active", 1]]);
+    assert.deepStrictEqual(outputs[2], [0, ["instance_active", 1]]);
     observers["id 42"].callback(["name", "Backing Vocal"]);
-    assert.deepStrictEqual(outputs[4], [0, ["track_name", "Backing Vocal"]]);
+    assert.deepStrictEqual(outputs[3], [0, ["track_name", "Backing Vocal"]]);
 
     context.destroy();
     assert.strictEqual(context.trackObserver, null);
@@ -111,6 +111,6 @@ function testInvalidParentDoesNotPublishOrCreateObservers()
     assert.strictEqual(context.selectedTrackObserver, null);
 }
 
-testSelectedDevicePublishesTrackNameAndExclusiveActivity();
+testDevicePublishesInitialSelectedTrackActivity();
 testInvalidParentDoesNotPublishOrCreateObservers();
 console.log("LiveInstanceHostTests passed");

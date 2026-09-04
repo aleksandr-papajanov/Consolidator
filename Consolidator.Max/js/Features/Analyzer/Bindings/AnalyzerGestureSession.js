@@ -10,6 +10,7 @@ class AnalyzerGestureSession
         this.pendingEnd = false;
         this.lastMove = null;
         this.active = false;
+        this.gestureGeneration = 0;
     }
 
     handleIntent(name, values)
@@ -21,6 +22,7 @@ class AnalyzerGestureSession
         }
         if (name === "gestureBegan")
         {
+            this.gestureGeneration += 1;
             this.active = true;
             this.controller.handle(name, values, this.activeTransactionId);
             this.beginTransaction();
@@ -96,22 +98,31 @@ class AnalyzerGestureSession
         }
 
         const transactionId = this.activeTransactionId;
+        const gestureGeneration = this.gestureGeneration;
         this.controller.handle(
             "filterCommit",
             this.lastMove.slice(),
-            transactionId,
-            (response) => {
-                const failed = !response || response.error ||
-                    response.status !== "accepted";
-                const mayReset = this.activeTransactionId === null ||
-                    this.activeTransactionId === transactionId;
-                if (failed && mayReset)
+            null,
+            (response) =>
+            {
+                if (this.gestureGeneration !== gestureGeneration)
+                {
+                    return;
+                }
+
+                const failed = !response || Boolean(response.error) || response.status !== "accepted";
+                this.endPreviewGesture(transactionId);
+                if (failed)
                 {
                     this.send("transactionRejected");
                 }
             }
         );
-        this.finishTransaction();
+        if (this.transactions && this.transactionReady)
+        {
+            this.transactions.end(transactionId);
+        }
+        this.clearTransaction();
     }
 
     finishTransaction()
@@ -140,6 +151,7 @@ class AnalyzerGestureSession
 
     cancel()
     {
+        this.gestureGeneration += 1;
         this.endPreviewGesture(this.activeTransactionId);
         if (this.transactions && this.activeTransactionId !== null &&
                 this.transactionReady)
@@ -160,6 +172,7 @@ class AnalyzerGestureSession
 
     destroy()
     {
+        this.gestureGeneration += 1;
         this.finishTransaction();
         this.controller = null;
         this.transactions = null;

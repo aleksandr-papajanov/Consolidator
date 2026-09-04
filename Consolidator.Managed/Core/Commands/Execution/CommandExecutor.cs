@@ -65,7 +65,8 @@ public sealed class CommandExecutor
                 command is SetInstanceSoloCommand ||
                 command is SetInstanceBypassCommand ||
                 command is SetProcessorBypassCommand ||
-                command is SetBankBypassCommand) &&
+                command is SetBankBypassCommand ||
+                command is DisableInputLevelerCommand) &&
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {

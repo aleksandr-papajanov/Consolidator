@@ -110,6 +110,11 @@ function row_patch(...args)
     bankManagerControl.patchRow(...args);
 }
 
+function level_patch(rowIndex, alpha)
+{
+    bankManagerControl.patchLevel(rowIndex, alpha);
+}
+
 function processor_patch(...args)
 {
     bankManagerControl.patchProcessor(...args);

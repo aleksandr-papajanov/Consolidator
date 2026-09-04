@@ -12,7 +12,6 @@ class LiveInstanceHost
         this.deviceId = 0;
         this.trackId = 0;
         this.selectedTrackId = 0;
-        this.selectionMonitoringEnabled = false;
         this.lastPublishedActive = null;
     }
 
@@ -54,8 +53,7 @@ class LiveInstanceHost
     publishActivity()
     {
         let active = this.deviceId > 0 && this.trackId > 0 &&
-            (!this.selectionMonitoringEnabled ||
-                this.selectedTrackId === this.trackId);
+            this.selectedTrackId === this.trackId;
         if (this.lastPublishedActive === active)
         {
             return;
@@ -117,7 +115,6 @@ class LiveInstanceHost
         this.selectedTrackId = this.readId(
             this.selectedTrackObserver.get("selected_track"));
         this.publishActivity();
-        this.selectionMonitoringEnabled = true;
     }
 
     destroy()

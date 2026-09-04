@@ -9,6 +9,11 @@ also carries fixed structured slots for equalizer and detector filter type,
 activity, frequency, gain, Q and fixed Q. The audio callback reads only that
 published snapshot.
 
+Slow native runtime values that exist only for live control presentation return
+through the separate latest-only [`DspTelemetry.md`](DspTelemetry.md) channel.
+They do not become authoritative state until an explicit control operation
+commits them.
+
 Managed does not maintain a second analyzer copy of filter state, coefficient
 caches, dirty-bank maps, or rendered curve arrays. Coefficient and response
 calculation that exists only to draw the Max UI belongs to the JavaScript
@@ -32,8 +37,10 @@ Committed notifications received during the active gesture update the
 authoritative bindings without clearing its newer local preview. Gesture end
 sends one non-coalesced final position write; the preview is cleared after that
 write's response, which follows its state notifications in the lossless control
-FIFO. A rejected transaction or final write also clears the preview and rebuilds
-the presentation from accepted state.
+FIFO. The preceding move already records that position inside the history
+transaction, while the final acknowledgement write uses transaction ID zero so
+successful completion is not suppressed. A rejected transaction or final write
+also clears the preview and rebuilds the presentation from accepted state.
 
 The analyzer frequency response is calculated entirely in JavaScript from the
 focused parameter bindings and local filter definitions. Managed publishes no
@@ -67,7 +74,9 @@ detector signals from the current main audio at their positions in the graph.
 
 Native processors apply the shared 10 ms parameter ramp to the continuous
 scalar controls they consume. Discrete bypass, active, audibility, bank, and
-filter markers are applied immediately. Filter parameters transition through
-future stable coefficient compilation rather than the generic scalar ramp.
+filter markers update graph policy immediately. Detector and Equalizer filter
+changes compile stable Native cascades and crossfade old and new filter outputs
+over 10 ms rather than using the generic scalar ramp or interpolating raw
+coefficients.
 Ramp and algorithm history belong to the single audio-owned graph and are
 advanced only on the audio thread.

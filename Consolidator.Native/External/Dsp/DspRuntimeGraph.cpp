@@ -136,7 +136,7 @@ void DspRuntimeGraph::ProcessBlock(
             compressor_.Process(frame);
         }
     }
-    if (policy_.equalizerActive)
+    if (policy_.equalizerActive || equalizer_.RequiresProcessing())
     {
         equalizer_.Process(frame);
     }
@@ -161,6 +161,21 @@ const DspProcessingContext& DspRuntimeGraph::Context() const noexcept
 const DspProcessingPlan& DspRuntimeGraph::ProcessingPlan() const noexcept
 {
     return plan_;
+}
+
+bool DspRuntimeGraph::HasInputLevelTelemetry() const noexcept
+{
+    return input_.IsLevelerEnabled();
+}
+
+float DspRuntimeGraph::InputLevelTelemetry() const noexcept
+{
+    return input_.SlowInputLevelDb();
+}
+
+float DspRuntimeGraph::FastInputLevelTelemetry() const noexcept
+{
+    return input_.FastInputLevelDb();
 }
 
 } // namespace consolidator::max::dsp

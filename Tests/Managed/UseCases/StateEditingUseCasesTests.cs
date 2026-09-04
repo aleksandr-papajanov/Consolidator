@@ -11,6 +11,7 @@ using Consolidator.Managed.Core.State.Definitions;
 using Consolidator.Managed.Core.State.Identifiers;
 using Consolidator.Managed.Core.State.Values;
 using Consolidator.Managed.Core.Topology;
+using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol.Decoding;
 using Consolidator.Managed.State;
 using Consolidator.Managed.Tests.Support;
@@ -603,6 +604,109 @@ public sealed class StateEditingUseCasesTests
             TimeSpan.FromSeconds(1)));
         Assert.Equal(0.5F, first.Dsp.Latest.CompressorAttack);
         Assert.Equal(0.5F, second.Dsp.Latest.CompressorAttack);
+    }
+
+    [Fact]
+    public unsafe void GroupedLevelerControlPreservesIndependentInstanceLevels()
+    {
+        using var application = new ManagedApplicationFixture();
+        var first = application.RegisterInstance();
+        var second = application.RegisterInstance();
+        WriteGroup(application, first, first, 1, 1);
+        WriteGroup(application, first, second, 1, 1);
+        WriteInputLevel(application, first, -3.0F);
+        WriteInputLevel(application, second, 5.0F);
+        application.Send(
+            first,
+            "observe_target",
+            Symbol(first.InstanceId.Value.ToString()),
+            Integer(1),
+            Symbol("input"));
+        application.Send(first, "set_instance_active", Integer(1));
+        first.Output.Clear();
+
+        var telemetry = application.GetRequiredService<DspTelemetryService>();
+        var firstExchange = new DspStateExchange();
+        var secondExchange = new DspStateExchange();
+        telemetry.RegisterSource(first.InstanceId, &firstExchange);
+        telemetry.RegisterSource(second.InstanceId, &secondExchange);
+        try
+        {
+            application.Send(
+                first,
+                "write",
+                Symbol("group"),
+                Symbol("0"),
+                Integer(1),
+                Symbol("entry"),
+                Symbol("input_gain"),
+                Symbol("leveler"),
+                Symbol("value"),
+                Integer(1));
+            Assert.Equal(-3.0F, first.Dsp.Latest.InputLevel);
+            Assert.Equal(5.0F, second.Dsp.Latest.InputLevel);
+            Assert.Equal(1U, first.Dsp.Latest.InputLeveler);
+            Assert.Equal(1U, second.Dsp.Latest.InputLeveler);
+            Assert.Contains(
+                first.Output.Messages,
+                message => message.Selector == "state_changed" &&
+                    message.Atoms[1].Symbol == "input_gain.leveler" &&
+                    message.Atoms[2].Integer == 1);
+            SetSlowLevelTelemetry(ref firstExchange, -12.0F);
+            SetSlowLevelTelemetry(ref secondExchange, 4.0F);
+            first.Output.Clear();
+
+            application.Send(
+                first,
+                "disable_input_leveler",
+                Symbol(first.InstanceId.Value.ToString()),
+                Integer(1),
+                Symbol("group"));
+
+            Assert.Equal(-12.0F, first.Dsp.Latest.InputLevel);
+            Assert.Equal(4.0F, second.Dsp.Latest.InputLevel);
+            Assert.Equal(0U, first.Dsp.Latest.InputLeveler);
+            Assert.Equal(0U, second.Dsp.Latest.InputLeveler);
+            Assert.Contains(
+                first.Output.Messages,
+                message => message.Selector == "state_changed" &&
+                    message.Atoms[1].Symbol == "input_gain.leveler" &&
+                    message.Atoms[2].Integer == 0);
+        }
+        finally
+        {
+            telemetry.RemoveInstance(first.InstanceId);
+            telemetry.RemoveInstance(second.InstanceId);
+        }
+    }
+
+    private static void WriteInputLevel(
+        ManagedApplicationFixture application,
+        ManagedApplicationFixture.TestInstance instance,
+        float levelDb)
+    {
+        application.Send(
+            instance,
+            "write",
+            Symbol("local"),
+            Symbol("0"),
+            Integer(1),
+            Symbol("entry"),
+            Symbol("input_gain"),
+            Symbol("level"),
+            Symbol("value"),
+            Float(levelDb));
+    }
+
+    private static void SetSlowLevelTelemetry(
+        ref DspStateExchange exchange,
+        float levelDb)
+    {
+        exchange.Telemetry.ValuesPresent =
+            (uint)DspTelemetryValues.InputLevel;
+        exchange.Telemetry.InputLevelBits =
+            (uint)BitConverter.SingleToInt32Bits(levelDb);
+        Volatile.Write(ref exchange.Telemetry.Sequence, 2U);
     }
 
     [Fact]

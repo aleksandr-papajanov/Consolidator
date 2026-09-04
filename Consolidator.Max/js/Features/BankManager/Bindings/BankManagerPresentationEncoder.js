@@ -34,6 +34,21 @@ class BankManagerPresentationEncoder
             this.send("presentation_patch_end");
             return;
         }
+        if (delta.selector === "track_levels_changed")
+        {
+            (delta.rowIndices || []).forEach((rowIndex) => {
+                const row = (presentation.rows || [])[Number(rowIndex)];
+                if (row)
+                {
+                    this.send("level_patch", [
+                        Number(rowIndex),
+                        Number(row.outputLevelAlpha) || 0
+                    ]);
+                }
+            });
+            this.send("presentation_patch_end");
+            return;
+        }
         if (delta.selector === "bank_bypass_changed")
         {
             this.send("bank_bypass_patch", [presentation.focusedBankBypassed ? 1 : 0]);
@@ -125,7 +140,8 @@ class BankManagerPresentationEncoder
             row.local ? 1 : 0,
             row.solo ? 1 : 0,
             row.mute ? 1 : 0,
-            row.bypass ? 1 : 0
+            row.bypass ? 1 : 0,
+            Number(row.outputLevelAlpha) || 0
         ]);
     }
 

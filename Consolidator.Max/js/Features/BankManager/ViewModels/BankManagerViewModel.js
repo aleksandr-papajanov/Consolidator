@@ -13,12 +13,19 @@ const {
 
 class BankManagerViewModel
 {
-    constructor(registryClient, localInstanceId, historyClient, scope, targetState)
+    constructor(
+        registryClient,
+        localInstanceId,
+        historyClient,
+        scope,
+        targetState,
+        trackLevels)
     {
         this.registryClient = registryClient;
         this.localInstanceId = localInstanceId;
         this.scope = scope;
         this.targetState = targetState;
+        this.trackLevels = trackLevels;
         this.focusedBankBypassed = false;
         this.enabled = true;
         this.selectedPanel = "equalizer";
@@ -49,6 +56,10 @@ class BankManagerViewModel
                 this.focusedBankBypassed = Boolean(entry.value);
                 this.notify({ selector: "bank_bypass_changed" });
             }, true) : null;
+        this.unsubscribeTrackLevels = trackLevels && trackLevels.subscribe
+            ? trackLevels.subscribe((instanceIds) => {
+                this.applyTrackLevels(instanceIds);
+            }) : null;
     }
     
     setRegistryActive(active, callback)
@@ -105,12 +116,40 @@ class BankManagerViewModel
     
     createRow(instance)
     {
-        return createBankManagerRow(
+        const row = createBankManagerRow(
             instance,
             this.localInstanceId,
             this.selectedBanks,
             this.focusedSelection
         );
+        row.outputLevelDb = this.trackLevels
+            ? this.trackLevels.get(instance.instanceId)
+            : -120;
+        return row;
+    }
+
+    applyTrackLevels(instanceIds)
+    {
+        const changed = {};
+        (instanceIds || []).forEach((instanceId) => {
+            changed[String(instanceId)] = true;
+        });
+        const rowIndices = [];
+        this.rows.forEach((row, rowIndex) => {
+            if (!changed[String(row.instanceId)])
+            {
+                return;
+            }
+            row.outputLevelDb = this.trackLevels.get(row.instanceId);
+            rowIndices.push(rowIndex);
+        });
+        if (rowIndices.length !== 0)
+        {
+            this.notify({
+                selector: "track_levels_changed",
+                rowIndices: rowIndices
+            });
+        }
     }
     
     applyRegistrySnapshot(snapshot)
@@ -349,9 +388,11 @@ class BankManagerViewModel
         if (this.unsubscribeRegistry) this.unsubscribeRegistry();
         if (this.unsubscribeHistory) this.unsubscribeHistory();
         if (this.unsubscribeTarget) this.unsubscribeTarget();
+        if (this.unsubscribeTrackLevels) this.unsubscribeTrackLevels();
         this.unsubscribeRegistry = null;
         this.unsubscribeHistory = null;
         this.unsubscribeTarget = null;
+        this.unsubscribeTrackLevels = null;
         this.listeners = [];
     }
 }

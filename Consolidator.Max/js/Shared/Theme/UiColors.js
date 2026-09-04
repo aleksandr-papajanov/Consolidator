@@ -16,6 +16,8 @@ const UiColors = {
     controls: {
         // Main identity of the whole UI.
         active: [0.72, 0.88, 0.28, 1],
+        disabled: [0.44, 0.46, 0.48, 1],
+        telemetry: [0.72, 0.88, 0.28, 1],
 
         visualization: [0.72, 0.88, 0.28, 1]
     },

@@ -4,6 +4,12 @@ const { presentationBindingValue } = require(
     "../../../Shared/Presenters/PresentationBinding.js");
 const { BankManagerPresentation } = require("./BankManagerPresentation.js");
 
+function outputLevelAlpha(levelDb)
+{
+    const normalized = Math.max(0, Math.min(1, (Number(levelDb) + 60) / 60));
+    return Math.pow(normalized, 1.8);
+}
+
 class BankManagerPresenter extends PresentationObservable
 {
     constructor(viewModel)
@@ -31,6 +37,24 @@ class BankManagerPresenter extends PresentationObservable
     
     rebuild(delta)
     {
+        if (delta && delta.selector === "track_levels_changed" &&
+                this.presentation)
+        {
+            (delta.rowIndices || []).forEach((rowIndex) =>
+            {
+                const index = Number(rowIndex);
+                const row = (this.presentation.rows || [])[index];
+                const source = (this.viewModel.rows || [])[index];
+                if (row && source)
+                {
+                    row.outputLevelAlpha = outputLevelAlpha(source.outputLevelDb);
+                }
+            });
+            this.presentation.delta = delta;
+            this.publish(this.presentation);
+            return;
+        }
+
         let viewModel = this.viewModel || {};
         let presentation = new BankManagerPresentation();
         presentation.enabled = Boolean(this.read(viewModel.enabled, true));
@@ -46,6 +70,7 @@ class BankManagerPresenter extends PresentationObservable
                 mute: Boolean(row.mute),
                 solo: Boolean(row.solo),
                 bypass: Boolean(row.bypass),
+                outputLevelAlpha: outputLevelAlpha(row.outputLevelDb),
                 processors: (row.processors || []).map((processor) => ({
                     processorId: processor.processorId,
                     effectActive: Boolean(processor.effectActive),

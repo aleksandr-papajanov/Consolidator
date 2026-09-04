@@ -73,3 +73,12 @@ public sealed record SetBankBypassCommand(
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }
+
+public sealed record DisableInputLevelerCommand(
+    InstanceControlScope TargetScope,
+    InstanceId? TargetInstanceId,
+    int BankIndex) :
+    IInstanceCommand<StateWriteStatus>, ITargetedBankCommand
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}

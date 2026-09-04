@@ -4,6 +4,7 @@ const { TransactionClient } = require("./TransactionClient.js");
 const { TargetStateClient } = require("./TargetStateClient.js");
 const { UiTarget } = require("./UiTarget.js");
 const { RegistryClient } = require("./RegistryClient.js");
+const { TrackLevelClient } = require("./TrackLevelClient.js");
 const { UiEditScope } = require("../ViewModels/UiEditScope.js");
 
 class ConsolidatorClient
@@ -17,6 +18,7 @@ class ConsolidatorClient
         this.targetState = new TargetStateClient(this.protocol, this.state);
         this.uiTarget = new UiTarget(this.targetState);
         this.registry = new RegistryClient(this.protocol);
+        this.trackLevels = new TrackLevelClient(this.protocol);
     }
     
     initialize(callback)
@@ -44,6 +46,7 @@ class ConsolidatorClient
         this.targetState.destroy();
         this.uiTarget.destroy();
         this.registry.destroy();
+        this.trackLevels.destroy();
         this.protocol.destroy();
     }
 }

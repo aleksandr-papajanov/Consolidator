@@ -107,6 +107,11 @@ frames and control priority, bounded drain batches, repeated queue scheduling,
 teardown with pending work, and the allocation-free audio ring including wrap
 and overflow behavior.
 
+DSP telemetry coverage must prove stable shared-snapshot reads, active-source
+publication gating, latest-only client revisions, control read-only state while
+automation is active, and an independent final slow-level commit for every
+target instance when grouped automation is disabled.
+
 JavaScript suites must cover analyzer-only FFT presentation, focused-bank
 local curve calculation and preview, sample-rate configuration, one
 redraw per FFT update,

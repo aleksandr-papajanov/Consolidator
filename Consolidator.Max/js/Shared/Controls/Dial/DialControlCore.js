@@ -33,6 +33,7 @@ class DialControlCore
             value: 0,
             minimum: 0,
             maximum: 1,
+            visible: true,
             visualization: null,
             color: null,
             display: {
@@ -80,10 +81,25 @@ class DialControlCore
         if (!this.presentationBatch && !this.destroyed) mgraphics.redraw();
     }
 
+    ensureRing(index)
+    {
+        while (this.presentation.rings.length <= index)
+        {
+            this.presentation.rings.push({
+                value: 0,
+                minimum: 0,
+                maximum: 1,
+                visible: true,
+                visualization: null,
+                color: null
+            });
+        }
+        return this.presentation.rings[index];
+    }
+
     setPresentationValue(index, value)
     {
-        let ring = this.presentation.rings[index];
-        if (!ring) return;
+        let ring = this.ensureRing(index);
         ring.value = clampDialValue(Number(value), ring.minimum, ring.maximum);
         if (!this.dragging || this.dragIndex !== index) {
             delete this.previewValues[index];
@@ -93,10 +109,30 @@ class DialControlCore
 
     setPresentationLimits(index, minimum, maximum)
     {
-        let ring = this.presentation.rings[index];
-        if (!ring) return;
+        let ring = this.ensureRing(index);
         ring.minimum = Number(minimum);
         ring.maximum = Number(maximum);
+        this.requestRedraw();
+    }
+
+    setPresentationColor(index, hasColor, red, green, blue, alpha)
+    {
+        let ring = this.ensureRing(index);
+        ring.color = Number(hasColor) !== 0
+            ? [Number(red), Number(green), Number(blue), Number(alpha)] : null;
+        this.requestRedraw();
+    }
+
+    setPresentationVisible(index, visible)
+    {
+        this.ensureRing(index).visible = Number(visible) !== 0;
+        this.requestRedraw();
+    }
+
+    setPresentationRelative(index, relative)
+    {
+        let ring = this.ensureRing(index);
+        ring.relative = Number(relative) !== 0;
         this.requestRedraw();
     }
 

@@ -16,10 +16,12 @@ class TargetStateClient
         this.error = null;
         this.applyingSnapshot = false;
         this.generation = 0;
+        this.telemetryRevision = 0;
         this.subscriptions = new TargetStateSubscriptions();
         this.unsubscribeProtocol = [
             protocol.on("target_state_snapshot", (args) => this.handleSnapshot(args)),
-            protocol.on("state_changed", (args) => this.handleChanged(args))
+            protocol.on("state_changed", (args) => this.handleChanged(args)),
+            protocol.on("dsp_telemetry", (args) => this.handleTelemetry(args))
         ];
     }
 
@@ -105,7 +107,12 @@ class TargetStateClient
     {
         if (this.target)
         {
-            this.state.set(this.relativePath(path), value, callback, transactionId, scope);
+            this.state.setMany(
+                [this.createWriteEntry(path, value, scope)],
+                callback,
+                transactionId,
+                scope
+            );
         }
     }
 
@@ -114,9 +121,25 @@ class TargetStateClient
         if (this.target)
         {
             this.state.setMany(entries.map((entry) => {
-                return { path: this.relativePath(entry.path), value: entry.value };
+                return this.createWriteEntry(entry.path, entry.value, scope);
             }), callback, transactionId, scope);
         }
+    }
+
+    createWriteEntry(path, value, scope)
+    {
+        const relativePath = this.relativePath(path);
+        const current = this.cache[String(path)] || this.cache[relativePath];
+        const activeScope = scope ||
+            (this.state.scope ? this.state.scope.mode : "local");
+        const rangedFloat = current &&
+            typeof current.physicalMin === "number" &&
+            typeof current.physicalMax === "number";
+        return {
+            path: relativePath,
+            value: value,
+            mode: activeScope === "group" && rangedFloat ? "delta" : "copy"
+        };
     }
 
     reset(path, callback, transactionId, scope)
@@ -124,6 +147,18 @@ class TargetStateClient
         if (this.target)
         {
             this.state.reset(this.relativePath(path), callback, transactionId, scope);
+        }
+    }
+
+    disableInputLeveler(callback, scope)
+    {
+        if (this.target)
+        {
+            this.state.disableInputLeveler(
+                this.target.instanceId,
+                this.target.bankId,
+                callback,
+                scope);
         }
     }
 
@@ -228,6 +263,7 @@ class TargetStateClient
         };
         this.pendingTarget = null;
         this.error = null;
+        this.telemetryRevision = 0;
         this.applyingSnapshot = true;
         this.subscriptions.notify("batchBegin");
         try
@@ -263,6 +299,50 @@ class TargetStateClient
         this.subscriptions.notifyPath(entry);
     }
 
+    handleTelemetry(args)
+    {
+        if (!args || args.length < 4)
+        {
+            return;
+        }
+        if (!this.target || this.pendingTarget ||
+                Number(args[0]) !== 1 ||
+                String(args[1]) !== String(this.target.instanceId))
+        {
+            return;
+        }
+
+        const revision = Number(args[2]);
+        const count = Number(args[3]);
+        if (!Number.isInteger(revision) || revision <= this.telemetryRevision ||
+                !Number.isInteger(count) || count < 0 ||
+                args.length !== 4 + count * 2)
+        {
+            return;
+        }
+
+        this.telemetryRevision = revision;
+        for (let index = 0; index < count; index += 1)
+        {
+            const path = String(args[4 + index * 2]);
+            const value = Number(args[5 + index * 2]);
+            const current = this.cache[path] ||
+                (path === "input_gain.level_fast"
+                    ? this.cache["input_gain.level"] : null);
+            if (!current || !isFinite(value))
+            {
+                continue;
+            }
+
+            const entry = Object.assign({}, current, {
+                path: path,
+                value: value
+            });
+            this.cache[path] = entry;
+            this.subscriptions.notifyPath(entry);
+        }
+    }
+
     destroy()
     {
         this.unsubscribeProtocol.forEach((unsubscribe) => unsubscribe());
@@ -272,6 +352,7 @@ class TargetStateClient
         this.target = null;
         this.pendingTarget = null;
         this.error = null;
+        this.telemetryRevision = 0;
         this.subscriptions.clear();
         this.protocol = null;
         this.state = null;

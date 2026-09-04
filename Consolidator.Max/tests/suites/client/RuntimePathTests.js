@@ -24,19 +24,7 @@ function walkFiles(directory, extension)
 function resolveProjectPath(projectPath)
 {
     var relativePath = projectPath.substring("Project:/".length);
-    var direct = path.join(environment.root, relativePath);
-    if (fs.existsSync(direct))
-    {
-        return direct;
-    }
-
-    var basename = path.basename(relativePath);
-    var matches = walkFiles(environment.root, path.extname(basename)).filter(
-        function (candidate)
-        {
-            return path.basename(candidate) === basename;
-        });
-    return matches.length === 1 ? matches[0] : null;
+    return fs.existsSync(path.join(environment.root, relativePath));
 }
 
 function assertProjectPath(projectPath, sourceFile)

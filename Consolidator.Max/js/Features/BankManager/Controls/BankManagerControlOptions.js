@@ -9,6 +9,7 @@ const BankManagerControlOptions = {
     mute: UiColors.devices.mute,
     disabled: UiColors.base.disabledText,
     separator: UiColors.base.lines,
+    outputLevel: UiColors.controls.telemetry,
     rowHeight: 16,
     bankSize: 16,
     bankGap: 0,

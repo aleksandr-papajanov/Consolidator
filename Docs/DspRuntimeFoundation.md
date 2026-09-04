@@ -29,9 +29,10 @@ Managed StateValue
     -> main audio output
 ```
 
-`DspSnapshot` is a transport contract. It does not contain native runtime
-state, compiled coefficients, audio buffers, or pointers. Native runtime state
-is never sent back to Managed.
+`DspSnapshot` is a one-way parameter transport contract. It does not contain
+native runtime state, compiled coefficients, audio buffers, or pointers.
+Selected display-only runtime values return through the separate bounded
+latest-only contract described in [`DspTelemetry.md`](DspTelemetry.md).
 
 ## Runtime graph
 
@@ -40,8 +41,7 @@ Each external owns one fixed graph with this order:
 ```text
 InputProcessor
   -> Width
-  -> Input level
-  -> [internal detector EQ -> Leveler]
+  -> [internal detector EQ -> Leveler-controlled Input Gain]
 SaturatorProcessor
   -> internal detector EQ
   -> saturation (drive, curve, optional split bands)
@@ -61,6 +61,7 @@ PolishProcessor
 OutputProcessor
   -> output level
   -> limiter
+Final linked 300 ms RMS meter
 ```
 
 Input and Output are processors rather than special gain operations. This
@@ -71,9 +72,10 @@ The graph uses a static set of processor members instead of a heap-owned
 processor list. Processor dispatch is therefore explicit and the audio path
 has no registry lookup or allocation. `DspProcessor` is the lifecycle and
 processing contract. Width and the four explicit level/output gain stages are
-implemented. Leveler, saturation, transient shaping, compression, equalization,
-Polish coloration and limiting currently retain identity behavior inside their
-final routing positions.
+implemented. Leveler is the first dynamics algorithm. Detector equalization and
+the main Equalizer are implemented with Native biquad cascades. Saturation,
+transient shaping, compression, Polish coloration and limiting retain identity
+behavior inside their final routing positions.
 
 ## Execution policy
 
@@ -123,6 +125,12 @@ storage. Processing performs no allocation, locking, logging, or Max calls and
 returns without touching audio if its inputs are invalid or exceed the prepared
 capacity.
 
+After graph processing, `DspRuntime` calculates one bounded block mean-square
+value across the final output channels and advances a 300 ms exponential energy
+average. Its dBFS result is written to the shared telemetry seqlock. This meter
+does not alter audio and performs no allocation, locking, callback, or protocol
+formatting on the audio thread.
+
 ## Channel and frequency scope
 
 `DspProcessingPlan` is a control-path selection shared by every processor in
@@ -167,18 +175,18 @@ it. Enabling either parallel topology must never allocate on the audio thread.
 The processing frame carries the current internal detector route. Input,
 Saturator and Compressor each own a `DetectorProcessor` with preallocated output
 buffers and their corresponding pair of detector-filter snapshot slots. Input
-captures after width and input level, Saturator captures its device input, and
-Compressor captures the wet-branch input before transient shaping. Future
-detector filtering modifies only those owned buffers; the main audio remains
-separate.
+captures after Width and before the Leveler-controlled Input Gain, Saturator captures its device input, and
+Compressor captures the wet-branch input before transient shaping. Each detector
+applies its LowShelf and Bell cascade only to those owned buffers; the main audio
+remains separate.
 
 `DspProcessingPrimitives.h` provides reusable boundaries for future devices:
 `SelectChannels` selects allowed lanes, `DspFrequencyBandRunner` iterates
 selected ranges without audio-thread allocation, and `DspParallelMixer`
 defines the compressor wet-into-dry sum. The leveler, compressor, and Polish
 topology is represented by separate processor slots and routing boundaries.
-Detector filtering, crossovers, coloration, dynamics, and limiting remain
-identity algorithm slots until their transfer functions are implemented.
+Crossovers, coloration, compression, and limiting remain identity algorithm
+slots until their transfer functions are implemented.
 
 ## Parameter policy
 
@@ -192,19 +200,59 @@ current audio-owned value.
 
 Width, Leveler target, Saturator drive and curve, Compressor attack, sustain and
 amount, Polish Thick and Air, and Limiter target use this common mechanism.
-Discrete flags, enum values and processor markers are applied immediately.
-Filter frequency, gain and Q are deliberately excluded: detector and equalizer
-implementations must compile and transition stable coefficients instead of
-blindly interpolating the raw snapshot fields.
+Discrete flags, enum values and processor markers update graph policy
+immediately. Filter frequency, gain, Q and filter/bank activity are deliberately
+excluded from scalar ramps: detector and Equalizer processors compile stable
+cascades and crossfade the old and new outputs over ten milliseconds instead of
+interpolating raw coefficients.
 
-`InputLevel` uses the Managed range `-36..36 dB`. `InputProcessor` calculates
-the linear gain target once when a snapshot is accepted. `DspGainRamp` delegates
-sample progression to `DspParameterRamp`, so no logarithmic conversion occurs
-in the per-sample loop. Input, Saturator output, Compressor output and final
-Output level all use this wrapper. A transition back to neutral continues until
-unity is reached even after Managed clears the input activity marker. When an
-inactive processor is skipped, its scalar ramps are synchronized to their new
-targets so later reactivation cannot resume stale parameter state.
+`InputLevel` uses the Managed range `-36..36 dB`. `LevelerProcessor` owns its
+manual dB ramp so it can transfer the current automated value without a jump;
+after the ten-millisecond transition it calculates the static linear gain only
+once per block. Saturator output, Compressor output and final Output level use
+`DspGainRamp`, which delegates sample progression to `DspParameterRamp`. A
+transition back to neutral continues until unity is reached even after Managed
+clears the input activity marker. When an inactive processor is skipped, its
+scalar ramps are synchronized to their new targets so later reactivation cannot
+resume stale parameter state.
+
+## Leveler
+
+The input Leveler measures linked RMS energy from its internal detector signal
+after Width and before the shared Input Gain stage. The detector therefore never
+observes the correction that it controls. The slow path uses a continuous
+1.5-second energy estimate and a six-second gain controller to establish the
+long-term average shown by the Input Level control. The independent fast path
+uses a 250-millisecond energy estimate and a 400-millisecond gain controller.
+Its correction is added over the slow level and limited to `-6..6 dB`, so it can
+follow medium-term motion without behaving like a peak compressor. As the slow
+path reaches the average, the fast correction naturally returns to zero.
+The slow path has a detector gate rather than an audio gate: blocks at or below
+`-60 dBFS` stop changing its energy estimate and gain, and signal at or above
+`-57 dBFS` opens it again. The 3 dB hysteresis prevents threshold chatter. This
+gate never mutes or attenuates audio. When it closes, the fast detector also
+stops learning and its correction returns smoothly to `0 dB` through the
+400-millisecond controller. Pauses therefore retain the slow Level value
+without being lifted by the fast `+6 dB` limit.
+The bounded `-36..36 dB` Input Gain range is only the public control safety
+limit. Gain is applied as a smooth multiplicative ramp across every audio
+vector, preserving peaks and short musical dynamics. Detector energy below
+`-120 dBFS` is treated as technical digital silence, so silence does not drive
+the gain upward and the threshold does not act as a musical gate.
+
+The processor allocates no memory and performs no locking, logging, callbacks,
+or Max calls on the audio thread. Disabling Leveler stops detector/controller
+updates while Managed's dedicated Leveler command commits this instance's own
+latest slow level as Input Gain. Grouped control never copies another
+instance's correction into this processor. The fast overlay is then removed
+through the ordinary input gain ramp, and the resulting DSP snapshot restores
+static gain behavior without an instantaneous step. Enabling Leveler starts
+fresh slow and fast energy estimates from the retained static gain.
+
+The slow telemetry value is the slow controller itself and directly drives the
+Input Level knob. The fast telemetry value is the separately applied overlay,
+not an absolute gain. It stays within `-6..6 dB` and returns toward zero around
+the slow controller's moving operating point.
 
 ## Testing contract
 
@@ -219,6 +267,12 @@ The native foundation tests verify:
 - initial and later snapshot publications are consumed directly by the
   audio-owned runtime without a Managed output callback;
 - input gain retargeting preserves its current ramp position;
+- Leveler converges from a sustained RMS level to its target, limits the fast
+  correction to `-6..6 dB`, returns that correction to zero as the slow
+  controller settles, gates slow learning below `-60 dBFS` with 3 dB hysteresis,
+  releases fast correction when that gate closes, keeps short-excursion response
+  bounded, holds its gain when disabled, and measures before its own gain
+  correction;
 - the common scalar ramp advances by sample count, preserves unchanged targets,
   retargets from its current value and resets to its target;
 - detector routes use processor-owned buffers;
@@ -227,5 +281,5 @@ The native foundation tests verify:
 - neutralizing and reactivating Saturator does not restore stale output gain;
 - equal Thick/Air identity branches preserve unity.
 
-Additional audio algorithms, coefficient correctness, latency, denormal
-handling, and Max host integration are outside this scope.
+Additional audio algorithms, latency validation, and Max host integration are
+outside this scope.

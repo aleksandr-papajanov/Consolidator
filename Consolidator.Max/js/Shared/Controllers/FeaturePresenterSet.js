@@ -11,12 +11,14 @@ class FeaturePresenterSet
         this.scope = scope;
     }
     
-    addDial(name, source)
+    addDial(name, source, options)
     {
+        options = options || {};
         let presenter = new DialPresenter({
             rings: [{
-                value: source
-            }],
+                value: source,
+                color: options.color
+            }].concat(options.rings || []),
             scope: this.scope,
             enabled: this.sourceProperty(source, "enabled", true),
             loading: this.sourceProperty(source, "loading", false)

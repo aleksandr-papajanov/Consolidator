@@ -136,7 +136,8 @@ into a failed operation.
 Analyzer curves are calculated entirely in JavaScript from the focused
 parameter bindings and their local filter definitions. Managed publishes no
 curve arrays, raw equalizer projections, filter catalogs, or analyzer
-configuration frames. `fft` remains the only streamed analysis frame.
+configuration frames. `fft` and `dsp_telemetry` are the streamed latest-only
+analysis frames; the latter is defined in [`DspTelemetry.md`](DspTelemetry.md).
 
 ## Routing and Core ownership
 
@@ -312,6 +313,19 @@ The request bodies are:
 set_processor_bypass targetInstanceId processorId local|group 0|1
 set_bank_bypass targetInstanceId bankIndex local|group 0|1
 ```
+
+Input Leveler uses a dedicated command because grouped disable must retain a
+different runtime-derived slow level for every target instance instead of
+copying the focused instance's value through ordinary peer propagation:
+
+```text
+disable_input_leveler targetInstanceId bankIndex local|group
+```
+
+The bank index selects the exact group context. Enabling uses an ordinary
+`input_gain.leveler` state write because it copies only the flags. The dedicated
+command is used for disabling: it reads and commits each target's own latest
+slow level and changes all flags in one history transaction.
 
 `bankIndex` is zero-based and must be in the range `0..6`. The target bank group
 is resolved for the explicit target instance at that index; a missing target or

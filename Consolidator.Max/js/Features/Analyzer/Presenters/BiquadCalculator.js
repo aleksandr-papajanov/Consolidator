@@ -2,25 +2,31 @@ class BiquadCalculator
 {
     static calculate(type, frequencyHz, q, gainDb, sampleRate)
     {
-        if (type === "gain") {
+        if (type === "gain")
+        {
             return { constantDb: gainDb };
         }
-        if (gainDb === 0) {
+        if (gainDb === 0)
+        {
             return { b0: 1, b1: 0, b2: 0, a1: 0, a2: 0 };
         }
-        if (type === "low_shelf" || type === "high_shelf") {
+        let safeFrequencyHz = Math.min(frequencyHz, sampleRate * 0.499);
+        if (type === "low_shelf" || type === "high_shelf")
+        {
             return BiquadCalculator.calculateShelf(
-                type, frequencyHz, q, gainDb, sampleRate);
+                type, safeFrequencyHz, q, gainDb, sampleRate);
         }
-        if (type === "tilt") {
+        if (type === "tilt")
+        {
             return {
                 low: BiquadCalculator.calculateShelf(
-                    "low_shelf", frequencyHz, q, -gainDb, sampleRate),
+                    "low_shelf", safeFrequencyHz, q, -gainDb, sampleRate),
                 high: BiquadCalculator.calculateShelf(
-                    "high_shelf", frequencyHz, q, gainDb, sampleRate)
+                    "high_shelf", safeFrequencyHz, q, gainDb, sampleRate)
             };
         }
-        return BiquadCalculator.calculateBell(frequencyHz, q, gainDb, sampleRate);
+        return BiquadCalculator.calculateBell(
+            safeFrequencyHz, q, gainDb, sampleRate);
     }
 
     static calculateShelf(type, frequencyHz, q, gainDb, sampleRate)
@@ -96,10 +102,12 @@ class BiquadCalculator
 
     static decibelsAt(coefficients, frequencyHz, sampleRate)
     {
-        if (coefficients.constantDb !== undefined) {
+        if (coefficients.constantDb !== undefined)
+        {
             return coefficients.constantDb;
         }
-        if (coefficients.low && coefficients.high) {
+        if (coefficients.low && coefficients.high)
+        {
             return BiquadCalculator.decibelsAt(
                 coefficients.low, frequencyHz, sampleRate) +
                 BiquadCalculator.decibelsAt(

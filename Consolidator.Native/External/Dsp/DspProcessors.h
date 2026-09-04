@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "DspBiquad.h"
 #include "DspParameterRamp.h"
 #include "DspProcessor.h"
 
@@ -41,7 +42,7 @@ private:
     static constexpr std::size_t kFilterCount = 2;
 
     std::size_t filterOffset_{};
-    std::array<FilterSnapshot, kFilterCount> filters_{};
+    std::array<DspBiquadCascade, kFilterCount> filters_{};
     std::vector<double> left_;
     std::vector<double> right_;
 };
@@ -54,8 +55,33 @@ public:
     void SetParameters(const DspSnapshot& snapshot) noexcept override;
     void Process(DspProcessingFrame& frame) noexcept override;
 
+    [[nodiscard]] bool RequiresProcessing() const noexcept;
+    [[nodiscard]] bool IsEnabled() const noexcept;
+    [[nodiscard]] float SlowInputLevelDb() const noexcept;
+    [[nodiscard]] float EffectiveInputLevelDb() const noexcept;
+    [[nodiscard]] float FastInputLevelDb() const noexcept;
+
 private:
+    static constexpr double kMinimumGainDb = -36.0;
+    static constexpr double kMaximumGainDb = 36.0;
+    static constexpr double kSilenceEnergy = 1.0e-12;
+
     DspParameterRamp targetDb_;
+    DspParameterRamp inputGainDb_;
+    double slowEnergyCoefficient_{};
+    double fastEnergyCoefficient_{};
+    double slowTimeConstantSamples_{ 1.0 };
+    double fastTimeConstantSamples_{ 1.0 };
+    double smoothedSlowEnergy_{};
+    double smoothedFastEnergy_{};
+    double slowGainDb_{};
+    double effectiveGainDb_{};
+    double fastCorrectionDb_{};
+    bool enabled_{};
+    bool slowGateOpen_{};
+    bool hasSlowEnergyEstimate_{};
+    bool hasFastEnergyEstimate_{};
+    bool parametersInitialized_{};
 };
 
 class InputProcessor final : public DspProcessor
@@ -67,11 +93,14 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
     [[nodiscard]] bool RequiresProcessing() const noexcept;
+    [[nodiscard]] bool IsLevelerEnabled() const noexcept;
+    [[nodiscard]] float SlowInputLevelDb() const noexcept;
+    [[nodiscard]] float EffectiveInputLevelDb() const noexcept;
+    [[nodiscard]] float FastInputLevelDb() const noexcept;
 
 private:
     void ProcessWidth(DspProcessingFrame& frame) noexcept;
 
-    DspGainRamp level_;
     DetectorProcessor levelerDetector_{ 0 };
     LevelerProcessor leveler_;
     DspParameterRamp width_{ 100.0 };
@@ -156,9 +185,13 @@ public:
     void SetParameters(const DspSnapshot& snapshot) noexcept override;
     void Process(DspProcessingFrame& frame) noexcept override;
 
+    [[nodiscard]] bool RequiresProcessing() const noexcept;
+
 private:
-    std::array<std::uint32_t, 7> activeBanks_{};
-    std::array<FilterSnapshot, 49> filters_{};
+    static constexpr std::size_t kBankCount = 7;
+    static constexpr std::size_t kFilterCount = 7;
+
+    std::array<DspBiquadCascade, kBankCount * kFilterCount> filters_{};
 };
 
 class PolishThickProcessor final : public DspProcessor

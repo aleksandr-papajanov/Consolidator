@@ -16,9 +16,17 @@ internal sealed class AudioCapture
     public float[] MainSpectrum { get; } = new float[FftSize / 2 + 1];
     public float[] ReferenceSpectrum { get; } = new float[FftSize / 2 + 1];
 
-    public AudioCapture(int blockSize, int queueLength)
+    public AudioCapture(
+        int blockSize,
+        int queueLength,
+        double sampleRate,
+        TimeSpan publicationInterval)
     {
-        _capacity = Math.Max(2048, blockSize * Math.Max(2, queueLength));
+        var backlogLength = Math.Max(2, queueLength);
+        var blockCapacity = blockSize * backlogLength;
+        var intervalCapacity = (int)Math.Ceiling(
+            sampleRate * publicationInterval.TotalSeconds * backlogLength);
+        _capacity = Math.Max(2048, Math.Max(blockCapacity, intervalCapacity));
         _channels = Enumerable.Range(0, ChannelCount)
             .Select(_ => new double[_capacity])
             .ToArray();
@@ -81,9 +89,9 @@ internal sealed class AudioCapture
                 0);
         }
 
-            // This analyzer is latest-window only. Discard samples accumulated while
-            // the worker was waiting for its next publication interval.
-            Volatile.Write(ref _readIndex, writeIndex);
+        // This analyzer is latest-window only. Discard samples accumulated while
+        // the worker was waiting for its next publication interval.
+        Volatile.Write(ref _readIndex, writeIndex);
         return true;
     }
 }

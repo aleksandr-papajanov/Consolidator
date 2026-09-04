@@ -121,6 +121,7 @@ class BankManagerPresentationState
         this.presentation.focusedBankBypassed = Number(value) !== 0;
     }
     patchRow(index, ...args) { this.patcher.row(index, args); }
+    patchLevel(rowIndex, alpha) { this.patcher.level(rowIndex, alpha); }
     patchProcessor(rowIndex, ...args) { this.patcher.processor(rowIndex, args); }
     removeRow(index) { this.patcher.removeRow(index); }
     patchBank(...args) { this.patcher.bank(args); }

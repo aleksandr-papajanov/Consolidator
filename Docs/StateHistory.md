@@ -152,6 +152,12 @@ That physical range is the single numeric-bound policy for a delta value.
 Values are never normalized or clamped: a write outside the effective range is
 rejected before the transaction commits.
 
+The target-state client selects the wire edit mode from the current scope and
+snapshot metadata. A ranged value edited in group scope is sent as `delta`, so
+each peer retains its offset and the effective absolute range remains stable
+throughout the gesture. Local edits and non-ranged group values are sent as
+`copy`.
+
 Each symmetric bank peer component caches one intersection of its values'
 remaining physical ranges. The cache is rebuilt when topology changes and
 recalculated once after committed values change. A write validates against the
@@ -242,7 +248,9 @@ Each analyzer gesture owns exactly one history point. Its final write and
 `end_history` frame are sent in FIFO order, while the JavaScript binding releases
 the gesture transaction immediately after dispatch instead of waiting for the
 write response. A delayed response therefore cannot merge later equalizer
-gestures into the previous history point.
+gestures into the previous history point. The local curve preview remains until
+that final write is acknowledged; an acknowledgement from an older gesture
+cannot clear the preview of a newer gesture.
 
 A persistence restore uses the same transaction mechanism but replaces every
 slot of each persisted value with one validated baseline. Slots are replaced

@@ -12,12 +12,14 @@ namespace consolidator::tests
 bool RunAbiContractTests()
 {
     using consolidator::max::dsp::DspSnapshot;
+    using consolidator::max::dsp::DspTelemetryExchange;
     using consolidator::max::transport::NativeAtom;
     using consolidator::max::transport::NativeAtomType;
     using consolidator::max::dsp::DspStateExchange;
 
     static_assert(std::is_standard_layout_v<NativeAtom>);
     static_assert(std::is_standard_layout_v<DspSnapshot>);
+    static_assert(std::is_standard_layout_v<DspTelemetryExchange>);
     static_assert(std::is_standard_layout_v<DspStateExchange>);
 
     auto succeeded = true;
@@ -31,7 +33,7 @@ bool RunAbiContractTests()
         sizeof(DspSnapshot) == 1476,
         "DspSnapshot size does not match the Managed ABI.");
     succeeded &= Expect(
-        sizeof(DspStateExchange) == 4436,
+        sizeof(DspStateExchange) == 4456,
         "DspStateExchange size does not match the Managed ABI.");
     succeeded &= Expect(
         offsetof(DspStateExchange, publishedIndex) == 4428,
@@ -39,6 +41,9 @@ bool RunAbiContractTests()
     succeeded &= Expect(
         offsetof(DspStateExchange, consumerIndex) == 4432,
         "DspStateExchange consumer index offset is incorrect.");
+    succeeded &= Expect(
+        offsetof(DspStateExchange, telemetry) == 4436,
+        "DspStateExchange telemetry offset is incorrect.");
     succeeded &= Expect(
         static_cast<std::uint8_t>(NativeAtomType::Integer) == 1
             && static_cast<std::uint8_t>(NativeAtomType::Float) == 2

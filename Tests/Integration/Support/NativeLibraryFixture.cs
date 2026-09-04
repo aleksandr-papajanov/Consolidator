@@ -62,8 +62,8 @@ public sealed class NativeLibraryFixture : IDisposable
     {
         var instance = new NativeInstance(this);
         var context = GCHandle.Alloc(instance);
-        var exchange = Marshal.AllocHGlobal(4436);
-        Span<byte> zero = stackalloc byte[4436];
+        var exchange = Marshal.AllocHGlobal(4448);
+        Span<byte> zero = stackalloc byte[4448];
         Marshal.Copy(zero.ToArray(), 0, exchange, zero.Length);
         var instanceId = _registerInstance(
             GCHandle.ToIntPtr(context),
@@ -311,6 +311,17 @@ public sealed class NativeInstance : IDisposable
     public float PublishedGain => Marshal.PtrToStructure<float>(
         _exchange + PublishedSnapshotIndex * 1476);
 
+    public void PublishInputLevelTelemetry(uint sequence, float levelDb)
+    {
+        Marshal.WriteInt32(_exchange + 4436, (int)(sequence | 1U));
+        Marshal.WriteInt32(_exchange + 4440, 1);
+        Marshal.WriteInt32(
+            _exchange + 4444,
+            BitConverter.SingleToInt32Bits(levelDb));
+        Thread.MemoryBarrier();
+        Marshal.WriteInt32(_exchange + 4436, (int)(sequence & ~1U));
+    }
+
     internal void Initialize(
         ulong instanceId,
         nuint audioInputHandle,
@@ -349,6 +360,16 @@ public sealed class NativeInstance : IDisposable
             $"No terminal callback was received for request {requestId}.");
     }
 
+    public OutputFrame WaitForFrame(string selector)
+    {
+        OutputFrame? frame = null;
+        Assert.True(SpinWait.SpinUntil(
+            () => TryGetFrame(selector, out frame),
+            TimeSpan.FromSeconds(5)),
+            $"No {selector} callback was received.");
+        return frame!;
+    }
+
     internal void AddFrame(OutputFrame frame)
     {
         lock (_frameLock)
@@ -366,6 +387,16 @@ public sealed class NativeInstance : IDisposable
                     "target_state_snapshot" or "registry_done") &&
                 frame.Atoms.Count > 2 &&
                 frame.Atoms[2].SymbolValue == requestId);
+        }
+    }
+
+    private bool TryGetFrame(string selector, out OutputFrame? frame)
+    {
+        lock (_frameLock)
+        {
+            frame = _frames.LastOrDefault(candidate =>
+                candidate.Selector == selector);
+            return frame is not null;
         }
     }
 

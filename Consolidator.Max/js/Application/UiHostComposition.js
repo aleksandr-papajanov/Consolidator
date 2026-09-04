@@ -41,7 +41,8 @@ function createUiHostComponents(host, source, sendNative)
         source,
         host.client.transactions,
         host.client.scope,
-        host.client.targetState
+        host.client.targetState,
+        host.client.trackLevels
     );
     host.bankManagerPresenter = new BankManagerPresenter(
         host.bankManagerViewModel);

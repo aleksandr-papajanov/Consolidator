@@ -70,7 +70,11 @@ class StateClient
         entries.forEach((entry) => {
             body.push("entry");
             body = body.concat(encodeStatePath(entry.path));
-            body.push("value", encodeStateValue(entry.path, entry.value), "copy");
+            body.push(
+                "value",
+                encodeStateValue(entry.path, entry.value),
+                entry.mode === "delta" ? "delta" : "copy"
+            );
         });
         return this.protocol.request("write", body, callback);
     }
@@ -95,6 +99,15 @@ class StateClient
             scope || this.scope.mode
         ].concat(encodeStatePath(path));
         return this.protocol.request("reset", frame, callback);
+    }
+
+    disableInputLeveler(targetInstanceId, bankIndex, callback, scope)
+    {
+        return this.protocol.request("disable_input_leveler", [
+            String(targetInstanceId),
+            Number(bankIndex),
+            scope || this.scope.mode
+        ], callback);
     }
 
     handleResponseDone(args)
