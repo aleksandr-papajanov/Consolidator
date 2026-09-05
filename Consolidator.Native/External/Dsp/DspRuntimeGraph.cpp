@@ -18,10 +18,12 @@ void DspRuntimeGraph::Prepare(
 
     input_.Prepare(context_);
     saturator_.Prepare(context_);
+    saturatorStage_.Prepare(context_);
     compressor_.Prepare(context_);
     compressorParallel_.Prepare(context_);
     equalizer_.Prepare(context_);
     polish_.Prepare(context_);
+    polishStage_.Prepare(context_);
     output_.Prepare(context_);
 }
 
@@ -29,10 +31,12 @@ void DspRuntimeGraph::Reset() noexcept
 {
     input_.Reset();
     saturator_.Reset();
+    saturatorStage_.Reset();
     compressor_.Reset();
     compressorParallel_.Reset();
     equalizer_.Reset();
     polish_.Reset();
+    polishStage_.Reset();
     output_.Reset();
 }
 
@@ -48,18 +52,10 @@ void DspRuntimeGraph::SetParameters(
     polish_.SetParameters(snapshot);
     output_.SetParameters(snapshot);
 
-    if (!policy_.saturatorActive && snapshot.saturatorBypass == 0)
-    {
-        saturator_.SynchronizeInactiveState();
-    }
-    if (!policy_.compressorActive && snapshot.compressorBypass == 0)
-    {
-        compressor_.SynchronizeInactiveState();
-    }
-    if (!policy_.polishActive && snapshot.polishBypass == 0)
-    {
-        polish_.SynchronizeInactiveState();
-    }
+    saturatorStage_.SetWetTarget(policy_.saturatorActive ? 1.0 : 0.0);
+    compressorParallel_.SetWetTarget(policy_.compressorActive ?
+        (policy_.compressorParallel ? 0.5 : 1.0) : 0.0);
+    polishStage_.SetWetTarget(policy_.polishActive ? 1.0 : 0.0);
 }
 
 void DspRuntimeGraph::SetProcessingPlan(
@@ -121,29 +117,13 @@ void DspRuntimeGraph::ProcessBlock(
     {
         input_.Process(frame);
     }
-    if (policy_.saturatorActive)
-    {
-        saturator_.Process(frame);
-    }
-    if (policy_.compressorActive)
-    {
-        if (policy_.compressorParallel)
-        {
-            compressorParallel_.Process(frame, compressor_);
-        }
-        else
-        {
-            compressor_.Process(frame);
-        }
-    }
+    saturatorStage_.Process(frame, saturator_);
+    compressorParallel_.Process(frame, compressor_);
     if (policy_.equalizerActive || equalizer_.RequiresProcessing())
     {
         equalizer_.Process(frame);
     }
-    if (policy_.polishActive)
-    {
-        polish_.Process(frame);
-    }
+    polishStage_.Process(frame, polish_);
     if (!policy_.outputBypassed &&
         (policy_.outputActive ||
             policy_.limiterEnabled ||

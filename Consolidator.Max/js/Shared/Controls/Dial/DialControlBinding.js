@@ -106,7 +106,14 @@ class DialControlBinding extends ControlBinding
     handleIntent(name, values)
     {
         switch (name) {
-        case "valueChanged": this.gesture.setValue(values[0], values[1]); break;
+        case "valueChanged": {
+            let snappedValue = this.gesture.setValue(values[0], values[1]);
+            if (snappedValue !== undefined)
+            {
+                this.send("snap", [Number(values[0]), snappedValue]);
+            }
+            break;
+        }
         case "reset": this.presenter.resetValue(values[0]); break;
         case "gestureBegan": this.gesture.begin(values[0]); break;
         case "gestureEnded": this.gesture.end(values[0]); break;

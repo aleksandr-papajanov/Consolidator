@@ -27,6 +27,14 @@ objects in all panels.
 Panel selection remains local to the Max presentation. Bank focus changes still
 drive the existing target transition and snapshot flow.
 
+## Edit precision
+
+The Bank Manager action row exposes the shared edit precision action. It toggles between
+`PRECISE` and `ROUGH` for every dial and analyzer marker. Rough mode quantizes
+dB values to 3 dB, other scalar values to 0.1, and frequency/Q edits on a
+logarithmic decade grid calculated from the value magnitude rather than a fixed
+lookup table. The mode is UI-only and does not enter Managed state or DSP.
+
 ## BankManager scrolling
 
 `BankManagerControl` keeps track scrolling local to the Max UI control. When
@@ -48,12 +56,13 @@ selected. This status is updated by a registry delta only when the
 neutral/active state changes.
 
 BankManager actions are rendered in a fourth column after the track name,
-processor markers, and banks. The four action buttons are stacked vertically,
+processor markers, and banks. The five action buttons are stacked vertically,
 with `Redo` and `Undo` below them as a separate group with a small gap. The
 history group contains only these two one-step controls.
-A normal click
-starts a selection with one bank and Shift-click adds or removes banks from
-it; `Group` writes the next available
+A normal click starts a selection with one bank. Shift-click adds or removes
+one bank, while Shift-drag across the bank grid toggles each crossed bank once;
+the existing one-bank-per-track selection constraint still applies. `Group`
+writes the next available
 group ID to the selected banks, `Ungroup` clears the focused bank's group, and
 `Clear` clears local groups with confirmation. The former link-group panel is
 not part of the presentation.

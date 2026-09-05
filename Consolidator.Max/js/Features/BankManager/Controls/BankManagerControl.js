@@ -79,6 +79,11 @@ function scope_action(enabled, active, hasColor, red, green, blue, alpha)
     bankManagerControl.setScopeAction(enabled, active, hasColor, red, green, blue, alpha);
 }
 
+function edit_precision(value)
+{
+    bankManagerControl.setEditPrecision(value);
+}
+
 function history(cursor, entryCount, canUndo, canRedo)
 {
     bankManagerControl.setHistory(cursor, entryCount, canUndo, canRedo);
@@ -173,13 +178,13 @@ function onresize()
 function onclick(x, y, button, modifier1, shift, caps, option, modifier2)
 {
     bankManagerControl.beginPointer(x, y, shift);
-    bankManagerControl.selectAt(
+    let selectionKey = bankManagerControl.selectAt(
         x,
         y,
         shift,
         Number(modifier1) !== 0 || Number(modifier2) !== 0
     );
-    bankManagerControl.interaction.markClickHandled();
+    bankManagerControl.interaction.markClickHandled(selectionKey);
 }
 
 function ondrag(x, y, button)

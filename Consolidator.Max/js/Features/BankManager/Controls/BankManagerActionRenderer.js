@@ -4,7 +4,7 @@ const { fillRectangle } = require("./BankManagerDrawing.js");
 
 class BankManagerActionRenderer
 {
-    paint(graphics, presentation, layout, feedback)
+    paint(graphics, presentation, layout, feedback, editPrecisionRough)
     {
         let actions = [
             { key: "group", label: "Group", action: presentation.groupAction || {}, momentary: true },
@@ -14,6 +14,12 @@ class BankManagerActionRenderer
                 key: "scope",
                 label: (presentation.scopeAction || {}).active ? "Group" : "Local",
                 action: presentation.scopeAction || {},
+                momentary: false
+            },
+            {
+                key: "editPrecision",
+                label: editPrecisionRough ? "ROUGH" : "PRECISE",
+                action: { enabled: true, active: editPrecisionRough },
                 momentary: false
             }
         ];
@@ -25,7 +31,6 @@ class BankManagerActionRenderer
                 Math.round(index * (BankManagerControlOptions.actionButtonHeight +
                     BankManagerControlOptions.actionGap)), layout, feedback);
         });
-
         let history = presentation.history || {};
         let historyY = layout.actionGroupHeight() +
             BankManagerControlOptions.historyGroupGap;
@@ -42,14 +47,15 @@ class BankManagerActionRenderer
     paintButton(graphics, entry, y, layout, feedback)
     {
         let options = BankManagerControlOptions;
-        let x = layout.actionsColumnX();
+        let x = entry.x === undefined ? layout.actionsColumnX() : entry.x;
         let bottom = Math.round(y + options.actionButtonHeight);
         let height = bottom - y;
         let flashed = entry.momentary && feedback.isActionFlashed(entry.key);
         let fillColor = flashed
             ? options.focused
-            : entry.action.active && entry.action.color
-                ? entry.action.color : options.background;
+            : entry.action.active
+                ? entry.action.color || options.focused
+                : options.background;
         let textColor = entry.action.enabled
             ? UiColors.base.activeText : UiColors.base.disabledText;
 

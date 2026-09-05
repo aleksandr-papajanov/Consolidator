@@ -33,11 +33,4 @@ void SaturatorProcessor::Process(
     output_.Process(frame.main, frame.plan.channelMode);
 }
 
-void SaturatorProcessor::SynchronizeInactiveState() noexcept
-{
-    detector_.Reset();
-    saturation_.Reset();
-    output_.Reset();
-}
-
 } // namespace consolidator::max::dsp

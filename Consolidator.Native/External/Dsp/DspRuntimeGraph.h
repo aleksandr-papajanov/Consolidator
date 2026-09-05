@@ -32,10 +32,12 @@ private:
     DspSnapshot snapshot_{};
     InputProcessor input_;
     SaturatorProcessor saturator_;
+    DspParallelStage saturatorStage_;
     CompressorProcessor compressor_;
     DspParallelStage compressorParallel_;
     EqualizerProcessor equalizer_;
     PolishProcessor polish_;
+    DspParallelStage polishStage_;
     OutputProcessor output_;
 };
 

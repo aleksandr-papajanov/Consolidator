@@ -9,6 +9,8 @@ const { AnalyzerCurveCalculator } = require("./AnalyzerCurveCalculator.js");
 const { AnalyzerCurvePublisher } = require("./AnalyzerCurvePublisher.js");
 const { AnalyzerParameterEditor } = require("./AnalyzerParameterEditor.js");
 const { AnalyzerScale } = require("./AnalyzerScale.js");
+const { uiEditPrecision } = require(
+    "../../../Shared/ViewModels/UiEditPrecision.js");
 
 class AnalyzerPresenter extends PresentationObservable
 {
@@ -44,6 +46,8 @@ class AnalyzerPresenter extends PresentationObservable
             () => this.ready,
             () => this.requestRebuild()
         );
+        this.parameterEditor.precisionMode =
+            this.options.precisionMode || uiEditPrecision;
         this.scope = this.options.scope || null;
         this.scopeUnsubscriber = this.scope && typeof this.scope.subscribe === "function"
             ? this.scope.subscribe(() => { this.requestRebuild(); }) : null;

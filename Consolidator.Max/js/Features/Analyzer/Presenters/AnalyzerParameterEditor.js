@@ -2,6 +2,10 @@ const {
     presentationBindingValue,
     presentationBindingWrite
 } = require("../../../Shared/Presenters/PresentationBinding.js");
+const { quantizeRough, quantizeLog } = require(
+    "../../../Shared/Controls/Dial/DialValueEditor.js");
+const { uiEditPrecision } = require(
+    "../../../Shared/ViewModels/UiEditPrecision.js");
 
 class AnalyzerParameterEditor
 {
@@ -13,6 +17,7 @@ class AnalyzerParameterEditor
         this.requestRebuild = requestRebuild;
         this.preview = {};
         this.gestureActive = false;
+        this.precisionMode = uiEditPrecision;
     }
 
     sourceChanged()
@@ -60,28 +65,21 @@ class AnalyzerParameterEditor
             return;
         }
 
-        const gain = this.scale.clampBindingValue(
-            parameter.gain,
-            this.scale.yToGain(y)
-        );
-        const frequency = parameter.frequency
-            ? this.scale.clampBindingValue(
-                parameter.frequency,
-                this.scale.xToFrequency(x)
-            )
-            : null;
-        this.preview[Number(id)] = { frequency: frequency, gain: gain };
+        const position = this.createPositionPreview(parameter, x, y);
+        const quantizedGain = position.gain;
+        const quantizedFrequency = position.frequency;
+        this.preview[Number(id)] = position;
         this.requestRebuild();
         if (typeof parameter.setPosition === "function")
         {
-            parameter.setPosition(frequency, gain, transactionId);
+            parameter.setPosition(quantizedFrequency, quantizedGain, transactionId);
             return;
         }
-        if (parameter.frequency && frequency !== null)
+        if (parameter.frequency && quantizedFrequency !== null)
         {
-            presentationBindingWrite(parameter.frequency, frequency, transactionId);
+            presentationBindingWrite(parameter.frequency, quantizedFrequency, transactionId);
         }
-        presentationBindingWrite(parameter.gain, gain, transactionId);
+        presentationBindingWrite(parameter.gain, quantizedGain, transactionId);
     }
 
     reset(id, callback)
@@ -160,7 +158,11 @@ class AnalyzerParameterEditor
         {
             return;
         }
-        const next = Math.max(range.minimum, Math.min(range.maximum, current + change));
+        let next = Math.max(range.minimum, Math.min(range.maximum, current + change));
+        if (this.precisionMode.isRough())
+        {
+            next = quantizeLog(next);
+        }
         this.preview[Number(id)] = { q: next };
         this.requestRebuild();
         presentationBindingWrite(parameter.q, next);
@@ -173,20 +175,27 @@ class AnalyzerParameterEditor
 
     createPositionPreview(parameter, x, y)
     {
-        const preview = {
-            gain: this.scale.clampBindingValue(
+        let gain = this.scale.clampBindingValue(
                 parameter.gain,
                 this.scale.yToGain(y)
-            )
-        };
+            );
+        let frequency = null;
         if (parameter.frequency)
         {
-            preview.frequency = this.scale.clampBindingValue(
+            frequency = this.scale.clampBindingValue(
                 parameter.frequency,
                 this.scale.xToFrequency(x)
             );
         }
-        return preview;
+        if (this.precisionMode.isRough())
+        {
+            gain = quantizeRough(gain, true);
+            if (frequency !== null)
+            {
+                frequency = quantizeLog(frequency);
+            }
+        }
+        return { frequency: frequency, gain: gain };
     }
 
     completeAccepted(callback)

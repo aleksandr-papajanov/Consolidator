@@ -40,12 +40,14 @@ function createPresenterBinding(host, type, presenter, send)
 function installUiBindings(host)
 {
     let mapping = host.mapping;
+    host.bind(mapping.editPrecision, (send) => new ButtonControlBinding(
+        host.editPrecision, send));
     installAnalyzer(host, mapping.equalizerAnalyzer, host.equalizer);
     installAnalyzer(host, mapping.compressorDetector, host.compressor);
     installAnalyzer(host, mapping.saturatorDetector, host.saturator);
     installAnalyzer(host, mapping.inputDetector, host.input);
     host.bind(mapping.bankManager, (send) => new BankManagerControlBinding(
-        host.bankManager, host.bankManagerPresenter, send));
+        host.bankManager, host.bankManagerPresenter, send, host.editPrecision));
 
     [
         ["input", host.input],

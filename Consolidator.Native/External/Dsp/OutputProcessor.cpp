@@ -21,18 +21,13 @@ void OutputProcessor::SetParameters(
 {
     level_.SetTargetDb(snapshot.outputLevel);
     limiter_.SetParameters(snapshot);
-    limiterEnabled_ = snapshot.outputLimiter != 0;
-    if (!limiterEnabled_)
-    {
-        limiter_.Reset();
-    }
 }
 
 void OutputProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
     level_.Process(frame.main, frame.plan.channelMode);
-    if (limiterEnabled_)
+    if (limiter_.RequiresProcessing())
     {
         limiter_.Process(frame);
     }
@@ -40,7 +35,7 @@ void OutputProcessor::Process(
 
 bool OutputProcessor::RequiresProcessing() const noexcept
 {
-    return level_.RequiresProcessing();
+    return level_.RequiresProcessing() || limiter_.RequiresProcessing();
 }
 
 } // namespace consolidator::max::dsp

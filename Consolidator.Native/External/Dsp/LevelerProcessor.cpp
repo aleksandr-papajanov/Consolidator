@@ -26,6 +26,8 @@ void LevelerProcessor::Prepare(
 {
     targetDb_.Prepare(context);
     inputGainDb_.Prepare(context);
+    gateCoefficient_ = 1.0 - std::exp(-1.0 / (context.sampleRate * 0.050));
+    gateHoldSamples_ = static_cast<std::size_t>(context.sampleRate * 0.200);
     slowEnergyCoefficient_ = std::exp(
         -1.0 / (context.sampleRate * kSlowEnergyTimeConstantSeconds));
     fastEnergyCoefficient_ = std::exp(
@@ -50,6 +52,8 @@ void LevelerProcessor::Reset() noexcept
     slowGateOpen_ = false;
     hasSlowEnergyEstimate_ = false;
     hasFastEnergyEstimate_ = false;
+    gateEnergy_ = 0.0;
+    gateHoldRemaining_ = 0;
 }
 
 void LevelerProcessor::SetParameters(
@@ -64,6 +68,8 @@ void LevelerProcessor::SetParameters(
         slowGateOpen_ = false;
         hasSlowEnergyEstimate_ = false;
         hasFastEnergyEstimate_ = false;
+        gateEnergy_ = 0.0;
+        gateHoldRemaining_ = 0;
         slowGainDb_ = effectiveGainDb_;
         fastCorrectionDb_ = 0.0;
     }
@@ -117,47 +123,52 @@ void LevelerProcessor::Process(
                 }
                 sampleEnergy /= channelCount;
                 blockEnergy += sampleEnergy;
+                gateEnergy_ += gateCoefficient_ * (sampleEnergy - gateEnergy_);
+                if (gateEnergy_ >= kSlowGateOpenEnergy)
+                {
+                    slowGateOpen_ = true;
+                    gateHoldRemaining_ = gateHoldSamples_;
+                }
+                else if (gateEnergy_ <= kSlowGateCloseEnergy)
+                {
+                    if (gateHoldRemaining_ > 0)
+                    {
+                        --gateHoldRemaining_;
+                    }
+                    else
+                    {
+                        slowGateOpen_ = false;
+                    }
+                }
+                else if (slowGateOpen_)
+                {
+                    gateHoldRemaining_ = gateHoldSamples_;
+                }
+                if (slowGateOpen_)
+                {
+                    smoothedFastEnergy_ = hasFastEnergyEstimate_
+                        ? fastEnergyCoefficient_ * smoothedFastEnergy_ +
+                            (1.0 - fastEnergyCoefficient_) * sampleEnergy
+                        : std::max(gateEnergy_, kSilenceEnergy);
+                    smoothedSlowEnergy_ = hasSlowEnergyEstimate_
+                        ? slowEnergyCoefficient_ * smoothedSlowEnergy_ +
+                            (1.0 - slowEnergyCoefficient_) * sampleEnergy
+                        : std::max(gateEnergy_, kSilenceEnergy);
+                    hasFastEnergyEstimate_ = true;
+                    hasSlowEnergyEstimate_ = true;
+                }
             }
 
             blockEnergy /= static_cast<double>(frameCount);
-            if (slowGateOpen_ && blockEnergy <= kSlowGateCloseEnergy)
-            {
-                slowGateOpen_ = false;
-                smoothedFastEnergy_ = 0.0;
-                hasFastEnergyEstimate_ = false;
-            }
-            else if (!slowGateOpen_ && blockEnergy >= kSlowGateOpenEnergy)
-            {
-                slowGateOpen_ = true;
-                smoothedFastEnergy_ = 0.0;
-                hasFastEnergyEstimate_ = false;
-            }
 
             auto desiredFastCorrectionDb = 0.0;
             if (slowGateOpen_ && blockEnergy >= kSilenceEnergy)
             {
-                const auto fastEnergyCoefficient = std::pow(
-                    fastEnergyCoefficient_,
-                    static_cast<double>(frameCount));
-                smoothedFastEnergy_ = hasFastEnergyEstimate_
-                    ? fastEnergyCoefficient * smoothedFastEnergy_ +
-                        (1.0 - fastEnergyCoefficient) * blockEnergy
-                    : blockEnergy;
-                hasFastEnergyEstimate_ = true;
-
                 const auto fastMeasuredDb = 10.0 *
-                    std::log10(smoothedFastEnergy_);
-                const auto slowEnergyCoefficient = std::pow(
-                    slowEnergyCoefficient_,
-                    static_cast<double>(frameCount));
-                smoothedSlowEnergy_ = hasSlowEnergyEstimate_
-                    ? slowEnergyCoefficient * smoothedSlowEnergy_ +
-                        (1.0 - slowEnergyCoefficient) * blockEnergy
-                    : blockEnergy;
-                hasSlowEnergyEstimate_ = true;
+                    std::log10(std::max(smoothedFastEnergy_, kSilenceEnergy));
 
                 const auto slowMeasuredDb = 10.0 *
-                    std::log10(smoothedSlowEnergy_);
+                    std::log10(std::max(smoothedSlowEnergy_, kSilenceEnergy));
                 const auto desiredSlowGainDb = std::clamp(
                     targetDb_.CurrentValue() - slowMeasuredDb,
                     kMinimumGainDb,
@@ -168,12 +179,8 @@ void LevelerProcessor::Process(
                 nextSlowGainDb = slowCoefficient * slowGainDb_ +
                     (1.0 - slowCoefficient) * desiredSlowGainDb;
 
-                const auto desiredFastGainDb = std::clamp(
-                    targetDb_.CurrentValue() - fastMeasuredDb,
-                    kMinimumGainDb,
-                    kMaximumGainDb);
                 desiredFastCorrectionDb = std::clamp(
-                    desiredFastGainDb - nextSlowGainDb,
+                    slowMeasuredDb - fastMeasuredDb,
                     -kMaximumFastCorrectionDb,
                     kMaximumFastCorrectionDb);
             }
@@ -186,7 +193,8 @@ void LevelerProcessor::Process(
                 kMaximumGainDb - nextSlowGainDb);
             const auto fastCoefficient = std::exp(
                 -static_cast<double>(frameCount) /
-                fastTimeConstantSamples_);
+                (fastTimeConstantSamples_ *
+                    (desiredFastCorrectionDb > fastCorrectionDb_ ? 2.0 : 1.0)));
             nextFastCorrectionDb = std::clamp(
                 fastCoefficient * fastCorrectionDb_ +
                     (1.0 - fastCoefficient) * desiredFastCorrectionDb,

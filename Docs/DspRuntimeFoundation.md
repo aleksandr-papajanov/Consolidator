@@ -49,15 +49,14 @@ SaturatorProcessor
 CompressorParallelStage
   -> dry path
   -> wet path: internal detector EQ
-       -> transient shaper (attack, sustain)
        -> compression
+       -> fresh detector EQ -> transient shaper (attack, sustain, autogain)
        -> compressor output gain
-  -> dry + wet when parallel is enabled
+  -> 50/50 dry/wet when parallel is enabled
 EqualizerProcessor
 PolishProcessor
-  -> Thick branch
-  -> Air branch
-  -> equal 50/50 branch mix
+  -> Thick: add filtered bass harmonics
+  -> Air: add dynamically controlled upper harmonics
 OutputProcessor
   -> output level
   -> limiter
@@ -74,8 +73,9 @@ has no registry lookup or allocation. `DspProcessor` is the lifecycle and
 processing contract. Width and the four explicit level/output gain stages are
 implemented. Leveler is the first dynamics algorithm. Detector equalization and
 the main Equalizer are implemented with Native biquad cascades. Saturation,
-transient shaping, compression, Polish coloration and limiting retain identity
-behavior inside their final routing positions.
+transient shaping, adaptive compression, Polish Thick/Air and sample-peak limiting
+have native algorithms. Adaptive compression is specified separately in
+[`AdaptiveCompression.md`](AdaptiveCompression.md).
 
 ## Execution policy
 
@@ -95,7 +95,7 @@ The policy defines these graph-wide decisions:
   process both lanes;
 - `inputLeveler` gates the separate `LevelerProcessor`;
 - `saturatorSplit` selects the bounded frequency-band dispatch contract;
-- `compressorParallel` preserves dry audio and adds the processed wet branch;
+- `compressorParallel` selects a normalized 50/50 dry/wet mix;
 - `outputLimiter` gates the separate `LimiterProcessor`.
 
 The policy is derived orchestration state, not a second parameter source.
@@ -116,8 +116,9 @@ protocol output or UI activity, and applies it to that graph. Processor history,
 envelopes and other realtime state therefore remain continuous across parameter
 publications. `SetParameters(snapshot)` is realtime-safe: it may update scalar
 targets or select precompiled immutable data, but may not allocate, lock, log,
-or rebuild unbounded state. `Reset()` is reserved for an explicit audio
-lifecycle reset.
+or rebuild unbounded state. `Reset()` runs on an explicit audio lifecycle reset
+or once after a device's wet-to-dry transition finishes, so stale detector and
+filter history is not resumed after inactivity.
 
 `ProcessBlock()` is realtime code. It accepts caller-owned main buffers;
 detector views are created only inside device processors from preallocated
@@ -147,10 +148,8 @@ describes where a processor is allowed to act. Ranges are validated and copied
 before audio processing and are bounded to the prepared Nyquist frequency, so
 the audio callback never allocates or parses range data.
 
-The foundation deliberately does not perform channel splitting, crossover,
-FFT, or band-limited processing yet. Those algorithms must consume the plan
-inside a concrete processor and preserve the same no-allocation realtime
-contract.
+Arbitrary frequency-plan selection is not yet implemented by the algorithms.
+Saturator Split uses its own fixed complementary crossovers. DSP performs no FFT.
 
 ## Sidechain and parallel processing
 
@@ -161,32 +160,31 @@ preallocated buffers, applies its detector EQ there, and exposes the result as a
 read-only control signal. The listening algorithm modifies only the main path;
 detector EQ audio is never mixed into the output.
 
-`DspParallelStage` owns preallocated compressor branch buffers. It preserves the
-dry signal, runs the complete detector/transient/compression/output chain on the
-wet branch, then adds wet to dry. Because compressor output gain runs before the
-sum, it controls how much compressed signal is added. Without parallel mode the
-same complete compressor chain processes main audio in place.
+`DspParallelStage` owns preallocated branch buffers and a 10 ms wet ramp.
+Saturator, Compressor and Polish each use a stage to crossfade activity and
+device bypass. A processor is skipped only after its wet ramp reaches zero.
+Compressor's target is 0.5 in Parallel and 1 otherwise; Output gain runs on the
+wet branch before interpolation. Identical unity branches therefore preserve
+unity in both modes.
 
-Polish owns two separate preallocated copies of its input. Thick and Air process
-their own branches and are mixed 50/50. Equal averaging is the current explicit
-unity-safe policy: two identity branches reproduce the input instead of doubling
-it. Enabling either parallel topology must never allocate on the audio thread.
+Polish applies Thick followed by Air. Each processor adds only its own generated
+contribution to dry audio, so there is no averaging that halves either effect.
+Polish itself needs no copied branch buffers; only its graph activity stage
+owns preallocated dry/wet storage.
 
 The processing frame carries the current internal detector route. Input,
 Saturator and Compressor each own a `DetectorProcessor` with preallocated output
 buffers and their corresponding pair of detector-filter snapshot slots. Input
 captures after Width and before the Leveler-controlled Input Gain, Saturator captures its device input, and
-Compressor captures the wet-branch input before transient shaping. Each detector
+Compressor captures the wet-branch input for compression and separately
+captures after compression/makeup for transient shaping. Each detector
 applies its LowShelf and Bell cascade only to those owned buffers; the main audio
 remains separate.
 
 `DspProcessingPrimitives.h` provides reusable boundaries for future devices:
 `SelectChannels` selects allowed lanes, `DspFrequencyBandRunner` iterates
-selected ranges without audio-thread allocation, and `DspParallelMixer`
-defines the compressor wet-into-dry sum. The leveler, compressor, and Polish
-topology is represented by separate processor slots and routing boundaries.
-Crossovers, coloration, compression, and limiting remain identity algorithm
-slots until their transfer functions are implemented.
+selected ranges without audio-thread allocation. The leveler, compressor, and
+Polish topology is represented by separate processor slots and routing boundaries.
 
 ## Parameter policy
 
@@ -212,9 +210,39 @@ after the ten-millisecond transition it calculates the static linear gain only
 once per block. Saturator output, Compressor output and final Output level use
 `DspGainRamp`, which delegates sample progression to `DspParameterRamp`. A
 transition back to neutral continues until unity is reached even after Managed
-clears the input activity marker. When an inactive processor is skipped, its
-scalar ramps are synchronized to their new targets so later reactivation cannot
-resume stale parameter state.
+clears the input activity marker. Saturator, Compressor and Polish continue
+processing through their wet-to-dry transition before resetting runtime history.
+
+## Transient shaper
+
+The transient shaper uses the compressor's private detector signal as a linked
+control envelope and never analyzes the already modified main output. A common
+5 ms RMS envelope feeds symmetric 2 ms and 25 ms followers. Both followers have
+the same DC gain, avoiding the unequal peak bias of asymmetric detectors.
+
+Attack uses 1.25 times the fast/slow envelope difference in dB, up to 7.5 dB.
+Sustain has its own 120 ms reference and uses 1.5 times its positive difference
+above the fast envelope, up to 9 dB. Both knobs scale their contribution linearly,
+making intermediate positions more pronounced. The longer sustain reference
+extends enhancement into the tail instead of sharing the 25 ms attack reference.
+A gate on the smoothed RMS envelope
+closes at -90 dBFS and opens 6 dB higher; individual zero crossings do not switch
+the controller. Both
+controls use the common parameter ramps, while the derived dB gain uses
+sample-rate-independent `1 ms` attack and `50 ms` release smoothing before one
+linked gain is applied to the selected channels. Neutral Attack and Sustain
+therefore preserve unity, and channels excluded by the processing plan neither
+affect nor receive the linked gain.
+
+Transient shaping runs after compression and its makeup, so its enhanced
+envelope is not immediately compressed again. Its own detector measures that
+post-compression signal. Transient shaping and Saturator each own a linked
+partial RMS autogain: 1 second pre/post energy estimates, 2 second correction
+smoothing, 50% compensation in dB, limited to +/-3 dB. Learning freezes below
+-100 dBFS input energy. Measurements exclude autogain and manual Output gain.
+Saturator scales compensation by Drive; transient shaping uses its activity ramp.
+Zero amount restores exact unity compensation. Slow partial compensation
+reduces loudness bias while retaining short-term envelope changes.
 
 ## Leveler
 
@@ -223,13 +251,16 @@ after Width and before the shared Input Gain stage. The detector therefore never
 observes the correction that it controls. The slow path uses a continuous
 1.5-second energy estimate and a six-second gain controller to establish the
 long-term average shown by the Input Level control. The independent fast path
-uses a 250-millisecond energy estimate and a 400-millisecond gain controller.
+uses a 250-millisecond energy estimate and a gain controller with 400 ms
+downward and 800 ms upward response.
 Its correction is added over the slow level and limited to `-6..6 dB`, so it can
-follow medium-term motion without behaving like a peak compressor. As the slow
-path reaches the average, the fast correction naturally returns to zero.
-The slow path has a detector gate rather than an audio gate: blocks at or below
-`-60 dBFS` stop changing its energy estimate and gain, and signal at or above
-`-57 dBFS` opens it again. The 3 dB hysteresis prevents threshold chatter. This
+follow medium-term motion without behaving like a peak compressor. Fast correction
+is the difference between slow and fast measured levels, not the unfulfilled
+correction of the slow gain controller. It returns to zero on a steady source.
+The slow path has a detector gate rather than an audio gate: a continuous 50 ms
+RMS estimate closes below -60 dBFS after a 200 ms hold and opens at -57 dBFS.
+The gate and energy estimates advance per sample independently of host block
+partitioning; gain targets still update once per block. This
 gate never mutes or attenuates audio. When it closes, the fast detector also
 stops learning and its correction returns smoothly to `0 dB` through the
 400-millisecond controller. Pauses therefore retain the slow Level value
@@ -254,9 +285,73 @@ Input Level knob. The fast telemetry value is the separately applied overlay,
 not an absolute gain. It stays within `-6..6 dB` and returns toward zero around
 the slow controller's moving operating point.
 
+## Saturator
+
+The Saturator derives a linked 500 ms energy estimate from the maximum absolute
+selected detector channel. The reference amplitude is sqrt(2 * energy), with
+learning held on samples below -120 dBFS. Main audio is divided by that
+reference before shaping and multiplied by it afterward. The startup average
+is divided by its accumulated exponential weight, avoiding an underestimated
+reference inherited from the first sample. Scaling
+the same waveform up or down therefore scales the output without materially
+changing its nonlinear proportion. Detector EQ can deliberately bias which
+content establishes the operating level, but detector audio is never mixed into
+the main path.
+
+The smooth odd transfer family is:
+
+```text
+k = 0.75 + 1.25 * Curve
+Shape(x) = sqrt(1 + k*k) * x / sqrt(1 + k*k*x*x)
+```
+
+Curve changes the knee and harmonic proportions, including at zero Curve.
+The static curve preserves +/-1 and has a soft asymptotic continuation outside
+that range. Drive blends the nonlinear contribution; zero Drive is identity.
+First-order antiderivative antialiasing (ADAA) integrates the nonlinear residual
+Shape(x)-x between adjacent samples, retaining the current dry sample. Its
+antiderivative difference is rationalized to avoid small-difference cancellation.
+The current reference and Curve evaluate both endpoints, so parameter changes
+are not mistaken for sample differences. This reduces nonlinear aliasing without
+delaying the dry path, but is not alias-free, a brick-wall limiter, or an exact
+preserver of transient peaks. Saturator Output remains a separate post-shaper gain.
+
+When `saturatorSplit` is enabled, the signal is decomposed into three
+complementary bands using fixed low/mid crossover points at `250 Hz` and
+`2500 Hz`. Low, mid and high are processed independently by the same transfer
+function and then recombined. A ten-millisecond interpolation between full-band
+and split processing prevents a mode switch from exposing reset filter history
+as a click. The split path owns only scalar filter history, so it does not
+allocate on the audio thread. With neutral Drive, both paths reproduce
+the original signal apart from normal floating point round-off.
+
+## Output limiter
+
+The limiter is the final audio operation after Output gain. It measures the
+largest selected-channel sample, applies instantaneous linked reduction, then
+clamps each selected output sample to +/-10^(ceilingDb/20). Lowering Target
+applies the new ceiling immediately when its snapshot is consumed; raising it
+uses the 10 ms ramp. While enabled, finite output samples cannot exceed the
+requested Target, including during its automation. Reduction releases over
+80 ms. It allocates no buffers and adds no lookahead latency.
+This is a sample-peak ceiling, not a true-peak limiter; intersample peaks and
+distortion from large instantaneous corrections remain possible. Turning the
+limiter off releases its current reduction before the graph stops processing it;
+the final clamp is disabled. Output bypass and instance bypass preserve their
+existing bypass semantics and do not apply the ceiling.
+
+## Air shimmer
+
+Thick generates filtered bass harmonics from a 120 Hz low-pass source. Air
+generates upper harmonics from a 3–8 kHz source, with dynamic attenuation and
+subtle stereo-side enhancement. Their signal paths, normalization, ADAA and
+limitations are specified in [`PolishHarmonics.md`](PolishHarmonics.md).
+
 ## Testing contract
 
-The native foundation tests verify:
+The existing native tests predate the latest adaptive DSP changes. They have
+not been updated or executed for this revision at the user's request. The
+following list describes prior coverage, not verification of the new algorithms:
 
 - preparation retains sample rate and maximum frame count;
 - the complete identity graph preserves main audio;
@@ -279,6 +374,12 @@ The native foundation tests verify:
 - compressor parallel processing applies output gain before adding wet to dry;
 - compressor parallel summing leaves channels excluded by the plan untouched;
 - neutralizing and reactivating Saturator does not restore stale output gain;
+- neutral drive and curve preserve audio while positive drive applies the curve
+  to both signal polarities;
+- split low/mid/high bands recombine to unity with a neutral curve;
+- neutral transient shaping preserves unity and positive Attack enhances a
+  linked stereo transient;
+- positive Air produces a finite non-identity shimmer response;
 - equal Thick/Air identity branches preserve unity.
 
 Additional audio algorithms, latency validation, and Max host integration are

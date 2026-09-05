@@ -5,6 +5,9 @@ function routeBankManagerIntent(controller, name, values)
     case "bankSelected":
         controller.selectBank(values[0], values[1], Number(values[2]) !== 0);
         break;
+    case "bankDragSelected":
+        controller.selectBank(values[0], values[1], true);
+        break;
     case "panelSelected": controller.selectPanel(values[0]); break;
     case "processorSelected": controller.selectProcessor(values[0], values[1]); break;
     case "rowSelected": controller.selectRow(values[0]); break;

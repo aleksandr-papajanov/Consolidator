@@ -74,7 +74,9 @@ detector signals from the current main audio at their positions in the graph.
 
 Native processors apply the shared 10 ms parameter ramp to the continuous
 scalar controls they consume. Discrete bypass, active, audibility, bank, and
-filter markers update graph policy immediately. Detector and Equalizer filter
+filter markers update graph policy immediately. Saturator, Compressor and
+Polish crossfade wet/dry over 10 ms before being skipped. Timing selector
+changes also ramp the compressor's internal time constants. Detector and Equalizer filter
 changes compile stable Native cascades and crossfade old and new filter outputs
 over 10 ms rather than using the generic scalar ramp or interpolating raw
 coefficients.

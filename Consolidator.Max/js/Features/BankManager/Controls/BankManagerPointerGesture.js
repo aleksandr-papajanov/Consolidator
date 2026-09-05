@@ -1,9 +1,10 @@
 class BankManagerPointerGesture
 {
-    constructor(enabled, selectAt, scrollByPointer, emit)
+    constructor(enabled, selectAt, selectDragAt, scrollByPointer, emit)
     {
         this.enabled = enabled;
         this.selectAt = selectAt;
+        this.selectDragAt = selectDragAt;
         this.scrollByPointer = scrollByPointer;
         this.emit = emit;
         this.pointerDown = false;
@@ -13,6 +14,7 @@ class BankManagerPointerGesture
         this.shift = false;
         this.dragging = false;
         this.lastY = 0;
+        this.visitedSelections = new Set();
     }
 
     begin(x, y, shift)
@@ -24,11 +26,16 @@ class BankManagerPointerGesture
         this.pointerY = y;
         this.shift = Number(shift) !== 0;
         this.dragging = false;
+        this.visitedSelections.clear();
     }
 
-    markClickHandled()
+    markClickHandled(selectionKey)
     {
         this.clickHandled = true;
+        if (selectionKey !== undefined && selectionKey !== null)
+        {
+            this.visitedSelections.add(selectionKey);
+        }
     }
 
     move(x, y)
@@ -42,7 +49,18 @@ class BankManagerPointerGesture
             this.lastY = this.pointerY;
             this.emit("gestureBegan");
         }
-        this.scrollByPointer(this.lastY - y);
+        if (this.shift)
+        {
+            let selectionKey = this.selectDragAt(x, y, this.visitedSelections);
+            if (selectionKey !== undefined && selectionKey !== null)
+            {
+                this.visitedSelections.add(selectionKey);
+            }
+        }
+        else
+        {
+            this.scrollByPointer(this.lastY - y);
+        }
         this.lastY = y;
     }
 
@@ -66,6 +84,7 @@ class BankManagerPointerGesture
         this.shift = false;
         this.clickHandled = false;
         this.dragging = false;
+        this.visitedSelections.clear();
     }
 }
 

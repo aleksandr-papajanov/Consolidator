@@ -15,10 +15,10 @@ class BankManagerHitActions
     selectAction(presentation, layout, x, y)
     {
         let options = BankManagerControlOptions;
+        let step = options.actionButtonHeight + options.actionGap;
         if (x < layout.actionsColumnX() ||
                 x >= layout.actionsColumnX() + options.actionColumnWidth ||
                 y < 0 || y >= layout.height) return false;
-        let step = options.actionButtonHeight + options.actionGap;
         let actionGroupHeight = layout.actionGroupHeight();
         if (y < actionGroupHeight) {
             let index = Math.floor(y / step);
@@ -27,13 +27,15 @@ class BankManagerHitActions
                 presentation.groupAction,
                 presentation.ungroupAction,
                 presentation.clearAction,
-                presentation.scopeAction
+                presentation.scopeAction,
+                { enabled: true }
             ][index];
             if (action && action.enabled) {
                 let keys = ["group", "ungroup", "clear"];
                 if (index < keys.length) this.feedback.flashAction(keys[index]);
                 this.emit(["groupRequested", "ungroupRequested",
-                    "clearRequested", "scopeToggled"][index]);
+                    "clearRequested", "scopeToggled",
+                    "editPrecisionToggled"][index]);
             }
             return true;
         }
@@ -103,10 +105,18 @@ class BankManagerHitActions
         return true;
     }
 
-    selectBank(row, bank, extendSelection, controlClick)
+    selectBank(
+        row,
+        bank,
+        extendSelection,
+        controlClick,
+        dragSelection,
+        visitedSelections)
     {
         if (!bank.visible || !bank.enabled) return;
         let clickKey = "bank:" + row.instanceId + ":" + bank.bankId;
+        if (dragSelection && visitedSelections &&
+                visitedSelections.has(clickKey)) return clickKey;
         if (controlClick) {
             if (this.doubleClick.isDoubleClick(clickKey)) {
                 this.emit("bankResetRequested", [row.instanceId, bank.bankId]);
@@ -120,9 +130,10 @@ class BankManagerHitActions
             this.redraw();
             return;
         }
-        this.emit("bankSelected",
+        this.emit(dragSelection ? "bankDragSelected" : "bankSelected",
             [row.instanceId, bank.bankId, extendSelection ? 1 : 0]);
         this.doubleClick.isDoubleClick(clickKey);
+        return clickKey;
     }
 }
 

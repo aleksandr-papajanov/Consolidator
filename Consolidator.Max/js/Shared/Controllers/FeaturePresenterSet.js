@@ -2,6 +2,7 @@ const { DialPresenter } = require("../Controls/Dial/DialPresenter.js");
 const { ButtonPresenter } = require("../Controls/Button/ButtonPresenter.js");
 const { MultiValueTogglePresenter } = require("../Controls/MultiValueToggle/MultiValueTogglePresenter.js");
 const { bindPresentation } = require("../Presenters/PresentationBinding.js");
+const { uiEditPrecision } = require("../ViewModels/UiEditPrecision.js");
 
 class FeaturePresenterSet
 {
@@ -20,6 +21,7 @@ class FeaturePresenterSet
                 color: options.color
             }].concat(options.rings || []),
             scope: this.scope,
+            precisionMode: uiEditPrecision,
             enabled: this.sourceProperty(source, "enabled", true),
             loading: this.sourceProperty(source, "loading", false)
         });

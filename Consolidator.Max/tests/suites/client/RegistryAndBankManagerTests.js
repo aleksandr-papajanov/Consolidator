@@ -624,6 +624,40 @@ function testBankManagerUsesRegistryAndLocalInstance() {
   assert.strictEqual(vm.ungroupAction.enabled, true);
   vm.destroy();
 }
+function testBankManagerSelectsScopeFromFocusedBank() {
+  var protocol = new NativeProtocolClient("ui.main", function () {});
+  var registry = new RegistryClient(protocol);
+  var scope = new UiEditScope();
+  var vm = new BankManagerViewModel(registry, "local", null, scope);
+  registry.snapshot = {
+    revision: 1,
+    instances: [{
+      instanceId: "local",
+      label: "Local",
+      banks: [
+        { bankId: 0, groupId: null },
+        { bankId: 1, groupId: 2, color: [1, 0, 0, 1] },
+      ],
+    }],
+    groups: [{ groupId: 2, members: [{ instanceId: "local", bankId: 1 }] }],
+  };
+  vm.applyRegistrySnapshot(registry.snapshot);
+
+  vm.setFocusedBank("local", 0);
+  assert.strictEqual(scope.mode, "local");
+  assert.strictEqual(scope.enabled, false);
+
+  vm.setFocusedBank("local", 1);
+  assert.strictEqual(scope.mode, "group");
+  assert.strictEqual(scope.enabled, true);
+  scope.toggle();
+  assert.strictEqual(scope.mode, "local");
+
+  vm.setFocusedBank("local", 0);
+  assert.strictEqual(scope.mode, "local");
+  assert.strictEqual(scope.enabled, false);
+  vm.destroy();
+}
 function testBankManagerOffersNextGroupId() {
   var protocol = new NativeProtocolClient("ui.main", function () {});
   var registry = new RegistryClient(protocol);
@@ -851,6 +885,7 @@ testStateClientEncodesZeroBasedBankPath();
 testBankManagerUsesRegistryAndLocalInstance();
 testBankManagerOffersNextGroupId();
 testBankManagerKeepsOneFocusedBankAcrossInstances();
+testBankManagerSelectsScopeFromFocusedBank();
 testBankManagerControllerLocalAndRemoteSelection();
 testBankManagerControllerShiftOnlyTogglesSelection();
 testBankManagerControllerSendsRelativeInstanceControlScopes();

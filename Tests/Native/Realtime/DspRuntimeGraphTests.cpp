@@ -142,6 +142,75 @@ bool RunDspRuntimeGraphTests()
             left[3] < originalLeft[3] * expectedGain,
         "Input level did not begin a smooth dB gain ramp.");
 
+    consolidator::max::dsp::DspRuntimeGraph saturatorGraph;
+    saturatorGraph.Prepare(1000.0, 4);
+    auto saturatorSnapshot = identitySnapshot;
+    saturatorSnapshot.saturatorActive = 1;
+    saturatorSnapshot.saturatorDrive = 0.0F;
+    saturatorSnapshot.saturatorCurve = 0.0F;
+    saturatorGraph.SetParameters(saturatorSnapshot);
+    std::array<double, 4> saturatorLeft{ 0.5, 1.0, -0.5, -1.0 };
+    std::array<double, 4> saturatorRight = saturatorLeft;
+    saturatorGraph.ProcessBlock(
+        saturatorLeft.data(),
+        saturatorRight.data(),
+        saturatorLeft.size());
+    succeeded &= Expect(
+        saturatorLeft[0] == 0.5 &&
+            saturatorLeft[1] == 1.0 &&
+            saturatorLeft[2] == -0.5 &&
+            saturatorLeft[3] == -1.0,
+        "Saturator changed audio when its input drive was neutral.");
+
+    saturatorSnapshot.saturatorDrive = 0.5F;
+    saturatorGraph.SetParameters(saturatorSnapshot);
+    saturatorLeft = { 0.5, 1.0, -0.5, -1.0 };
+    saturatorRight = saturatorLeft;
+    saturatorGraph.ProcessBlock(
+        saturatorLeft.data(),
+        saturatorRight.data(),
+        saturatorLeft.size());
+    succeeded &= Expect(
+        saturatorLeft[0] > 0.5 &&
+            saturatorLeft[1] > 1.0 &&
+            saturatorLeft[2] < -0.5 &&
+            saturatorLeft[3] < -1.0,
+        "Saturator drive did not apply the curve to both signal polarities.");
+
+    for (auto block = 1; block < 120; ++block)
+    {
+        saturatorLeft = { 0.5, 1.0, -0.5, -1.0 };
+        saturatorRight = saturatorLeft;
+        saturatorGraph.ProcessBlock(
+            saturatorLeft.data(),
+            saturatorRight.data(),
+            saturatorLeft.size());
+    }
+    succeeded &= Expect(
+        std::abs(saturatorLeft[1] - 1.0) < 1.0e-9 &&
+            saturatorLeft[0] > 0.5 &&
+            saturatorLeft[3] < -0.5,
+        "Saturator peak compensation did not preserve the normalized peak.");
+
+    saturatorSnapshot.saturatorCurve = 0.0F;
+    saturatorSnapshot.saturatorSplit = 1;
+    saturatorGraph.SetParameters(saturatorSnapshot);
+    for (auto block = 0; block < 120; ++block)
+    {
+        saturatorLeft = { 0.25, 0.75, -0.25, -0.75 };
+        saturatorRight = saturatorLeft;
+        saturatorGraph.ProcessBlock(
+            saturatorLeft.data(),
+            saturatorRight.data(),
+            saturatorLeft.size());
+    }
+    succeeded &= Expect(
+        std::abs(saturatorLeft[0] - 0.25) < 1.0e-9 &&
+            std::abs(saturatorLeft[1] - 0.75) < 1.0e-9 &&
+            std::abs(saturatorLeft[2] + 0.25) < 1.0e-9 &&
+            std::abs(saturatorLeft[3] + 0.75) < 1.0e-9,
+        "Saturator split bands did not recombine to the original signal.");
+
     for (auto block = 1; block < 120; ++block)
     {
         left = originalLeft;
@@ -285,6 +354,42 @@ bool RunDspRuntimeGraphTests()
                     ((1.0 + compressorWetGain) * finalOutputGain)) < 1.0e-9,
         "Compressor output was not applied before its parallel sum and final output level.");
 
+    consolidator::max::dsp::DspRuntimeGraph transientGraph;
+    transientGraph.Prepare(1000.0, 8);
+    auto neutralTransientSnapshot = identitySnapshot;
+    neutralTransientSnapshot.compressorActive = 1;
+    neutralTransientSnapshot.compressorAttack = 0.0F;
+    neutralTransientSnapshot.compressorSustain = 0.0F;
+    transientGraph.SetParameters(neutralTransientSnapshot);
+    std::array<double, 8> transientLeft{};
+    std::array<double, 8> transientRight{};
+    transientLeft.fill(0.25);
+    transientRight.fill(0.25);
+    transientGraph.ProcessBlock(
+        transientLeft.data(),
+        transientRight.data(),
+        transientLeft.size());
+    succeeded &= Expect(
+        transientLeft[0] == 0.25 && transientRight[0] == 0.25,
+        "Neutral transient shaper changed the input signal.");
+
+    auto attackSnapshot = neutralTransientSnapshot;
+    attackSnapshot.compressorAttack = 1.0F;
+    transientGraph.SetParameters(attackSnapshot);
+    transientLeft.fill(0.0);
+    transientRight.fill(0.0);
+    transientLeft[0] = 1.0;
+    transientRight[0] = 1.0;
+    transientGraph.ProcessBlock(
+        transientLeft.data(),
+        transientRight.data(),
+        transientLeft.size());
+    succeeded &= Expect(
+        transientLeft[0] > 1.0 &&
+            transientRight[0] > 1.0 &&
+            transientLeft[0] == transientRight[0],
+        "Attack transient shaping did not enhance the linked stereo transient.");
+
     consolidator::max::dsp::DspRuntimeGraph reactivationGraph;
     reactivationGraph.Prepare(1000.0, 10);
     auto activeSaturatorSnapshot = identitySnapshot;
@@ -345,6 +450,33 @@ bool RunDspRuntimeGraphTests()
     succeeded &= Expect(
         left[0] == 1.0 && right[0] == -1.0,
         "The equal Thick/Air branch mix did not preserve unity for identity processing.");
+
+    consolidator::max::dsp::DspRuntimeGraph airGraph;
+    airGraph.Prepare(48000.0, 64);
+    auto airSnapshot = identitySnapshot;
+    airSnapshot.polishAir = 1.0F;
+    airSnapshot.polishBypass = 0;
+    airGraph.SetParameters(airSnapshot);
+    std::array<double, 64> airLeft{};
+    std::array<double, 64> airRight{};
+    double airDifference = 0.0;
+    for (auto block = 0; block < 80; ++block)
+    {
+        airLeft.fill(0.0);
+        airRight.fill(0.0);
+        airLeft[0] = 1.0;
+        airRight[0] = 1.0;
+        airGraph.ProcessBlock(
+            airLeft.data(),
+            airRight.data(),
+            airLeft.size());
+        airDifference += std::abs(airLeft[0] - 1.0);
+    }
+    succeeded &= Expect(
+        airDifference > 1.0e-6 &&
+            std::isfinite(airLeft[0]) &&
+            std::isfinite(airRight[0]),
+        "Air shimmer did not produce a finite high-frequency wet response.");
 
     consolidator::max::dsp::DspRuntimeGraph channelGraph;
     channelGraph.Prepare(48000.0, 4);

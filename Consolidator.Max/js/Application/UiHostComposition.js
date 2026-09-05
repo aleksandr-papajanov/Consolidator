@@ -19,10 +19,13 @@ const { BankManagerController } = require(
 const { BankManagerContext } = require(
     "../Features/BankManager/Controllers/BankManagerContext.js");
 const { ControlBindings } = require("../Shared/Bindings/ControlBindings.js");
+const { uiEditPrecision } = require(
+    "../Shared/ViewModels/UiEditPrecision.js");
 
 function createUiHostComponents(host, source, sendNative)
 {
     host.client = new ConsolidatorClient(source, sendNative);
+    host.editPrecision = uiEditPrecision;
     host.viewModel = new ConsolidatorViewModel(host.client.uiTarget);
     host.equalizer = new EqualizerController(host.viewModel, host.client.scope);
     host.compressor = new CompressorController(host.viewModel, host.client.scope);
@@ -30,6 +33,18 @@ function createUiHostComponents(host, source, sendNative)
     host.polish = new PolishController(host.viewModel, host.client.scope);
     host.input = new InputController(host.viewModel.input, host.client.scope);
     host.output = new OutputController(host.viewModel.output, host.client.scope);
+
+    [host.equalizer, host.compressor, host.saturator, host.polish,
+        host.input, host.output].forEach((controller) => {
+        controller.presenters.forEach((name, presenter) => {
+            presenter.options.precisionMode = host.editPrecision;
+        });
+    });
+    [host.equalizer, host.compressor, host.saturator, host.input].forEach(
+        (controller) => {
+            controller.analyzer.presenter.parameterEditor.precisionMode =
+                host.editPrecision;
+        });
 
     host.equalizer.analyzer.presenter.connectSpectrum(host.client.protocol);
     host.compressor.analyzer.presenter.connectSpectrum(host.client.protocol);

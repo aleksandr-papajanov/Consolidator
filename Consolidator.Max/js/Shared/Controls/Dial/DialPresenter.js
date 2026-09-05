@@ -6,6 +6,7 @@ const { subscribePresentationBinding } = require("../../Presenters/PresentationB
 const { DialPresentation } = require("./DialPresentation.js");
 const { DialRingBuilder } = require("./DialRingBuilder.js");
 const { resetDialValue, writeDialValue } = require("./DialValueEditor.js");
+const { uiEditPrecision } = require("../../ViewModels/UiEditPrecision.js");
 
 class DialPresenter extends PresentationObservable
 {
@@ -136,12 +137,13 @@ class DialPresenter extends PresentationObservable
         let configuration = (this.options.rings || [])[ringIndex];
         let ring = this.presentation && this.presentation.rings[ringIndex];
         let mapping = this.ringMappings[ringIndex];
-        writeDialValue(
+        return writeDialValue(
             configuration,
             ring,
             mapping,
             normalizedValue,
-            transactionId
+            transactionId,
+            this.options.precisionMode || uiEditPrecision
         );
     }
     

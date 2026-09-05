@@ -40,6 +40,7 @@ class BankManagerControlCore
             this.feedback
         );
         this.renderer = new BankManagerRenderer();
+        this.editPrecisionRough = false;
     }
 
     get presentation()
@@ -63,7 +64,8 @@ class BankManagerControlCore
             this.graphics,
             this.presentation,
             this.interaction.layout(),
-            this.feedback
+            this.feedback,
+            this.editPrecisionRough
         );
     }
 
@@ -107,9 +109,17 @@ class BankManagerControlCore
         this.interaction.scrollBy(delta);
     }
 
-    selectAt(x, y, extendSelection, controlClick)
+    selectAt(
+        x,
+        y,
+        extendSelection,
+        controlClick,
+        dragSelection,
+        visitedSelections)
     {
-        this.interaction.selectAt(x, y, extendSelection, controlClick);
+        return this.interaction.selectAt(
+            x, y, extendSelection, controlClick, dragSelection,
+            visitedSelections);
     }
 
     beginPointer(x, y, shift)
@@ -190,6 +200,12 @@ class BankManagerControlCore
     setSelectedPanel(panel)
     {
         this.presentationState.setSelectedPanel(panel);
+    }
+
+    setEditPrecision(value)
+    {
+        this.editPrecisionRough = Number(value) !== 0;
+        this.graphics.redraw();
     }
 
     endPresentation()

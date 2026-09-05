@@ -22,6 +22,7 @@ const ConsolidatorControlMapping = {
     saturatorOutput: "saturator_output",
     polishThick: "polish_thick",
     polishAir: "polish_air",
+    editPrecision: "edit_precision",
     bankManager: "bank_manager"
 };
 

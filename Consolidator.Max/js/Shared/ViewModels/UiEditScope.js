@@ -25,6 +25,19 @@ class UiEditScope
         if (changed) this.notify();
     }
 
+    selectBankContext(grouped, color)
+    {
+        let nextEnabled = Boolean(grouped);
+        let nextMode = nextEnabled ? "group" : "local";
+        let nextColor = nextEnabled ? color : null;
+        let changed = this.enabled !== nextEnabled ||
+            this.mode !== nextMode || this.color !== nextColor;
+        this.enabled = nextEnabled;
+        this.mode = nextMode;
+        this.color = nextColor;
+        if (changed) this.notify();
+    }
+
     toggle()
     {
         if (!this.enabled) return;

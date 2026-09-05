@@ -101,6 +101,10 @@ class DialRingBuilder
             mapping: {
                 physicalMinimum: physicalMinimum,
                 physicalMaximum: physicalMaximum,
+                suffix: configuration.suffix === undefined
+                    ? valueModel.suffix : configuration.suffix,
+                unit: configuration.unit === undefined
+                    ? valueModel.unit : configuration.unit,
                 physicalStep: this.readNumber(
                     configuration.physicalStep,
                     this.readNumber(valueModel.physicalStep, 0)

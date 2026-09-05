@@ -17,6 +17,8 @@ class BankManagerInteraction
         this.pointer = new BankManagerPointerGesture(
             () => Boolean(this.getPresentation().enabled),
             (x, y, shift, control) => this.selectAt(x, y, shift, control),
+            (x, y, visitedSelections) => this.selectAt(
+                x, y, true, false, true, visitedSelections),
             (delta) => this.scrollBy(delta),
             emit
         );
@@ -45,7 +47,13 @@ class BankManagerInteraction
         }
     }
 
-    selectAt(pointerX, pointerY, extendSelection, controlClick)
+    selectAt(
+        pointerX,
+        pointerY,
+        extendSelection,
+        controlClick,
+        dragSelection,
+        visitedSelections)
     {
         let options = BankManagerControlOptions;
         let size = this.getViewportSize();
@@ -68,8 +76,9 @@ class BankManagerInteraction
         if (this.actions.selectInstance(row, layout, x, extendSelection)) return;
         let bankIndex = layout.bankAt(row, x);
         if (bankIndex >= 0) {
-            this.actions.selectBank(
-                row, row.banks[bankIndex], extendSelection, controlClick);
+            return this.actions.selectBank(
+                row, row.banks[bankIndex], extendSelection, controlClick,
+                dragSelection, visitedSelections);
         }
         else {
             this.emit("rowSelected", [row.instanceId]);
@@ -77,7 +86,10 @@ class BankManagerInteraction
     }
 
     beginPointer(x, y, shift) { this.pointer.begin(x, y, shift); }
-    markClickHandled() { this.pointer.markClickHandled(); }
+    markClickHandled(selectionKey)
+    {
+        this.pointer.markClickHandled(selectionKey);
+    }
     movePointer(x, y) { this.pointer.move(x, y); }
     endPointer(x, y) { this.pointer.end(x, y); }
     cancelPointer() { this.pointer.cancel(); }

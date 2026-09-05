@@ -137,6 +137,7 @@
     <ClInclude Include="External\Transport\AtomCodec.h" />
     <ClInclude Include="External\Dsp\DspExecution.h" />
     <ClInclude Include="External\Dsp\DspBiquad.h" />
+    <ClInclude Include="External\Dsp\DspExciterPrimitives.h" />
     <ClInclude Include="External\Dsp\DspProcessingPrimitives.h" />
     <ClInclude Include="External\Dsp\DspParallelStage.h" />
     <ClInclude Include="External\Dsp\DspParameterRamp.h" />

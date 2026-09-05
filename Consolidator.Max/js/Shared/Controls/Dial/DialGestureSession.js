@@ -27,7 +27,7 @@ class DialGestureSession
             this.pendingValue = [index, value];
             return;
         }
-        this.presenter.setValue(index, value, this.transactionId);
+        return this.presenter.setValue(index, value, this.transactionId);
     }
 
     end(index)

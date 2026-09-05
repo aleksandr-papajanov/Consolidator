@@ -16,7 +16,7 @@ class BankManagerRenderer
         this.actionRenderer = new BankManagerActionRenderer();
     }
 
-    paint(graphics, presentation, layout, feedback)
+    paint(graphics, presentation, layout, feedback, editPrecisionRough)
     {
         let rows = presentation.rows || [];
         let highlightedGroups = this.highlightedGroups(presentation);
@@ -28,7 +28,8 @@ class BankManagerRenderer
             0, 0, layout.width, layout.height);
         graphics.select_font_face("Arial");
         graphics.set_font_size(BankManagerControlOptions.fontSize);
-        this.actionRenderer.paint(graphics, presentation, layout, feedback);
+        this.actionRenderer.paint(
+            graphics, presentation, layout, feedback, editPrecisionRough);
         this.gridRenderer.paint(graphics, rows, layout);
         rows.forEach((row, rowIndex) => {
             this.paintRow(graphics, presentation, row, rowIndex,

@@ -207,6 +207,9 @@ and target before returning one `target_state_snapshot` frame containing the
 target identity, bank, context, entry count, and each relative path
 with its value and physical/effective ranges. A successful frame implies
 `ready` for every entry; an error applies to the complete frame.
+The bank manager automatically selects `group` edit scope when focus moves to a
+grouped bank and selects `local` scope when focus moves to an ungrouped bank.
+The scope toggle remains available after that automatic selection.
 The context is per-instance transient UI state: it is not a `StateValue`, does
 not participate in history or persistence, and never affects DSP. Later changes use
 `state_changed` with the same semantic paths and range metadata. Reset writes the target

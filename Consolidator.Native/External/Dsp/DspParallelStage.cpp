@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "DspProcessingPrimitives.h"
 
 namespace consolidator::max::dsp
 {
@@ -11,12 +10,20 @@ void DspParallelStage::Prepare(const DspProcessingContext& context)
 {
     branchLeft_.assign(context.maximumFrameCount, 0.0);
     branchRight_.assign(context.maximumFrameCount, 0.0);
+    wet_.Prepare(context);
 }
 
 void DspParallelStage::Reset() noexcept
 {
     std::fill(branchLeft_.begin(), branchLeft_.end(), 0.0);
     std::fill(branchRight_.begin(), branchRight_.end(), 0.0);
+    wet_.Reset();
+    wasProcessing_ = false;
+}
+
+void DspParallelStage::SetWetTarget(double wet) noexcept
+{
+    wet_.SetTarget(std::clamp(wet, 0.0, 1.0));
 }
 
 void DspParallelStage::Process(
@@ -24,6 +31,16 @@ void DspParallelStage::Process(
     DspProcessor& processor) noexcept
 {
     auto& main = frame.main;
+    if (wet_.CurrentValue() == 0.0 && !wet_.IsSmoothing())
+    {
+        if (wasProcessing_)
+        {
+            processor.Reset();
+            wasProcessing_ = false;
+        }
+        return;
+    }
+    wasProcessing_ = true;
     if (main.frameCount > branchLeft_.size() ||
         main.frameCount > branchRight_.size())
     {
@@ -50,7 +67,18 @@ void DspParallelStage::Process(
         frame.policy
     };
     processor.Process(branchFrame);
-    DspParallelMixer::Add(main, branch, frame.plan.channelMode);
+    for (std::size_t index = 0; index < main.frameCount; ++index)
+    {
+        const auto wet = wet_.NextValue();
+        if (frame.plan.channelMode != DspChannelMode::Right && main.left != nullptr)
+        {
+            main.left[index] += wet * (branch.left[index] - main.left[index]);
+        }
+        if (frame.plan.channelMode != DspChannelMode::Left && main.right != nullptr)
+        {
+            main.right[index] += wet * (branch.right[index] - main.right[index]);
+        }
+    }
 }
 
 } // namespace consolidator::max::dsp

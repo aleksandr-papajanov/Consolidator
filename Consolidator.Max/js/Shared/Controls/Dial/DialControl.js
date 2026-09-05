@@ -1,3 +1,4 @@
+    function snap(index, value) { dialControl.snapPresentationValue(index, value); }
 autowatch = 1;
 inlets = 1;
 outlets = 1;

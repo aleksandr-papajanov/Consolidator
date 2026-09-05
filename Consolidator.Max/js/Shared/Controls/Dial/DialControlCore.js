@@ -12,6 +12,7 @@ class DialControlCore
         this.presentation.rings.push(this.createDefaultRing(configuration));
         this.presentation.label = configuration.label;
         this.previewValues = [];
+        this.gestureValues = [];
         this.dragging = false;
         this.dragIndex = 0;
         this.lastY = 0;
@@ -103,7 +104,17 @@ class DialControlCore
         ring.value = clampDialValue(Number(value), ring.minimum, ring.maximum);
         if (!this.dragging || this.dragIndex !== index) {
             delete this.previewValues[index];
+            delete this.gestureValues[index];
         }
+        this.requestRedraw();
+    }
+    
+    snapPresentationValue(index, value)
+    {
+        let ring = this.ensureRing(index);
+        let snapped = clampDialValue(Number(value), ring.minimum, ring.maximum);
+        if (!isFinite(snapped)) return;
+        this.previewValues[index] = snapped;
         this.requestRedraw();
     }
 
@@ -163,10 +174,15 @@ class DialControlCore
         if (!ring) return;
         let next = clampDialValue(Number(value), ring.minimum, ring.maximum);
         if (!isFinite(next)) return;
-        let current = this.previewValues[index] === undefined
-            ? ring.value : this.previewValues[index];
+        let current = this.gestureValues[index] !== undefined
+            ? this.gestureValues[index]
+            : this.previewValues[index] === undefined
+                ? ring.value : this.previewValues[index];
         if (Math.abs(next - current) < 0.0000001) return;
         this.previewValues[index] = next;
+        if (this.dragging && this.dragIndex === index) {
+            this.gestureValues[index] = next;
+        }
         this.requestRedraw();
         if (output) this.emit("valueChanged", [index, next]);
     }
@@ -201,6 +217,9 @@ class DialControlCore
         this.dragging = true;
         this.dragIndex = index;
         this.lastY = y;
+        this.gestureValues[index] = this.previewValues[index] === undefined
+            ? this.presentation.rings[index].value
+            : this.previewValues[index];
         this.labelRestoreTask.cancel();
         this.showValueLabel = true;
         this.requestRedraw();
@@ -211,8 +230,8 @@ class DialControlCore
     {
         if (!this.dragging) return;
         let ring = this.presentation.rings[this.dragIndex];
-        let value = this.previewValues[this.dragIndex] === undefined
-            ? ring.value : this.previewValues[this.dragIndex];
+        let value = this.gestureValues[this.dragIndex] === undefined
+            ? ring.value : this.gestureValues[this.dragIndex];
         this.setValue(this.dragIndex,
             value + (this.lastY - y) * DialControlOptions.dragSensitivity, true);
         this.lastY = y;
@@ -222,6 +241,7 @@ class DialControlCore
     {
         if (!this.dragging) return;
         this.dragging = false;
+        delete this.gestureValues[this.dragIndex];
         this.emit("gestureEnded", this.dragIndex);
         this.labelRestoreTask.schedule(DialControlOptions.labelRestoreDelayMs);
     }
@@ -230,6 +250,7 @@ class DialControlCore
     {
         this.dragging = false;
         this.previewValues = [];
+        this.gestureValues = [];
         this.labelRestoreTask.cancel();
         this.showValueLabel = false;
         this.requestRedraw();
@@ -240,6 +261,7 @@ class DialControlCore
         this.destroyed = true;
         this.dragging = false;
         this.previewValues = [];
+        this.gestureValues = [];
         this.labelRestoreTask.cancel();
     }
 }

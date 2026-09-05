@@ -253,6 +253,16 @@ class BankManagerViewModel
                 }
             });
         }
+        let focusedBank = this.focusedBank();
+        if (this.scope && focusedBank) {
+            let grouped = focusedBank.groupId !== undefined &&
+                focusedBank.groupId !== null &&
+                Number(focusedBank.groupId) >= 0;
+            this.scope.selectBankContext(
+                grouped,
+                grouped ? focusedBank.color : null
+            );
+        }
         if (this.rows.length > 0) {
             this.refreshActions();
             this.notify({
