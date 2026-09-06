@@ -9,6 +9,7 @@ class AnalyzerGestureSession
         this.transactionReady = false;
         this.pendingEnd = false;
         this.lastMove = null;
+        this.pendingQ = {};
         this.active = false;
         this.gestureGeneration = 0;
     }
@@ -48,6 +49,13 @@ class AnalyzerGestureSession
                 return;
             }
         }
+        if (name === "filterQChanged" && this.activeTransactionId !== null &&
+                !this.transactionReady)
+        {
+            this.controller.handle("filterQPreview", values, null);
+            this.pendingQ[String(values[0])] = true;
+            return;
+        }
         this.controller.handle(name, values, this.activeTransactionId);
     }
 
@@ -83,6 +91,11 @@ class AnalyzerGestureSession
         {
             this.controller.handle("filterMoved", this.lastMove, id);
         }
+        Object.keys(this.pendingQ).forEach((filterId) =>
+        {
+            this.controller.handle("filterQCommit", [Number(filterId)], id);
+        });
+        this.pendingQ = {};
         if (this.pendingEnd)
         {
             this.commitAndFinish();
@@ -168,6 +181,7 @@ class AnalyzerGestureSession
         this.transactionReady = false;
         this.pendingEnd = false;
         this.lastMove = null;
+        this.pendingQ = {};
     }
 
     destroy()

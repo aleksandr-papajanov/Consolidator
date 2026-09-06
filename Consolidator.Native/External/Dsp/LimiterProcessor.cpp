@@ -1,7 +1,11 @@
-#include "DspProcessors.h"
+#include "LimiterProcessor.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+
+#include "DspMath.h"
+#include "DspProcessingPrimitives.h"
 
 namespace consolidator::max::dsp
 {
@@ -10,7 +14,7 @@ void LimiterProcessor::Prepare(
     const DspProcessingContext& context) noexcept
 {
     targetDb_.Prepare(context);
-    releaseCoefficient_ = 1.0 - std::exp(-1.0 / (context.sampleRate * 0.080));
+    releaseCoefficient_ = TimeCoefficient(0.080, context.sampleRate);
 }
 
 void LimiterProcessor::Reset() noexcept
@@ -29,30 +33,23 @@ void LimiterProcessor::SetParameters(
 void LimiterProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
-    const auto left = frame.plan.channelMode != DspChannelMode::Right && frame.main.left != nullptr;
-    const auto right = frame.plan.channelMode != DspChannelMode::Left && frame.main.right != nullptr;
+    const auto channels = SelectChannels(frame.main, frame.plan.channelMode);
+    const auto fixedCeiling = DbToGain(targetDb_.TargetValue());
     for (std::size_t index = 0; index < frame.main.frameCount; ++index)
     {
         // A lower target is a hard ceiling from this block onward.
         // Raising the ceiling retains the ordinary parameter ramp.
-        const auto ceilingDb = std::min(targetDb_.NextValue(), targetDb_.TargetValue());
-        const auto ceiling = std::pow(10.0, ceilingDb / 20.0);
-        auto peak = 0.0;
-        if (left)
-        {
-            peak = std::abs(frame.main.left[index]);
-        }
-        if (right)
-        {
-            peak = std::max(peak, std::abs(frame.main.right[index]));
-        }
+        const auto ceiling = targetDb_.IsSmoothing()
+            ? DbToGain(std::min(targetDb_.NextValue(), targetDb_.TargetValue()))
+            : fixedCeiling;
+        const auto peak = channels.Peak(index);
         const auto requiredGain = enabled_ && peak > ceiling ? ceiling / peak : 1.0;
         gain_ = requiredGain < gain_ ? requiredGain : gain_ + releaseCoefficient_ * (requiredGain - gain_);
         if (requiredGain == 1.0 && gain_ > 1.0 - 1.0e-9)
         {
             gain_ = 1.0;
         }
-        if (left)
+        if (channels.left != nullptr)
         {
             frame.main.left[index] *= gain_;
             if (enabled_)
@@ -60,7 +57,7 @@ void LimiterProcessor::Process(
                 frame.main.left[index] = std::clamp(frame.main.left[index], -ceiling, ceiling);
             }
         }
-        if (right)
+        if (channels.right != nullptr)
         {
             frame.main.right[index] *= gain_;
             if (enabled_)

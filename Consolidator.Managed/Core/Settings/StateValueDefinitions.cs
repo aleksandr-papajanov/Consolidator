@@ -18,7 +18,7 @@ public static class StateValueDefinitions
         Input = new InputDefinitions(
             new(0.0F, new(-36.0F, 36.0F)),
             new(-18.0F, new(-36.0F, 0.0F)),
-            new(100.0F, new(0.0F, 100.0F)));
+            new(1.0F, new(0.0F, 1.0F)));
         Output = new OutputDefinitions(
             new(0.0F, new(-36.0F, 36.0F)),
             new(-1.0F, new(-36.0F, 0.0F)));

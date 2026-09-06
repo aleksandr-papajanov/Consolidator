@@ -1,7 +1,11 @@
-#include "DspProcessors.h"
+#include "TransientShaperProcessor.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+
+#include "DspMath.h"
+#include "DspProcessingPrimitives.h"
 
 namespace
 {
@@ -13,13 +17,6 @@ constexpr double kGainReleaseSeconds = 0.050;
 constexpr double kMaximumAttackDb = 7.5;
 constexpr double kMaximumSustainDb = 9.0;
 constexpr double kMinimumDetectorLevel = 3.1622776601683795e-5;
-
-[[nodiscard]] double EnvelopeCoefficient(
-    double sampleRate,
-    double timeSeconds) noexcept
-{
-    return 1.0 - std::exp(-1.0 / (sampleRate * timeSeconds));
-}
 
 [[nodiscard]] double FollowEnvelope(
     double input,
@@ -41,22 +38,14 @@ void TransientShaperProcessor::Prepare(
     sustain_.Prepare(context);
     activeMix_.Prepare(context);
     autoGain_.Prepare(context);
-    sustainCoefficient_ = EnvelopeCoefficient(context.sampleRate, 0.120);
-    fastAttackCoefficient_ = EnvelopeCoefficient(
-        context.sampleRate,
-        kFastAttackSeconds);
-    slowAttackCoefficient_ = EnvelopeCoefficient(
-        context.sampleRate,
-        kSlowAttackSeconds);
-    detectorCoefficient_ = EnvelopeCoefficient(context.sampleRate, 0.005);
+    sustainCoefficient_ = TimeCoefficient(0.120, context.sampleRate);
+    fastAttackCoefficient_ = TimeCoefficient(kFastAttackSeconds, context.sampleRate);
+    slowAttackCoefficient_ = TimeCoefficient(kSlowAttackSeconds, context.sampleRate);
+    detectorCoefficient_ = TimeCoefficient(0.005, context.sampleRate);
     // Symmetric followers have the same DC gain; different time constants
     // then measure envelope motion instead of different peak biases.
-    gainAttackCoefficient_ = EnvelopeCoefficient(
-        context.sampleRate,
-        kGainAttackSeconds);
-    gainReleaseCoefficient_ = EnvelopeCoefficient(
-        context.sampleRate,
-        kGainReleaseSeconds);
+    gainAttackCoefficient_ = TimeCoefficient(kGainAttackSeconds, context.sampleRate);
+    gainReleaseCoefficient_ = TimeCoefficient(kGainReleaseSeconds, context.sampleRate);
 }
 
 void TransientShaperProcessor::Reset() noexcept
@@ -86,6 +75,7 @@ void TransientShaperProcessor::Process(
 {
     const auto processLeft = frame.plan.channelMode != DspChannelMode::Right;
     const auto processRight = frame.plan.channelMode != DspChannelMode::Left;
+    const auto selected = SelectChannels(frame.main, frame.plan.channelMode);
     for (std::size_t index = 0; index < frame.main.frameCount; ++index)
     {
         const auto left = !processLeft || frame.detectorSignal.left == nullptr
@@ -144,30 +134,11 @@ void TransientShaperProcessor::Process(
             : gainReleaseCoefficient_;
         gainDb_ += gainCoefficient * (targetGainDb - gainDb_);
         const auto activity = activeMix_.NextValue();
-        const auto gain = std::pow(10.0, activity * gainDb_ / 20.0);
-        auto inputEnergy = 0.0;
-        auto channelCount = 0.0;
-        if (processLeft && frame.main.left != nullptr)
-        {
-            inputEnergy += frame.main.left[index] * frame.main.left[index];
-            channelCount += 1.0;
-        }
-        if (processRight && frame.main.right != nullptr)
-        {
-            inputEnergy += frame.main.right[index] * frame.main.right[index];
-            channelCount += 1.0;
-        }
-        inputEnergy /= std::max(channelCount, 1.0);
+        const auto gain = DbToGain(activity * gainDb_);
+        const auto inputEnergy = selected.MeanSquare(index);
         const auto compensatedGain = gain * autoGain_.Process(inputEnergy, inputEnergy * gain * gain, activity);
 
-        if (processLeft && frame.main.left != nullptr)
-        {
-            frame.main.left[index] *= compensatedGain;
-        }
-        if (processRight && frame.main.right != nullptr)
-        {
-            frame.main.right[index] *= compensatedGain;
-        }
+        selected.ApplyGain(index, compensatedGain);
     }
 }
 

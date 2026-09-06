@@ -1,8 +1,15 @@
 #pragma once
 
+#include <cstddef>
+
 #include "DspExecution.h"
 #include "DspParallelStage.h"
-#include "DspProcessors.h"
+#include "CompressorProcessor.h"
+#include "EqualizerProcessor.h"
+#include "InputProcessor.h"
+#include "OutputProcessor.h"
+#include "PolishProcessor.h"
+#include "SaturatorProcessor.h"
 
 namespace consolidator::max::dsp
 {

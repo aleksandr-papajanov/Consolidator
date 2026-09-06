@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {
@@ -94,6 +95,23 @@ void DspBiquadCascade::Process(
         audio.left != nullptr;
     const auto processRight = channelMode != DspChannelMode::Left &&
         audio.right != nullptr;
+    if (transitionPosition_ >= transitionLength_)
+    {
+        // Settled coefficients need only the current cascade, without the
+        // transition ratio and identity interpolation on every sample.
+        for (std::size_t index = 0; index < audio.frameCount; ++index)
+        {
+            if (processLeft)
+            {
+                audio.left[index] = ProcessPath(current_, audio.left[index], false);
+            }
+            if (processRight)
+            {
+                audio.right[index] = ProcessPath(current_, audio.right[index], true);
+            }
+        }
+        return;
+    }
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
         const auto transitioning = transitionPosition_ < transitionLength_;

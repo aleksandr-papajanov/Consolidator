@@ -6,7 +6,7 @@ class UiEditPrecision extends PresentationObservable
     constructor()
     {
         super();
-        this.mode = "precise";
+        this.mode = "rough";
         this.rebuild();
     }
 

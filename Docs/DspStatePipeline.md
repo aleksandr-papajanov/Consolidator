@@ -42,6 +42,13 @@ transaction, while the final acknowledgement write uses transaction ID zero so
 successful completion is not suppressed. A rejected transaction or final write
 also clears the preview and rebuilds the presentation from accepted state.
 
+In rough precision mode, the analyzer renders the same snapping grid used by
+filter markers: logarithmic frequency positions at ten steps per decade and
+gain positions at 3 dB intervals. The grid is presentation metadata generated
+from the analyzer scale, so the points disappear in precise mode and remain
+aligned with interior marker destinations. Effective group limits still clamp
+markers at their boundary values.
+
 The analyzer frequency response is calculated entirely in JavaScript from the
 focused parameter bindings and local filter definitions. Managed publishes no
 analyzer configuration, raw equalizer state, or filter catalog frames.
@@ -55,7 +62,17 @@ active viewer the audio entrypoint returns before capture lookup or audio copy.
 The worker consumes at most one 1024-sample FFT window every 33 ms. When more
 than one window is available it skips to the newest complete window instead of
 rendering stale spectrum history. FFT output uses `LatestAnalysis` delivery and
-the dedicated native analysis outlet.
+the dedicated native analysis outlet. Spectrum values are normalized around
+the `0 dBFS` to `-90 dBFS` display range.
+The presenter accepts FFT frames only from its current target instance, so a
+late latest-only frame from the previous target cannot replace the new view.
+The Max renderer resamples the linear FFT bins onto the same 256-point
+logarithmic `20..20000 Hz` grid used by EQ curves before drawing, so both
+visualizations share the same horizontal frequency geometry.
+The analyzer also draws vertical reference lines at `100`, `200`, `500`,
+`1000`, `2000`, `5000` and `10000 Hz` on that same logarithmic axis.
+FFT values outside this display range remain unclamped in the transport and
+are omitted by the renderer rather than being drawn along an analyzer edge.
 
 ## Threading
 

@@ -50,7 +50,6 @@ class BankManagerControlBinding extends ControlBinding
         if (name === "editPrecisionToggled")
         {
             this.precisionMode.toggle();
-            this.send("edit_precision", [this.precisionMode.isRough() ? 1 : 0]);
             return;
         }
         this.controller.handleIntent(name, values);

@@ -325,6 +325,38 @@ class BankManagerViewModel
         return this.focusedBank();
     }
 
+    selectGroup(groupId, preferredSelection)
+    {
+        let selection = preferredSelection || null;
+        if (!selection) {
+            for (let row of this.rows) {
+                let bank = (row.banks || []).find((candidate) => {
+                    return Number(candidate.groupId) === Number(groupId);
+                });
+                if (bank) {
+                    selection = {
+                        instanceId: row.instanceId,
+                        bankId: bank.bankId
+                    };
+                    break;
+                }
+            }
+        }
+        if (!selection) return false;
+
+        let changed = this.setFocusedBank(
+            selection.instanceId,
+            selection.bankId
+        );
+        let bank = this.focusedBank();
+        if (bank && Number(bank.groupId) === Number(groupId) && this.scope) {
+            this.scope.selectBankContext(true, bank.color);
+            this.refreshActions();
+            if (!changed) this.notify();
+        }
+        return true;
+    }
+
     nextGroupId()
     {
         return nextBankGroupId(this.rows);

@@ -63,6 +63,7 @@
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspBiquad.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspExecution.cpp" />
+    <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspAutoGain.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspGainRamp.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParameterRamp.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DspParallelStage.cpp" />

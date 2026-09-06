@@ -1,7 +1,11 @@
-#include "DspProcessors.h"
+#include "SaturationProcessor.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
+
+#include "DspProcessingPrimitives.h"
 
 namespace
 {
@@ -31,24 +35,25 @@ constexpr double kPi = 3.14159265358979323846;
 [[nodiscard]] double ProcessBand(
     double sample,
     double envelope,
-    double curve,
+    double strengthSquared,
+    double shapeGain,
+    bool enabled,
     double& previousSample) noexcept
 {
-    if (envelope <= kMinimumEnvelope)
+    if (!enabled || envelope <= kMinimumEnvelope)
     {
         previousSample = sample;
         return sample;
     }
-    const auto strength = 0.75 + 1.25 * curve;
     const auto current = sample / envelope;
     const auto previous = previousSample / envelope;
     previousSample = sample;
     // First-order ADAA of the nonlinear residual. Rationalizing the
     // antiderivative difference avoids cancellation for adjacent samples.
-    const auto currentRoot = std::sqrt(1.0 + strength * strength * current * current);
-    const auto previousRoot = std::sqrt(1.0 + strength * strength * previous * previous);
+    const auto currentRoot = std::sqrt(1.0 + strengthSquared * current * current);
+    const auto previousRoot = std::sqrt(1.0 + strengthSquared * previous * previous);
     const auto average = 0.5 * (current + previous);
-    const auto shapedAverage = std::sqrt(1.0 + strength * strength) *
+    const auto shapedAverage = shapeGain *
         (current + previous) / (currentRoot + previousRoot);
     return sample + envelope * (shapedAverage - average);
 }
@@ -84,9 +89,8 @@ void SaturationProcessor::Reset() noexcept
     splitMix_.SetTarget(0.0);
     splitMix_.Reset();
     splitMix_.SetTarget(splitTarget);
-    splitState_ = {};
+    channels_ = {};
     detectorEnvelope_ = 0.0;
-    previousSamples_ = {};
     envelopeWeight_ = 0.0;
 }
 
@@ -103,6 +107,9 @@ void SaturationProcessor::Process(
 {
     const auto processLeft = frame.plan.channelMode != DspChannelMode::Right;
     const auto processRight = frame.plan.channelMode != DspChannelMode::Left;
+    const auto selected = SelectChannels(frame.main, frame.plan.channelMode);
+    const std::array<double*, 2> audio{ selected.left, selected.right };
+    const auto divisor = static_cast<double>(std::max(selected.channelCount, std::size_t{ 1 }));
     for (std::size_t index = 0; index < frame.main.frameCount; ++index)
     {
         auto detectorMagnitude = 0.0;
@@ -134,69 +141,41 @@ void SaturationProcessor::Process(
         const auto drive = std::clamp(drive_.NextValue(), 0.0, 1.0);
         const auto curve = std::clamp(curve_.NextValue(), 0.0, 1.0);
         const auto splitMix = splitMix_.NextValue();
+        const auto strength = 0.75 + 1.25 * curve;
+        const auto strengthSquared = strength * strength;
+        const auto shapeGain = std::sqrt(1.0 + strengthSquared);
+        const auto wideEnabled = drive > 0.0 && splitMix < 1.0;
+        const auto splitEnabled = drive > 0.0 && splitMix > 0.0;
         auto inputEnergy = 0.0;
         auto outputEnergy = 0.0;
-        auto channelCount = 0.0;
-        if (processLeft && frame.main.left != nullptr)
+        for (std::size_t channel = 0; channel < audio.size(); ++channel)
         {
-            auto& sample = frame.main.left[index];
+            if (audio[channel] == nullptr)
+            {
+                continue;
+            }
+            auto& sample = audio[channel][index];
             const auto dry = sample;
+            auto& state = channels_[channel];
             inputEnergy += dry * dry;
-            channelCount += 1.0;
-            const auto wide = ProcessBand(dry, normalization, curve, previousSamples_[0]);
-            const auto low = LowPass(
-                dry,
-                lowCrossoverCoefficient_,
-                splitState_.lowLeft);
+            const auto wide = ProcessBand(dry, normalization, strengthSquared, shapeGain,
+                wideEnabled, state.previousSamples[0]);
+            // Crossovers and physical-sample history stay warm even when a
+            // nonlinear branch is inaudible. Only its square roots are skipped.
+            const auto low = LowPass(dry, lowCrossoverCoefficient_, state.low);
             const auto highInput = dry - low;
-            const auto mid = LowPass(
-                highInput,
-                highCrossoverCoefficient_,
-                splitState_.midLeft);
+            const auto mid = LowPass(highInput, highCrossoverCoefficient_, state.mid);
             const auto high = highInput - mid;
             const auto split =
-                ProcessBand(low, normalization, curve, previousSamples_[1]) +
-                ProcessBand(mid, normalization, curve, previousSamples_[2]) +
-                ProcessBand(high, normalization, curve, previousSamples_[3]);
+                ProcessBand(low, normalization, strengthSquared, shapeGain, splitEnabled, state.previousSamples[1]) +
+                ProcessBand(mid, normalization, strengthSquared, shapeGain, splitEnabled, state.previousSamples[2]) +
+                ProcessBand(high, normalization, strengthSquared, shapeGain, splitEnabled, state.previousSamples[3]);
             const auto wet = wide + splitMix * (split - wide);
             sample = dry + drive * (wet - dry);
             outputEnergy += sample * sample;
         }
-        if (processRight && frame.main.right != nullptr)
-        {
-            auto& sample = frame.main.right[index];
-            const auto dry = sample;
-            inputEnergy += dry * dry;
-            channelCount += 1.0;
-            const auto wide = ProcessBand(dry, normalization, curve, previousSamples_[4]);
-            const auto low = LowPass(
-                dry,
-                lowCrossoverCoefficient_,
-                splitState_.lowRight);
-            const auto highInput = dry - low;
-            const auto mid = LowPass(
-                highInput,
-                highCrossoverCoefficient_,
-                splitState_.midRight);
-            const auto high = highInput - mid;
-            const auto split =
-                ProcessBand(low, normalization, curve, previousSamples_[5]) +
-                ProcessBand(mid, normalization, curve, previousSamples_[6]) +
-                ProcessBand(high, normalization, curve, previousSamples_[7]);
-            const auto wet = wide + splitMix * (split - wide);
-            sample = dry + drive * (wet - dry);
-            outputEnergy += sample * sample;
-        }
-        const auto divisor = std::max(channelCount, 1.0);
         const auto compensation = autoGain_.Process(inputEnergy / divisor, outputEnergy / divisor, drive);
-        if (processLeft && frame.main.left != nullptr)
-        {
-            frame.main.left[index] *= compensation;
-        }
-        if (processRight && frame.main.right != nullptr)
-        {
-            frame.main.right[index] *= compensation;
-        }
+        selected.ApplyGain(index, compensation);
     }
 }
 

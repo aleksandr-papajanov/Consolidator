@@ -94,4 +94,10 @@ internal sealed class AudioCapture
         Volatile.Write(ref _readIndex, writeIndex);
         return true;
     }
+
+    public void FillSilenceWindow(int windowSize)
+    {
+        Array.Clear(MainFft, 0, windowSize);
+        Array.Clear(ReferenceFft, 0, windowSize);
+    }
 }

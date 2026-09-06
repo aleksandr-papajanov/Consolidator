@@ -11,8 +11,9 @@ Native files are separated by ownership scope:
 
 - `Consolidator.Native/External/Dsp` uses the `consolidator::max::dsp`
   namespace for realtime processors, graph orchestration, smoothing, and the
-  shared DSP state layout. Each processor implementation has its own `.cpp`
-  translation unit; `DspProcessors.h` contains their shared public contracts.
+  shared DSP state layout. Each processor has its own `.h` contract and `.cpp`
+  translation unit. Shared primitives and hot-path choices are described in
+  [`DspImplementation.md`](DspImplementation.md).
 - `Consolidator.Native/External/Transport` uses the
   `consolidator::max::transport` namespace for atoms, Managed bridge, ABI
   declarations, and persistence transport helpers.
@@ -55,8 +56,8 @@ CompressorParallelStage
   -> 50/50 dry/wet when parallel is enabled
 EqualizerProcessor
 PolishProcessor
-  -> Thick: add filtered bass harmonics
-  -> Air: add dynamically controlled upper harmonics
+  -> Thick: add level-calibrated bass harmonics with upward compression
+  -> Air: broad/top shelves plus dynamically controlled upper harmonics
 OutputProcessor
   -> output level
   -> limiter
@@ -91,8 +92,9 @@ The policy defines these graph-wide decisions:
 - `DspChannelMode` selects stereo, left-only, or right-only lanes, allowing
   mono work to avoid a second channel pass;
 - `widthProcessingRequired` identifies whether the input width control needs a
-  stereo operation; a neutral width does not force every later processor to
-  process both lanes;
+  stereo operation; Width uses the normalized `0..1` state value and `1` is
+  neutral, so a neutral width does not force every later processor to process
+  both lanes;
 - `inputLeveler` gates the separate `LevelerProcessor`;
 - `saturatorSplit` selects the bounded frequency-band dispatch contract;
 - `compressorParallel` selects a normalized 50/50 dry/wet mix;
@@ -166,9 +168,12 @@ device bypass. A processor is skipped only after its wet ramp reaches zero.
 Compressor's target is 0.5 in Parallel and 1 otherwise; Output gain runs on the
 wet branch before interpolation. Identical unity branches therefore preserve
 unity in both modes.
+At settled 100% wet, the processor runs directly on main audio without branch
+copying or identity interpolation. A local processing frame isolates detector
+route changes; transitioning and parallel stages retain their branch storage.
 
-Polish applies Thick followed by Air. Each processor adds only its own generated
-contribution to dry audio, so there is no averaging that halves either effect.
+Polish applies Thick followed by Air. Each processor adds its own enhancement
+to dry audio, so there is no averaging that halves either effect.
 Polish itself needs no copied branch buffers; only its graph activity stage
 owns preallocated dry/wet storage.
 
@@ -181,10 +186,10 @@ captures after compression/makeup for transient shaping. Each detector
 applies its LowShelf and Bell cascade only to those owned buffers; the main audio
 remains separate.
 
-`DspProcessingPrimitives.h` provides reusable boundaries for future devices:
-`SelectChannels` selects allowed lanes, `DspFrequencyBandRunner` iterates
-selected ranges without audio-thread allocation. The leveler, compressor, and
-Polish topology is represented by separate processor slots and routing boundaries.
+`DspProcessingPrimitives.h` provides a non-owning selected-channel view with
+peak, mean-square and gain application helpers. Algorithm-specific detector
+linking remains explicit. Leveler, compressor and Polish retain separate
+processor slots and routing boundaries.
 
 ## Parameter policy
 
@@ -342,9 +347,12 @@ existing bypass semantics and do not apply the ceiling.
 
 ## Air shimmer
 
-Thick generates filtered bass harmonics from a 120 Hz low-pass source. Air
-generates upper harmonics from a 3–8 kHz source, with dynamic attenuation and
-subtle stereo-side enhancement. Their signal paths, normalization, ADAA and
+Thick generates harmonic content from a 20–50 Hz filtered source, uses a bounded
+shaper with RMS/fast-peak normalization, calibrates the post-filter harmonic level
+and applies bounded upward compression with burst reduction to that branch.
+Air combines broad/top shelves with upper harmonics from a 3–6.5 kHz source;
+only those harmonics receive dynamic attenuation and subtle stereo-side enhancement.
+Their signal paths, normalization, ADAA and
 limitations are specified in [`PolishHarmonics.md`](PolishHarmonics.md).
 
 ## Testing contract

@@ -44,6 +44,14 @@ class AnalyzerControlBinding extends ControlBinding
             presentation.parameterRevision || 0,
             presentation.viewKey || ""
         ]);
+        let roughGrid = presentation.roughGrid || {};
+        let frequencies = roughGrid.frequencies || [];
+        let gains = roughGrid.gains || [];
+        this.send("rough_grid", [
+            presentation.precisionRough ? 1 : 0,
+            frequencies.length,
+            gains.length
+        ].concat(frequencies, gains));
         const color = presentation.scopeColor;
         this.send("scope", [
             presentation.scopeActive ? 1 : 0,

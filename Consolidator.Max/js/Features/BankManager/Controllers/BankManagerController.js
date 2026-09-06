@@ -9,7 +9,7 @@ class BankManagerController
     {
         this.context = context;
         this.selection = new BankManagerSelection(context);
-        this.topology = new BankManagerTopologyEditor(context);
+        this.topology = new BankManagerTopologyEditor(context, this.selection);
         this.stateActions = new BankManagerStateActions(context);
         this.historyJumpPending = false;
         this.unsubscribeHistory = context.transactions &&

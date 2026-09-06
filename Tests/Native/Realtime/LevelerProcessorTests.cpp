@@ -3,7 +3,7 @@
 #include <array>
 #include <cmath>
 
-#include "Dsp/DspProcessors.h"
+#include "Dsp/LevelerProcessor.h"
 #include "Dsp/DspRuntimeGraph.h"
 
 namespace consolidator::tests
@@ -221,7 +221,7 @@ bool RunLevelerProcessorTests()
     graph.Prepare(kSampleRate, kFrameCount);
     snapshot.audible = 1;
     snapshot.inputGainActive = 1;
-    snapshot.inputWidth = 100.0F;
+    snapshot.inputWidth = 1.0F;
     graph.SetParameters(snapshot);
     std::array<double, kFrameCount> graphLeft{};
     std::array<double, kFrameCount> graphRight{};

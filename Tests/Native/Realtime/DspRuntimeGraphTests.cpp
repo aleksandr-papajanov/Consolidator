@@ -61,7 +61,7 @@ bool RunDspRuntimeGraphTests()
 
     consolidator::max::dsp::DspSnapshot identitySnapshot{};
     identitySnapshot.audible = 1;
-    identitySnapshot.inputWidth = 100.0F;
+    identitySnapshot.inputWidth = 1.0F;
     graph.SetParameters(identitySnapshot);
 
     consolidator::max::dsp::DspSnapshot snapshot{};

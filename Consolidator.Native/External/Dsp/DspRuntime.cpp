@@ -3,6 +3,7 @@
 #include <atomic>
 #include <bit>
 #include <cmath>
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {

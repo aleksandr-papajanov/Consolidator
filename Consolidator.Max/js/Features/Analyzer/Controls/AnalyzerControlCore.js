@@ -39,10 +39,10 @@ class AnalyzerControlCore
             this.moveTimer.cancel();
             this.moveScheduled = false;
         }
-        this.state.preview = {};
         this.state.pendingMove = null;
         this.state.dragging = false;
         this.state.selectedId = 0;
+        this.state.qDragStarted = false;
     }
 
     applyPresentation(presentation)
@@ -59,13 +59,6 @@ class AnalyzerControlCore
         if (!presentation.handles || presentation.handles.length === 0) {
             this.resetInteractionState();
         }
-        (presentation.handles || []).forEach((handle) => {
-            let preview = this.state.preview[handle.id];
-            if (preview && Math.abs(preview.x - handle.frequency) < 0.0001 &&
-                    Math.abs(preview.y - handle.gain) < 0.0001) {
-                delete this.state.preview[handle.id];
-            }
-        });
         this.requestRedraw();
     }
 
@@ -78,6 +71,18 @@ class AnalyzerControlCore
     addCurve(name, args, id)
     {
         this.builder.setCurve(this.pendingPresentation, name, args, id);
+    }
+
+    setRoughGrid(rough, frequencyCount, gainCount, values)
+    {
+        this.builder.setRoughGrid(
+            this.pendingPresentation || this.presentation,
+            rough,
+            frequencyCount,
+            gainCount,
+            values
+        );
+        this.requestRedraw();
     }
 
     updateCurve(name, args, id)
@@ -109,7 +114,7 @@ class AnalyzerControlCore
     paint()
     {
         this.renderer.paint(mgraphics, this.presentation,
-            new AnalyzerLayout(mgraphics.size[0], mgraphics.size[1]), this.state);
+            new AnalyzerLayout(mgraphics.size[0], mgraphics.size[1]));
     }
 
     hitTest(x, y)
@@ -181,6 +186,7 @@ class AnalyzerControlCore
         }
         this.flushMove();
         this.state.dragging = false;
+        this.state.qDragStarted = false;
         this.emitIntent("gestureEnded", [this.state.selectedId]);
     }
 

@@ -1,4 +1,4 @@
-#include "DspProcessors.h"
+#include "PolishProcessor.h"
 
 namespace consolidator::max::dsp
 {
@@ -23,7 +23,7 @@ void PolishProcessor::SetParameters(const DspSnapshot& snapshot) noexcept
 
 void PolishProcessor::Process(DspProcessingFrame& frame) noexcept
 {
-    // Each processor adds only its filtered harmonic contribution.
+    // Each processor adds its own enhancement to the incoming audio.
     // Serial composition keeps both controls at their intended intensity.
     thick_.Process(frame);
     air_.Process(frame);

@@ -174,6 +174,34 @@ function testDialBindingWrapsGesturesInTransactions() {
   binding.destroy();
 }
 
+function testDialBindingSnapsValueBufferedWhileTransactionOpens() {
+  var messages = [];
+  var beginCallback = null;
+  var presenter = {
+    subscribe: function () { return function () {}; },
+    setValue: function () { return 0.6; },
+    beginGesture: function () {},
+    endGesture: function () {},
+  };
+  var transactions = {
+    begin: function (callback) {
+      beginCallback = callback;
+      return 9;
+    },
+    end: function () {},
+  };
+  var binding = new DialControlBinding(presenter, function (name, args) {
+    messages.push([name, args]);
+  }, transactions);
+
+  binding.handleIntent("gestureBegan", [0]);
+  binding.handleIntent("valueChanged", [0, 0.63]);
+  beginCallback(9, { status: "accepted" });
+
+  assert.deepStrictEqual(messages, [["snap", [0, 0.6]]]);
+  binding.destroy();
+}
+
 function testDialBindingReportsRejectedTransactionWithoutWriting() {
   var messages = [];
   var writes = [];
@@ -608,6 +636,73 @@ function testAnalyzerPublishesOneSpectrumNotificationPerFftFrame() {
   assert.strictEqual(presenter.referenceSpectrum.values.length, 3);
   presenter.destroy();
 }
+function testAnalyzerAcceptsSpectrumAfterTargetInstanceChanges() {
+  var statusCallback = null;
+  var protocolHandler = null;
+  var protocol = {
+    on: function (selector, callback) {
+      if (selector === "fft") protocolHandler = callback;
+      return function () {};
+    },
+  };
+  var presenter = new AnalyzerPresenter({
+    statusSource: {
+      subscribeStatus: function (callback, immediate) {
+        statusCallback = callback;
+        if (immediate) callback({
+          ready: true,
+          target: { instanceId: 7, bankId: 1 },
+        });
+        return function () {};
+      },
+    },
+  });
+  presenter.connectSpectrum(protocol);
+
+  protocolHandler([1, 7, 4, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+  statusCallback({
+    ready: true,
+    target: { instanceId: 8, bankId: 1 },
+  });
+  protocolHandler([1, 8, 4, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
+
+  assert.deepStrictEqual(presenter.spectrum.values, [0.6, 0.5, 0.4]);
+  presenter.destroy();
+}
+
+function testAnalyzerRejectsLateSpectrumFromPreviousTarget() {
+  var statusCallback = null;
+  var protocolHandler = null;
+  var protocol = {
+    on: function (selector, callback) {
+      if (selector === "fft") protocolHandler = callback;
+      return function () {};
+    },
+  };
+  var presenter = new AnalyzerPresenter({
+    statusSource: {
+      subscribeStatus: function (callback, immediate) {
+        statusCallback = callback;
+        if (immediate) callback({
+          ready: true,
+          target: { instanceId: 7, bankId: 1 },
+        });
+        return function () {};
+      },
+    },
+  });
+  presenter.connectSpectrum(protocol);
+  protocolHandler([1, 7, 4, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+
+  statusCallback({
+    ready: true,
+    target: { instanceId: 8, bankId: 1 },
+  });
+  protocolHandler([1, 7, 4, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]);
+
+  assert.strictEqual(presenter.spectrum, null);
+  presenter.destroy();
+}
 function testAnalyzerDragClampsToEffectivePeerRanges() {
   var writes = [];
   var presenter = new AnalyzerPresenter({
@@ -635,6 +730,36 @@ function testAnalyzerDragClampsToEffectivePeerRanges() {
     [500, 6],
     [2000, -3],
   ]);
+  presenter.destroy();
+}
+
+function testAnalyzerRoughFrequencyUsesDisplayedLogarithmicGrid() {
+  var writes = [];
+  var precisionMode = {
+    isRough: function () { return true; },
+    subscribe: function () { return function () {}; },
+  };
+  var presenter = new AnalyzerPresenter({
+    precisionMode: precisionMode,
+    parameters: [{
+      frequency: { value: 1000, minimum: 500, maximum: 2000 },
+      gain: { value: 0, minimum: -6, maximum: 6 },
+      setPosition: function (frequency, gain) {
+        writes.push([frequency, gain]);
+      },
+    }],
+  });
+  var inputFrequency = 1200;
+  var x = presenter.scale.frequencyToX(inputFrequency);
+  var expectedFrequency = 20 * Math.pow(10, 1.8);
+
+  presenter.filterMoved(1, x, 0.5);
+
+  assert.ok(Math.abs(writes[0][0] - expectedFrequency) < 0.000001);
+  var expectedX = presenter.scale.frequencyToX(expectedFrequency);
+  assert.ok(presenter.presentation.roughGrid.frequencies.some(function (point) {
+    return Math.abs(point - expectedX) < 0.000001;
+  }));
   presenter.destroy();
 }
 function testAnalyzerParameterUpdatesRecalculateLocalCurves() {
@@ -906,6 +1031,52 @@ function testAnalyzerBindingUsesOneTransactionForHandleDrag() {
   assert.deepStrictEqual(transactionCalls, [
     ["begin"],
     ["end", 12],
+  ]);
+  binding.destroy();
+}
+
+function testAnalyzerQDragWaitsForItsGestureTransaction() {
+  var calls = [];
+  var beginCallback = null;
+  var controller = {
+    handle: function (intent, payload, transactionId) {
+      calls.push([intent, payload, transactionId]);
+    },
+  };
+  var presenter = {
+    subscribe: function () { return function () {}; },
+  };
+  var transactions = {
+    begin: function (callback) {
+      beginCallback = callback;
+      return 12;
+    },
+    end: function () {},
+  };
+  var binding = new AnalyzerControlBinding(
+    controller,
+    presenter,
+    function () {},
+    transactions
+  );
+
+  binding.handleIntent("gestureBegan", [1]);
+  binding.handleIntent("filterQChanged", [1, 4]);
+  assert.deepStrictEqual(calls, [
+    ["gestureBegan", [1], null],
+    ["filterQPreview", [1, 4], null],
+  ]);
+
+  beginCallback(12, { status: "accepted" });
+  binding.handleIntent("filterQChanged", [1, 2]);
+  binding.handleIntent("gestureEnded", [1]);
+
+  assert.deepStrictEqual(calls, [
+    ["gestureBegan", [1], null],
+    ["filterQPreview", [1, 4], null],
+    ["filterQCommit", [1], 12],
+    ["filterQChanged", [1, 2], 12],
+    ["gestureEnded", [], 12],
   ]);
   binding.destroy();
 }
@@ -1975,11 +2146,41 @@ function testBankBypassStateReachesControl() {
   binding.destroy();
   presenter.destroy();
 }
+
+function testBankManagerPrecisionTogglePublishesOnce() {
+  var messages = [];
+  var listener = null;
+  var rough = false;
+  var precisionMode = {
+    subscribe: function (callback, immediate) {
+      listener = callback;
+      if (immediate) callback({ value: rough });
+      return function () { listener = null; };
+    },
+    toggle: function () {
+      rough = !rough;
+      listener({ value: rough });
+    },
+  };
+  var binding = new BankManagerControlBinding(
+    { handleIntent: function () {} },
+    { subscribe: function () { return function () {}; } },
+    function (selector, args) { messages.push([selector, args]); },
+    precisionMode
+  );
+  messages = [];
+
+  binding.handleIntent("editPrecisionToggled", []);
+
+  assert.deepStrictEqual(messages, [["edit_precision", [1]]]);
+  binding.destroy();
+}
 testDoubleClickTrackerRecognizesOnlyTheSameControl();
 testControlBindingsDispatchByControlId();
 testDialBindingUsesMessageTransportAndIntents();
 testDialBindingResumesOnlyTheLatestPresentation();
 testDialBindingWrapsGesturesInTransactions();
+testDialBindingSnapsValueBufferedWhileTransactionOpens();
 testDialBindingReportsRejectedTransactionWithoutWriting();
 testButtonBindingPreservesPresentationMetadata();
 testBankManagerBindingPatchesRegistryAddition();
@@ -1988,7 +2189,10 @@ testPanelBindingHostRoutesListMessagesToNamedControl();
 testUiHostEntrypointInitializesFromLiveReadyAndRoutesLists();
 testAnalyzerHandlesPublishOnlyAfterTargetSnapshotIsReady();
 testAnalyzerPublishesOneSpectrumNotificationPerFftFrame();
+testAnalyzerAcceptsSpectrumAfterTargetInstanceChanges();
+testAnalyzerRejectsLateSpectrumFromPreviousTarget();
 testAnalyzerDragClampsToEffectivePeerRanges();
+testAnalyzerRoughFrequencyUsesDisplayedLogarithmicGrid();
 testAnalyzerParameterUpdatesRecalculateLocalCurves();
 testAnalyzerGestureKeepsPreviewUntilFinalWriteCompletes();
 testDetectorPresenterBuildsFilterCurves();
@@ -1998,6 +2202,7 @@ testAnalyzerRendersLegacyHighShelfAndTiltResponses();
 testDetectorBindingPublishesCurvesToControl();
 testAnalyzerControlPreservesCurvesAcrossHandlePresentation();
 testAnalyzerBindingUsesOneTransactionForHandleDrag();
+testAnalyzerQDragWaitsForItsGestureTransaction();
 testAnalyzerStartsNextHistoryPointBeforePreviousWriteResponse();
 testAnalyzerTargetTransitionCancelsGestureAndTransaction();
 testAnalyzerHandleDragPublishesLatestPositionWhileDragging();
@@ -2028,4 +2233,5 @@ testBankManagerEqualizerResetReachesStateClient();
 testBankManagerPresentsGroupingSelectionAsActive();
 testManagedMarkerReachesBankManagerControlBinding();
 testBankBypassStateReachesControl();
+testBankManagerPrecisionTogglePublishesOnce();
 console.log("UiBindingTests passed");

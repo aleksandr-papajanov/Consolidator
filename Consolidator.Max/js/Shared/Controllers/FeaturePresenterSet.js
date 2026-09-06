@@ -18,7 +18,10 @@ class FeaturePresenterSet
         let presenter = new DialPresenter({
             rings: [{
                 value: source,
-                color: options.color
+                color: options.color,
+                unit: options.unit,
+                suffix: options.suffix,
+                roughStep: options.roughStep
             }].concat(options.rings || []),
             scope: this.scope,
             precisionMode: uiEditPrecision,

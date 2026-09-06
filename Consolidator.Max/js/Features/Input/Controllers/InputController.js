@@ -10,6 +10,7 @@ class InputController
     {
         this.presenters = new FeaturePresenterSet(scope);
         this.presenters.addDial("level", viewModel.level, {
+            unit: "dB",
             color: bindPresentation(viewModel.level, {
                 read: () => viewModel.level.enabled
                     ? UiColors.base.activeText
@@ -30,7 +31,7 @@ class InputController
                 color: UiColors.controls.telemetry
             }]
         });
-        this.presenters.addDial("target", viewModel.target);
+        this.presenters.addDial("target", viewModel.target, { unit: "dB" });
         this.presenters.addToggle("leveler", viewModel.leveler, "LEVELER");
         this.presenters.addDial("width", viewModel.width);
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({

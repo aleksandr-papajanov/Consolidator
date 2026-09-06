@@ -109,6 +109,10 @@ class DialRingBuilder
                     configuration.physicalStep,
                     this.readNumber(valueModel.physicalStep, 0)
                 ),
+                roughStep: this.readNumber(
+                    configuration.roughStep,
+                    this.readNumber(valueModel.roughStep, 0)
+                ),
                 logarithmic: logarithmic
             }
         };

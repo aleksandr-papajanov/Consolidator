@@ -24,6 +24,22 @@ class BankManagerSelection
         }
     }
 
+    selectGroup(groupId, preferredSelection)
+    {
+        let viewModel = this.context.viewModel;
+        if (!viewModel.selectGroup(groupId, preferredSelection)) {
+            return;
+        }
+        let selection = viewModel.focusedSelection;
+        if (selection) {
+            this.show(
+                selection.instanceId,
+                selection.bankId,
+                viewModel.selectedPanel
+            );
+        }
+    }
+
     selectPanel(panel)
     {
         let target = this.context.uiTarget.targetState.target;

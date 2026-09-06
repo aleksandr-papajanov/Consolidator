@@ -10,7 +10,7 @@ class SaturatorController
         this.presenters.addDial("drive", viewModel.saturator.drive);
         this.presenters.addDial("curve", viewModel.saturator.curve);
         this.presenters.addToggle("split", viewModel.saturator.split, "SPLIT");
-        this.presenters.addDial("output", viewModel.saturator.output);
+        this.presenters.addDial("output", viewModel.saturator.output, { unit: "dB" });
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({
             mode: "detector",
             context: "saturator",

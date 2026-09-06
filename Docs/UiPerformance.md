@@ -31,9 +31,12 @@ drive the existing target transition and snapshot flow.
 
 The Bank Manager action row exposes the shared edit precision action. It toggles between
 `PRECISE` and `ROUGH` for every dial and analyzer marker. Rough mode quantizes
-dB values to 3 dB, other scalar values to 0.1, and frequency/Q edits on a
-logarithmic decade grid calculated from the value magnitude rather than a fixed
-lookup table. The mode is UI-only and does not enter Managed state or DSP.
+dB values to 3 dB, other scalar values to 0.1, analyzer frequencies to ten
+logarithmic steps per decade anchored at the analyzer minimum, and Q to five
+logarithmically spaced values across its effective range. The mode is UI-only
+and does not enter Managed state or DSP. A precision change publishes once to
+each active control, and delayed gesture writes retain the snapped value when
+their history transaction becomes ready.
 
 ## BankManager scrolling
 
@@ -75,6 +78,8 @@ Group `0` is the automatic system group and cannot be changed or ungrouped.
 User groups accept at most one bank from each track, and only ungrouped banks
 can be selected for a new group; the same constraints are enforced again by
 Managed when state writes are received.
+After a successful group creation, the Bank Manager focuses the first bank of
+the new group and activates its group context automatically.
 
 Each track row exposes the instance-level `S` and `M` controls. Device and bank
 solo controls are not part of the UI or protocol.

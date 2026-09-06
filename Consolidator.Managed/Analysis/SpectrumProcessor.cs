@@ -36,10 +36,8 @@ internal static class SpectrumProcessor
         {
             var magnitude = fft[index].Magnitude / fftSize;
             var decibels = 20.0 * Math.Log10(Math.Max(magnitude, 1e-12));
-            spectrum[index] = (float)Math.Clamp(
-                1.0 - ((decibels - MinimumDecibels) / -MinimumDecibels),
-                0.0,
-                1.0);
+            spectrum[index] = (float)(
+                1.0 - ((decibels - MinimumDecibels) / -MinimumDecibels));
         }
     }
 }

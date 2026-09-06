@@ -20,7 +20,7 @@ bypass is carried separately for presentation.
 
 Activity uses a small epsilon of `0.0001` to distinguish neutral from changed
 control values. Input is active for non-zero `level`, Width different from its
-neutral value `100`, or enabled `leveler`; saturator for
+neutral value `1`, or enabled `leveler`; saturator for
 non-zero `drive` or `output`; compressor for non-zero `attack`, `sustain`,
 `compression`, or `output`; Polish for non-zero `thick` or `air`; and output
 for non-zero `level` or enabled `limiter`. The equalizer definition is

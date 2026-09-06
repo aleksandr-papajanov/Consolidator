@@ -5,8 +5,8 @@ class OutputController
     constructor(viewModel, scope)
     {
         this.presenters = new FeaturePresenterSet(scope);
-        this.presenters.addDial("level", viewModel.level);
-        this.presenters.addDial("target", viewModel.target);
+        this.presenters.addDial("level", viewModel.level, { unit: "dB" });
+        this.presenters.addDial("target", viewModel.target, { unit: "dB" });
         this.presenters.addToggle("limiter", viewModel.limiter, "LIMITER");
     }
 

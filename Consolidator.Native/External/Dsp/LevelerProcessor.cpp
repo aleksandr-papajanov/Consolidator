@@ -1,7 +1,8 @@
-#include "DspProcessors.h"
+#include "LevelerProcessor.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {

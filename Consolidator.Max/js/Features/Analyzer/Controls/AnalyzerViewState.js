@@ -4,8 +4,9 @@ class AnalyzerViewState
     {
         this.selectedId = 0;
         this.dragging = false;
-        this.preview = {};
         this.pendingMove = null;
+        this.lastDragY = 0;
+        this.qDragStarted = false;
     }
 }
 

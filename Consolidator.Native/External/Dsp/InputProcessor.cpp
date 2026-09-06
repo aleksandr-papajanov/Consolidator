@@ -1,4 +1,6 @@
-#include "DspProcessors.h"
+#include "InputProcessor.h"
+
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {
@@ -44,7 +46,7 @@ bool InputProcessor::RequiresProcessing() const noexcept
 {
     return leveler_.RequiresProcessing() ||
         width_.IsSmoothing() ||
-        width_.CurrentValue() != 100.0;
+        width_.CurrentValue() != 1.0;
 }
 
 bool InputProcessor::IsLevelerEnabled() const noexcept
@@ -70,7 +72,7 @@ float InputProcessor::FastInputLevelDb() const noexcept
 void InputProcessor::ProcessWidth(
     DspProcessingFrame& frame) noexcept
 {
-    if (!width_.IsSmoothing() && width_.CurrentValue() == 100.0)
+    if (!width_.IsSmoothing() && width_.CurrentValue() == 1.0)
     {
         return;
     }
@@ -86,8 +88,7 @@ void InputProcessor::ProcessWidth(
             const auto left = frame.main.left[index];
             const auto right = frame.main.right[index];
             const auto middle = (left + right) * 0.5;
-            const auto side = (left - right) * 0.5 *
-                (width / 100.0);
+            const auto side = (left - right) * 0.5 * width;
             frame.main.left[index] = middle + side;
             frame.main.right[index] = middle - side;
         }

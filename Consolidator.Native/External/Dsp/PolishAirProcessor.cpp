@@ -1,24 +1,52 @@
-#include "DspProcessors.h"
+#include "PolishAirProcessor.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
 
-#include "DspExciterPrimitives.h"
+#include "DspAntiderivative.h"
+#include "DspMath.h"
+#include "DspOnePole.h"
+#include "DspProcessingPrimitives.h"
 
 namespace consolidator::max::dsp
 {
 
+namespace
+{
+
+double AirHarmonics(double sample) noexcept
+{
+    const auto square = sample * sample;
+    return square * (0.5 + 0.12 * sample) / (1.0 + square);
+}
+
+double AirIntegral(double sample) noexcept
+{
+    const auto square = sample * sample;
+    return 0.5 * (sample - std::atan(sample)) + 0.06 * (square - std::log1p(square));
+}
+
+double GenerateAir(double sample, double scale, double& previousSample) noexcept
+{
+    return AntiderivativeAverage(sample, scale, previousSample, AirHarmonics, AirIntegral);
+}
+
+} // namespace
+
 void PolishAirProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
     amount_.Prepare(context);
-    sourceHighPassCoefficient_ = exciter::FilterCoefficient(3000.0, context.sampleRate);
-    sourceLowPassCoefficient_ = exciter::FilterCoefficient(8000.0, context.sampleRate);
-    outputHighPassCoefficient_ = exciter::FilterCoefficient(7000.0, context.sampleRate);
-    shelfCoefficient_ = exciter::FilterCoefficient(9000.0, context.sampleRate);
-    energyCoefficient_ = exciter::TimeCoefficient(0.200, context.sampleRate);
-    fastEnergyCoefficient_ = exciter::TimeCoefficient(0.002, context.sampleRate);
-    attenuationAttackCoefficient_ = exciter::TimeCoefficient(0.001, context.sampleRate);
-    attenuationReleaseCoefficient_ = exciter::TimeCoefficient(0.080, context.sampleRate);
+    sourceHighPassCoefficient_ = onepole::FilterCoefficient(3000.0, context.sampleRate);
+    sourceLowPassCoefficient_ = onepole::FilterCoefficient(6500.0, context.sampleRate);
+    outputHighPassCoefficient_ = onepole::FilterCoefficient(10000.0, context.sampleRate);
+    shelfCoefficient_ = onepole::FilterCoefficient(10000.0, context.sampleRate);
+    topShelfCoefficient_ = onepole::FilterCoefficient(16000.0, context.sampleRate);
+    energyCoefficient_ = TimeCoefficient(0.200, context.sampleRate);
+    fastEnergyCoefficient_ = TimeCoefficient(0.002, context.sampleRate);
+    attenuationAttackCoefficient_ = TimeCoefficient(0.001, context.sampleRate);
+    attenuationReleaseCoefficient_ = TimeCoefficient(0.080, context.sampleRate);
 }
 
 void PolishAirProcessor::Reset() noexcept
@@ -40,28 +68,27 @@ void PolishAirProcessor::SetParameters(const DspSnapshot& snapshot) noexcept
 
 void PolishAirProcessor::Process(DspProcessingFrame& frame) noexcept
 {
-    const std::array<bool, 2> selected{
-        frame.plan.channelMode != DspChannelMode::Right && frame.main.left != nullptr,
-        frame.plan.channelMode != DspChannelMode::Left && frame.main.right != nullptr
-    };
-    const std::array<double*, 2> audio{ frame.main.left, frame.main.right };
+    const auto selected = SelectChannels(frame.main, frame.plan.channelMode);
+    const std::array<double*, 2> audio{ selected.left, selected.right };
     for (std::size_t index = 0; index < frame.main.frameCount; ++index)
     {
         std::array<double, 2> band{};
         std::array<double, 2> shelf{};
+        std::array<double, 2> topShelf{};
         auto bandEnergy = 0.0;
         auto mainEnergy = 0.0;
         for (std::size_t channel = 0; channel < channels_.size(); ++channel)
         {
-            if (!selected[channel])
+            if (audio[channel] == nullptr)
             {
                 continue;
             }
             auto& state = channels_[channel];
             const auto input = audio[channel][index];
-            const auto upper = exciter::HighPass(input, sourceHighPassCoefficient_, state.sourceHighPass);
-            band[channel] = exciter::LowPass(upper, sourceLowPassCoefficient_, state.sourceLowPass);
-            shelf[channel] = exciter::HighPass(input, shelfCoefficient_, state.shelf);
+            const auto upper = onepole::HighPass(input, sourceHighPassCoefficient_, state.sourceHighPass);
+            band[channel] = onepole::LowPass(upper, sourceLowPassCoefficient_, state.sourceLowPass);
+            shelf[channel] = onepole::HighPass(input, shelfCoefficient_, state.shelf);
+            topShelf[channel] = onepole::HighPass(input, topShelfCoefficient_, state.topShelf);
             bandEnergy = std::max(bandEnergy, band[channel] * band[channel]);
             mainEnergy = std::max(mainEnergy, input * input);
         }
@@ -88,26 +115,25 @@ void PolishAirProcessor::Process(DspProcessingFrame& frame) noexcept
         std::array<double, 2> wet{};
         for (std::size_t channel = 0; channel < channels_.size(); ++channel)
         {
-            if (!selected[channel])
+            if (audio[channel] == nullptr)
             {
                 continue;
             }
             auto& state = channels_[channel];
-            const auto generated = exciter::Generate(band[channel], scale, state.previousSample);
-            const auto harmonics = exciter::HighPass(
+            const auto generated = GenerateAir(band[channel], scale, state.previousSample);
+            const auto harmonics = onepole::HighPass(
                 generated, outputHighPassCoefficient_, state.outputHighPass);
-            // Dry plus a single-pole high-pass produces a monotonic air shelf.
-            wet[channel] = attenuation_ * (4.0 * harmonics + 0.60 * shelf[channel]);
+            wet[channel] = 2.6 * amount * amount * attenuation_ * harmonics;
         }
         // Only the added high band is widened; mono has no synthetic side.
-        const auto side = selected[0] && selected[1] ? 0.08 * (wet[0] - wet[1]) : 0.0;
-        if (selected[0])
+        const auto side = audio[0] != nullptr && audio[1] != nullptr ? 0.08 * (wet[0] - wet[1]) : 0.0;
+        if (audio[0] != nullptr)
         {
-            audio[0][index] += amount * (wet[0] + side);
+            audio[0][index] += 1.2 * amount * shelf[0] + 0.85 * amount * amount * topShelf[0] + wet[0] + side;
         }
-        if (selected[1])
+        if (audio[1] != nullptr)
         {
-            audio[1][index] += amount * (wet[1] - side);
+            audio[1][index] += 1.2 * amount * shelf[1] + 0.85 * amount * amount * topShelf[1] + wet[1] - side;
         }
     }
 }

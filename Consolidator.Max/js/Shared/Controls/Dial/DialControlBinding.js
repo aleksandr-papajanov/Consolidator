@@ -26,7 +26,11 @@ class DialControlBinding extends ControlBinding
     {
         super(presenter, sendMessage);
         this.gesture = new DialGestureSession(
-            presenter, transactions, () => this.send("transactionRejected"));
+            presenter,
+            transactions,
+            () => this.send("transactionRejected"),
+            (index, value) => this.send("snap", [Number(index), value])
+        );
         this.connectPresentation();
     }
 

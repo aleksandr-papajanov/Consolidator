@@ -1,7 +1,12 @@
-#include "DspProcessors.h"
+#include "CompressionProcessor.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
+
+#include "DspMath.h"
+#include "DspProcessingPrimitives.h"
 
 namespace consolidator::max::dsp
 {
@@ -14,10 +19,10 @@ void CompressionProcessor::Prepare(
     attackSeconds_.Prepare(context);
     releaseSeconds_.Prepare(context);
     sampleRate_ = context.sampleRate;
-    detectorCoefficient_ = 1.0 - std::exp(-1.0 / (sampleRate_ * 0.002));
-    referenceCoefficient_ = 1.0 - std::exp(-1.0 / (sampleRate_ * 0.500));
-    meterCoefficient_ = 1.0 - std::exp(-1.0 / sampleRate_);
-    makeupCoefficient_ = 1.0 - std::exp(-1.0 / (sampleRate_ * 1.500));
+    detectorCoefficient_ = TimeCoefficient(0.002, sampleRate_);
+    referenceCoefficient_ = TimeCoefficient(0.500, sampleRate_);
+    meterCoefficient_ = TimeCoefficient(1.0, sampleRate_);
+    makeupCoefficient_ = TimeCoefficient(1.500, sampleRate_);
 }
 
 void CompressionProcessor::Reset() noexcept
@@ -70,8 +75,9 @@ void CompressionProcessor::SetParameters(
 void CompressionProcessor::Process(
     DspProcessingFrame& frame) noexcept
 {
-    const auto left = frame.plan.channelMode != DspChannelMode::Right && frame.main.left != nullptr;
-    const auto right = frame.plan.channelMode != DspChannelMode::Left && frame.main.right != nullptr;
+    const auto selected = SelectChannels(frame.main, frame.plan.channelMode);
+    const auto left = selected.left != nullptr;
+    const auto right = selected.right != nullptr;
     const auto channels = static_cast<double>(left) + static_cast<double>(right);
     if (channels == 0.0)
     {
@@ -83,21 +89,18 @@ void CompressionProcessor::Process(
         const auto attackSeconds = attackSeconds_.NextValue();
         const auto baseRelease = releaseSeconds_.NextValue();
         auto energy = 0.0;
-        auto mainEnergy = 0.0;
+        const auto mainEnergy = selected.MeanSquare(index);
         if (left)
         {
             const auto detector = frame.detectorSignal.left == nullptr ? 0.0 : frame.detectorSignal.left[index];
             energy += detector * detector;
-            mainEnergy += frame.main.left[index] * frame.main.left[index];
         }
         if (right)
         {
             const auto detector = frame.detectorSignal.right == nullptr ? 0.0 : frame.detectorSignal.right[index];
             energy += detector * detector;
-            mainEnergy += frame.main.right[index] * frame.main.right[index];
         }
         energy /= channels;
-        mainEnergy /= channels;
         detectorEnergy_ += detectorCoefficient_ * (energy - detectorEnergy_);
         const auto signalPresent = detectorEnergy_ > 1.0e-9;
         if (signalPresent)
@@ -138,7 +141,7 @@ void CompressionProcessor::Process(
         reductionDuration_ += referenceCoefficient_ * (durationTarget - reductionDuration_);
         const auto release = baseRelease * (1.0 + reductionDuration_);
         const auto time = desiredReduction > reductionDb_ ? attackSeconds : release;
-        const auto coefficient = 1.0 - std::exp(-1.0 / (sampleRate_ * time));
+        const auto coefficient = TimeCoefficient(time, sampleRate_);
         reductionDb_ += coefficient * (desiredReduction - reductionDb_);
         if (signalPresent && amount > 0.0)
         {
@@ -152,7 +155,7 @@ void CompressionProcessor::Process(
             reductionCorrectionDb_ = 0.0;
             measuredReductionDb_ = 0.0;
         }
-        const auto reductionGain = std::pow(10.0, -reductionDb_ / 20.0);
+        const auto reductionGain = DbToGain(-reductionDb_);
 
         // Actual main-path energy before and after GR, excluding makeup.
         if (mainEnergy > 1.0e-9 && signalPresent)
@@ -171,15 +174,8 @@ void CompressionProcessor::Process(
         }
         makeupDb_ += makeupCoefficient_ * (desiredMakeup - makeupDb_);
         const auto activity = activeMix_.NextValue();
-        const auto gain = std::pow(10.0, activity * (makeupDb_ - reductionDb_) / 20.0);
-        if (left)
-        {
-            frame.main.left[index] *= gain;
-        }
-        if (right)
-        {
-            frame.main.right[index] *= gain;
-        }
+        const auto gain = DbToGain(activity * (makeupDb_ - reductionDb_));
+        selected.ApplyGain(index, gain);
     }
 }
 

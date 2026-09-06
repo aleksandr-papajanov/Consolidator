@@ -13,7 +13,7 @@ class CompressorController
         this.presenters.addMultiValueToggle("character", viewModel.compressor.character,
             ["PUNCH", "TIGHT", "SMOOTH"]);
         this.presenters.addToggle("parallel", viewModel.compressor.parallel, "PARALLEL");
-        this.presenters.addDial("output", viewModel.compressor.output);
+        this.presenters.addDial("output", viewModel.compressor.output, { unit: "dB" });
         this.analyzer = new AnalyzerController(new AnalyzerPresenter({
             mode: "detector",
             context: "compressor",

@@ -1,6 +1,7 @@
-#include "DspProcessors.h"
+#include "DetectorProcessor.h"
 
 #include <algorithm>
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {

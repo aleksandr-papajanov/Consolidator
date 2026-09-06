@@ -224,10 +224,11 @@ public sealed class FftAnalyzer :
             return;
         }
 
-        if (capture.TryReadWindow(_window, FftSize))
+        if (!capture.TryReadWindow(_window, FftSize))
         {
-            AnalyzeWindow(sourceInstanceId, capture);
+            capture.FillSilenceWindow(FftSize);
         }
+        AnalyzeWindow(sourceInstanceId, capture);
     }
 
     private void AnalyzeWindow(

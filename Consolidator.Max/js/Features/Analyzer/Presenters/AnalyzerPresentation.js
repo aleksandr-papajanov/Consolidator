@@ -7,6 +7,8 @@ class AnalyzerPresentation
         this.spectrum = null;
         this.referenceSpectrum = null;
         this.differenceSpectrum = null;
+        this.precisionRough = false;
+        this.roughGrid = null;
         this.curves = [];
         this.combinedCurve = null;
         this.handles = [];

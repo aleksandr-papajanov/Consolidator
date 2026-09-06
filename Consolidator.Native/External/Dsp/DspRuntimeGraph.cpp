@@ -1,6 +1,7 @@
 #include "DspRuntimeGraph.h"
 
 #include <cmath>
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {

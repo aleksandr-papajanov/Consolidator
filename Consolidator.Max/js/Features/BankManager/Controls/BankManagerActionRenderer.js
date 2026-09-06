@@ -18,7 +18,7 @@ class BankManagerActionRenderer
             },
             {
                 key: "editPrecision",
-                label: editPrecisionRough ? "ROUGH" : "PRECISE",
+                label: editPrecisionRough ? "Rough" : "Precise",
                 action: { enabled: true, active: editPrecisionRough },
                 momentary: false
             }

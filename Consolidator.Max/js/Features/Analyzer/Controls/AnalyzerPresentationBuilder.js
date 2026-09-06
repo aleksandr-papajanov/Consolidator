@@ -8,6 +8,16 @@ class AnalyzerPresentationBuilder
             enabled: Number(enabled) !== 0,
             parameterRevision: Number(parameterRevision),
             viewKey: viewKey === undefined ? "" : String(viewKey),
+            frequencyMinimum: current.frequencyMinimum === undefined
+                ? 20 : Number(current.frequencyMinimum),
+            frequencyMaximum: current.frequencyMaximum === undefined
+                ? 20000 : Number(current.frequencyMaximum),
+            gainMinimum: current.gainMinimum === undefined
+                ? -24 : Number(current.gainMinimum),
+            gainMaximum: current.gainMaximum === undefined
+                ? 24 : Number(current.gainMaximum),
+            precisionRough: current.precisionRough === true,
+            roughGrid: current.roughGrid || null,
             spectrum: current.spectrum || null,
             referenceSpectrum: current.referenceSpectrum || null,
             differenceSpectrum: current.differenceSpectrum || null,
@@ -37,6 +47,19 @@ class AnalyzerPresentationBuilder
         else if (name === "curve") this.setFilterCurve(presentation, id, curve);
         else return false;
         return true;
+    }
+
+    setRoughGrid(presentation, rough, frequencyCount, gainCount, values)
+    {
+        if (!presentation) return;
+        let frequencyLength = Math.max(0, Math.floor(Number(frequencyCount)));
+        let gainLength = Math.max(0, Math.floor(Number(gainCount)));
+        presentation.precisionRough = Number(rough) !== 0;
+        presentation.roughGrid = {
+            frequencies: values.slice(0, frequencyLength).map(Number),
+            gains: values.slice(frequencyLength,
+                frequencyLength + gainLength).map(Number)
+        };
     }
 
     setFilterCurve(presentation, id, curve)

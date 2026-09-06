@@ -80,7 +80,15 @@ function writeDialValue(
     {
         let isDb = mapping.unit === "dB" ||
             mapping.suffix === "dB";
-        physicalValue = quantizeRough(physicalValue, isDb);
+        let roughStep = Number(mapping.roughStep);
+        if (isFinite(roughStep) && roughStep > 0)
+        {
+            physicalValue = Math.round(physicalValue / roughStep) * roughStep;
+        }
+        else
+        {
+            physicalValue = quantizeRough(physicalValue, isDb);
+        }
     }
     physicalValue = clampPresentationValue(
         physicalValue,

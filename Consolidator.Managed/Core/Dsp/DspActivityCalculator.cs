@@ -9,6 +9,6 @@ public static class DspActivityCalculator
         float inputWidth,
         bool inputLeveler) =>
         MathF.Abs(inputLevel) > ActivityEpsilon ||
-        MathF.Abs(inputWidth - 100.0F) > ActivityEpsilon ||
+        MathF.Abs(inputWidth - 1.0F) > ActivityEpsilon ||
         inputLeveler;
 }

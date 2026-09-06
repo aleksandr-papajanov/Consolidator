@@ -1,4 +1,4 @@
-#include "DspProcessors.h"
+#include "CompressorProcessor.h"
 
 namespace consolidator::max::dsp
 {

@@ -1,10 +1,11 @@
 class DialGestureSession
 {
-    constructor(presenter, transactions, reject)
+    constructor(presenter, transactions, reject, snap)
     {
         this.presenter = presenter;
         this.transactions = transactions;
         this.reject = reject;
+        this.snap = snap;
         this.transactionId = null;
         this.ready = false;
         this.pendingValue = null;
@@ -54,8 +55,12 @@ class DialGestureSession
         }
         this.ready = true;
         if (this.pendingValue) {
-            this.presenter.setValue(
+            const snappedValue = this.presenter.setValue(
                 this.pendingValue[0], this.pendingValue[1], id);
+            if (snappedValue !== undefined)
+            {
+                this.snap(this.pendingValue[0], snappedValue);
+            }
             this.pendingValue = null;
         }
         if (this.pendingEnd !== null) {
@@ -86,6 +91,7 @@ class DialGestureSession
         this.clear();
         this.transactions = null;
         this.presenter = null;
+        this.snap = () => {};
     }
 }
 

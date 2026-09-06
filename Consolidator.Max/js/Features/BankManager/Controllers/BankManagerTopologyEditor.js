@@ -1,8 +1,9 @@
 class BankManagerTopologyEditor
 {
-    constructor(context)
+    constructor(context, selection)
     {
         this.context = context;
+        this.selection = selection;
     }
 
     groupSelectedBanks()
@@ -16,8 +17,9 @@ class BankManagerTopologyEditor
         selected.forEach((selection) => {
             this.add(entries, selection.instanceId, selection.bankId, groupId);
         });
-        this.write(entries);
-        this.context.viewModel.clearBankSelection();
+        this.write(entries, () => {
+            this.selection.selectGroup(groupId, selected[0]);
+        });
     }
 
     ungroupFocusedBank()
@@ -53,15 +55,29 @@ class BankManagerTopologyEditor
         });
     }
 
-    write(entriesByInstance)
+    write(entriesByInstance, completed)
     {
+        let pending = 0;
+        let failed = false;
+        Object.keys(entriesByInstance).forEach((instanceId) => {
+            pending += Math.ceil(entriesByInstance[instanceId].length / 16);
+        });
+        if (pending === 0) {
+            if (completed) completed();
+            return;
+        }
         this.context.transactions.begin((historyId) => {
             Object.keys(entriesByInstance).forEach((instanceId) => {
                 let entries = entriesByInstance[instanceId];
                 for (let offset = 0; offset < entries.length; offset += 16) {
                     this.context.state.setManyTopologyFor(
                         instanceId,
-                        entries.slice(offset, offset + 16)
+                        entries.slice(offset, offset + 16),
+                        (response) => {
+                            if (response && response.error) failed = true;
+                            pending -= 1;
+                            if (pending === 0 && !failed && completed) completed();
+                        }
                     );
                 }
             });

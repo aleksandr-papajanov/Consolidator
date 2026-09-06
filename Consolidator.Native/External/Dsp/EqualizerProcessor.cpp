@@ -1,6 +1,7 @@
-#include "DspProcessors.h"
+#include "EqualizerProcessor.h"
 
 #include <algorithm>
+#include <cstddef>
 
 namespace consolidator::max::dsp
 {

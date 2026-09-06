@@ -68,6 +68,8 @@ const UiColors = {
     analyzer: {
         background: [0.025, 0.027, 0.024, 1],
 
+        grid: [0.14, 0.15, 0.16, 1],
+
         spectrum: [0.75, 0.76, 0.69, 0.58],
 
         referenceSpectrum: [0.31, 0.64, 0.68, 0.55],

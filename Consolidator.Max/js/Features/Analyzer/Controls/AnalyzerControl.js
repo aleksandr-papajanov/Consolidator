@@ -24,7 +24,7 @@ function onresize() { mgraphics.redraw(); }
 function onclick(x, y)
 {
     let id = analyzerControl.hitTest(x, y);
-    if (!id || !analyzerControl.canMove(id)) return;
+    if (!id || (!analyzerControl.canMove(id) && !analyzerControl.canChangeQ(id))) return;
     if (analyzerControl.doubleClick.isDoubleClick(id)) {
         analyzerControl.endGesture();
         analyzerControl.resetInteractionState();
@@ -34,18 +34,33 @@ function onclick(x, y)
     }
     analyzerControl.state.selectedId = id;
     analyzerControl.state.dragging = true;
+    analyzerControl.state.lastDragY = y;
+    analyzerControl.state.qDragStarted = false;
     analyzerControl.emitIntent("filterSelected", [id]);
     analyzerControl.emitIntent("gestureBegan", [id]);
 }
 
-function ondrag(x, y, button)
+function ondrag(x, y, button, cmd, shift, caps, option, ctrl)
 {
     if (button === 0) {
         analyzerControl.endGesture();
         return;
     }
     let state = analyzerControl.state;
-    if (!state.dragging || !analyzerControl.canMove(state.selectedId)) return;
+    if (!state.dragging) return;
+    let alt = Number(option) !== 0;
+    if (alt && analyzerControl.canChangeQ(state.selectedId)) {
+        if (!state.qDragStarted) {
+            state.lastDragY = y;
+            state.qDragStarted = true;
+            return;
+        }
+        let delta = state.lastDragY - y;
+        analyzerControl.emitIntent("filterQChanged", [state.selectedId, delta]);
+        state.lastDragY = y;
+        return;
+    }
+    if (!analyzerControl.canMove(state.selectedId)) return;
     let layout = new AnalyzerLayout(mgraphics.size[0], mgraphics.size[1]);
     let handle = analyzerControl.handleById(state.selectedId);
     let xMinimum = isFinite(Number(handle.xMinimum))
@@ -60,18 +75,9 @@ function ondrag(x, y, button)
         xMaximum, (x - layout.left) / layout.width));
     let nextY = Math.max(yMinimum, Math.min(
         yMaximum, (y - layout.top) / layout.height));
-    state.preview[state.selectedId] = { x: nextX, y: nextY };
     analyzerControl.emitIntent("filterPreview", [state.selectedId, nextX, nextY]);
     analyzerControl.scheduleMove(state.selectedId, nextX, nextY);
     analyzerControl.requestRedraw();
-}
-
-function onwheel(x, y, delta)
-{
-    let id = analyzerControl.hitTest(x, y);
-    if (id && analyzerControl.canChangeQ(id)) {
-        analyzerControl.emitIntent("filterQChanged", [id, Number(delta) * 0.05]);
-    }
 }
 
 function onidleout() { analyzerControl.endGesture(); }
@@ -79,6 +85,11 @@ function onidleout() { analyzerControl.endGesture(); }
 function presentation_begin(mode, enabled, revision, viewKey)
 {
     analyzerControl.beginPresentation(mode, enabled, revision, viewKey);
+}
+
+function rough_grid(rough, frequencyCount, gainCount, ...values)
+{
+    analyzerControl.setRoughGrid(rough, frequencyCount, gainCount, values);
 }
 
 function applyCurve(name, args, id)

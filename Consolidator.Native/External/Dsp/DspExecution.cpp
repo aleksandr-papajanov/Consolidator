@@ -72,7 +72,7 @@ DspExecutionPolicy BuildExecutionPolicy(
         outputActive,
         outputBypassed,
         limiterEnabled,
-        snapshot.inputWidth != 100.0F,
+        snapshot.inputWidth != 1.0F,
         plan.channelMode
     };
 }

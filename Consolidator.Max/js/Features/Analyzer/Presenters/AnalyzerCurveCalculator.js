@@ -116,7 +116,7 @@ class AnalyzerCurveCalculator
 
 function normalizeDecibels(decibels)
 {
-    return Math.max(0, Math.min(1, 1 - (decibels + 24) / 48));
+    return 1 - (decibels + 24) / 48;
 }
 
 module.exports = {

@@ -1,7 +1,9 @@
 #include "DspParallelStage.h"
 
 #include <algorithm>
+#include <cstddef>
 
+#include "DspProcessingPrimitives.h"
 
 namespace consolidator::max::dsp
 {
@@ -47,6 +49,15 @@ void DspParallelStage::Process(
         return;
     }
 
+    // At stable 100% wet the dry copy and interpolation have no purpose.
+    // Keep detector routing local, as with the copied branch below.
+    if (wet_.CurrentValue() == 1.0 && !wet_.IsSmoothing())
+    {
+        auto wetFrame = frame;
+        processor.Process(wetFrame);
+        return;
+    }
+
     if (main.left != nullptr)
     {
         std::copy_n(main.left, main.frameCount, branchLeft_.data());
@@ -67,14 +78,15 @@ void DspParallelStage::Process(
         frame.policy
     };
     processor.Process(branchFrame);
+    const auto channels = SelectChannels(main, frame.plan.channelMode);
     for (std::size_t index = 0; index < main.frameCount; ++index)
     {
         const auto wet = wet_.NextValue();
-        if (frame.plan.channelMode != DspChannelMode::Right && main.left != nullptr)
+        if (channels.left != nullptr)
         {
             main.left[index] += wet * (branch.left[index] - main.left[index]);
         }
-        if (frame.plan.channelMode != DspChannelMode::Left && main.right != nullptr)
+        if (channels.right != nullptr)
         {
             main.right[index] += wet * (branch.right[index] - main.right[index]);
         }

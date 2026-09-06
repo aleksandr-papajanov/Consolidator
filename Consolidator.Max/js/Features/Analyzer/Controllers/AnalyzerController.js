@@ -24,12 +24,18 @@ class AnalyzerController
             this.presenter.filterMoved(
                 payload[0], payload[1], payload[2], transactionId);
             break;
+        case "filterQChanged":
+            this.presenter.filterQChanged(payload[0], payload[1], transactionId);
+            break;
+        case "filterQPreview":
+            this.presenter.previewQChanged(payload[0], payload[1]);
+            break;
+        case "filterQCommit":
+            this.presenter.commitQ(payload[0], transactionId);
+            break;
         case "filterCommit":
             this.presenter.commitPreview(
                 payload[0], payload[1], payload[2], transactionId, callback);
-            break;
-        case "filterQChanged":
-            this.presenter.filterQChanged(payload[0], payload[1]);
             break;
         case "filterSelected":
             this.presenter.selectFilter(payload[0]);
