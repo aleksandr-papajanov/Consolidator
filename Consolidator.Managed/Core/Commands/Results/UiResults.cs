@@ -12,6 +12,11 @@ public sealed record TargetStateSnapshotResult(
     ProcessorId SnapshotContext,
     IReadOnlyList<TargetStateValue> Values);
 
+public sealed record BankStateSnapshotsResult(
+    ulong InstanceId,
+    ProcessorId SnapshotContext,
+    IReadOnlyList<TargetStateSnapshotResult> Banks);
+
 public sealed record TargetStateValue(
     StatePath Path,
     object? Value,

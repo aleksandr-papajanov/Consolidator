@@ -103,6 +103,11 @@ Controls that write through group scope show the same group color from
 small marker, dial tracks use the group color, and analyzer filter handles
 use the group color.
 
+When the focused bank belongs to a group, the analyzer additionally draws the
+FFT of the summed audio from every group track, including the focused track, in
+that group's color. The focused track keeps the normal spectrum color, and the
+group spectrum remains visible when edit scope is switched to local.
+
 The Bank Manager Clear action sends the `clear_topology` command. Managed
 clears all non-default topology groups (`groupId > 0`) atomically across the
 registry. The default group `0` is preserved. Group, Ungroup and Clear each

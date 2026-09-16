@@ -27,15 +27,17 @@ class BankManagerHitActions
                 presentation.groupAction,
                 presentation.ungroupAction,
                 presentation.clearAction,
+                presentation.commitAction,
+                presentation.refineAction,
                 presentation.scopeAction,
                 { enabled: true }
             ][index];
             if (action && action.enabled) {
-                let keys = ["group", "ungroup", "clear"];
+                let keys = ["group", "ungroup", "clear", "commit", "refine"];
                 if (index < keys.length) this.feedback.flashAction(keys[index]);
                 this.emit(["groupRequested", "ungroupRequested",
-                    "clearRequested", "scopeToggled",
-                    "editPrecisionToggled"][index]);
+                    "clearRequested", "commitRequested", "refineRequested",
+                    "scopeToggled", "editPrecisionToggled"][index]);
             }
             return true;
         }

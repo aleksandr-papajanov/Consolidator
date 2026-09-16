@@ -18,16 +18,12 @@ public unsafe sealed class NativeAudioInput
     public void ReceiveAudio(
         double* mainLeft,
         double* mainRight,
-        double* referenceLeft,
-        double* referenceRight,
         nuint frameCount)
     {
         _audioInputService.ReceiveAudio(
             _instanceId,
             mainLeft,
             mainRight,
-            referenceLeft,
-            referenceRight,
             frameCount);
     }
 }

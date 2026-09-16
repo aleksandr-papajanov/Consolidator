@@ -2,6 +2,7 @@ using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.Core.Dsp;
+using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Services.PerInstance;
 using Consolidator.Managed.Core.Topology;
@@ -14,15 +15,18 @@ public sealed class CommandExecutor
     private readonly InstanceRegistry _instanceRegistry;
     private readonly ICommandDispatcher _commandDispatcher;
     private readonly DspStateChangeTracker _dspChanges;
+    private readonly IManagedLogger _logger;
 
     internal CommandExecutor(
         InstanceRegistry instanceRegistry,
         ICommandDispatcher commandDispatcher,
-        DspStateChangeTracker dspChanges)
+        DspStateChangeTracker dspChanges,
+        IManagedLogger logger)
     {
         _instanceRegistry = instanceRegistry;
         _commandDispatcher = commandDispatcher;
         _dspChanges = dspChanges;
+        _logger = logger;
     }
 
     public async ValueTask<CommandExecutionResult<TResult>> ExecuteAsync<TResult>(
@@ -66,7 +70,9 @@ public sealed class CommandExecutor
                 command is SetInstanceBypassCommand ||
                 command is SetProcessorBypassCommand ||
                 command is SetBankBypassCommand ||
-                command is DisableInputLevelerCommand) &&
+                command is DisableInputLevelerCommand ||
+                command is CommitBankCommand ||
+                command is RefineBankCommand) &&
             result.Value is StateWriteStatus.Applied;
         if (result.Succeeded && stateChanged)
         {
@@ -119,6 +125,9 @@ public sealed class CommandExecutor
         }
         catch (Exception exception)
         {
+            _logger.Error(
+                $"Command handler failed for '{command.GetType().Name}' " +
+                $"on instance {instance.InstanceId}: {exception}");
             return new InstanceCommandExecution<TResult>(
                 default,
                 exception.Message);

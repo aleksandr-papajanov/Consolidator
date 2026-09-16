@@ -9,6 +9,8 @@ class BankManagerPresentation
         this.groupAction = null;
         this.ungroupAction = null;
         this.clearAction = { enabled: false };
+        this.commitAction = { enabled: false, active: false };
+        this.refineAction = { enabled: false, active: false };
         this.scopeAction = {
             enabled: false,
             active: false,

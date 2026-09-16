@@ -71,7 +71,7 @@ class BankManagerLayout
 
     actionGroupHeight()
     {
-        const actionCount = 5;
+        const actionCount = 6;
         return actionCount * BankManagerControlOptions.actionButtonHeight +
             (actionCount - 1) * BankManagerControlOptions.actionGap;
     }

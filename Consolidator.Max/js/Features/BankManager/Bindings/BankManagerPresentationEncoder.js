@@ -198,10 +198,14 @@ class BankManagerPresentationEncoder
         const group = presentation.groupAction || {};
         const ungroup = presentation.ungroupAction || {};
         const clear = presentation.clearAction || {};
+        const commit = presentation.commitAction || {};
+        const refine = presentation.refineAction || {};
         const scope = presentation.scopeAction || {};
         this.send("group_action", [group.enabled ? 1 : 0, group.active ? 1 : 0]);
         this.send("ungroup_action", [ungroup.enabled ? 1 : 0, ungroup.active ? 1 : 0]);
         this.send("clear_action", [clear.enabled ? 1 : 0]);
+        this.send("commit_action", [commit.enabled ? 1 : 0, commit.active ? 1 : 0]);
+        this.send("refine_action", [refine.enabled ? 1 : 0, refine.active ? 1 : 0]);
         this.send("scope_action", [scope.enabled ? 1 : 0, scope.active ? 1 : 0]
             .concat(this.colorArguments(scope.color)));
         this.sendHistory("history", presentation.history);
@@ -212,6 +216,8 @@ class BankManagerPresentationEncoder
         const group = presentation.groupAction || {};
         const ungroup = presentation.ungroupAction || {};
         const clear = presentation.clearAction || {};
+        const commit = presentation.commitAction || {};
+        const refine = presentation.refineAction || {};
         const scope = presentation.scopeAction || {};
         this.send("group_action_patch", [group.enabled ? 1 : 0, group.active ? 1 : 0]);
         this.send("ungroup_action_patch", [
@@ -219,6 +225,14 @@ class BankManagerPresentationEncoder
             ungroup.active ? 1 : 0
         ]);
         this.send("clear_action_patch", [clear.enabled ? 1 : 0]);
+        this.send("commit_action_patch", [
+            commit.enabled ? 1 : 0,
+            commit.active ? 1 : 0
+        ]);
+        this.send("refine_action_patch", [
+            refine.enabled ? 1 : 0,
+            refine.active ? 1 : 0
+        ]);
         this.send("scope_action_patch", [scope.enabled ? 1 : 0, scope.active ? 1 : 0]
             .concat(this.colorArguments(scope.color)));
         this.sendHistory("history_patch", presentation.history);

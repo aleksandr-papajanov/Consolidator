@@ -82,3 +82,21 @@ public sealed record DisableInputLevelerCommand(
 {
     public CommandScope Scope => CommandScope.Coordinator;
 }
+
+public sealed record CommitBankCommand(
+    InstanceControlScope TargetScope,
+    InstanceId? TargetInstanceId,
+    int BankIndex) :
+    IInstanceCommand<StateWriteStatus>, ITargetedBankCommand
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}
+
+public sealed record RefineBankCommand(
+    InstanceControlScope TargetScope,
+    InstanceId? TargetInstanceId,
+    int BankIndex) :
+    IInstanceCommand<StateWriteStatus>, ITargetedBankCommand
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}

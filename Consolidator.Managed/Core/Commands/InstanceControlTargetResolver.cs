@@ -53,6 +53,41 @@ internal sealed class InstanceControlTargetResolver
             out instanceIds);
     }
 
+    public bool TryResolveBanks(
+        InstanceControlScope scope,
+        InstanceCommandContext context,
+        InstanceId targetInstanceId,
+        int bankIndex,
+        out IReadOnlyList<BankAddress> banks)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.BankTarget is not { } target ||
+            target.TargetBank.InstanceId != targetInstanceId ||
+            target.TargetBank.BankIndex != bankIndex ||
+            !_instances.Contains(targetInstanceId))
+        {
+            banks = Array.Empty<BankAddress>();
+            return false;
+        }
+
+        if (scope is InstanceControlScope.Instance)
+        {
+            banks = [target.TargetBank];
+            return true;
+        }
+
+        if (scope is not InstanceControlScope.BankGroup)
+        {
+            banks = Array.Empty<BankAddress>();
+            return false;
+        }
+
+        banks = target.Group is { Members.Count: > 0 } group
+            ? group.Members
+            : [target.TargetBank];
+        return banks.All(bank => _instances.Contains(bank.InstanceId));
+    }
+
     private bool TryResolve(
         InstanceControlScope scope,
         BankAddress targetBank,

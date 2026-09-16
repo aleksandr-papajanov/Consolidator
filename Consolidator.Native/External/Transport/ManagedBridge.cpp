@@ -57,6 +57,19 @@ HMODULE LoadManagedLibrary()
         return nullptr;
     }
 
+    std::string managedPath{ absolutePath };
+    const auto separator = managedPath.find_last_of("\\/");
+    if (separator != std::string::npos)
+    {
+        const auto nloptPath = managedPath.substr(0, separator + 1) + "nlopt.dll";
+        if (LoadLibraryA(nloptPath.c_str()) == nullptr)
+        {
+            c74::max::post(
+                "Consolidator: failed to load NLopt dependency from %s",
+                nloptPath.c_str());
+        }
+    }
+
     return LoadLibraryA(absolutePath);
 }
 

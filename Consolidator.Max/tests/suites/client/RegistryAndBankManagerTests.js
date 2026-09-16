@@ -5,12 +5,17 @@ var vm = require("vm");
 var environment = require("../../support/ProductionEnvironment.js");
 var root = environment.root;
 environment.loadClientEnvironment();
+var UiEditScope = require(
+  path.join(root, "js/Shared/ViewModels/UiEditScope.js")
+).UiEditScope;
 function makeBankManagerControllerFixture() {
   var calls = {
     views: [], selected: [], toggled: [], focused: [], cleared: 0, requests: [],
   };
   var viewModel = {
     clearAction: { enabled: true, armed: false },
+    commitInProgress: false,
+    refineInProgress: false,
     rows: [{ instanceId: "remote", banks: [{ bankId: 5 }] }],
     focusedBank: function () { return { bankId: 5 }; },
     apply: function (state) {
@@ -32,6 +37,12 @@ function makeBankManagerControllerFixture() {
     return [];
   };
   viewModel.clearBankSelection = function () {};
+  viewModel.setCommitInProgress = function (value) {
+    this.commitInProgress = Boolean(value);
+  };
+  viewModel.setRefineInProgress = function (value) {
+    this.refineInProgress = Boolean(value);
+  };
   var state = {
     setManyTopologyFor: function () {
       calls.cleared += 1;
@@ -180,12 +191,30 @@ function testEqualizerGainRoundTripUpdatesBankActivityMarker() {
     1, 10, 11, "7", 0, 1,
   ]);
   assert.strictEqual(vm.rows[0].banks[0].effectActive, true);
+  vm.setFocusedBank("7", 0);
+  assert.strictEqual(vm.commitAction.enabled, true);
 
   client.handleControl("registry_bank_effect_changed", [
     1, 11, 12, "7", 0, 0,
   ]);
   assert.strictEqual(vm.rows[0].banks[0].effectActive, false);
+  assert.strictEqual(vm.commitAction.enabled, false);
   vm.destroy();
+}
+
+function testBankManagerControllerCommitsTheFocusedBankWithCurrentScope() {
+  var fixture = makeBankManagerControllerFixture();
+  fixture.viewModel.focusedSelection = { instanceId: "remote", bankId: 5 };
+  fixture.viewModel.focusedBank = function () {
+    return { bankId: 5, effectActive: true };
+  };
+  fixture.controller.context.scope.mode = "group";
+
+  fixture.controller.handleIntent("commitRequested", []);
+
+  assert.deepStrictEqual(fixture.calls.requests, [
+    ["commit_bank", ["remote", 5, "group"]],
+  ]);
 }
 function testBankEffectDeltaSendsInactiveBankPatchToControl() {
   var sent = [];
@@ -868,6 +897,7 @@ function testBankManagerWritesSelectedGroupsForEveryInstance() {
 testRegistrySnapshotRoundTrip();
 testRegistryProcessorDeltaPatchesOneRow();
 testEqualizerGainRoundTripUpdatesBankActivityMarker();
+testBankManagerControllerCommitsTheFocusedBankWithCurrentScope();
 testBankEffectDeltaSendsInactiveBankPatchToControl();
 testBankBypassDeltaReachesControlPatch();
 testViewModelUsesManagedProcessorMarkers();

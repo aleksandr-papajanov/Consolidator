@@ -14,6 +14,7 @@ class EqualizerController
             frequencyRange: { minimum: 20, maximum: 20000 },
             gainRange: { minimum: -24, maximum: 24 },
             statusSource: viewModel.targetState,
+            bankSnapshotsSource: viewModel.targetState,
             scope: scope,
             parameters: this.createBankParameters(viewModel.equalizer.filters)
         }));

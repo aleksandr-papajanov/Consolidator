@@ -621,19 +621,123 @@ function testAnalyzerPublishesOneSpectrumNotificationPerFftFrame() {
   });
 
   protocolHandlers.fft([
-    1, 8, 4,
+    1, 8, 4, 1,
     0.1, 0.2, 0.3,
     0.4, 0.5, 0.6,
   ]);
   protocolHandlers.fft([
-    1, 7, 4,
+    1, 7, 4, 1,
     0.1, 0.2, 0.3,
     0.4, 0.5, 0.6,
   ]);
 
   assert.strictEqual(notifications, 1);
   assert.strictEqual(presenter.spectrum.values.length, 3);
-  assert.strictEqual(presenter.referenceSpectrum.values.length, 3);
+  assert.strictEqual(presenter.groupSpectrum.values.length, 3);
+
+  protocolHandlers.fft([
+    1, 7, 4, 0,
+    0.3, 0.2, 0.1,
+  ]);
+
+  assert.strictEqual(notifications, 2);
+  assert.strictEqual(presenter.groupSpectrum, null);
+  presenter.destroy();
+}
+
+function testAnalyzerBindingPreservesSpectrumMetadataForRenderer() {
+  var messages = [];
+  var spectrumCallback = null;
+  var presenter = {
+    subscribe: function () { return function () {}; },
+    subscribeSpectrum: function (callback, immediate) {
+      spectrumCallback = callback;
+      if (immediate) {
+        callback({
+          active: true,
+          fftSize: 1024,
+          sampleRate: 44100,
+          values: [0.25, 0.5],
+        }, {
+          active: true,
+          fftSize: 1024,
+          sampleRate: 44100,
+          values: [0.75, 0.9],
+        });
+      }
+      return function () {};
+    },
+  };
+  var binding = new AnalyzerControlBinding(
+    {},
+    presenter,
+    function (selector, args) { messages.push([selector, args]); }
+  );
+  var spectrum = messages.filter(function (message) {
+    return message[0] === "spectrum";
+  });
+
+  assert.deepStrictEqual(spectrum, [[
+    "spectrum",
+    [1, 1024, 44100, 0.25, 0.5],
+  ]]);
+  assert.deepStrictEqual(messages.filter(function (message) {
+    return message[0] === "group_spectrum";
+  }), [[
+    "group_spectrum",
+    [1, 1024, 44100, 0.75, 0.9],
+  ]]);
+
+  spectrumCallback({
+    active: true,
+    fftSize: 1024,
+    sampleRate: 44100,
+    values: [0.4, 0.6],
+  }, null);
+  assert.deepStrictEqual(messages.filter(function (message) {
+    return message[0] === "group_spectrum";
+  }).slice(-1)[0], [
+    "group_spectrum",
+    [0, 1024, 44100],
+  ]);
+
+  var previousTask = global.Task;
+  global.Task = function () {
+    this.schedule = function () {};
+    this.cancel = function () {};
+  };
+  var AnalyzerControl = loadMaxClass(
+    "js/Features/Analyzer/Controls/AnalyzerControl.js",
+    "AnalyzerControl"
+  );
+  var analyzerControl = new AnalyzerControl();
+  analyzerControl.beginPresentation("equalizer", 1, 0, "");
+  analyzerControl.addCurve("spectrum", spectrum[0][1]);
+
+  assert.strictEqual(analyzerControl.pendingPresentation.spectrum.fftSize, 1024);
+  assert.strictEqual(analyzerControl.pendingPresentation.spectrum.sampleRate, 44100);
+  assert.deepStrictEqual(
+    analyzerControl.pendingPresentation.spectrum.values,
+    [0.25, 0.5]
+  );
+  analyzerControl.destroy();
+  global.Task = previousTask;
+  binding.destroy();
+}
+
+function testAnalyzerExposesFocusedGroupColorOutsideGroupEditScope() {
+  var groupColor = [0.25, 0.68, 0.65, 1];
+  var presenter = new AnalyzerPresenter({
+    scope: {
+      enabled: true,
+      color: groupColor,
+      isGroup: function () { return false; },
+      subscribe: function () { return function () {}; },
+    },
+  });
+
+  assert.strictEqual(presenter.presentation.scopeActive, false);
+  assert.strictEqual(presenter.presentation.scopeColor, groupColor);
   presenter.destroy();
 }
 function testAnalyzerAcceptsSpectrumAfterTargetInstanceChanges() {
@@ -659,12 +763,12 @@ function testAnalyzerAcceptsSpectrumAfterTargetInstanceChanges() {
   });
   presenter.connectSpectrum(protocol);
 
-  protocolHandler([1, 7, 4, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+  protocolHandler([1, 7, 4, 0, 0.1, 0.2, 0.3]);
   statusCallback({
     ready: true,
     target: { instanceId: 8, bankId: 1 },
   });
-  protocolHandler([1, 8, 4, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
+  protocolHandler([1, 8, 4, 0, 0.6, 0.5, 0.4]);
 
   assert.deepStrictEqual(presenter.spectrum.values, [0.6, 0.5, 0.4]);
   presenter.destroy();
@@ -692,20 +796,25 @@ function testAnalyzerRejectsLateSpectrumFromPreviousTarget() {
     },
   });
   presenter.connectSpectrum(protocol);
-  protocolHandler([1, 7, 4, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+  protocolHandler([1, 7, 4, 0, 0.1, 0.2, 0.3]);
 
   statusCallback({
     ready: true,
     target: { instanceId: 8, bankId: 1 },
   });
-  protocolHandler([1, 7, 4, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]);
+  protocolHandler([1, 7, 4, 0, 0.9, 0.9, 0.9]);
 
   assert.strictEqual(presenter.spectrum, null);
   presenter.destroy();
 }
 function testAnalyzerDragClampsToEffectivePeerRanges() {
   var writes = [];
+  var precisionMode = {
+    isRough: function () { return false; },
+    subscribe: function () { return function () {}; },
+  };
   var presenter = new AnalyzerPresenter({
+    precisionMode: precisionMode,
     parameters: [{
       frequency: {
         value: 1000,
@@ -1358,7 +1467,12 @@ function testDialDisplayScaleDoesNotChangePhysicalValue() {
       this.value = next;
     },
   };
+  var precisionMode = {
+    isRough: function () { return false; },
+    subscribe: function () { return function () {}; },
+  };
   var presenter = new DialPresenter({
+    precisionMode: precisionMode,
     rings: [
       {
         value: value,
@@ -2189,6 +2303,8 @@ testPanelBindingHostRoutesListMessagesToNamedControl();
 testUiHostEntrypointInitializesFromLiveReadyAndRoutesLists();
 testAnalyzerHandlesPublishOnlyAfterTargetSnapshotIsReady();
 testAnalyzerPublishesOneSpectrumNotificationPerFftFrame();
+testAnalyzerBindingPreservesSpectrumMetadataForRenderer();
+testAnalyzerExposesFocusedGroupColorOutsideGroupEditScope();
 testAnalyzerAcceptsSpectrumAfterTargetInstanceChanges();
 testAnalyzerRejectsLateSpectrumFromPreviousTarget();
 testAnalyzerDragClampsToEffectivePeerRanges();

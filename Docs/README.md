@@ -16,6 +16,7 @@
 | [`BankIndexContract.md`](BankIndexContract.md) | Единый zero-based контракт индексов банков `0..6`. |
 | [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
 | [`DspStatePipeline.md`](DspStatePipeline.md) | DSP snapshot publication, local JavaScript curves, analyzer configuration и FFT capture. |
+| [`Approximation.md`](Approximation.md) | Offline свёртка текущего EQ-банка в стандартные фильтры банка 1, routing и атомарное применение. |
 | [`DspRuntimeFoundation.md`](DspRuntimeFoundation.md) | Native DSP runtime graph, processor lifecycle, sidechain and parallel processing foundation. |
 | [`DspImplementation.md`](DspImplementation.md) | Per-processor contracts, shared DSP primitives and hot-path optimization boundaries. |
 | [`AdaptiveCompression.md`](AdaptiveCompression.md) | One-knob target gain reduction, adaptive threshold, Timing modes, RMS makeup and parallel mixing. |

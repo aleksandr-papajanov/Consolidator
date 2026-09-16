@@ -44,9 +44,11 @@ class AnalyzerPresenter extends PresentationObservable
         );
         this.curvePublisher = new AnalyzerCurvePublisher();
         this.spectrum = null;
-        this.referenceSpectrum = null;
+        this.groupSpectrum = null;
         this.curves = [];
         this.combinedCurve = null;
+        this.bankCurves = [];
+        this.overallCurve = null;
         this.spectrumListeners = [];
         this.parameterEditor = new AnalyzerParameterEditor(
             this.options.parameters,
@@ -63,6 +65,7 @@ class AnalyzerPresenter extends PresentationObservable
             ? this.scope.subscribe(() => { this.requestRebuild(); }) : null;
         this.subscribeParameters();
         this.subscribeStatus();
+        this.subscribeBankSnapshots();
         this.rebuild();
     }
     
@@ -108,7 +111,9 @@ class AnalyzerPresenter extends PresentationObservable
                 this.targetInstanceId = null;
                 this.sourceInstanceId = null;
                 this.spectrum = null;
-                this.referenceSpectrum = null;
+                this.groupSpectrum = null;
+                this.bankCurves = [];
+                this.overallCurve = null;
                 this.focusedBankId = null;
             }
             else {
@@ -118,13 +123,39 @@ class AnalyzerPresenter extends PresentationObservable
                     this.targetInstanceId = nextSourceInstanceId;
                     this.sourceInstanceId = null;
                     this.spectrum = null;
-                    this.referenceSpectrum = null;
+                    this.groupSpectrum = null;
+                    this.bankCurves = [];
+                    this.overallCurve = null;
                 }
                 this.focusedBankId = status.target
                     ? Number(status.target.bankId) : null;
             }
             this.requestRebuild();
         }, true));
+    }
+
+    subscribeBankSnapshots()
+    {
+        const source = this.options.bankSnapshotsSource;
+        if (!source || typeof source.onBankSnapshots !== "function") {
+            return;
+        }
+        this.unsubscribers.push(source.onBankSnapshots((snapshots) => {
+            this.bankCurves = (snapshots || []).map((snapshot) => {
+                const result = this.curveCalculator.calculateSnapshot(
+                    snapshot.entries,
+                    snapshot.bankId
+                );
+                return {
+                    id: Number(snapshot.bankId),
+                    active: result.combinedCurve.active,
+                    values: result.combinedCurve.values
+                };
+            });
+            this.overallCurve = combineBankCurves(this.bankCurves);
+            this.publishCurves();
+            this.requestRebuild();
+        }));
     }
     
     connectSpectrum(protocol)
@@ -133,7 +164,7 @@ class AnalyzerPresenter extends PresentationObservable
             return;
         }
         this.unsubscribers.push(protocol.on("fft", (args) => {
-            if (!args || args.length < 3 ||
+            if (!args || args.length < 4 ||
                     !this.ready && this.hasTargetStatus) {
                 return;
             }
@@ -147,8 +178,10 @@ class AnalyzerPresenter extends PresentationObservable
             this.sourceInstanceId = nextSourceInstanceId;
             let fftSize = Number(args[2]);
             let binCount = Math.floor(fftSize / 2) + 1;
+            let hasGroupSpectrum = Number(args[3]) !== 0;
             if (!isFinite(fftSize) || binCount <= 1 ||
-                    args.length < 3 + binCount * 2) {
+                    args.length < 4 + binCount +
+                        (hasGroupSpectrum ? binCount : 0)) {
                 return;
             }
             this.spectrum = {
@@ -157,19 +190,19 @@ class AnalyzerPresenter extends PresentationObservable
                 sampleRate: this.sampleRate,
                 values: this.smoothSpectrum(
                     sourceChanged ? null : this.spectrum && this.spectrum.values,
-                    args.slice(3, 3 + binCount).map(Number))
+                    args.slice(4, 4 + binCount).map(Number))
             };
-            let referenceValues = args.slice(
-                3 + binCount, 3 + binCount * 2).map(Number);
-            this.referenceSpectrum = {
-                active: true,
-                fftSize: fftSize,
-                sampleRate: this.sampleRate,
-                values: this.smoothSpectrum(
-                    sourceChanged ? null : this.referenceSpectrum &&
-                        this.referenceSpectrum.values,
-                    referenceValues)
-            };
+            this.groupSpectrum = hasGroupSpectrum
+                ? {
+                    active: true,
+                    fftSize: fftSize,
+                    sampleRate: this.sampleRate,
+                    values: this.smoothSpectrum(
+                        sourceChanged ? null : this.groupSpectrum &&
+                            this.groupSpectrum.values,
+                        args.slice(4 + binCount, 4 + binCount * 2).map(Number))
+                }
+                : null;
             this.publishSpectrum();
         }));
     }
@@ -194,7 +227,7 @@ class AnalyzerPresenter extends PresentationObservable
     {
         let listeners = this.spectrumListeners.slice();
         for (let index = 0; index < listeners.length; index += 1) {
-            listeners[index](this.spectrum, this.referenceSpectrum);
+            listeners[index](this.spectrum, this.groupSpectrum);
         }
     }
 
@@ -202,7 +235,7 @@ class AnalyzerPresenter extends PresentationObservable
     {
         this.spectrumListeners.push(callback);
         if (immediate && this.spectrum) {
-            callback(this.spectrum, this.referenceSpectrum);
+            callback(this.spectrum, this.groupSpectrum);
         }
         return () => {
             this.spectrumListeners = this.spectrumListeners.filter(
@@ -216,13 +249,18 @@ class AnalyzerPresenter extends PresentationObservable
             callback,
             immediate,
             this.curves,
-            this.combinedCurve
+            this.combinedCurve,
+            this.overallCurve
         );
     }
     
     publishCurves()
     {
-        this.curvePublisher.publish(this.curves, this.combinedCurve);
+        this.curvePublisher.publish(
+            this.curves,
+            this.combinedCurve,
+            this.overallCurve
+        );
     }
     
     read(source, fallback)
@@ -243,7 +281,8 @@ class AnalyzerPresenter extends PresentationObservable
         presentation.mode = this.options.mode || "equalizer";
         presentation.enabled = this.ready;
         presentation.scopeActive = Boolean(this.scope && this.scope.isGroup());
-        presentation.scopeColor = presentation.scopeActive ? this.scope.color : null;
+        presentation.scopeColor = this.scope && this.scope.enabled
+            ? this.scope.color : null;
         presentation.frequencyMinimum = this.scale.frequencyMinimum;
         presentation.frequencyMaximum = this.scale.frequencyMaximum;
         presentation.gainMinimum = this.scale.gainMinimum;
@@ -252,9 +291,10 @@ class AnalyzerPresenter extends PresentationObservable
         presentation.roughGrid = presentation.precisionRough
             ? createRoughGrid(this.scale) : null;
         presentation.spectrum = this.spectrum;
-        presentation.referenceSpectrum = this.referenceSpectrum;
+        presentation.groupSpectrum = this.groupSpectrum;
         presentation.combinedCurve = this.combinedCurve;
         presentation.curves = this.curves;
+        presentation.allBanksCurve = this.overallCurve;
         if (this.ready) {
             (this.options.parameters || []).forEach((parameter, index) => {
                 let frequencyMinimum = this.scale.clampBindingValue(
@@ -376,6 +416,22 @@ class AnalyzerPresenter extends PresentationObservable
         super.destroy();
     }
 
+}
+
+function combineBankCurves(curves)
+{
+    const activeCurves = (curves || []).filter((curve) => curve.active !== false);
+    if (activeCurves.length === 0) {
+        return null;
+    }
+    const values = activeCurves[0].values.map((value, pointIndex) => {
+        let decibels = 0;
+        activeCurves.forEach((curve) => {
+            decibels += (1 - Number(curve.values[pointIndex])) * 48 - 24;
+        });
+        return Math.max(0, Math.min(1, 1 - (decibels + 24) / 48));
+    });
+    return { active: true, values: values };
 }
 
 function createRoughGrid(scale)

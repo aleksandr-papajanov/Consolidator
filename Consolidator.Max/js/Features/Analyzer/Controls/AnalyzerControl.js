@@ -103,9 +103,9 @@ function applyCurve(name, args, id)
 }
 
 function spectrum(...args) { applyCurve("spectrum", args); }
-function reference_spectrum(...args) { applyCurve("reference_spectrum", args); }
-function difference_spectrum(...args) { applyCurve("difference_spectrum", args); }
+function group_spectrum(...args) { applyCurve("group_spectrum", args); }
 function curve(id, ...args) { applyCurve("curve", args, id); }
+function all_banks_curve(...args) { applyCurve("all_banks_curve", args); }
 function combined(...args) { applyCurve("combined", args); }
 function handle(...args) { analyzerControl.addHandle(args); }
 

@@ -59,8 +59,6 @@ public static unsafe partial class NativeApi
             audioInput.ReceiveAudio(
                 mainLeft,
                 mainRight,
-                referenceLeft,
-                referenceRight,
                 frameCount);
         }
         catch

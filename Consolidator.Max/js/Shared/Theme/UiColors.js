@@ -72,11 +72,7 @@ const UiColors = {
 
         spectrum: [0.75, 0.76, 0.69, 0.58],
 
-        referenceSpectrum: [0.31, 0.64, 0.68, 0.55],
-
-        differenceSpectrum: [0.91, 0.38, 0.31, 0.68],
-
-
+        groupSpectrum: [0.31, 0.64, 0.68, 0.55],
 
         filterCurves: [
             [0.93, 0.37, 0.31, 0.90],
@@ -91,6 +87,8 @@ const UiColors = {
         filterInactive: [0.22, 0.23, 0.205, 0.48],
 
         combined: [0.72, 0.88, 0.28, 1],
+
+        allBanksCurve: [0.96, 0.86, 0.42, 1],
 
         combinedInactive: [0.35, 0.37, 0.32, 0.55],
 

@@ -4,7 +4,6 @@ using Consolidator.Managed.Core.Dsp;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.Services.Instances;
 using Consolidator.Managed.Core.Settings;
-using Consolidator.Managed.Core.State.Models.Instance;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Services.Persistence;

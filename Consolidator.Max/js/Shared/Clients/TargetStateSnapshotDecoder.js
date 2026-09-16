@@ -40,6 +40,46 @@ function decodeTargetStateSnapshot(args)
     return snapshot;
 }
 
+function decodeBankStateSnapshots(args)
+{
+    const bankCount = Number(args[5]);
+    let offset = 6;
+    const snapshots = [];
+    let invalid = !Number.isInteger(bankCount) || bankCount < 0;
+    for (let bankIndex = 0; !invalid && bankIndex < bankCount; bankIndex += 1)
+    {
+        if (offset + 2 > args.length)
+        {
+            invalid = true;
+            break;
+        }
+        const bankId = Number(args[offset++]);
+        const entryCount = Number(args[offset++]);
+        if (!Number.isInteger(bankId) || bankId < 0 ||
+                !Number.isInteger(entryCount) || entryCount < 0 ||
+                offset + entryCount * 2 > args.length)
+        {
+            invalid = true;
+            break;
+        }
+        const entries = [];
+        for (let entryIndex = 0; entryIndex < entryCount; entryIndex += 1)
+        {
+            entries.push({
+                path: String(args[offset++]),
+                value: args[offset++]
+            });
+        }
+        snapshots.push({ bankId: bankId, entries: entries });
+    }
+    return {
+        instanceId: String(args[3]),
+        snapshotContext: String(args[4]),
+        snapshots: snapshots,
+        invalid: invalid || offset !== args.length
+    };
+}
+
 function optionalValue(value)
 {
     return value === "none" ? undefined : value;
@@ -47,5 +87,6 @@ function optionalValue(value)
 
 module.exports = {
     decodeTargetStateEntry: decodeTargetStateEntry,
-    decodeTargetStateSnapshot: decodeTargetStateSnapshot
+    decodeTargetStateSnapshot: decodeTargetStateSnapshot,
+    decodeBankStateSnapshots: decodeBankStateSnapshots
 };

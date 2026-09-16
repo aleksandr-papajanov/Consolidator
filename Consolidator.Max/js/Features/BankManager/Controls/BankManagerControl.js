@@ -74,6 +74,16 @@ function clear_action(enabled)
     bankManagerControl.setClearAction(enabled);
 }
 
+function commit_action(enabled, active)
+{
+    bankManagerControl.setCommitAction(enabled, active);
+}
+
+function refine_action(enabled, active)
+{
+    bankManagerControl.setRefineAction(enabled, active);
+}
+
 function scope_action(enabled, active, hasColor, red, green, blue, alpha)
 {
     bankManagerControl.setScopeAction(enabled, active, hasColor, red, green, blue, alpha);
@@ -148,6 +158,16 @@ function ungroup_action_patch(enabled, active)
 function clear_action_patch(enabled)
 {
     bankManagerControl.patchClearAction(enabled);
+}
+
+function commit_action_patch(enabled, active)
+{
+    bankManagerControl.patchCommitAction(enabled, active);
+}
+
+function refine_action_patch(enabled, active)
+{
+    bankManagerControl.patchRefineAction(enabled, active);
 }
 
 function scope_action_patch(enabled, active, hasColor, red, green, blue, alpha)

@@ -1,6 +1,7 @@
 const {
     decodeTargetStateEntry,
-    decodeTargetStateSnapshot
+    decodeTargetStateSnapshot,
+    decodeBankStateSnapshots
 } = require("./TargetStateSnapshotDecoder.js");
 const { TargetStateSubscriptions } = require("./TargetStateSubscriptions.js");
 
@@ -13,6 +14,8 @@ class TargetStateClient
         this.target = null;
         this.pendingTarget = null;
         this.cache = {};
+        this.bankSnapshots = [];
+        this.pendingBankSnapshot = null;
         this.error = null;
         this.applyingSnapshot = false;
         this.generation = 0;
@@ -20,6 +23,7 @@ class TargetStateClient
         this.subscriptions = new TargetStateSubscriptions();
         this.unsubscribeProtocol = [
             protocol.on("target_state_snapshot", (args) => this.handleSnapshot(args)),
+            protocol.on("bank_state_snapshots", (args) => this.handleBankSnapshots(args)),
             protocol.on("state_changed", (args) => this.handleChanged(args)),
             protocol.on("dsp_telemetry", (args) => this.handleTelemetry(args))
         ];
@@ -38,6 +42,9 @@ class TargetStateClient
             requestId: null
         };
         this.error = null;
+        this.bankSnapshots = [];
+        this.pendingBankSnapshot = null;
+        this.subscriptions.notify("bankSnapshots", this.bankSnapshots);
         this.notifyStatus();
         const requestId = this.protocol.request(
             "observe_target",
@@ -60,6 +67,7 @@ class TargetStateClient
         if (this.isCurrentGeneration(generation))
         {
             this.pendingTarget.requestId = requestId;
+            this.requestBankSnapshots(generation, instanceId, context);
         }
         return requestId;
     }
@@ -101,6 +109,11 @@ class TargetStateClient
     onTargetSnapshotBatchEnd(callback)
     {
         return this.subscriptions.subscribeBatchEnd(callback);
+    }
+
+    onBankSnapshots(callback)
+    {
+        return this.subscriptions.subscribeBankSnapshots(callback);
     }
 
     set(path, value, callback, transactionId, scope)
@@ -283,6 +296,45 @@ class TargetStateClient
         }
     }
 
+    requestBankSnapshots(generation, instanceId, snapshotContext)
+    {
+        this.pendingBankSnapshot = {
+            requestId: this.protocol.request(
+                "observe_banks",
+                [String(instanceId), snapshotContext],
+                null
+            ),
+            generation: generation,
+            instanceId: String(instanceId),
+            snapshotContext: snapshotContext
+        };
+    }
+
+    handleBankSnapshots(args)
+    {
+        const requestId = String(args[2]);
+        const snapshot = decodeBankStateSnapshots(args);
+        const pending = this.pendingBankSnapshot;
+        const current = Boolean(pending && pending.requestId === requestId &&
+            pending.generation === this.generation &&
+            pending.instanceId === snapshot.instanceId &&
+            pending.snapshotContext === snapshot.snapshotContext);
+        if (!current)
+        {
+            this.protocol.complete(requestId, { stale: true, error: null });
+            return;
+        }
+        this.pendingBankSnapshot = null;
+        if (snapshot.invalid)
+        {
+            this.protocol.complete(requestId, { error: "malformed_bank_state_snapshots" });
+            return;
+        }
+        this.bankSnapshots = snapshot.snapshots;
+        this.subscriptions.notify("bankSnapshots", this.bankSnapshots);
+        this.protocol.complete(requestId, { snapshots: this.bankSnapshots, error: null });
+    }
+
     handleChanged(args)
     {
         if (!this.target || this.pendingTarget)
@@ -297,6 +349,14 @@ class TargetStateClient
         );
         this.cache[entry.path] = entry;
         this.subscriptions.notifyPath(entry);
+        if (entry.path.indexOf("equalizer.") === 0 && this.target)
+        {
+            this.requestBankSnapshots(
+                this.generation,
+                this.target.instanceId,
+                this.target.snapshotContext
+            );
+        }
     }
 
     handleTelemetry(args)
@@ -349,6 +409,8 @@ class TargetStateClient
         this.unsubscribeProtocol = [];
         this.applyingSnapshot = false;
         this.cache = {};
+        this.bankSnapshots = [];
+        this.pendingBankSnapshot = null;
         this.target = null;
         this.pendingTarget = null;
         this.error = null;

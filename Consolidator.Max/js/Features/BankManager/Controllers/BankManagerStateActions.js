@@ -62,6 +62,38 @@ class BankManagerStateActions
             0, this.context.scope.mode);
     }
 
+    commitFocusedBank()
+    {
+        if (this.context.viewModel.commitInProgress) return;
+        let selection = this.context.viewModel.focusedSelection;
+        let bank = this.context.viewModel.focusedBank();
+        if (!selection || !bank || !bank.effectActive) return;
+        this.context.viewModel.setCommitInProgress(true);
+        this.context.protocol.request("commit_bank", [
+            selection.instanceId,
+            Number(selection.bankId),
+            this.context.scope.mode
+        ], () => {
+            this.context.viewModel.setCommitInProgress(false);
+        });
+    }
+
+    refineFocusedBank()
+    {
+        if (this.context.viewModel.refineInProgress) return;
+        let selection = this.context.viewModel.focusedSelection;
+        let bank = this.context.viewModel.focusedBank();
+        if (!selection || !bank || !bank.effectActive) return;
+        this.context.viewModel.setRefineInProgress(true);
+        this.context.protocol.request("refine_bank", [
+            selection.instanceId,
+            Number(selection.bankId),
+            this.context.scope.mode
+        ], () => {
+            this.context.viewModel.setRefineInProgress(false);
+        });
+    }
+
     resolveInstanceScope(instanceId, additive)
     {
         let viewModel = this.context.viewModel;

@@ -19,6 +19,11 @@ caches, dirty-bank maps, or rendered curve arrays. Coefficient and response
 calculation that exists only to draw the Max UI belongs to the JavaScript
 `AnalyzerPresenter`.
 
+The Bank Commit control operation is the sole non-presentation exception. It
+captures the authoritative source-bank filter state and calculates one temporary
+frequency response for offline approximation. The curve is not cached, published
+or read by the audio thread; see [Approximation.md](Approximation.md).
+
 ## Curve presentation
 
 The presenter builds the focused equalizer or detector response directly from
@@ -55,17 +60,27 @@ analyzer configuration, raw equalizer state, or filter catalog frames.
 
 ## Spectrum capture
 
-`FftAnalyzer` owns the demanded source's preallocated audio capture ring, FFT
-buffers, preparation metadata, worker, and focused-viewer routing. Without an
-active viewer the audio entrypoint returns before capture lookup or audio copy.
+`FftAnalyzer` owns preallocated audio capture rings for the demanded focused
+source and, when that bank is grouped, every instance represented in the same
+bank group. It also owns FFT buffers, preparation metadata, the worker and
+focused-viewer routing. Without an active viewer the audio entrypoint returns
+before capture lookup or audio copy.
 
-The worker consumes at most one 1024-sample FFT window every 33 ms. When more
-than one window is available it skips to the newest complete window instead of
-rendering stale spectrum history. FFT output uses `LatestAnalysis` delivery and
-the dedicated native analysis outlet. Spectrum values are normalized around
-the `0 dBFS` to `-90 dBFS` display range.
+The worker consumes at most one 1024-sample FFT window per demanded instance
+every 33 ms. When more than one window is available it skips to the newest
+complete window instead of rendering stale spectrum history. It transforms the
+focused source independently, sums the time-domain windows of the focused source
+and every other group instance, and transforms that sum as the group spectrum.
+An ungrouped bank has no group spectrum. FFT output uses `LatestAnalysis`
+delivery and the dedicated native analysis outlet. Spectrum values are
+normalized around the `0 dBFS` to `-90 dBFS` display range.
 The presenter accepts FFT frames only from its current target instance, so a
 late latest-only frame from the previous target cannot replace the new view.
+It renders the source spectrum with the existing analyzer color and the summed
+peer spectrum with the focused bank group's color, independently of whether the
+edit scope is currently local or group.
+The Max host forwards each spectrum's FFT size and sample rate together with
+its values; the `v8ui` renderer uses that metadata for frequency-bin resampling.
 The Max renderer resamples the linear FFT bins onto the same 256-point
 logarithmic `20..20000 Hz` grid used by EQ curves before drawing, so both
 visualizations share the same horizontal frequency geometry.
@@ -84,10 +99,11 @@ and runs the native graph. DSP publication consumption does not depend on a
 protocol callback, qelem drain, or UI activity. The callback does not call Max
 UI code, allocate, block, log, or perform FFT work.
 
-All four Max inputs remain available to Managed spectrum capture, but only the
-first stereo pair enters native DSP. Reference channels are analysis inputs,
-not an external DSP sidechain. Leveler, Saturator and Compressor derive private
-detector signals from the current main audio at their positions in the graph.
+Only the first stereo pair of each demanded instance enters Managed spectrum
+capture and native DSP. The second Max stereo pair remains present at the ABI
+boundary but is not an analyzer source. Leveler, Saturator and Compressor derive
+private detector signals from the current main audio at their positions in the
+graph.
 
 Native processors apply the shared 10 ms parameter ramp to the continuous
 scalar controls they consume. Discrete bypass, active, audibility, bank, and

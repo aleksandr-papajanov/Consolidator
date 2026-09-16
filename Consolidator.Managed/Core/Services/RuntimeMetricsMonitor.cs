@@ -1,5 +1,3 @@
-using System.Threading;
-
 using Consolidator.Managed.Core.Services.Abstractions;
 
 namespace Consolidator.Managed.Core.Services;

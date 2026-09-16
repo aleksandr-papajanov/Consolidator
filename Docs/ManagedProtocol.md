@@ -133,11 +133,16 @@ second bank address.
 Notification delivery failures do not turn an already committed state mutation
 into a failed operation.
 
-Analyzer curves are calculated entirely in JavaScript from the focused
-parameter bindings and their local filter definitions. Managed publishes no
-curve arrays, raw equalizer projections, filter catalogs, or analyzer
-configuration frames. `fft` and `dsp_telemetry` are the streamed latest-only
-analysis frames; the latter is defined in [`DspTelemetry.md`](DspTelemetry.md).
+The selected-bank analyzer filter curves are calculated in JavaScript from
+focused parameter bindings and local filter definitions. The analyzer also
+requests `observe_banks`, a read-only coordinator query that returns the raw
+equalizer values for every bank of the target instance in one
+`bank_state_snapshots` frame. JavaScript calculates a separate all-banks
+equalizer response by summing the active bank responses in dB at each
+frequency. It is displayed alongside the existing selected-bank/filter
+curves; this query does not alter target selection or editable bindings.
+`fft` and `dsp_telemetry` are the streamed latest-only analysis frames; the
+latter is defined in [`DspTelemetry.md`](DspTelemetry.md).
 
 ## Routing and Core ownership
 
@@ -189,7 +194,10 @@ their classification reserves a later managed coalescing policy.
 
 The command surface contains state read/write, state reset, history framing,
 history jumps, UI initialization, target observation, instance activity and
-registry snapshots.
+registry snapshots, and all-bank equalizer observation. `observe_banks` receives
+`targetInstanceId` and a strict processor context, then returns one
+`bank_state_snapshots` frame containing each bank's relative equalizer paths
+and values. It does not change the focused target.
 Instance controls use the same target resolution for mute and solo. A grouped
 bank resolves to all members, while an ungrouped bank resolves to its single
 instance. In the bank manager, `S` is exclusive on a regular click and becomes
@@ -333,6 +341,18 @@ slow level and changes all flags in one history transaction.
 `bankIndex` is zero-based and must be in the range `0..6`. The target bank group
 is resolved for the explicit target instance at that index; a missing target or
 bank context is rejected without falling back to the source selection.
+
+Equalizer bank approximation uses a dedicated command because every group
+member produces a different fitted result from its own bank state:
+
+```text
+commit_bank targetInstanceId bankIndex local|group
+```
+
+The command resolves the exact bank or bank group, calculates each result on the
+Managed control path, and applies every successful result in one history
+transaction. Its detailed contract is defined in
+[Approximation.md](Approximation.md).
 
 Where a `bankId` is part of an observation, topology, registry, or notification
 contract, it is zero-based and uses the range `0..6`. The protocol,

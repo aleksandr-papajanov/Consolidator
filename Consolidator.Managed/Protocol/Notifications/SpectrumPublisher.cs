@@ -9,42 +9,44 @@ internal sealed class SpectrumPublisher
     private const int FftSize = 1024;
 
     private readonly IPresentationTransport _transport;
-    private readonly Func<InstanceId, ulong> _getRecipient;
 
-    public SpectrumPublisher(
-        IPresentationTransport transport,
-        Func<InstanceId, ulong> getRecipient)
+    public SpectrumPublisher(IPresentationTransport transport)
     {
         ArgumentNullException.ThrowIfNull(transport);
-        ArgumentNullException.ThrowIfNull(getRecipient);
         _transport = transport;
-        _getRecipient = getRecipient;
     }
 
     public void Publish(
+        ulong targetId,
         InstanceId sourceInstanceId,
-        float[] mainSpectrum,
-        float[] referenceSpectrum)
+        float[] sourceSpectrum,
+        float[]? groupSpectrum)
     {
-        var targetId = _getRecipient(sourceInstanceId);
         if (targetId == 0)
         {
             return;
         }
 
-        var atoms = new List<Atom>(3 + mainSpectrum.Length + referenceSpectrum.Length)
+        var atomCount = 4 + sourceSpectrum.Length +
+            (groupSpectrum?.Length ?? 0);
+        var atoms = new List<Atom>(atomCount)
         {
             new(AtomType.Integer, 1, 0, null),
             new(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
-            new(AtomType.Integer, FftSize, 0, null)
+            new(AtomType.Integer, FftSize, 0, null),
+            new(AtomType.Integer, groupSpectrum is null ? 0 : 1, 0, null)
         };
-        foreach (var value in mainSpectrum)
+        foreach (var value in sourceSpectrum)
         {
             atoms.Add(new Atom(AtomType.Float, 0, value, null));
         }
-        foreach (var value in referenceSpectrum)
+
+        if (groupSpectrum is not null)
         {
-            atoms.Add(new Atom(AtomType.Float, 0, value, null));
+            foreach (var value in groupSpectrum)
+            {
+                atoms.Add(new Atom(AtomType.Float, 0, value, null));
+            }
         }
 
         _transport.Send(new ProtocolOutput(

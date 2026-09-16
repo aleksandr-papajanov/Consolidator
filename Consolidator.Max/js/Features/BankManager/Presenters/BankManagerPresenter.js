@@ -115,6 +115,14 @@ class BankManagerPresenter extends PresentationObservable
         presentation.clearAction = this.read(viewModel.clearAction, {
             enabled: false
         });
+        presentation.commitAction = this.read(viewModel.commitAction, {
+            enabled: false,
+            active: false
+        });
+        presentation.refineAction = this.read(viewModel.refineAction, {
+            enabled: false,
+            active: false
+        });
         let history = this.read(viewModel.history, {});
         presentation.history = {
             cursor: Number(history.cursor) || 0,

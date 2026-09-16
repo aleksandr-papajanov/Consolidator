@@ -7,6 +7,7 @@ class TargetStateSubscriptions
         this.transitionBegin = [];
         this.transitionDone = [];
         this.snapshotCompleted = [];
+        this.bankSnapshots = [];
         this.batchBegin = [];
         this.batchEnd = [];
     }
@@ -44,6 +45,11 @@ class TargetStateSubscriptions
     subscribeBatchEnd(callback)
     {
         return this.subscribeList("batchEnd", callback);
+    }
+
+    subscribeBankSnapshots(callback)
+    {
+        return this.subscribeList("bankSnapshots", callback);
     }
 
     notifyPath(entry)
@@ -87,6 +93,7 @@ class TargetStateSubscriptions
         this.transitionBegin = [];
         this.transitionDone = [];
         this.snapshotCompleted = [];
+        this.bankSnapshots = [];
         this.batchBegin = [];
         this.batchEnd = [];
     }

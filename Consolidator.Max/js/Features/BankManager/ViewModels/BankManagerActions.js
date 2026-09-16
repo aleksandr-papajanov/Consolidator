@@ -2,7 +2,13 @@ const { bankHasGroup } = require("./BankManagerRows.js");
 
 const MAX_GROUP_COUNT = 16;
 
-function deriveBankManagerActions(rows, selectedCount, focusedBank, scope)
+function deriveBankManagerActions(
+    rows,
+    selectedCount,
+    focusedBank,
+    scope,
+    commitInProgress,
+    refineInProgress)
 {
     const groupContext = bankHasGroup(focusedBank);
     if (scope)
@@ -30,6 +36,16 @@ function deriveBankManagerActions(rows, selectedCount, focusedBank, scope)
                     return bankHasGroup(bank) && Number(bank.groupId) > 0;
                 });
             })
+        },
+        commitAction: {
+            enabled: !commitInProgress &&
+                Boolean(focusedBank && focusedBank.effectActive),
+            active: false
+        },
+        refineAction: {
+            enabled: !refineInProgress &&
+                Boolean(focusedBank && focusedBank.effectActive),
+            active: false
         }
     };
 }

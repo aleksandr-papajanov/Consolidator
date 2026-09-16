@@ -19,10 +19,10 @@ class AnalyzerPresentationBuilder
             precisionRough: current.precisionRough === true,
             roughGrid: current.roughGrid || null,
             spectrum: current.spectrum || null,
-            referenceSpectrum: current.referenceSpectrum || null,
-            differenceSpectrum: current.differenceSpectrum || null,
+            groupSpectrum: current.groupSpectrum || null,
             curves: (current.curves || []).slice(0),
             combinedCurve: current.combinedCurve || null,
+            allBanksCurve: current.allBanksCurve || null,
             scopeActive: current.scopeActive || false,
             scopeColor: current.scopeColor || null,
             handles: []
@@ -32,18 +32,19 @@ class AnalyzerPresentationBuilder
     setCurve(presentation, name, args, id)
     {
         if (!presentation) return false;
+        const spectrum = name === "spectrum" || name === "group_spectrum";
         let curve = {
             active: Number(args[0]) !== 0,
-            values: args.slice(1)
+            fftSize: spectrum ? Number(args[1]) : undefined,
+            sampleRate: spectrum ? Number(args[2]) : undefined,
+            values: args.slice(spectrum ? 3 : 1)
         };
         if (name === "spectrum") presentation.spectrum = curve;
-        else if (name === "reference_spectrum") {
-            presentation.referenceSpectrum = curve;
-        }
-        else if (name === "difference_spectrum") {
-            presentation.differenceSpectrum = curve;
+        else if (name === "group_spectrum") {
+            presentation.groupSpectrum = curve;
         }
         else if (name === "combined") presentation.combinedCurve = curve;
+        else if (name === "all_banks_curve") presentation.allBanksCurve = curve;
         else if (name === "curve") this.setFilterCurve(presentation, id, curve);
         else return false;
         return true;

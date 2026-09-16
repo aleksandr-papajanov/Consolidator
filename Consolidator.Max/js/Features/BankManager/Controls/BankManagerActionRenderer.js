@@ -10,6 +10,8 @@ class BankManagerActionRenderer
             { key: "group", label: "Group", action: presentation.groupAction || {}, momentary: true },
             { key: "ungroup", label: "Ungroup", action: presentation.ungroupAction || {}, momentary: true },
             { key: "clear", label: "Clear", action: presentation.clearAction || {}, momentary: true },
+            { key: "commit", label: "Commit", action: presentation.commitAction || {}, momentary: true },
+            { key: "refine", label: "Refine", action: presentation.refineAction || {}, momentary: true },
             {
                 key: "scope",
                 label: (presentation.scopeAction || {}).active ? "Group" : "Local",

@@ -14,23 +14,24 @@ class AnalyzerControlBinding extends ControlBinding
         this.connectPresentation();
         if (presenter && typeof presenter.subscribeSpectrum === "function")
         {
-            this.unsubscribers.push(presenter.subscribeSpectrum((spectrum, reference) => {
+            this.unsubscribers.push(presenter.subscribeSpectrum((spectrum, groupSpectrum) => {
                 if (this.presentationActive && !this.batchSuspended)
                 {
                     this.sendCurve("spectrum", spectrum);
-                    this.sendCurve("reference_spectrum", reference);
+                    this.sendGroupSpectrum(groupSpectrum, spectrum);
                 }
             }, true));
         }
         if (presenter && typeof presenter.subscribeCurves === "function")
         {
-            this.unsubscribers.push(presenter.subscribeCurves((curves, combinedCurve) => {
+            this.unsubscribers.push(presenter.subscribeCurves((curves, combinedCurve, allBanksCurve) => {
                 if (this.presentationActive && !this.batchSuspended)
                 {
                     (curves || []).forEach((curve) => {
                         this.sendCurve("curve", curve, curve.id);
                     });
                     this.sendCurve("combined", combinedCurve);
+                    this.sendCurve("all_banks_curve", allBanksCurve);
                 }
             }, true));
         }
@@ -85,11 +86,15 @@ class AnalyzerControlBinding extends ControlBinding
             return;
         }
         this.sendCurve("spectrum", this.presenter.spectrum);
-        this.sendCurve("reference_spectrum", this.presenter.referenceSpectrum);
+        this.sendGroupSpectrum(
+            this.presenter.groupSpectrum,
+            this.presenter.spectrum
+        );
         (this.presenter.curves || []).forEach((curve) => {
             this.sendCurve("curve", curve, curve.id);
         });
         this.sendCurve("combined", this.presenter.combinedCurve);
+        this.sendCurve("all_banks_curve", this.presenter.overallCurve);
     }
 
     suspend()
@@ -106,8 +111,32 @@ class AnalyzerControlBinding extends ControlBinding
         }
         let args = id === undefined ? [] : [id];
         args.push(curve.active === false ? 0 : 1);
+        if (name === "spectrum" || name === "group_spectrum")
+        {
+            args.push(Number(curve.fftSize), Number(curve.sampleRate));
+        }
         args = args.concat(curve.values || []);
         this.send(name, args);
+    }
+
+    sendGroupSpectrum(groupSpectrum, sourceSpectrum)
+    {
+        if (groupSpectrum)
+        {
+            this.sendCurve("group_spectrum", groupSpectrum);
+            return;
+        }
+        if (!sourceSpectrum)
+        {
+            return;
+        }
+
+        this.sendCurve("group_spectrum", {
+            active: false,
+            fftSize: sourceSpectrum.fftSize,
+            sampleRate: sourceSpectrum.sampleRate,
+            values: []
+        });
     }
 
     handleIntent(name, values)

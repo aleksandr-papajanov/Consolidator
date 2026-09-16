@@ -7,19 +7,19 @@ class AnalyzerCurvePublisher
         this.previousCombined = null;
     }
 
-    subscribe(callback, immediate, curves, combinedCurve)
+    subscribe(callback, immediate, curves, combinedCurve, allBanksCurve)
     {
         this.listeners.push(callback);
-        if (immediate && ((curves || []).length > 0 || combinedCurve))
+        if (immediate && ((curves || []).length > 0 || combinedCurve || allBanksCurve))
         {
-            callback(curves || [], combinedCurve);
+            callback(curves || [], combinedCurve, allBanksCurve);
         }
         return () => {
             this.listeners = this.listeners.filter((listener) => listener !== callback);
         };
     }
 
-    publish(curves, combinedCurve)
+    publish(curves, combinedCurve, allBanksCurve)
     {
         const changedCurves = (curves || []).filter((curve) => {
             if (!this.previousCurves)
@@ -35,7 +35,11 @@ class AnalyzerCurvePublisher
         this.previousCurves = curves;
         this.previousCombined = combinedCurve;
         this.listeners.slice().forEach((listener) => {
-            listener(changedCurves, combinedChanged ? combinedCurve : null);
+            listener(
+                changedCurves,
+                combinedChanged ? combinedCurve : null,
+                allBanksCurve || null
+            );
         });
     }
 

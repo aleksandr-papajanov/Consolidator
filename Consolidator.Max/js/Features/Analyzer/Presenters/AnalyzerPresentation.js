@@ -5,8 +5,7 @@ class AnalyzerPresentation
         this.enabled = true;
         this.mode = "equalizer";
         this.spectrum = null;
-        this.referenceSpectrum = null;
-        this.differenceSpectrum = null;
+        this.groupSpectrum = null;
         this.precisionRough = false;
         this.roughGrid = null;
         this.curves = [];

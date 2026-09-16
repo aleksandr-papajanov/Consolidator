@@ -18,6 +18,7 @@ ManagedServices
   -> AudibilityObserver
   -> InstanceControlTargetResolver
   -> FftAnalyzer
+  -> BankApproximator
   -> InstanceCommandRouter
   -> CommandExecutor
 ```
@@ -40,9 +41,10 @@ Responsibilities are intentionally narrow:
 - `ProcessorMarkerProjection` combines activity snapshots, exact bank-group
   membership and per-viewer focus into device marker presentation values;
 - `AudibilityObserver` observes mute/solo values and projects effective audibility;
-- `FftAnalyzer` owns the demanded source's bounded audio capture, prepared
-  sample rate, worker-side FFT, focused-viewer configuration and spectrum
-  publication;
+- `FftAnalyzer` owns bounded audio capture for the focused source and every
+  instance in its bank group, prepared sample rates, worker-side source and
+  complete-group FFTs, focused-viewer configuration and spectrum publication;
+- `BankApproximator` fits a standard equalizer bank to a state-derived response;
 - `InstanceCommandRouter` validates sources and selects targets;
 - `CommandExecutor` executes commands on already selected instances.
 
@@ -142,12 +144,20 @@ gate. It uses its per-instance realtime-safe handle and the published native DSP
 snapshot only.
 
 `FftAnalyzer` is the managed audio-input singleton. One external is the active
-viewer at a time. Its audio callback only writes the selected source instance
-into a preallocated bounded capture block; a worker performs the FFT and sends
-the source spectrum back to that viewer. The viewer and source may be different
-instances. Full capture blocks are dropped when the bounded queue is full.
-Spectrum output uses the `fft` protocol selector and is consumed by the existing
-analyzer controls.
+viewer at a time. Audio callbacks only write demanded instances into their
+preallocated bounded capture blocks. The demand contains the focused source and,
+for a grouped bank, every instance represented in that exact bank group.
+A worker transforms the source separately, sums source and peer windows before
+their FFT, and sends both spectra back to the viewer. The viewer and source may
+be different instances. Full capture blocks are dropped when the bounded queue is full.
+Spectrum output uses the `fft` protocol selector and is consumed by the analyzer
+controls.
+
+The same analyzer also exposes a control-path MathNet FFT of an impulse response
+generated from immutable equalizer filter snapshots. Bank Commit invokes it once
+per target without reading audio capture state or publishing an FFT frame.
+Approximation details are in
+[Approximation.md](Approximation.md).
 
 ## Process boundary
 

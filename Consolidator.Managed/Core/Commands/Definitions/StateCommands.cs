@@ -80,6 +80,13 @@ public sealed record ObserveTargetCommand(
     public CommandScope Scope => CommandScope.Coordinator;
 }
 
+public sealed record ObserveBanksCommand(
+    InstanceId TargetInstanceId,
+    ProcessorId SnapshotContext) : IInstanceCommand<BankStateSnapshotsResult>
+{
+    public CommandScope Scope => CommandScope.Coordinator;
+}
+
 public sealed record SetInstanceActiveCommand(
     bool Active) : IInstanceCommand<CommandAcknowledgement>
 {

@@ -44,3 +44,39 @@ internal sealed class ObserveTargetCommandHandler
             _projector.Project(target.State, command.BankId, command.SnapshotContext));
     }
 }
+
+internal sealed class ObserveBanksCommandHandler
+    : CommandHandler<ObserveBanksCommand, BankStateSnapshotsResult>
+{
+    private readonly InstanceRegistry _registry;
+    private readonly TargetStateProjector _projector;
+
+    public ObserveBanksCommandHandler(
+        InstanceRegistry registry,
+        TargetStateProjector projector)
+    {
+        _registry = registry;
+        _projector = projector;
+    }
+
+    public override ValueTask<BankStateSnapshotsResult> HandleAsync(
+        ObserveBanksCommand command,
+        InstanceCommandContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var target = _registry.FindInstance(command.TargetInstanceId)
+            ?? throw new KeyNotFoundException(
+                $"Observed instance was not found: {command.TargetInstanceId}.");
+        var banks = Enumerable.Range(0, target.State.Instance.Banks.Length)
+            .Select(bankIndex => _projector.Project(
+                target.State,
+                (BankId)bankIndex,
+                command.SnapshotContext))
+            .ToArray();
+        return ValueTask.FromResult(new BankStateSnapshotsResult(
+            target.State.Instance.InstanceId.Value,
+            command.SnapshotContext,
+            banks));
+    }
+}

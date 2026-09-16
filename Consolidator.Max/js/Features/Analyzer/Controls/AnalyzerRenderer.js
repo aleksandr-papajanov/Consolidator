@@ -55,8 +55,10 @@ class AnalyzerRenderer
             graphics.stroke();
         };
         drawSpectrum(presentation.spectrum, UiColors.analyzer.spectrum);
-        drawSpectrum(presentation.referenceSpectrum, UiColors.analyzer.referenceSpectrum);
-        drawSpectrum(presentation.differenceSpectrum, UiColors.analyzer.differenceSpectrum);
+        drawSpectrum(
+            presentation.groupSpectrum,
+            presentation.scopeColor || UiColors.analyzer.groupSpectrum
+        );
         const drawCurve = (values, color) => {
             if (!values || values.length === 0) return;
             graphics.set_source_rgba.apply(graphics, color);
@@ -87,6 +89,10 @@ class AnalyzerRenderer
             drawCurve(curve.values, curve.active === false
                 ? UiColors.analyzer.filterInactive : color);
         });
+        drawCurve(
+            presentation.allBanksCurve && presentation.allBanksCurve.values,
+            UiColors.analyzer.allBanksCurve
+        );
         let combined = presentation.combinedCurve;
         drawCurve(combined && combined.values,
             combined && combined.active === false
@@ -98,7 +104,7 @@ class AnalyzerRenderer
             let x = layout.left + layout.width * frequency;
             let y = layout.top + layout.height * gain;
             graphics.set_source_rgba.apply(graphics,
-                presentation.scopeColor
+                presentation.scopeActive && presentation.scopeColor
                     ? presentation.scopeColor
                     : handle.selected ? UiColors.analyzer.selectedHandle : UiColors.analyzer.handle);
             if (handle.capabilities && !handle.capabilities.frequency) {

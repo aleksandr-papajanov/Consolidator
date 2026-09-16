@@ -72,6 +72,28 @@ internal sealed class ObserveTargetInputCodec : IInputCodec
     }
 }
 
+internal sealed class ObserveBanksInputCodec : IInputCodec
+{
+    public string Selector => "observe_banks";
+
+    public DecodedCommand Decode(
+        ReadOnlySpan<Atom> atoms,
+        CommandFrameHeader header)
+    {
+        if (atoms.Length != header.Position + 2 ||
+            atoms[header.Position + 1].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid observe_banks frame.");
+        }
+
+        return CommandCodecSupport.Success(
+            header,
+            new ObserveBanksCommand(
+                new InstanceId(CommandCodecSupport.ReadWireId(atoms[header.Position])),
+                ProcessorIds.Parse(atoms[header.Position + 1].Symbol)));
+    }
+}
+
 internal sealed class SetInstanceActiveInputCodec : IInputCodec
 {
     public string Selector => "set_instance_active";
@@ -323,6 +345,83 @@ internal sealed class DisableInputLevelerInputCodec : IInputCodec
         };
 
         return CommandCodecSupport.Success(header, new DisableInputLevelerCommand(
+            targetScope,
+            targetInstanceId,
+            (int)atoms[bankIndexPosition].Integer));
+    }
+}
+
+internal sealed class CommitBankInputCodec : IInputCodec
+{
+    public string Selector => "commit_bank";
+
+    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
+    {
+        if (atoms.Length != header.Position + 3)
+        {
+            throw new FormatException("Invalid commit_bank frame.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[header.Position]));
+        var bankIndexPosition = header.Position + 1;
+        if (atoms[bankIndexPosition].Type != AtomType.Integer ||
+            atoms[bankIndexPosition].Integer is < 0 or >= 7)
+        {
+            throw new FormatException("Bank index is out of range.");
+        }
+        var scopePosition = bankIndexPosition + 1;
+        if (atoms[scopePosition].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid commit_bank scope.");
+        }
+
+        var targetScope = atoms[scopePosition].Symbol switch
+        {
+            "local" => InstanceControlScope.Instance,
+            "group" => InstanceControlScope.BankGroup,
+            _ => throw new FormatException("Invalid commit_bank scope.")
+        };
+        return CommandCodecSupport.Success(header, new CommitBankCommand(
+            targetScope,
+            targetInstanceId,
+            (int)atoms[bankIndexPosition].Integer));
+    }
+}
+
+internal sealed class RefineBankInputCodec : IInputCodec
+{
+    public string Selector => "refine_bank";
+
+    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
+    {
+        if (atoms.Length != header.Position + 3)
+        {
+            throw new FormatException("Invalid refine_bank frame.");
+        }
+
+        var targetInstanceId = new InstanceId(
+            CommandCodecSupport.ReadWireId(atoms[header.Position]));
+        var bankIndexPosition = header.Position + 1;
+        if (atoms[bankIndexPosition].Type != AtomType.Integer ||
+            atoms[bankIndexPosition].Integer is < 0 or >= 7)
+        {
+            throw new FormatException("Bank index is out of range.");
+        }
+
+        var scopePosition = bankIndexPosition + 1;
+        if (atoms[scopePosition].Type != AtomType.Symbol)
+        {
+            throw new FormatException("Invalid refine_bank scope.");
+        }
+
+        var targetScope = atoms[scopePosition].Symbol switch
+        {
+            "local" => InstanceControlScope.Instance,
+            "group" => InstanceControlScope.BankGroup,
+            _ => throw new FormatException("Invalid refine_bank scope.")
+        };
+        return CommandCodecSupport.Success(header, new RefineBankCommand(
             targetScope,
             targetInstanceId,
             (int)atoms[bankIndexPosition].Integer));

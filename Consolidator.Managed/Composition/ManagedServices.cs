@@ -1,4 +1,5 @@
 using Consolidator.Managed.Analysis;
+using Consolidator.Managed.Approximation;
 using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
@@ -120,6 +121,9 @@ public static class ManagedServices
         services.AddSingleton<StateRegistry<InstanceId>>();
         services.AddSingleton<StateValueMetadataRegistry>();
         services.AddSingleton<TargetStateProjector>();
+        services.AddSingleton<Approximator>();
+        services.AddSingleton<RefinementOptimizer>();
+        services.AddSingleton<EqualizerRefinement>();
         services.AddSingleton<ManagedStateBuilder>();
         services.AddSingleton(serviceProvider =>
             new StateValueFactory(
@@ -155,6 +159,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, ReadRegistryCommandHandler>();
         services.AddSingleton<ICommandHandler, InitializeUiCommandHandler>();
         services.AddSingleton<ICommandHandler, ObserveTargetCommandHandler>();
+        services.AddSingleton<ICommandHandler, ObserveBanksCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceActiveCommandHandler>();
         services.AddSingleton<ICommandHandler, ClearTopologyCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceMuteCommandHandler>();
@@ -163,6 +168,8 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetBankBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, DisableInputLevelerCommandHandler>();
+        services.AddSingleton<ICommandHandler, CommitBankCommandHandler>();
+        services.AddSingleton<ICommandHandler, RefineBankCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<IStatePathDecoder, StatePathDecoder>();
         services.AddSingleton<IInputCodec, ReadInputCodec>();
@@ -174,6 +181,7 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, RegistryInputCodec>();
         services.AddSingleton<IInputCodec, InitializeInputCodec>();
         services.AddSingleton<IInputCodec, ObserveTargetInputCodec>();
+        services.AddSingleton<IInputCodec, ObserveBanksInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceActiveInputCodec>();
         services.AddSingleton<IInputCodec, ClearTopologyInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceMuteInputCodec>();
@@ -182,6 +190,8 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetBankBypassInputCodec>();
         services.AddSingleton<IInputCodec, DisableInputLevelerInputCodec>();
+        services.AddSingleton<IInputCodec, CommitBankInputCodec>();
+        services.AddSingleton<IInputCodec, RefineBankInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
         services.AddCommandEndpoint<ReadStateCommand, object?>("read", "state_done");
         services.AddCommandEndpoint<WriteStateCommand, StateWriteStatus>("write", "action_done");
@@ -192,6 +202,7 @@ public static class ManagedServices
         services.AddCommandEndpoint<ReadRegistryCommand, RegistrySnapshotResult>("registry", "registry_done");
         services.AddCommandEndpoint<InitializeUiCommand, UiInitializationResult>("initialize", "initialized");
         services.AddCommandEndpoint<ObserveTargetCommand, TargetStateSnapshotResult>("observe_target", "target_state_snapshot");
+        services.AddCommandEndpoint<ObserveBanksCommand, BankStateSnapshotsResult>("observe_banks", "bank_state_snapshots");
         services.AddCommandEndpoint<SetInstanceActiveCommand, CommandAcknowledgement>("set_instance_active", "action_done");
         services.AddCommandEndpoint<ClearTopologyCommand, StateWriteStatus>(
             "clear_topology",
@@ -214,12 +225,19 @@ public static class ManagedServices
         services.AddCommandEndpoint<DisableInputLevelerCommand, StateWriteStatus>(
             "disable_input_leveler",
             "action_done");
+        services.AddCommandEndpoint<CommitBankCommand, StateWriteStatus>(
+            "commit_bank",
+            "action_done");
+        services.AddCommandEndpoint<RefineBankCommand, StateWriteStatus>(
+            "refine_bank",
+            "action_done");
         services.AddSingleton<CommandEndpointRegistry>();
         services.AddSingleton(serviceProvider =>
             new CommandExecutor(
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
                 serviceProvider.GetRequiredService<ICommandDispatcher>(),
-                serviceProvider.GetRequiredService<DspStateChangeTracker>()));
+                serviceProvider.GetRequiredService<DspStateChangeTracker>(),
+                serviceProvider.GetRequiredService<IManagedLogger>()));
         services.AddSingleton(serviceProvider =>
             new InstanceCommandRouter(
                 serviceProvider.GetRequiredService<InstanceRegistry>(),
@@ -240,6 +258,7 @@ public static class ManagedServices
         services.AddSingleton<FftAnalyzer>(serviceProvider =>
             new FftAnalyzer(
                 serviceProvider.GetRequiredService<StateTopologyObserver>(),
+                serviceProvider.GetRequiredService<TopologyIndex>(),
                 serviceProvider.GetRequiredService<IPresentationTransport>()));
         services.AddSingleton<IAnalyzerLifecycle>(serviceProvider =>
             serviceProvider.GetRequiredService<FftAnalyzer>());

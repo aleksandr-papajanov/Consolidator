@@ -1078,8 +1078,6 @@ public sealed class StateEditingUseCasesTests
                 source.InstanceId,
                 samplePointer,
                 samplePointer,
-                samplePointer,
-                samplePointer,
                 (nuint)samples.Length);
         }
 
@@ -1087,12 +1085,75 @@ public sealed class StateEditingUseCasesTests
             () => viewer.Output.Messages.Any(message =>
                 message.Selector == "fft"),
             TimeSpan.FromSeconds(1)));
+        var fft = viewer.Output.Messages.Last(message =>
+            message.Selector == "fft");
         Assert.Equal(
             (long)source.InstanceId.Value,
-            viewer.Output.Single("fft").Atoms[1].Integer);
+            fft.Atoms[1].Integer);
+        Assert.Equal(0, fft.Atoms[3].Integer);
+        Assert.Equal(4 + 513, fft.Atoms.Count);
         Assert.DoesNotContain(
             source.Output.Messages,
             message => message.Selector == "fft");
+    }
+
+    [Fact]
+    public unsafe void GroupedBankSpectrumContainsCurrentTrackAndEntireGroup()
+    {
+        using var application = new ManagedApplicationFixture();
+        var viewer = application.RegisterInstance();
+        var source = application.RegisterInstance();
+        var firstPeer = application.RegisterInstance();
+        var secondPeer = application.RegisterInstance();
+        var audio = application.GetRequiredService<IInstanceAudioInputService>();
+        var sourceSamples = Enumerable.Repeat(0.25, 4096).ToArray();
+        var firstPeerSamples = Enumerable.Repeat(0.1, 4096).ToArray();
+        var secondPeerSamples = Enumerable.Repeat(0.15, 4096).ToArray();
+
+        WriteGroup(application, viewer, source, 1, 7);
+        WriteGroup(application, viewer, firstPeer, 2, 7);
+        WriteGroup(application, viewer, secondPeer, 3, 7);
+        application.Send(
+            viewer,
+            "observe_target",
+            Symbol(source.InstanceId.Value.ToString()),
+            Integer(1),
+            Symbol("equalizer"));
+        application.Send(viewer, "set_instance_active", Integer(1));
+        viewer.Output.Clear();
+
+        fixed (double* sourcePointer = sourceSamples)
+        fixed (double* firstPeerPointer = firstPeerSamples)
+        fixed (double* secondPeerPointer = secondPeerSamples)
+        {
+            audio.ReceiveAudio(
+                source.InstanceId,
+                sourcePointer,
+                sourcePointer,
+                (nuint)sourceSamples.Length);
+            audio.ReceiveAudio(
+                firstPeer.InstanceId,
+                firstPeerPointer,
+                firstPeerPointer,
+                (nuint)firstPeerSamples.Length);
+            audio.ReceiveAudio(
+                secondPeer.InstanceId,
+                secondPeerPointer,
+                secondPeerPointer,
+                (nuint)secondPeerSamples.Length);
+        }
+
+        Assert.True(SpinWait.SpinUntil(
+            () => viewer.Output.Messages.Any(message =>
+                message.Selector == "fft" &&
+                message.Atoms.Count == 4 + 513 * 2 &&
+                message.Atoms[3].Integer == 1 &&
+                message.Atoms[4].Float > 0 &&
+                Math.Abs(
+                    message.Atoms[4].Float -
+                    message.Atoms[4 + 513].Float -
+                    (20.0 * Math.Log10(2.0) / 90.0)) < 0.001),
+            TimeSpan.FromSeconds(1)));
     }
 
     [Fact]

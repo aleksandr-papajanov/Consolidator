@@ -19,12 +19,13 @@ internal static class SpectrumProcessor
         return window;
     }
 
-    public static void Process(AudioCapture capture, int fftSize)
+    public static void Process(
+        Complex[] fft,
+        float[] spectrum,
+        int fftSize)
     {
-        Fourier.Forward(capture.MainFft, FourierOptions.Matlab);
-        Fourier.Forward(capture.ReferenceFft, FourierOptions.Matlab);
-        FillSpectrum(capture.MainFft, capture.MainSpectrum, fftSize);
-        FillSpectrum(capture.ReferenceFft, capture.ReferenceSpectrum, fftSize);
+        Fourier.Forward(fft, FourierOptions.Matlab);
+        FillSpectrum(fft, spectrum, fftSize);
     }
 
     private static void FillSpectrum(

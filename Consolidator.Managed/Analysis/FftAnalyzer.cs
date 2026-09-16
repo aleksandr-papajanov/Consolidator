@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Numerics;
+
 using Consolidator.Managed.Core.Services;
 using Consolidator.Managed.Core.Services.Abstractions;
 using Consolidator.Managed.Core.State.Observers;
-using Consolidator.Managed.Protocol.Transport;
+using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Protocol.Notifications;
+using Consolidator.Managed.Protocol.Transport;
 
 namespace Consolidator.Managed.Analysis;
 
@@ -25,25 +28,32 @@ public sealed class FftAnalyzer :
     private readonly ConcurrentDictionary<InstanceId, AudioCapture> _captures = new();
     private readonly ConcurrentDictionary<InstanceId, BankAddress?> _focusedBanks = new();
     private readonly ConcurrentDictionary<InstanceId, Preparation> _preparations = new();
+    private readonly TopologyIndex _topology;
     private readonly SpectrumPublisher _spectrumPublisher;
-    private ulong _activeViewerId;
-    private ulong _activeSourceId;
     private readonly StateTopologyObserver _topologyObserver;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _worker;
     private readonly double[] _window = SpectrumProcessor.CreateWindow(FftSize);
+    private readonly Complex[] _groupFft = new Complex[FftSize];
+    private readonly float[] _groupSpectrum = new float[SpectrumBinCount];
+    private ulong _activeViewerId;
+    private CaptureDemand _captureDemand = CaptureDemand.Empty;
     private int _disposeStarted;
 
     internal FftAnalyzer(
         StateTopologyObserver topology,
+        TopologyIndex topologyIndex,
         IPresentationTransport transport)
     {
         ArgumentNullException.ThrowIfNull(topology);
+        ArgumentNullException.ThrowIfNull(topologyIndex);
         ArgumentNullException.ThrowIfNull(transport);
 
         _topologyObserver = topology;
-        _spectrumPublisher = new SpectrumPublisher(transport, GetSpectrumRecipient);
+        _topology = topologyIndex;
+        _spectrumPublisher = new SpectrumPublisher(transport);
         topology.FocusedBankChangedEvent += FocusedBankChanged;
+        topology.TopologyChangedEvent += TopologyChanged;
         _worker = Task.Run(ProcessCapturesAsync);
     }
 
@@ -91,16 +101,7 @@ public sealed class FftAnalyzer :
                 return;
             }
 
-            var previousBank = GetFocusedBank(previousViewerId);
-            var focusedBank = GetFocusedBank(instanceId.Value);
-            Volatile.Write(
-                ref _activeSourceId,
-                focusedBank?.InstanceId.Value ?? 0);
-            StopCapture(previousBank, focusedBank);
-            if (focusedBank is { } bank)
-            {
-                PrepareCapture(bank.InstanceId);
-            }
+            RebuildCaptureDemand();
             return;
         }
 
@@ -112,16 +113,13 @@ public sealed class FftAnalyzer :
             return;
         }
 
-        Volatile.Write(ref _activeSourceId, 0);
-        StopCapture(GetFocusedBank(instanceId.Value), null);
+        SetCaptureDemand(CaptureDemand.Empty);
     }
 
     public unsafe void ReceiveAudio(
         InstanceId instanceId,
         double* mainLeft,
         double* mainRight,
-        double* referenceLeft,
-        double* referenceRight,
         nuint frameCount)
     {
         if (mainLeft is null || mainRight is null || frameCount == 0 ||
@@ -134,14 +132,26 @@ public sealed class FftAnalyzer :
         var droppedSamples = capture.Enqueue(
             mainLeft,
             mainRight,
-            referenceLeft,
-            referenceRight,
             frameCount);
         if (droppedSamples > 0)
         {
             RuntimeMetrics.Shared.ForInstance(instanceId.Value)
                 .RecordDroppedAudioSamples(droppedSamples);
         }
+    }
+
+    internal EqualizerCurve AnalyzeEqualizerResponse(
+        InstanceId instanceId,
+        IReadOnlyList<EqualizerFilterSnapshot> filters)
+    {
+        var sampleRate = _preparations.TryGetValue(instanceId, out var preparation)
+            ? preparation.SampleRate
+            : DefaultSampleRate;
+        var frequencies = EqualizerResponseAnalyzer.CreateApproximationFrequencies(sampleRate);
+        return EqualizerResponseAnalyzer.CalculateAtFrequencies(
+            filters,
+            frequencies,
+            sampleRate);
     }
 
     public void Dispose()
@@ -152,6 +162,7 @@ public sealed class FftAnalyzer :
         }
 
         _topologyObserver.FocusedBankChangedEvent -= FocusedBankChanged;
+        _topologyObserver.TopologyChangedEvent -= TopologyChanged;
         _cancellation.Cancel();
         try
         {
@@ -166,7 +177,6 @@ public sealed class FftAnalyzer :
 
     private void FocusedBankChanged(InstanceId instanceId, BankAddress? focusedBank)
     {
-        _focusedBanks.TryGetValue(instanceId, out var previousFocusedBank);
         if (focusedBank is null)
         {
             _focusedBanks.TryRemove(instanceId, out _);
@@ -175,8 +185,7 @@ public sealed class FftAnalyzer :
                 0,
                 instanceId.Value) == instanceId.Value)
             {
-                Volatile.Write(ref _activeSourceId, 0);
-                StopCapture(previousFocusedBank, null);
+                SetCaptureDemand(CaptureDemand.Empty);
             }
             return;
         }
@@ -184,11 +193,15 @@ public sealed class FftAnalyzer :
         _focusedBanks[instanceId] = focusedBank;
         if (IsViewerActive(instanceId))
         {
-            Volatile.Write(
-                ref _activeSourceId,
-                focusedBank.Value.InstanceId.Value);
-            StopCapture(previousFocusedBank, focusedBank);
-            PrepareCapture(focusedBank.Value.InstanceId);
+            RebuildCaptureDemand();
+        }
+    }
+
+    private void TopologyChanged()
+    {
+        if (Volatile.Read(ref _activeViewerId) != 0)
+        {
+            RebuildCaptureDemand();
         }
     }
 
@@ -212,14 +225,13 @@ public sealed class FftAnalyzer :
 
     private void ProcessNextCapture()
     {
-        var sourceId = Volatile.Read(ref _activeSourceId);
-        if (sourceId == 0)
+        var demand = Volatile.Read(ref _captureDemand);
+        if (demand.SourceInstanceId.Value == 0)
         {
             return;
         }
 
-        var sourceInstanceId = new InstanceId(sourceId);
-        if (!_captures.TryGetValue(sourceInstanceId, out var capture))
+        if (!_captures.TryGetValue(demand.SourceInstanceId, out var capture))
         {
             return;
         }
@@ -228,25 +240,54 @@ public sealed class FftAnalyzer :
         {
             capture.FillSilenceWindow(FftSize);
         }
-        AnalyzeWindow(sourceInstanceId, capture);
+        AnalyzeWindow(demand, capture);
     }
 
     private void AnalyzeWindow(
-        InstanceId sourceInstanceId,
+        CaptureDemand demand,
         AudioCapture capture)
     {
-        SpectrumProcessor.Process(capture, FftSize);
+        if (demand.HasGroup)
+        {
+            Array.Copy(capture.Fft, _groupFft, FftSize);
+        }
+
+        foreach (var peerInstanceId in demand.PeerInstanceIds)
+        {
+            if (!_captures.TryGetValue(peerInstanceId, out var peerCapture))
+            {
+                continue;
+            }
+
+            if (!peerCapture.TryReadWindow(_window, FftSize))
+            {
+                peerCapture.FillSilenceWindow(FftSize);
+            }
+
+            for (var index = 0; index < FftSize; index++)
+            {
+                _groupFft[index] += peerCapture.Fft[index];
+            }
+        }
+
+        SpectrumProcessor.Process(capture.Fft, capture.Spectrum, FftSize);
+        float[]? groupSpectrum = null;
+        if (demand.HasGroup)
+        {
+            SpectrumProcessor.Process(_groupFft, _groupSpectrum, FftSize);
+            groupSpectrum = _groupSpectrum;
+        }
+
         _spectrumPublisher.Publish(
-            sourceInstanceId,
-            capture.MainSpectrum,
-            capture.ReferenceSpectrum);
+            GetSpectrumRecipient(demand),
+            demand.SourceInstanceId,
+            capture.Spectrum,
+            groupSpectrum);
     }
 
     private readonly record struct Preparation(
         double SampleRate,
         nuint MaximumFrameCount);
-
-
 
     private bool IsViewerActive(InstanceId instanceId)
     {
@@ -255,7 +296,7 @@ public sealed class FftAnalyzer :
 
     private bool IsSourceDemanded(InstanceId instanceId)
     {
-        return Volatile.Read(ref _activeSourceId) == instanceId.Value;
+        return Volatile.Read(ref _captureDemand).Contains(instanceId);
     }
 
     private BankAddress? GetFocusedBank(ulong viewerId)
@@ -291,21 +332,81 @@ public sealed class FftAnalyzer :
             SpectrumInterval);
     }
 
-    private void StopCapture(BankAddress? previous, BankAddress? current)
+    private void RebuildCaptureDemand()
     {
-        if (previous is { } previousBank &&
-            previousBank.InstanceId != current?.InstanceId)
+        var viewerId = Volatile.Read(ref _activeViewerId);
+        var focusedBank = GetFocusedBank(viewerId);
+        if (focusedBank is null)
         {
-            _captures.TryRemove(previousBank.InstanceId, out _);
+            SetCaptureDemand(CaptureDemand.Empty);
+            return;
+        }
+
+        var sourceInstanceId = focusedBank.Value.InstanceId;
+        var hasGroup = _topology.TryGetBankGroup(focusedBank.Value, out _);
+        var peerInstanceIds = hasGroup
+            ? _topology.GetConnectedBankPeers(focusedBank.Value)
+                .Select(bank => bank.InstanceId)
+                .Where(instanceId => instanceId != sourceInstanceId)
+                .Distinct()
+                .OrderBy(instanceId => instanceId.Value)
+                .ToArray()
+            : [];
+        SetCaptureDemand(new CaptureDemand(
+            sourceInstanceId,
+            [sourceInstanceId, .. peerInstanceIds],
+            peerInstanceIds,
+            hasGroup));
+    }
+
+    private void SetCaptureDemand(CaptureDemand demand)
+    {
+        foreach (var instanceId in demand.InstanceIds)
+        {
+            PrepareCapture(instanceId);
+        }
+
+        var previous = Interlocked.Exchange(ref _captureDemand, demand);
+        foreach (var instanceId in previous.InstanceIds)
+        {
+            if (!demand.InstanceIds.Contains(instanceId))
+            {
+                _captures.TryRemove(instanceId, out _);
+            }
         }
     }
 
-    private ulong GetSpectrumRecipient(InstanceId sourceInstanceId)
+    private ulong GetSpectrumRecipient(CaptureDemand demand)
     {
         var viewerId = Volatile.Read(ref _activeViewerId);
-        return GetFocusedBank(viewerId)?.InstanceId == sourceInstanceId
+        return ReferenceEquals(Volatile.Read(ref _captureDemand), demand)
             ? viewerId
             : 0;
     }
 
+    private sealed record CaptureDemand(
+        InstanceId SourceInstanceId,
+        InstanceId[] InstanceIds,
+        InstanceId[] PeerInstanceIds,
+        bool HasGroup)
+    {
+        public static CaptureDemand Empty { get; } = new(
+            new InstanceId(0),
+            [],
+            [],
+            false);
+
+        public bool Contains(InstanceId instanceId)
+        {
+            foreach (var demandedInstanceId in InstanceIds)
+            {
+                if (demandedInstanceId == instanceId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 }

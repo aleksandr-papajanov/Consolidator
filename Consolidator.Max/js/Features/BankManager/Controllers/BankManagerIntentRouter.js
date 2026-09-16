@@ -14,6 +14,8 @@ function routeBankManagerIntent(controller, name, values)
     case "groupRequested": controller.groupSelectedBanks(); break;
     case "ungroupRequested": controller.ungroupFocusedBank(); break;
     case "clearRequested": controller.clearGroups(); break;
+    case "commitRequested": controller.commitFocusedBank(); break;
+    case "refineRequested": controller.refineFocusedBank(); break;
     case "scopeToggled": controller.context.viewModel.toggleScope(); break;
     case "historySelected": controller.jumpHistory(values[0]); break;
     case "instanceSoloChanged":

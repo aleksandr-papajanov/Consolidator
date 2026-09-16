@@ -86,6 +86,7 @@ JS suite и NativeAOT suite используют один wire contract с дв�
 - initialize и observe target;
 - write, read, reset и malformed command;
 - grouped-bank propagation и notification routing;
+- local/group Bank Commit approximation, source reset и atomic failure;
 - explicit instance/group mute и exclusive/additive solo targeting;
 - registry snapshot и registry revision handling;
 - begin/end history и jump;
@@ -115,6 +116,7 @@ target instance when grouped automation is disabled.
 JavaScript suites must cover analyzer-only FFT presentation, focused-bank
 local curve calculation and preview, sample-rate configuration, one
 redraw per FFT update,
+Bank Commit availability and exact local/group command frames,
 instance activity changes with Live selection
 or inactive, targeted registry row deltas, single revision-gap resync, latest
 gesture value preservation, and subscription/demand cleanup on destroy.

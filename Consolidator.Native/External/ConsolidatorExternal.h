@@ -271,6 +271,16 @@ public:
         }
     };
 
+    c74::min::message<> observeBanks{
+        this,
+        "observe_banks",
+        MIN_FUNCTION
+        {
+            ForwardMessage("observe_banks", args);
+            return {};
+        }
+    };
+
     c74::min::message<> setInstanceActive{
         this,
         "set_instance_active",
@@ -337,6 +347,26 @@ public:
         MIN_FUNCTION
         {
             ForwardMessage("disable_input_leveler", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> commitBank{
+        this,
+        "commit_bank",
+        MIN_FUNCTION
+        {
+            ForwardMessage("commit_bank", args);
+            return {};
+        }
+    };
+
+    c74::min::message<> refineBank{
+        this,
+        "refine_bank",
+        MIN_FUNCTION
+        {
+            ForwardMessage("refine_bank", args);
             return {};
         }
     };

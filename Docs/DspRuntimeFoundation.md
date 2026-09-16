@@ -155,12 +155,12 @@ Saturator Split uses its own fixed complementary crossovers. DSP performs no FFT
 
 ## Sidechain and parallel processing
 
-Detector sidechains are internal device signals. The Max reference inputs are
-used only by Managed analysis and never enter the native DSP graph. A device
-detector copies the current main signal at that exact point in the chain into
-preallocated buffers, applies its detector EQ there, and exposes the result as a
-read-only control signal. The listening algorithm modifies only the main path;
-detector EQ audio is never mixed into the output.
+Detector sidechains are internal device signals. The Max reference inputs do
+not enter either Managed analysis or the native DSP graph. A device detector
+copies the current main signal at that exact point in the chain into preallocated
+buffers, applies its detector EQ there, and exposes the result as a read-only
+control signal. The listening algorithm modifies only the main path; detector EQ
+audio is never mixed into the output.
 
 `DspParallelStage` owns preallocated branch buffers and a 10 ms wet ramp.
 Saturator, Compressor and Polish each use a stage to crossfade activity and

@@ -73,12 +73,18 @@ operation. Panel selection uses this command; there is no separate
 `select_panel` command.
 `set_instance_active 1|0` reports that the source external owns the active UI
 session; activating one external replaces the previous active viewer.
-The capture buffer belongs to the source selected by that viewer, which may be
-a different instance. Without an active viewer, the audio entrypoint returns
-before capture lookup or audio copying. The analyzer worker processes at most
-one FFT window per 33 ms. Curves are calculated locally by the JavaScript UI
+Capture demand includes the source selected by that viewer, which may be a
+different instance. When the focused bank belongs to a group, demand also
+includes the other instances represented in that exact bank group. Without an
+active viewer, the audio entrypoint returns before capture lookup or audio
+copying. The analyzer worker processes at most one FFT window per demanded
+instance every 33 ms. Curves are calculated locally by the JavaScript UI
 from focused state and the raw all-bank equalizer projection. Coefficients and
 rendered curve points do not cross the Managed/Native callback boundary.
+Bank Commit separately generates one temporary impulse response from
+authoritative Managed filter state and transforms it through the existing
+MathNet FFT path for offline approximation; it neither consumes nor emits the
+streamed analyzer frame.
 
 The Max client treats each `target_state_snapshot` as one target transition.
 Bindings are suspended before `observe_target` is sent. The client assembles
@@ -506,25 +512,38 @@ shared operation lock. The adapter forwards to the singleton
 `FftAnalyzer`. Unregistration releases the audio handle after removing the
 instance ID. Audio handlers must remain real-time safe: no Max outlet calls,
 blocking locks, or unbounded allocation on the audio thread.
-All four Max inputs are available to this analysis path. Native DSP processes
-only the first stereo pair; the reference pair is not an external DSP sidechain.
-Device detectors derive private sidechain signals from the current main audio.
+The ABI retains all four Max input pointers, while the exported entrypoint
+forwards only the first stereo pair to `NativeAudioInput` and Managed analysis.
+Native DSP likewise processes only that main pair. The reference pair is not an
+analyzer source or an external DSP sidechain. Device detectors derive private
+sidechain signals from the current main audio.
 
 The singleton `FftAnalyzer` is the audio input implementation. It writes the
-four input channels into a preallocated bounded SPSC sample ring on the
-callback and performs FFT on a managed worker. The ring accepts arbitrary audio
+main stereo pair into a preallocated bounded SPSC sample ring on the callback
+and performs FFT on a managed worker. The ring accepts arbitrary audio
 vector sizes, drops newest samples on overflow, and counts dropped samples
 atomically. The worker reads the latest complete 1024-sample window at its
 33 ms publication interval and applies a Hann window before FFT. Samples that
 arrive while the worker is waiting are intentionally skipped, so the ring does
 not accumulate stale audio or overflow during normal realtime capture. It
 publishes `fft` output only to the active viewer of the selected source
-instance; the output contains protocol version, source instance ID, FFT size,
-main spectrum bins and reference spectrum bins.
+instance. The frame is:
+
+```text
+fft 1 sourceInstanceId fftSize hasGroupSpectrum sourceSpectrum...
+    [completeGroupSpectrum...]
+```
+
+The source spectrum contains the focused track. If the focused bank is grouped,
+the optional second spectrum is the FFT of the time-domain sum of the focused
+track and every other instance represented in that group. Reference input
+channels do not participate in analyzer presentation.
 
 `FftAnalyzer` owns its capture rings directly; there is no separate analyzer
 registry or Managed curve cache. Instance activity gates spectrum capture.
 JavaScript calculates analyzer curves from local parameter bindings and filter
 definitions. No coefficient or response arrays are allocated or copied by
 Managed or Native.
+The temporary Bank Commit response is control-path owned and is discarded after
+the optimizer returns; it is not an analyzer cache or an interop payload.
 

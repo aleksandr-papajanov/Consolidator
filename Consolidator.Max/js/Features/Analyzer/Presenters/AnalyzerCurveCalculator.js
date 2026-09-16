@@ -18,14 +18,18 @@ class AnalyzerCurveCalculator
         this.frequencies = this.createFrequencies();
     }
 
-    calculate(previews)
+    calculate(previews, bankActiveOverride)
     {
-        const bankActive = !Boolean(presentationBindingValue(this.bankBypass, false));
+        const bankActive = bankActiveOverride === undefined
+            ? !Boolean(presentationBindingValue(this.bankBypass, false))
+            : bankActiveOverride;
         const responses = this.parameters.map((parameter, index) => {
             return this.calculateFilter(
                 index + 1,
                 parameter,
-                Boolean(presentationBindingValue(parameter.enabled, true)),
+                previews[index + 1] && previews[index + 1].enabled !== undefined
+                    ? Boolean(previews[index + 1].enabled)
+                    : Boolean(presentationBindingValue(parameter.enabled, true)),
                 previews[index + 1]
             );
         });
@@ -54,6 +58,38 @@ class AnalyzerCurveCalculator
                 values: combinedDecibels.map(normalizeDecibels)
             }
         };
+    }
+
+    calculateSnapshot(entries, bankId)
+    {
+        const values = {};
+        (entries || []).forEach((entry) => {
+            values[String(entry.path)] = entry.value;
+        });
+        const previews = {};
+        this.parameters.forEach((parameter, index) => {
+            const filterId = index + 1;
+            const bankPrefix = "equalizer.bank." + bankId +
+                ".filter." + filterId + ".";
+            const relativeBankPrefix = "equalizer.bank.filter." + filterId + ".";
+            const prefix = "equalizer.filter." + filterId + ".";
+            const read = (name) => values[relativeBankPrefix + name] !== undefined
+                ? values[relativeBankPrefix + name]
+                : values[bankPrefix + name] !== undefined
+                    ? values[bankPrefix + name] : values[prefix + name];
+            previews[filterId] = {
+                frequency: read("frequency"),
+                gain: read("gain"),
+                q: read("q"),
+                enabled: read("bypass") === undefined
+                    ? true : !Boolean(read("bypass"))
+            };
+        });
+        const bankBypass = values["equalizer.bank.bypass"] === undefined
+            ? values["equalizer.bank." + bankId + ".bypass"]
+            : values["equalizer.bank.bypass"];
+        return this.calculate(previews, bankBypass === undefined
+            ? true : !Boolean(bankBypass));
     }
 
     calculateFilter(id, parameter, enabled, preview)

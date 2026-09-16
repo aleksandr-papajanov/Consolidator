@@ -182,6 +182,16 @@ class BankManagerControlCore
         this.presentationState.setAction("clearAction", enabled, false, null);
     }
 
+    setCommitAction(enabled, active)
+    {
+        this.presentationState.setAction("commitAction", enabled, active, null);
+    }
+
+    setRefineAction(enabled, active)
+    {
+        this.presentationState.setAction("refineAction", enabled, active, null);
+    }
+
     setScopeAction(enabled, active, hasColor, red, green, blue, alpha)
     {
         this.presentationState.setAction(
@@ -261,6 +271,16 @@ class BankManagerControlCore
     patchClearAction(enabled)
     {
         this.presentationState.patchAction("clearAction", enabled, false, null);
+    }
+
+    patchCommitAction(enabled, active)
+    {
+        this.presentationState.patchAction("commitAction", enabled, active, null);
+    }
+
+    patchRefineAction(enabled, active)
+    {
+        this.presentationState.patchAction("refineAction", enabled, active, null);
     }
 
     patchScopeAction(enabled, active, hasColor, red, green, blue, alpha)

@@ -27,6 +27,7 @@ internal sealed class CommandResponseEncoder
                         Symbol(ProcessorIds.Encode(initialized.SnapshotContext))
                     ]).ToArray())],
             TargetStateSnapshotResult snapshot => EncodeSnapshot(sourceInstanceId, requestId, snapshot),
+            BankStateSnapshotsResult snapshots => EncodeBankSnapshots(sourceInstanceId, requestId, snapshots),
             RegistrySnapshotResult registry => EncodeRegistry(sourceInstanceId, requestId, registry),
             StateWriteStatus status => [Output(sourceInstanceId, responseSelector,
                 Header(sourceInstanceId, requestId)
@@ -63,6 +64,29 @@ internal sealed class CommandResponseEncoder
             atoms.Add(Optional(value.EffectiveRange?.Maximum));
         }
         return [Output(target, "target_state_snapshot", atoms)];
+    }
+
+    private static IReadOnlyList<ProtocolOutput> EncodeBankSnapshots(
+        ulong target,
+        ulong requestId,
+        BankStateSnapshotsResult snapshots)
+    {
+        var atoms = new List<Atom>();
+        atoms.AddRange(Header(target, requestId));
+        atoms.Add(Symbol(snapshots.InstanceId.ToString()));
+        atoms.Add(Symbol(ProcessorIds.Encode(snapshots.SnapshotContext)));
+        atoms.Add(Integer(snapshots.Banks.Count));
+        foreach (var snapshot in snapshots.Banks)
+        {
+            atoms.Add(Integer(snapshot.BankId));
+            atoms.Add(Integer(snapshot.Values.Count));
+            foreach (var value in snapshot.Values)
+            {
+                atoms.Add(Symbol(StatePathEncoder.Encode(value.Path, snapshot.BankId)));
+                atoms.Add(ProtocolAtomEncoder.EncodeValue(value.Value));
+            }
+        }
+        return [Output(target, "bank_state_snapshots", atoms)];
     }
 
     private static IReadOnlyList<ProtocolOutput> EncodeRegistry(

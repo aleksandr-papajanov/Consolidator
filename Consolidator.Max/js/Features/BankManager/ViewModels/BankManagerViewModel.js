@@ -36,6 +36,10 @@ class BankManagerViewModel
         this.ungroupAction = { enabled: false, active: false };
         this.scopeAction = { enabled: false, active: false, color: null };
         this.clearAction = { enabled: false };
+        this.commitAction = { enabled: false, active: false };
+        this.refineAction = { enabled: false, active: false };
+        this.commitInProgress = false;
+        this.refineInProgress = false;
         this.listeners = [];
         this.unsubscribeRegistry = null;
         this.registryActive = false;
@@ -167,12 +171,16 @@ class BankManagerViewModel
             this.rows,
             this.getSelectedBanks().length,
             this.focusedBank(),
-            this.scope
+            this.scope,
+            this.commitInProgress,
+            this.refineInProgress
         );
         this.groupAction = actions.groupAction;
         this.ungroupAction = actions.ungroupAction;
         this.scopeAction = actions.scopeAction;
         this.clearAction = actions.clearAction;
+        this.commitAction = actions.commitAction;
+        this.refineAction = actions.refineAction;
     }
     
     setLocalInstanceId(instanceId)
@@ -192,6 +200,24 @@ class BankManagerViewModel
     {
         if (!this.scope) return;
         this.scope.toggle();
+        this.refreshActions();
+        this.notify();
+    }
+
+    setCommitInProgress(value)
+    {
+        let next = Boolean(value);
+        if (this.commitInProgress === next) return;
+        this.commitInProgress = next;
+        this.refreshActions();
+        this.notify();
+    }
+
+    setRefineInProgress(value)
+    {
+        let next = Boolean(value);
+        if (this.refineInProgress === next) return;
+        this.refineInProgress = next;
         this.refreshActions();
         this.notify();
     }
@@ -422,6 +448,7 @@ class BankManagerViewModel
         if (state.ungroupAction !== undefined) this.ungroupAction = state.ungroupAction;
         if (state.scopeAction !== undefined) this.scopeAction = state.scopeAction;
         if (state.clearAction !== undefined) this.clearAction = state.clearAction;
+        if (state.commitAction !== undefined) this.commitAction = state.commitAction;
         this.notify();
     }
     

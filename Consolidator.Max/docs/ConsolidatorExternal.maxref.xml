@@ -69,6 +69,11 @@
 			<description></description>
 		</method>
 
+		<method name='observe_banks'>
+			<digest></digest>
+			<description></description>
+		</method>
+
 		<method name='set_instance_active'>
 			<digest></digest>
 			<description></description>
@@ -95,6 +100,16 @@
 		</method>
 
 		<method name='disable_input_leveler'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='commit_bank'>
+			<digest></digest>
+			<description></description>
+		</method>
+
+		<method name='refine_bank'>
 			<digest></digest>
 			<description></description>
 		</method>

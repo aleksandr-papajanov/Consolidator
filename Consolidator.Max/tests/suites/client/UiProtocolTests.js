@@ -113,10 +113,10 @@ function testStaleTargetSnapshotDoesNotResumeLatestTransition() {
     transitions.push("done");
   });
 
-  client.uiTarget.show("4", 2, "compressor");
-  client.uiTarget.show("4", 3, "compressor");
+  var staleRequestId = client.uiTarget.show("4", 2, "compressor");
+  var currentRequestId = client.uiTarget.show("4", 3, "compressor");
   client.handleControl("target_state_snapshot", [
-    1, "9", "1", "4", 2, "compressor", 1, "compressor.threshold", -24,
+    1, "9", staleRequestId, "4", 2, "compressor", 1, "compressor.threshold", -24,
     -60, 0, -60, 0,
   ]);
   assert.deepStrictEqual(transitions, ["begin", "begin"]);
@@ -124,7 +124,7 @@ function testStaleTargetSnapshotDoesNotResumeLatestTransition() {
   assert.strictEqual(client.targetState.pendingTarget.bankId, 3);
 
   client.handleControl("target_state_snapshot", [
-    1, "9", "2", "4", 3, "compressor", 1, "compressor.threshold", -18,
+    1, "9", currentRequestId, "4", 3, "compressor", 1, "compressor.threshold", -18,
     -60, 0, -60, 0,
   ]);
   assert.deepStrictEqual(transitions, ["begin", "begin", "done"]);

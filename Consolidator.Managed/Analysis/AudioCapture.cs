@@ -5,16 +5,14 @@ namespace Consolidator.Managed.Analysis;
 internal sealed class AudioCapture
 {
     private const int FftSize = 1024;
-    private const int ChannelCount = 4;
+    private const int ChannelCount = 2;
     private readonly double[][] _channels;
     private readonly int _capacity;
     private int _writeIndex;
     private int _readIndex;
 
-    public Complex[] MainFft { get; } = new Complex[FftSize];
-    public Complex[] ReferenceFft { get; } = new Complex[FftSize];
-    public float[] MainSpectrum { get; } = new float[FftSize / 2 + 1];
-    public float[] ReferenceSpectrum { get; } = new float[FftSize / 2 + 1];
+    public Complex[] Fft { get; } = new Complex[FftSize];
+    public float[] Spectrum { get; } = new float[FftSize / 2 + 1];
 
     public AudioCapture(
         int blockSize,
@@ -35,8 +33,6 @@ internal sealed class AudioCapture
     public unsafe int Enqueue(
         double* mainLeft,
         double* mainRight,
-        double* referenceLeft,
-        double* referenceRight,
         nuint frameCount)
     {
         var count = (int)Math.Min((nuint)int.MaxValue, frameCount);
@@ -49,8 +45,6 @@ internal sealed class AudioCapture
             var ringIndex = (writeIndex + index) % _capacity;
             _channels[0][ringIndex] = mainLeft[index];
             _channels[1][ringIndex] = mainRight[index];
-            _channels[2][ringIndex] = referenceLeft is null ? 0 : referenceLeft[index];
-            _channels[3][ringIndex] = referenceRight is null ? 0 : referenceRight[index];
         }
 
         if (writable > 0)
@@ -81,11 +75,8 @@ internal sealed class AudioCapture
         {
             var ringIndex = (readIndex + index) % _capacity;
             var multiplier = window[index];
-            MainFft[index] = new Complex(
+            Fft[index] = new Complex(
                 (_channels[0][ringIndex] + _channels[1][ringIndex]) * 0.5 * multiplier,
-                0);
-            ReferenceFft[index] = new Complex(
-                (_channels[2][ringIndex] + _channels[3][ringIndex]) * 0.5 * multiplier,
                 0);
         }
 
@@ -97,7 +88,6 @@ internal sealed class AudioCapture
 
     public void FillSilenceWindow(int windowSize)
     {
-        Array.Clear(MainFft, 0, windowSize);
-        Array.Clear(ReferenceFft, 0, windowSize);
+        Array.Clear(Fft, 0, windowSize);
     }
 }

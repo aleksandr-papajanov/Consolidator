@@ -62,12 +62,9 @@ internal sealed class ProtocolService : IDisposable
         }
         catch (Exception exception)
         {
-            if (exception is not FormatException && exception is not ProtocolException)
-            {
-                _logger.Error(
-                    $"Protocol decode boundary failed for '{message.Selector}' " +
-                    $"from instance {message.SourceInstanceId}: {exception}");
-            }
+            _logger.Warning(
+                $"Protocol decode rejected '{message.Selector}' " +
+                $"from instance {message.SourceInstanceId}: {exception.Message}");
             SendError(message, exception);
             return;
         }

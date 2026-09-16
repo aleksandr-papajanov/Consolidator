@@ -62,6 +62,16 @@ class BankManagerController
         this.topology.clear();
     }
 
+    commitFocusedBank()
+    {
+        this.stateActions.commitFocusedBank();
+    }
+
+    refineFocusedBank()
+    {
+        this.stateActions.refineFocusedBank();
+    }
+
     handleIntent(name, values)
     {
         routeBankManagerIntent(this, name, values);
