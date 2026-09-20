@@ -4,8 +4,8 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 
-#include "DspAntiderivative.h"
 #include "DspMath.h"
 #include "DspOnePole.h"
 #include "DspProcessingPrimitives.h"
@@ -16,54 +16,102 @@ namespace consolidator::max::dsp
 namespace
 {
 
-double AirHarmonics(double sample) noexcept
-{
-    const auto square = sample * sample;
-    return square * (0.5 + 0.12 * sample) / (1.0 + square);
-}
+constexpr std::array<double, 5> kLevelAnchors{
+    -30.0, -18.0, -12.0, -6.0, 0.0
+};
 
-double AirIntegral(double sample) noexcept
+double LinearGainForLevel(
+    double levelDb,
+    const PolishAirTuning& tuning) noexcept
 {
-    const auto square = sample * sample;
-    return 0.5 * (sample - std::atan(sample)) + 0.06 * (square - std::log1p(square));
-}
-
-double GenerateAir(double sample, double scale, double& previousSample) noexcept
-{
-    return AntiderivativeAverage(sample, scale, previousSample, AirHarmonics, AirIntegral);
+    if (levelDb <= kLevelAnchors.front())
+    {
+        return tuning.linearLevelGainAnchors.front();
+    }
+    for (std::size_t index = 1; index < kLevelAnchors.size(); ++index)
+    {
+        if (levelDb <= kLevelAnchors[index])
+        {
+            const auto ratio = (levelDb - kLevelAnchors[index - 1]) /
+                (kLevelAnchors[index] - kLevelAnchors[index - 1]);
+            return tuning.linearLevelGainAnchors[index - 1] + ratio *
+                (tuning.linearLevelGainAnchors[index] -
+                    tuning.linearLevelGainAnchors[index - 1]);
+        }
+    }
+    return tuning.linearLevelGainAnchors.back();
 }
 
 } // namespace
 
+void PolishAirProcessor::SetTuningBeforePrepare(
+    const PolishAirTuning& tuning) noexcept
+{
+    tuning_ = tuning;
+}
+
 void PolishAirProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
     amount_.Prepare(context);
-    sourceHighPassCoefficient_ = onepole::FilterCoefficient(3000.0, context.sampleRate);
-    sourceLowPassCoefficient_ = onepole::FilterCoefficient(6500.0, context.sampleRate);
-    outputHighPassCoefficient_ = onepole::FilterCoefficient(10000.0, context.sampleRate);
-    shelfCoefficient_ = onepole::FilterCoefficient(10000.0, context.sampleRate);
-    topShelfCoefficient_ = onepole::FilterCoefficient(16000.0, context.sampleRate);
-    energyCoefficient_ = TimeCoefficient(0.200, context.sampleRate);
-    fastEnergyCoefficient_ = TimeCoefficient(0.002, context.sampleRate);
-    attenuationAttackCoefficient_ = TimeCoefficient(0.001, context.sampleRate);
-    attenuationReleaseCoefficient_ = TimeCoefficient(0.080, context.sampleRate);
+    baselineHighPassCoefficient_ = onepole::FilterCoefficient(
+        tuning_.baselineHighPassHz,
+        context.sampleRate);
+    lowerShelfCoefficient_ = onepole::FilterCoefficient(
+        tuning_.lowerShelfFrequencyHz,
+        context.sampleRate);
+    middleShelfCoefficient_ = onepole::FilterCoefficient(
+        tuning_.middleShelfFrequencyHz,
+        context.sampleRate);
+    upperShelfCoefficient_ = onepole::FilterCoefficient(
+        tuning_.upperShelfFrequencyHz,
+        context.sampleRate);
+    levelShelfCoefficient_ = onepole::FilterCoefficient(
+        tuning_.levelShelfFrequencyHz,
+        context.sampleRate);
+    nonlinearSourceHighPassCoefficient_ = onepole::FilterCoefficient(
+        tuning_.nonlinearSourceHighPassHz,
+        context.sampleRate);
+    nonlinearOutputHighPassCoefficient_ = onepole::FilterCoefficient(
+        tuning_.nonlinearOutputHighPassHz,
+        context.sampleRate);
+    evenHarmonicHighPassCoefficient_ = onepole::FilterCoefficient(
+        tuning_.evenHarmonicHighPassHz,
+        context.sampleRate);
+    presencePeakCoefficients_ = CompileBell(
+        tuning_.presencePeakFrequencyHz,
+        tuning_.presencePeakQ,
+        tuning_.presencePeakGainDb,
+        context.sampleRate);
+    presenceNotchCoefficients_ = CompileBell(
+        tuning_.presenceNotchFrequencyHz,
+        tuning_.presenceNotchQ,
+        tuning_.presenceNotchGainDb,
+        context.sampleRate);
+    levelBellCoefficients_ = CompileBell(
+        tuning_.levelBellFrequencyHz,
+        tuning_.levelBellQ,
+        tuning_.levelBellGainDb,
+        context.sampleRate);
+    peakReleaseCoefficient_ = TimeCoefficient(2.0, context.sampleRate);
+    peakHoldSamples_ = static_cast<std::size_t>(context.sampleRate);
 }
 
 void PolishAirProcessor::Reset() noexcept
 {
     amount_.Reset();
     channels_ = {};
-    bandEnergy_ = 0.0;
-    mainEnergy_ = 0.0;
-    fastBandEnergy_ = 0.0;
-    energyWeight_ = 0.0;
-    fastEnergyWeight_ = 0.0;
-    attenuation_ = 1.0;
+    inputPeak_ = 0.0;
+    peakHoldRemaining_ = 0;
 }
 
 void PolishAirProcessor::SetParameters(const DspSnapshot& snapshot) noexcept
 {
-    amount_.SetTarget(snapshot.polishAir);
+    const auto amount = std::clamp(
+        static_cast<double>(snapshot.polishAir),
+        0.0,
+        1.0);
+    amount_.SetTarget(amount);
+    targetAmountGain_ = std::pow(amount, tuning_.amountExponent);
 }
 
 void PolishAirProcessor::Process(DspProcessingFrame& frame) noexcept
@@ -72,11 +120,35 @@ void PolishAirProcessor::Process(DspProcessingFrame& frame) noexcept
     const std::array<double*, 2> audio{ selected.left, selected.right };
     for (std::size_t index = 0; index < frame.main.frameCount; ++index)
     {
-        std::array<double, 2> band{};
-        std::array<double, 2> shelf{};
-        std::array<double, 2> topShelf{};
-        auto bandEnergy = 0.0;
-        auto mainEnergy = 0.0;
+        auto peak = 0.0;
+        for (const auto* channel : audio)
+        {
+            if (channel != nullptr)
+            {
+                peak = std::max(peak, std::abs(channel[index]));
+            }
+        }
+        if (peak >= inputPeak_ * 0.999)
+        {
+            inputPeak_ = std::max(inputPeak_, peak);
+            peakHoldRemaining_ = peakHoldSamples_;
+        }
+        else if (peakHoldRemaining_ > 0)
+        {
+            --peakHoldRemaining_;
+        }
+        else
+        {
+            inputPeak_ += peakReleaseCoefficient_ * (peak - inputPeak_);
+        }
+        const auto levelDb = 20.0 * std::log10(std::max(inputPeak_, 1.0e-8));
+        const auto linearLevelGain = LinearGainForLevel(levelDb, tuning_);
+        const auto amountGain = amount_.IsSmoothing()
+            ? std::pow(
+                std::clamp(amount_.NextValue(), 0.0, 1.0),
+                tuning_.amountExponent)
+            : targetAmountGain_;
+
         for (std::size_t channel = 0; channel < channels_.size(); ++channel)
         {
             if (audio[channel] == nullptr)
@@ -85,57 +157,103 @@ void PolishAirProcessor::Process(DspProcessingFrame& frame) noexcept
             }
             auto& state = channels_[channel];
             const auto input = audio[channel][index];
-            const auto upper = onepole::HighPass(input, sourceHighPassCoefficient_, state.sourceHighPass);
-            band[channel] = onepole::LowPass(upper, sourceLowPassCoefficient_, state.sourceLowPass);
-            shelf[channel] = onepole::HighPass(input, shelfCoefficient_, state.shelf);
-            topShelf[channel] = onepole::HighPass(input, topShelfCoefficient_, state.topShelf);
-            bandEnergy = std::max(bandEnergy, band[channel] * band[channel]);
-            mainEnergy = std::max(mainEnergy, input * input);
-        }
-        bandEnergy_ += energyCoefficient_ * (bandEnergy - bandEnergy_);
-        mainEnergy_ += energyCoefficient_ * (mainEnergy - mainEnergy_);
-        fastBandEnergy_ += fastEnergyCoefficient_ * (bandEnergy - fastBandEnergy_);
-        energyWeight_ += energyCoefficient_ * (1.0 - energyWeight_);
-        fastEnergyWeight_ += fastEnergyCoefficient_ * (1.0 - fastEnergyWeight_);
-        const auto meanBandEnergy = bandEnergy_ / std::max(energyWeight_, 1.0e-12);
-        const auto meanMainEnergy = mainEnergy_ / std::max(energyWeight_, 1.0e-12);
-        const auto fastMeanEnergy = fastBandEnergy_ / std::max(fastEnergyWeight_, 1.0e-12);
-        // Both windows are normalized during startup: their different time
-        // constants must not turn the first sample into a false harshness burst.
-        const auto spectralDensity = meanBandEnergy / std::max(meanMainEnergy, 1.0e-10);
-        const auto densityExcess = std::max(0.0, spectralDensity - 0.15);
-        const auto burst = std::max(0.0, fastMeanEnergy / std::max(meanBandEnergy, 1.0e-10) - 3.0);
-        const auto desiredAttenuation = 1.0 / (1.0 + 8.0 * densityExcess + 0.75 * burst);
-        const auto attenuationCoefficient = desiredAttenuation < attenuation_
-            ? attenuationAttackCoefficient_ : attenuationReleaseCoefficient_;
-        attenuation_ += attenuationCoefficient * (desiredAttenuation - attenuation_);
-
-        const auto scale = std::sqrt(std::max(2.0 * meanBandEnergy, 1.0e-10));
-        const auto amount = std::clamp(amount_.NextValue(), 0.0, 1.0);
-        std::array<double, 2> wet{};
-        for (std::size_t channel = 0; channel < channels_.size(); ++channel)
-        {
-            if (audio[channel] == nullptr)
-            {
-                continue;
-            }
-            auto& state = channels_[channel];
-            const auto generated = GenerateAir(band[channel], scale, state.previousSample);
-            const auto harmonics = onepole::HighPass(
-                generated, outputHighPassCoefficient_, state.outputHighPass);
-            wet[channel] = 2.6 * amount * amount * attenuation_ * harmonics;
-        }
-        // Only the added high band is widened; mono has no synthetic side.
-        const auto side = audio[0] != nullptr && audio[1] != nullptr ? 0.08 * (wet[0] - wet[1]) : 0.0;
-        if (audio[0] != nullptr)
-        {
-            audio[0][index] += 1.2 * amount * shelf[0] + 0.85 * amount * amount * topShelf[0] + wet[0] + side;
-        }
-        if (audio[1] != nullptr)
-        {
-            audio[1][index] += 1.2 * amount * shelf[1] + 0.85 * amount * amount * topShelf[1] + wet[1] - side;
+            const auto baseline = onepole::HighPass(
+                input,
+                baselineHighPassCoefficient_,
+                state.baselineHighPass);
+            const auto lowerShelf = onepole::HighPass(
+                input,
+                lowerShelfCoefficient_,
+                state.lowerShelf);
+            const auto middleShelf = onepole::HighPass(
+                input,
+                middleShelfCoefficient_,
+                state.middleShelf);
+            const auto upperShelf = onepole::HighPass(
+                input,
+                upperShelfCoefficient_,
+                state.upperShelf);
+            const auto levelShelf = onepole::HighPass(
+                input,
+                levelShelfCoefficient_,
+                state.levelShelf);
+            const auto presencePeak = ProcessBiquad(
+                input,
+                presencePeakCoefficients_,
+                state.presencePeak);
+            const auto presenceContour = ProcessBiquad(
+                presencePeak,
+                presenceNotchCoefficients_,
+                state.presenceNotch);
+            const auto levelBell = ProcessBiquad(
+                input,
+                levelBellCoefficients_,
+                state.levelBell);
+            const auto nonlinearSource = onepole::HighPass(
+                input,
+                nonlinearSourceHighPassCoefficient_,
+                state.nonlinearSourceHighPass);
+            const auto squaredSource = nonlinearSource * nonlinearSource;
+            const auto cubedSource = squaredSource * nonlinearSource;
+            const auto oddGenerated = cubedSource * (
+                1.0 + tuning_.fifthOrderGain * squaredSource +
+                tuning_.seventhOrderGain * squaredSource * squaredSource);
+            const auto oddHarmonics = onepole::HighPass(
+                oddGenerated,
+                nonlinearOutputHighPassCoefficient_,
+                state.nonlinearOutputHighPass);
+            const auto evenGenerated = input * input;
+            const auto evenHarmonics = onepole::HighPass(
+                evenGenerated,
+                evenHarmonicHighPassCoefficient_,
+                state.evenHarmonicHighPass);
+            const auto baselineMix = std::min(amountGain * 4.0, 1.0);
+            audio[channel][index] = input + baselineMix * (baseline - input) +
+                amountGain * (
+                tuning_.directGain * input +
+                tuning_.lowerShelfGain * lowerShelf +
+                    tuning_.middleShelfGain * middleShelf +
+                    tuning_.upperShelfGain * upperShelf +
+                    (presenceContour - input) +
+                (linearLevelGain - 1.0) *
+                    tuning_.levelShelfGain * levelShelf -
+                (1.0 - linearLevelGain) * (input - levelBell) -
+                tuning_.oddHarmonicGain * oddHarmonics +
+                tuning_.evenHarmonicGain * evenHarmonics);
         }
     }
+}
+
+PolishAirProcessor::BiquadCoefficients PolishAirProcessor::CompileBell(
+    double frequencyHz,
+    double q,
+    double gainDb,
+    double sampleRate) noexcept
+{
+    const auto omega = 2.0 * std::numbers::pi * frequencyHz / sampleRate;
+    const auto sine = std::sin(omega);
+    const auto cosine = std::cos(omega);
+    const auto alpha = sine / (2.0 * q);
+    const auto amplitude = std::pow(10.0, gainDb / 40.0);
+    const auto inverseA0 = 1.0 / (1.0 + alpha / amplitude);
+    return {
+        (1.0 + alpha * amplitude) * inverseA0,
+        -2.0 * cosine * inverseA0,
+        (1.0 - alpha * amplitude) * inverseA0,
+        -2.0 * cosine * inverseA0,
+        (1.0 - alpha / amplitude) * inverseA0
+    };
+}
+
+double PolishAirProcessor::ProcessBiquad(
+    double input,
+    const BiquadCoefficients& coefficients,
+    BiquadState& state) noexcept
+{
+    const auto output = coefficients.b0 * input + state.z1;
+    state.z1 = coefficients.b1 * input - coefficients.a1 * output + state.z2;
+    state.z2 = coefficients.b2 * input - coefficients.a2 * output;
+    return output;
 }
 
 } // namespace consolidator::max::dsp

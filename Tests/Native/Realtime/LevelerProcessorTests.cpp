@@ -76,16 +76,13 @@ bool RunLevelerProcessorTests()
         1,
         output);
     succeeded &= Expect(
-        responsiveLeveler.FastInputLevelDb() > -6.0F &&
-            responsiveLeveler.FastInputLevelDb() < 0.0F,
-        "Leveler fast correction did not stay inside its six-decibel range.");
+        std::abs(responsiveLeveler.FastInputLevelDb()) < 0.001F,
+        "Leveler fast correction did not start at the slow detector level.");
     succeeded &= Expect(
         std::abs(
             responsiveLeveler.EffectiveInputLevelDb() -
             responsiveLeveler.SlowInputLevelDb() -
-            responsiveLeveler.FastInputLevelDb()) < 0.001F &&
-            std::abs(responsiveLeveler.SlowInputLevelDb()) <
-                std::abs(responsiveLeveler.EffectiveInputLevelDb()),
+            responsiveLeveler.FastInputLevelDb()) < 0.001F,
         "Leveler fast correction was not applied independently over the slow level.");
     ProcessConstantLevel(
         responsiveLeveler,
@@ -94,8 +91,9 @@ bool RunLevelerProcessorTests()
         output);
 
     succeeded &= Expect(
-        responsiveLeveler.EffectiveInputLevelDb() < -9.0F,
-        "Leveler fast correction did not move into the target region promptly.");
+        responsiveLeveler.SlowInputLevelDb() < 0.0F &&
+            std::abs(responsiveLeveler.FastInputLevelDb()) < 0.01F,
+        "Leveler did not keep its fast correction neutral on a steady source.");
 
     consolidator::max::dsp::LevelerProcessor positiveCorrectionLeveler;
     positiveCorrectionLeveler.Prepare({ kSampleRate, kFrameCount });
@@ -108,9 +106,8 @@ bool RunLevelerProcessorTests()
         1,
         output);
     succeeded &= Expect(
-        positiveCorrectionLeveler.FastInputLevelDb() > 0.0F &&
-            positiveCorrectionLeveler.FastInputLevelDb() < 6.0F,
-        "Leveler positive fast correction exceeded its six-decibel range.");
+        std::abs(positiveCorrectionLeveler.FastInputLevelDb()) < 0.001F,
+        "Leveler created fast correction without a slow/fast level difference.");
 
     snapshot.inputTarget = -18.0F;
 
@@ -203,8 +200,13 @@ bool RunLevelerProcessorTests()
         quietLeveler.SlowInputLevelDb() > slowLevelAfterGateOpen,
         "Leveler slow gate did not remain open inside its hysteresis range.");
 
-    const auto slowLevelBeforeGateClose = quietLeveler.SlowInputLevelDb();
     const auto inputAtMinusSixtyOneDb = std::pow(10.0, -61.0 / 20.0);
+    ProcessConstantLevel(
+        quietLeveler,
+        inputAtMinusSixtyOneDb,
+        100,
+        output);
+    const auto slowLevelAfterGateClose = quietLeveler.SlowInputLevelDb();
     ProcessConstantLevel(
         quietLeveler,
         inputAtMinusSixtyOneDb,
@@ -213,7 +215,7 @@ bool RunLevelerProcessorTests()
     succeeded &= Expect(
         std::abs(
             quietLeveler.SlowInputLevelDb() -
-            slowLevelBeforeGateClose) < 0.001F &&
+            slowLevelAfterGateClose) < 0.001F &&
             std::abs(quietLeveler.FastInputLevelDb()) < 0.001F,
         "Leveler gate did not freeze slow learning and release fast correction.");
 

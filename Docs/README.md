@@ -30,6 +30,9 @@
 | [`MaxV8RuntimeDiagnostics.md`](MaxV8RuntimeDiagnostics.md) | Диагностика загрузки Max for Live UI: LiveAPI lifecycle, activity, protocol snapshots, host-only проверки и пересборка `.amxd`. |
 | [`RuntimeMetrics.md`](RuntimeMetrics.md) | Фоновый сбор runtime-метрик Managed и публикация только обнаруженных проблем. |
 | [`ProcessorActivity.md`](ProcessorActivity.md) | Derived Managed processor activity status, registry deltas and processor B/S commands. |
+| [`ModelPluginsVst3.md`](ModelPluginsVst3.md) | Independent parameterized VST3 model adapters for Plugin Doctor and Emulation Lab fitting. |
+| [`EmulationLab.md`](EmulationLab.md) | Unified black-box measurement, staged optimization, validation and reporting workflow. |
+| [`RevivalShimmerEmulation.md`](RevivalShimmerEmulation.md) | Measured Revival Shimmer topology, native Air model, multi-amount reference normalization and offline fitting workflow. |
 
 ## Правила работы с документацией
 

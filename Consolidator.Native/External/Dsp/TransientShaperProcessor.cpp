@@ -9,15 +9,6 @@
 
 namespace
 {
-
-constexpr double kFastAttackSeconds = 0.002;
-constexpr double kSlowAttackSeconds = 0.025;
-constexpr double kGainAttackSeconds = 0.001;
-constexpr double kGainReleaseSeconds = 0.050;
-constexpr double kMaximumAttackDb = 7.5;
-constexpr double kMaximumSustainDb = 9.0;
-constexpr double kMinimumDetectorLevel = 3.1622776601683795e-5;
-
 [[nodiscard]] double FollowEnvelope(
     double input,
     double envelope,
@@ -31,21 +22,34 @@ constexpr double kMinimumDetectorLevel = 3.1622776601683795e-5;
 namespace consolidator::max::dsp
 {
 
+void TransientShaperProcessor::SetTuningBeforePrepare(
+    const TransientShaperTuning& tuning) noexcept
+{
+    tuning_ = tuning;
+}
+
 void TransientShaperProcessor::Prepare(
     const DspProcessingContext& context) noexcept
 {
     attack_.Prepare(context);
     sustain_.Prepare(context);
     activeMix_.Prepare(context);
+    autoGain_.SetTuningBeforePrepare(tuning_.autoGain);
     autoGain_.Prepare(context);
-    sustainCoefficient_ = TimeCoefficient(0.120, context.sampleRate);
-    fastAttackCoefficient_ = TimeCoefficient(kFastAttackSeconds, context.sampleRate);
-    slowAttackCoefficient_ = TimeCoefficient(kSlowAttackSeconds, context.sampleRate);
-    detectorCoefficient_ = TimeCoefficient(0.005, context.sampleRate);
+    sustainCoefficient_ = TimeCoefficient(
+        tuning_.sustainEnvelopeSeconds, context.sampleRate);
+    fastAttackCoefficient_ = TimeCoefficient(
+        tuning_.fastEnvelopeSeconds, context.sampleRate);
+    slowAttackCoefficient_ = TimeCoefficient(
+        tuning_.slowEnvelopeSeconds, context.sampleRate);
+    detectorCoefficient_ = TimeCoefficient(
+        tuning_.detectorSeconds, context.sampleRate);
     // Symmetric followers have the same DC gain; different time constants
     // then measure envelope motion instead of different peak biases.
-    gainAttackCoefficient_ = TimeCoefficient(kGainAttackSeconds, context.sampleRate);
-    gainReleaseCoefficient_ = TimeCoefficient(kGainReleaseSeconds, context.sampleRate);
+    gainAttackCoefficient_ = TimeCoefficient(
+        tuning_.gainAttackSeconds, context.sampleRate);
+    gainReleaseCoefficient_ = TimeCoefficient(
+        tuning_.gainReleaseSeconds, context.sampleRate);
 }
 
 void TransientShaperProcessor::Reset() noexcept
@@ -87,11 +91,11 @@ void TransientShaperProcessor::Process(
         const auto magnitude = std::max(left, right);
         detectorEnergy_ += detectorCoefficient_ * (magnitude * magnitude - detectorEnergy_);
         const auto detectorLevel = std::sqrt(std::max(0.0, detectorEnergy_));
-        if (detectorLevel < kMinimumDetectorLevel)
+        if (detectorLevel < tuning_.minimumDetectorLevel)
         {
             detectorGateOpen_ = false;
         }
-        else if (detectorLevel > 2.0 * kMinimumDetectorLevel)
+        else if (detectorLevel > 2.0 * tuning_.minimumDetectorLevel)
         {
             detectorGateOpen_ = true;
         }
@@ -110,20 +114,20 @@ void TransientShaperProcessor::Process(
         const auto sustain = std::clamp(sustain_.NextValue(), 0.0, 1.0);
         auto targetGainDb = 0.0;
         if (detectorGateOpen_ &&
-            fastEnvelope_ >= kMinimumDetectorLevel &&
-            slowEnvelope_ >= kMinimumDetectorLevel)
+            fastEnvelope_ >= tuning_.minimumDetectorLevel &&
+            slowEnvelope_ >= tuning_.minimumDetectorLevel)
         {
             const auto envelopeDifferenceDb = 20.0 * std::log10(
                 fastEnvelope_ / slowEnvelope_);
             const auto attackDb = std::clamp(
-                1.25 * envelopeDifferenceDb,
+                tuning_.attackScale * envelopeDifferenceDb,
                 0.0,
-                kMaximumAttackDb);
+                tuning_.maximumAttackDb);
             const auto sustainDb = std::clamp(
-                1.5 * 20.0 * std::log10(
-                    std::max(sustainEnvelope_, kMinimumDetectorLevel) / fastEnvelope_),
+                tuning_.sustainScale * 20.0 * std::log10(
+                    std::max(sustainEnvelope_, tuning_.minimumDetectorLevel) / fastEnvelope_),
                 0.0,
-                kMaximumSustainDb);
+                tuning_.maximumSustainDb);
             targetGainDb =
                 attack * attackDb +
                 sustain * sustainDb;

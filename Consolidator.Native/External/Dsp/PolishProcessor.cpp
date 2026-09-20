@@ -3,6 +3,14 @@
 namespace consolidator::max::dsp
 {
 
+void PolishProcessor::SetTuningsBeforePrepare(
+    const PolishThickTuning& thick,
+    const PolishAirTuning& air) noexcept
+{
+    thick_.SetTuningBeforePrepare(thick);
+    air_.SetTuningBeforePrepare(air);
+}
+
 void PolishProcessor::Prepare(const DspProcessingContext& context)
 {
     thick_.Prepare(context);

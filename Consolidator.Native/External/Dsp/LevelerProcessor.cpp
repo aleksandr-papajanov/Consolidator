@@ -125,6 +125,7 @@ void LevelerProcessor::Process(
                 sampleEnergy /= channelCount;
                 blockEnergy += sampleEnergy;
                 gateEnergy_ += gateCoefficient_ * (sampleEnergy - gateEnergy_);
+                const auto gateWasOpen = slowGateOpen_;
                 if (gateEnergy_ >= kSlowGateOpenEnergy)
                 {
                     slowGateOpen_ = true;
@@ -147,14 +148,15 @@ void LevelerProcessor::Process(
                 }
                 if (slowGateOpen_)
                 {
-                    smoothedFastEnergy_ = hasFastEnergyEstimate_
+                    const auto gateJustOpened = !gateWasOpen;
+                    smoothedFastEnergy_ = hasFastEnergyEstimate_ && !gateJustOpened
                         ? fastEnergyCoefficient_ * smoothedFastEnergy_ +
                             (1.0 - fastEnergyCoefficient_) * sampleEnergy
-                        : std::max(gateEnergy_, kSilenceEnergy);
-                    smoothedSlowEnergy_ = hasSlowEnergyEstimate_
+                        : std::max(sampleEnergy, kSilenceEnergy);
+                    smoothedSlowEnergy_ = hasSlowEnergyEstimate_ && !gateJustOpened
                         ? slowEnergyCoefficient_ * smoothedSlowEnergy_ +
                             (1.0 - slowEnergyCoefficient_) * sampleEnergy
-                        : std::max(gateEnergy_, kSilenceEnergy);
+                        : std::max(sampleEnergy, kSilenceEnergy);
                     hasFastEnergyEstimate_ = true;
                     hasSlowEnergyEstimate_ = true;
                 }

@@ -10,6 +10,16 @@
 namespace consolidator::max::dsp
 {
 
+enum class DspFilterType : std::uint32_t
+{
+    None = 0,
+    Gain = 1,
+    Tilt = 2,
+    LowShelf = 3,
+    HighShelf = 4,
+    Bell = 5
+};
+
 class DspBiquadCascade final
 {
 public:

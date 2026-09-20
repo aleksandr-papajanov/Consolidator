@@ -16,16 +16,6 @@ constexpr double kMinimumQ = 1.0e-6;
 constexpr double kNyquistLimit = 0.499;
 constexpr double kDenormalThreshold = 1.0e-24;
 
-enum class FilterType : std::uint32_t
-{
-    None = 0,
-    Gain = 1,
-    Tilt = 2,
-    LowShelf = 3,
-    HighShelf = 4,
-    Bell = 5
-};
-
 [[nodiscard]] double SanitizeState(double value) noexcept
 {
     return std::abs(value) < kDenormalThreshold ? 0.0 : value;
@@ -164,8 +154,8 @@ DspBiquadCascade::Path DspBiquadCascade::Compile(
         return path;
     }
 
-    const auto type = static_cast<FilterType>(parameters.type);
-    if (type == FilterType::Gain)
+    const auto type = static_cast<DspFilterType>(parameters.type);
+    if (type == DspFilterType::Gain)
     {
         path.count = 1;
         path.stages[0].coefficients.b0 =
@@ -182,7 +172,7 @@ DspBiquadCascade::Path DspBiquadCascade::Compile(
     const auto frequency = std::min(
         static_cast<double>(parameters.frequencyHz),
         sampleRate_ * kNyquistLimit);
-    const auto qValue = type == FilterType::Bell
+    const auto qValue = type == DspFilterType::Bell
         ? parameters.q
         : parameters.fixedQ;
     if (!std::isfinite(qValue) || qValue <= 0.0F)
@@ -193,30 +183,30 @@ DspBiquadCascade::Path DspBiquadCascade::Compile(
     const auto gain = static_cast<double>(parameters.gainDb);
     switch (type)
     {
-        case FilterType::Tilt:
+        case DspFilterType::Tilt:
             path.count = 2;
             path.stages[0].coefficients = CompileShelf(
                 true, frequency, q, -gain, sampleRate_);
             path.stages[1].coefficients = CompileShelf(
                 false, frequency, q, gain, sampleRate_);
             break;
-        case FilterType::LowShelf:
+        case DspFilterType::LowShelf:
             path.count = 1;
             path.stages[0].coefficients = CompileShelf(
                 true, frequency, q, gain, sampleRate_);
             break;
-        case FilterType::HighShelf:
+        case DspFilterType::HighShelf:
             path.count = 1;
             path.stages[0].coefficients = CompileShelf(
                 false, frequency, q, gain, sampleRate_);
             break;
-        case FilterType::Bell:
+        case DspFilterType::Bell:
             path.count = 1;
             path.stages[0].coefficients = CompileBell(
                 frequency, q, gain, sampleRate_);
             break;
-        case FilterType::None:
-        case FilterType::Gain:
+        case DspFilterType::None:
+        case DspFilterType::Gain:
         default:
             break;
     }

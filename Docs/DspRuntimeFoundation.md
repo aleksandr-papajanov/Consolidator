@@ -268,7 +268,9 @@ The gate and energy estimates advance per sample independently of host block
 partitioning; gain targets still update once per block. This
 gate never mutes or attenuates audio. When it closes, the fast detector also
 stops learning and its correction returns smoothly to `0 dB` through the
-400-millisecond controller. Pauses therefore retain the slow Level value
+400-millisecond controller. When it opens, both detector estimates restart from
+the first valid sample energy so a pause cannot create a false fast correction.
+Pauses therefore retain the slow Level value
 without being lifted by the fast `+6 dB` limit.
 The bounded `-36..36 dB` Input Gain range is only the public control safety
 limit. Gain is applied as a smooth multiplicative ramp across every audio
@@ -379,7 +381,7 @@ following list describes prior coverage, not verification of the new algorithms:
 - the common scalar ramp advances by sample count, preserves unchanged targets,
   retargets from its current value and resets to its target;
 - detector routes use processor-owned buffers;
-- compressor parallel processing applies output gain before adding wet to dry;
+- compressor parallel processing applies output gain before normalized dry/wet interpolation;
 - compressor parallel summing leaves channels excluded by the plan untouched;
 - neutralizing and reactivating Saturator does not restore stale output gain;
 - neutral drive and curve preserve audio while positive drive applies the curve

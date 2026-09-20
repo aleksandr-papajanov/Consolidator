@@ -145,7 +145,20 @@ dotnet test Tests/Managed/Consolidator.Managed.Tests.csproj --configuration Rele
 dotnet test Tests/Integration/Consolidator.Integration.Tests.csproj --configuration Release
 
 node Consolidator.Max/tests/ClientTests.js
+
+cmake -S EmulationLab -B EmulationLab/build
+cmake --build EmulationLab/build --config Release
+ctest --test-dir EmulationLab/build -C Release --output-on-failure
 ```
+
+`EmulationLabSelfTest` covers versioned dataset round-tripping and splitting,
+manifest validation, latency-aligned gain/phase measurement, harmonic floors,
+coherent multitone residual, envelope-based transient timing, stereo isolation,
+wrapped-phase comparison, density-neutral feature-group weighting, schema
+mismatch rejection, conflicting condition/optimizer parameter rejection and
+optimizer convergence.
+Third-party VST capture remains a host verification step and is not part of the
+deterministic self-test.
 
 Нельзя запускать Integration на старой DLL. Каждый full verification сначала выполняет
 combined Native + Managed publish.

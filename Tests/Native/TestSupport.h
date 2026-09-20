@@ -27,5 +27,7 @@ bool RunDspRuntimeTests();
 bool RunDspStateConsumerTests();
 bool RunDspRuntimeGraphTests();
 bool RunLevelerProcessorTests();
+bool RunPolishAirProcessorTests();
+bool RunPolishThickProcessorTests();
 
 } // namespace consolidator::tests

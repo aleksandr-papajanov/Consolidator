@@ -10,6 +10,9 @@ namespace consolidator::max::dsp
 class PolishProcessor final : public DspProcessor
 {
 public:
+    void SetTuningsBeforePrepare(
+        const PolishThickTuning& thick,
+        const PolishAirTuning& air) noexcept;
     void Prepare(const DspProcessingContext& context) override;
     void Reset() noexcept override;
     void SetParameters(const DspSnapshot& snapshot) noexcept override;

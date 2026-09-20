@@ -18,6 +18,10 @@ int main()
         consolidator::tests::RunDspRuntimeGraphTests();
     const auto levelerProcessorSucceeded =
         consolidator::tests::RunLevelerProcessorTests();
+    const auto polishAirProcessorSucceeded =
+        consolidator::tests::RunPolishAirProcessorTests();
+    const auto polishThickProcessorSucceeded =
+        consolidator::tests::RunPolishThickProcessorTests();
 
     if (!abiSucceeded ||
         !persistenceBlobSucceeded ||
@@ -26,7 +30,9 @@ int main()
         !dspRuntimeSucceeded ||
         !dspStateConsumerSucceeded ||
         !dspRuntimeGraphSucceeded ||
-        !levelerProcessorSucceeded)
+        !levelerProcessorSucceeded ||
+        !polishAirProcessorSucceeded ||
+        !polishThickProcessorSucceeded)
     {
         return 1;
     }

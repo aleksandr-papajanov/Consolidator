@@ -58,6 +58,8 @@
     <ClCompile Include="Realtime\DspRuntimeGraphTests.cpp" />
     <ClCompile Include="Realtime\DspStateConsumerTests.cpp" />
     <ClCompile Include="Realtime\LevelerProcessorTests.cpp" />
+    <ClCompile Include="Realtime\PolishAirProcessorTests.cpp" />
+    <ClCompile Include="Realtime\PolishThickProcessorTests.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\CompressionProcessor.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\CompressorProcessor.cpp" />
     <ClCompile Include="..\..\Consolidator.Native\External\Dsp\DetectorProcessor.cpp" />

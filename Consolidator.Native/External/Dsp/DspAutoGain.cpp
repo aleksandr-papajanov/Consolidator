@@ -8,10 +8,16 @@
 namespace consolidator::max::dsp
 {
 
+void DspAutoGain::SetTuningBeforePrepare(
+    const DspAutoGainTuning& tuning) noexcept
+{
+    tuning_ = tuning;
+}
+
 void DspAutoGain::Prepare(const DspProcessingContext& context) noexcept
 {
-    energyCoefficient_ = TimeCoefficient(1.0, context.sampleRate);
-    gainCoefficient_ = TimeCoefficient(2.0, context.sampleRate);
+    energyCoefficient_ = TimeCoefficient(tuning_.energySeconds, context.sampleRate);
+    gainCoefficient_ = TimeCoefficient(tuning_.correctionSeconds, context.sampleRate);
 }
 
 void DspAutoGain::Reset() noexcept
@@ -28,14 +34,17 @@ double DspAutoGain::Process(double inputEnergy, double outputEnergy, double acti
         Reset();
         return 1.0;
     }
-    if (inputEnergy > 1.0e-10)
+    if (inputEnergy > tuning_.minimumInputEnergy)
     {
         inputEnergy_ += energyCoefficient_ * (inputEnergy - inputEnergy_);
         outputEnergy_ += energyCoefficient_ * (outputEnergy - outputEnergy_);
         if (inputEnergy_ > 1.0e-15 && outputEnergy_ > 1.0e-15)
         {
             const auto desiredDb = std::clamp(
-                0.5 * 10.0 * std::log10(inputEnergy_ / outputEnergy_), -3.0, 3.0);
+                tuning_.compensationRatio * 10.0 *
+                    std::log10(inputEnergy_ / outputEnergy_),
+                -tuning_.maximumCorrectionDb,
+                tuning_.maximumCorrectionDb);
             correctionDb_ += gainCoefficient_ * (desiredDb - correctionDb_);
         }
     }

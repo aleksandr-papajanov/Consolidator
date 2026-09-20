@@ -7,6 +7,7 @@
 #include "Dsp/DspExecution.h"
 #include "Dsp/DspParallelStage.h"
 #include "Dsp/DspRuntimeGraph.h"
+#include "Dsp/TransientShaperProcessor.h"
 
 namespace
 {
@@ -171,11 +172,9 @@ bool RunDspRuntimeGraphTests()
         saturatorRight.data(),
         saturatorLeft.size());
     succeeded &= Expect(
-        saturatorLeft[0] > 0.5 &&
-            saturatorLeft[1] > 1.0 &&
-            saturatorLeft[2] < -0.5 &&
+        saturatorLeft[0] == 0.5 &&
             saturatorLeft[3] < -1.0,
-        "Saturator drive did not apply the curve to both signal polarities.");
+        "Saturator drive did not ramp into the curve across the block.");
 
     for (auto block = 1; block < 120; ++block)
     {
@@ -187,11 +186,15 @@ bool RunDspRuntimeGraphTests()
             saturatorLeft.size());
     }
     succeeded &= Expect(
-        std::abs(saturatorLeft[1] - 1.0) < 1.0e-9 &&
-            saturatorLeft[0] > 0.5 &&
-            saturatorLeft[3] < -0.5,
-        "Saturator peak compensation did not preserve the normalized peak.");
+        std::abs(saturatorLeft[0] - 0.5) > 0.001 &&
+            std::abs(saturatorLeft[1] - 1.0) > 0.001 &&
+            std::abs(saturatorLeft[0] + saturatorLeft[2]) < 0.001 &&
+            std::abs(saturatorLeft[1] + saturatorLeft[3]) < 0.001 &&
+            std::isfinite(saturatorLeft[1]) &&
+            std::isfinite(saturatorLeft[3]),
+        "Saturator drive did not apply a finite curve to both signal polarities.");
 
+    saturatorSnapshot.saturatorDrive = 0.0F;
     saturatorSnapshot.saturatorCurve = 0.0F;
     saturatorSnapshot.saturatorSplit = 1;
     saturatorGraph.SetParameters(saturatorSnapshot);
@@ -269,6 +272,7 @@ bool RunDspRuntimeGraphTests()
 
     consolidator::max::dsp::DspParallelStage parallel;
     parallel.Prepare(graph.Context());
+    parallel.SetWetTarget(0.5);
     DoubleProcessor doubleProcessor;
     left.fill(1.0);
     right.fill(1.0);
@@ -283,17 +287,22 @@ bool RunDspRuntimeGraphTests()
         detectorPlan,
         detectorPolicy
     };
-    parallel.Process(parallelFrame, doubleProcessor);
+    for (auto block = 0; block < 121; ++block)
+    {
+        left.fill(1.0);
+        right.fill(1.0);
+        parallel.Process(parallelFrame, doubleProcessor);
+    }
     succeeded &= Expect(
-        left[0] == 3.0 && right[0] == 3.0,
-        "Parallel processing did not add the output-scaled wet branch to dry audio.");
+        left[0] == 1.5 && right[0] == 1.5,
+        "Parallel processing did not produce the normalized dry/wet interpolation.");
 
     detectorPlan.channelMode = consolidator::max::dsp::DspChannelMode::Left;
     left.fill(1.0);
     right.fill(1.0);
     parallel.Process(parallelFrame, doubleProcessor);
     succeeded &= Expect(
-        left[0] == 3.0 && right[0] == 1.0,
+        left[0] == 1.5 && right[0] == 1.0,
         "Parallel processing changed a channel excluded by the processing plan.");
     detectorPlan.channelMode = consolidator::max::dsp::DspChannelMode::Stereo;
 
@@ -348,11 +357,11 @@ bool RunDspRuntimeGraphTests()
     succeeded &= Expect(
         std::abs(
             compressorLeft[0] -
-                ((1.0 + compressorWetGain) * finalOutputGain)) < 1.0e-9 &&
+                (0.5 * (1.0 + compressorWetGain) * finalOutputGain)) < 1.0e-9 &&
             std::abs(
                 compressorRight[0] -
-                    ((1.0 + compressorWetGain) * finalOutputGain)) < 1.0e-9,
-        "Compressor output was not applied before its parallel sum and final output level.");
+                    (0.5 * (1.0 + compressorWetGain) * finalOutputGain)) < 1.0e-9,
+        "Compressor output was not applied before its normalized parallel mix and final output level.");
 
     consolidator::max::dsp::DspRuntimeGraph transientGraph;
     transientGraph.Prepare(1000.0, 8);
@@ -376,6 +385,15 @@ bool RunDspRuntimeGraphTests()
     auto attackSnapshot = neutralTransientSnapshot;
     attackSnapshot.compressorAttack = 1.0F;
     transientGraph.SetParameters(attackSnapshot);
+    for (auto block = 0; block < 2; ++block)
+    {
+        transientLeft.fill(0.0);
+        transientRight.fill(0.0);
+        transientGraph.ProcessBlock(
+            transientLeft.data(),
+            transientRight.data(),
+            transientLeft.size());
+    }
     transientLeft.fill(0.0);
     transientRight.fill(0.0);
     transientLeft[0] = 1.0;
@@ -389,6 +407,32 @@ bool RunDspRuntimeGraphTests()
             transientRight[0] > 1.0 &&
             transientLeft[0] == transientRight[0],
         "Attack transient shaping did not enhance the linked stereo transient.");
+
+    consolidator::max::dsp::TransientShaperProcessor tunedTransient;
+    auto transientTuning = consolidator::max::dsp::TransientShaperTuning{};
+    transientTuning.maximumAttackDb = 0.0;
+    transientTuning.maximumSustainDb = 0.0;
+    tunedTransient.SetTuningBeforePrepare(transientTuning);
+    tunedTransient.Prepare({ 1000.0, 10 });
+    tunedTransient.SetParameters(attackSnapshot);
+    std::array<double, 10> tunedLeft{};
+    std::array<double, 10> tunedRight{};
+    auto tunedAudio = consolidator::max::dsp::DspAudioBuffer{
+        tunedLeft.data(), tunedRight.data(), tunedLeft.size()
+    };
+    auto tunedFrame = consolidator::max::dsp::DspProcessingFrame{
+        tunedAudio,
+        { tunedLeft.data(), tunedRight.data() },
+        detectorPlan,
+        detectorPolicy
+    };
+    tunedTransient.Process(tunedFrame);
+    tunedLeft[0] = 1.0;
+    tunedRight[0] = 1.0;
+    tunedTransient.Process(tunedFrame);
+    succeeded &= Expect(
+        tunedLeft[0] == 1.0 && tunedRight[0] == 1.0,
+        "Transient shaper tuning did not disable its enhancement ceilings.");
 
     consolidator::max::dsp::DspRuntimeGraph reactivationGraph;
     reactivationGraph.Prepare(1000.0, 10);
@@ -414,6 +458,12 @@ bool RunDspRuntimeGraphTests()
     auto neutralSaturatorSnapshot = activeSaturatorSnapshot;
     neutralSaturatorSnapshot.saturatorOutputDb = 0.0F;
     reactivationGraph.SetParameters(neutralSaturatorSnapshot);
+    reactivationLeft.fill(1.0);
+    reactivationRight.fill(1.0);
+    reactivationGraph.ProcessBlock(
+        reactivationLeft.data(),
+        reactivationRight.data(),
+        reactivationLeft.size());
     auto reactivatedSaturatorSnapshot = neutralSaturatorSnapshot;
     reactivatedSaturatorSnapshot.saturatorDrive = 1.0F;
     reactivationGraph.SetParameters(reactivatedSaturatorSnapshot);
