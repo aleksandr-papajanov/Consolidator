@@ -61,7 +61,9 @@ TransientBurstProbe::TransientBurstProbe(TransientBurstConfiguration configurati
 
 ProbeResult TransientBurstProbe::Run(
     const ProbeContext& context,
-    const ProcessorCallbacks& processor) const
+    const ProcessorCallbacks& processor,
+    double frequency,
+    double levelDb) const
 {
     if (!processor.process || context.sampleRate <= 0.0)
     {
@@ -75,11 +77,11 @@ ProbeResult TransientBurstProbe::Run(
     const auto sustain = ToSamples(configuration_.sustainSeconds, context.sampleRate);
     const auto tail = ToSamples(configuration_.tailSeconds, context.sampleRate);
     const auto latency = processor.latencySamples ? processor.latencySamples() : 0;
-    const auto amplitude = std::pow(10.0, configuration_.levelDb / 20.0);
+    const auto amplitude = std::pow(10.0, levelDb / 20.0);
     std::vector<double> input(silence + sustain + tail + latency);
     for (std::size_t index = silence; index < silence + sustain; ++index)
     {
-        input[index] = amplitude * std::sin(2.0 * std::numbers::pi * configuration_.frequency *
+        input[index] = amplitude * std::sin(2.0 * std::numbers::pi * frequency *
             static_cast<double>(index - silence) / context.sampleRate);
     }
     const auto output = processor.process(input);
@@ -143,7 +145,7 @@ ProbeResult TransientBurstProbe::Run(
             "envelope", "dBFS", ToDecibels(envelope[index]), 3.0
         });
     }
-    return { "transient-burst", "2", std::move(features) };
+    return { "transient-burst", "3", std::move(features) };
 }
 
 } // namespace emulation_lab

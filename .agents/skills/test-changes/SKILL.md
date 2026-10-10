@@ -11,6 +11,10 @@ The goal is to prove changed contracts, not merely increase coverage or make the
 
 ## Core rules
 
+- DSP algorithms, DSP primitives and runtime graph are excluded: do not create
+  or run their automated tests. Follow `Docs/Dsp/Rules.md`. Explicitly requested
+  EmulationLab research/listening is a separate workflow, not this skill.
+
 - Read the InteropSandbox rules and relevant documentation before writing tests.
 - Treat the current change as the primary scope.
 - Test observable behavior and public boundaries.

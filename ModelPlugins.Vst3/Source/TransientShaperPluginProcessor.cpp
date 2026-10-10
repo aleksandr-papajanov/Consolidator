@@ -1,18 +1,15 @@
-#include <JuceHeader.h>
-
 #include <algorithm>
 #include <atomic>
-#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <vector>
+
+#include <JuceHeader.h>
 
 #include "TransientShaperProcessor.h"
 
 namespace consolidator::model_plugins
 {
-
-using namespace consolidator::max::dsp;
 
 namespace
 {
@@ -34,44 +31,55 @@ void AddFloat(
 
 juce::AudioProcessorValueTreeState::ParameterLayout CreateParameterLayout()
 {
-    TransientShaperTuning tuning;
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> values;
-    AddFloat(values, "attack", "Attack", 0.0, 1.0, 0.0);
-    AddFloat(values, "sustain", "Sustain", 0.0, 1.0, 0.0);
+    AddFloat(values, "attack", "Attack", -1.0, 1.0, 0.0);
+    AddFloat(values, "sustain", "Sustain", -1.0, 1.0, 0.0);
     values.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID("bypass", 1), "Bypass", false));
-    AddFloat(values, "detectorSeconds", "Detector Seconds",
-        0.0005, 0.030, tuning.detectorSeconds);
-    AddFloat(values, "fastEnvelopeSeconds", "Fast Envelope Seconds",
-        0.0002, 0.020, tuning.fastEnvelopeSeconds);
-    AddFloat(values, "slowEnvelopeSeconds", "Slow Envelope Seconds",
-        0.005, 0.100, tuning.slowEnvelopeSeconds);
-    AddFloat(values, "sustainEnvelopeSeconds", "Sustain Envelope Seconds",
-        0.030, 0.500, tuning.sustainEnvelopeSeconds);
-    AddFloat(values, "gainAttackSeconds", "Gain Attack Seconds",
-        0.0001, 0.020, tuning.gainAttackSeconds);
-    AddFloat(values, "gainReleaseSeconds", "Gain Release Seconds",
-        0.005, 0.500, tuning.gainReleaseSeconds);
-    AddFloat(values, "attackScale", "Attack Scale",
-        0.1, 4.0, tuning.attackScale);
-    AddFloat(values, "sustainScale", "Sustain Scale",
-        0.1, 4.0, tuning.sustainScale);
-    AddFloat(values, "maximumAttackDb", "Maximum Attack", 0.0, 18.0,
-        tuning.maximumAttackDb);
-    AddFloat(values, "maximumSustainDb", "Maximum Sustain", 0.0, 18.0,
-        tuning.maximumSustainDb);
-    AddFloat(values, "detectorGateDb", "Detector Gate", -120.0, -48.0,
-        20.0 * std::log10(tuning.minimumDetectorLevel));
-    AddFloat(values, "autoGainEnergySeconds", "Autogain Energy Seconds",
-        0.050, 5.0, tuning.autoGain.energySeconds);
-    AddFloat(values, "autoGainCorrectionSeconds", "Autogain Correction Seconds",
-        0.050, 10.0, tuning.autoGain.correctionSeconds);
-    AddFloat(values, "autoGainCompensationRatio", "Autogain Compensation Ratio",
-        0.0, 1.0, tuning.autoGain.compensationRatio);
-    AddFloat(values, "autoGainMaximumDb", "Autogain Maximum", 0.0, 12.0,
-        tuning.autoGain.maximumCorrectionDb);
-    AddFloat(values, "autoGainFloorDb", "Autogain Floor", -140.0, -60.0,
-        10.0 * std::log10(tuning.autoGain.minimumInputEnergy));
+    max::dsp::TransientShaperTuning tuning;
+    AddFloat(values, "maskSidechainHz", "Mask Sidechain Hz", 20, 2000,
+        tuning.sidechainHz);
+    AddFloat(values, "maskFastAttackSeconds", "Mask Tail Fast Power Attack Seconds", 0.00005, 0.005,
+        tuning.fastAttackSeconds);
+    AddFloat(values, "maskFastReleaseSeconds", "Mask Tail Fast Power Release Seconds", 0.003, 0.1,
+        tuning.fastReleaseSeconds);
+    AddFloat(values, "maskSlowAttackSeconds", "Mask Tail Slow Power Attack Seconds", 0.0005, 0.05,
+        tuning.slowAttackSeconds);
+    AddFloat(values, "maskSlowReleaseSeconds", "Mask Tail Slow Power Release Seconds", 0.05, 2,
+        tuning.slowReleaseSeconds);
+    AddFloat(values, "maskContextSeconds", "Mask Onset Context Seconds", 0.002, 0.1,
+        tuning.contextSeconds);
+    AddFloat(values, "maskRiseDb", "Mask Relative Rise dB", 1.5, 18,
+        tuning.riseDb);
+    AddFloat(values, "maskAttackReleaseSeconds", "Mask Attack Release Seconds", 0.001, 0.15,
+        tuning.attackReleaseSeconds);
+    AddFloat(values, "maskCloseSeconds", "Mask Sustain Close Seconds", 0.00001, 0.02,
+        tuning.maskCloseSeconds);
+    AddFloat(values, "maskSustainOpenSeconds", "Mask Sustain Open Seconds", 0.00001, 0.1,
+        tuning.sustainOpenSeconds);
+    AddFloat(values, "maskPeakReleaseSeconds", "Mask Peak Release Seconds", 0.03, 2,
+        tuning.peakReleaseSeconds);
+    AddFloat(values, "maskActivityExponent", "Mask Activity Exponent", 0.0001, 0.5,
+        tuning.activityExponent);
+    AddFloat(values, "maskTailBoost", "Mask Tail Boost", 0.2, 3,
+        tuning.tailBoost);
+    AddFloat(values, "maskTailExponent", "Mask Tail Exponent", 0.1, 1,
+        tuning.tailExponent);
+    AddFloat(values, "maskBaseGainDb", "Mask Base Gain dB", -12, 0,
+        tuning.baseGainDb);
+    AddFloat(values, "maskSteadyReturn", "Mask Steady Return", 0, 1,
+        tuning.steadyReturn);
+    AddFloat(values, "maskAttackBoost", "Mask Attack Boost", 0, 16,
+        tuning.attackBoost);
+    AddFloat(values, "maskStrengthRangeDb", "Mask Strength Range dB", 40, 160,
+        tuning.strengthRangeDb);
+    AddFloat(values, "maskInitialSlowLevelDb", "Mask Initial Slow Level dB", -100, -20,
+        tuning.initialSlowLevelDb);
+    AddFloat(values, "outputGainDb", "Output Gain dB", -12, 12, 0);
+    AddFloat(values, "maskAttackAdditionReleaseSeconds", "Mask Attack Addition Release Seconds", 0.02, 0.15,
+        tuning.attackAdditionReleaseSeconds);
+    AddFloat(values, "maskAttackAdditionMix", "Mask Attack Addition Mix", 0, 1,
+        tuning.attackAdditionMix);
     return juce::AudioProcessorValueTreeState::ParameterLayout(
         values.begin(), values.end());
 }
@@ -90,6 +98,7 @@ public:
         attack_ = parameters_.getRawParameterValue("attack");
         sustain_ = parameters_.getRawParameterValue("sustain");
         bypass_ = parameters_.getRawParameterValue("bypass");
+        outputGainDb_ = parameters_.getRawParameterValue("outputGainDb");
     }
 
     void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) override
@@ -98,12 +107,9 @@ public:
             std::max(maximumExpectedSamplesPerBlock, 1));
         left_.assign(capacity, 0.0);
         right_.assign(capacity, 0.0);
-        processor_.SetTuningBeforePrepare(ReadTuning());
-        processor_.Prepare({ sampleRate, capacity });
-        processor_.Reset();
-        plan_ = {};
-        policy_ = {};
-        policy_.audible = true;
+        transientShaper_.SetTuningBeforePrepare(ReadMaskTuning());
+        transientShaper_.SetOutputGainDb(outputGainDb_->load());
+        transientShaper_.Prepare({ sampleRate, capacity });
     }
 
     void releaseResources() override
@@ -121,9 +127,12 @@ public:
             return;
         }
         const auto bypassed = bypass_->load() >= 0.5F;
-        snapshot_.compressorAttack = bypassed ? 0.0F : attack_->load();
-        snapshot_.compressorSustain = bypassed ? 0.0F : sustain_->load();
-        processor_.SetParameters(snapshot_);
+        if (bypassed)
+        {
+            return;
+        }
+        transientShaper_.SetAmounts(attack_->load(), sustain_->load());
+        transientShaper_.SetOutputGainDb(outputGainDb_->load());
         auto* left = buffer.getWritePointer(0);
         auto* right = buffer.getWritePointer(1);
         for (std::size_t index = 0; index < frameCount; ++index)
@@ -131,10 +140,7 @@ public:
             left_[index] = left[index];
             right_[index] = right[index];
         }
-        DspAudioBuffer audio{ left_.data(), right_.data(), frameCount };
-        const DspDetectorBuffer detector{ left_.data(), right_.data() };
-        DspProcessingFrame frame{ audio, detector, plan_, policy_ };
-        processor_.Process(frame);
+        transientShaper_.Process({ left_.data(), right_.data(), frameCount });
         for (std::size_t index = 0; index < frameCount; ++index)
         {
             left[index] = static_cast<float>(left_[index]);
@@ -197,38 +203,40 @@ private:
         return parameters_.getRawParameterValue(id)->load();
     }
 
-    TransientShaperTuning ReadTuning() const
+    max::dsp::TransientShaperTuning ReadMaskTuning() const
     {
-        TransientShaperTuning tuning;
-        tuning.detectorSeconds = Value("detectorSeconds");
-        tuning.fastEnvelopeSeconds = Value("fastEnvelopeSeconds");
-        tuning.slowEnvelopeSeconds = Value("slowEnvelopeSeconds");
-        tuning.sustainEnvelopeSeconds = Value("sustainEnvelopeSeconds");
-        tuning.gainAttackSeconds = Value("gainAttackSeconds");
-        tuning.gainReleaseSeconds = Value("gainReleaseSeconds");
-        tuning.attackScale = Value("attackScale");
-        tuning.sustainScale = Value("sustainScale");
-        tuning.maximumAttackDb = Value("maximumAttackDb");
-        tuning.maximumSustainDb = Value("maximumSustainDb");
-        tuning.minimumDetectorLevel = std::pow(10.0, Value("detectorGateDb") / 20.0);
-        tuning.autoGain.energySeconds = Value("autoGainEnergySeconds");
-        tuning.autoGain.correctionSeconds = Value("autoGainCorrectionSeconds");
-        tuning.autoGain.compensationRatio = Value("autoGainCompensationRatio");
-        tuning.autoGain.maximumCorrectionDb = Value("autoGainMaximumDb");
-        tuning.autoGain.minimumInputEnergy = std::pow(
-            10.0, Value("autoGainFloorDb") / 10.0);
+        max::dsp::TransientShaperTuning tuning;
+        tuning.sidechainHz = Value("maskSidechainHz");
+        tuning.fastAttackSeconds = Value("maskFastAttackSeconds");
+        tuning.fastReleaseSeconds = Value("maskFastReleaseSeconds");
+        tuning.slowAttackSeconds = Value("maskSlowAttackSeconds");
+        tuning.slowReleaseSeconds = Value("maskSlowReleaseSeconds");
+        tuning.contextSeconds = Value("maskContextSeconds");
+        tuning.riseDb = Value("maskRiseDb");
+        tuning.attackReleaseSeconds = Value("maskAttackReleaseSeconds");
+        tuning.attackAdditionReleaseSeconds = Value("maskAttackAdditionReleaseSeconds");
+        tuning.attackAdditionMix = Value("maskAttackAdditionMix");
+        tuning.maskCloseSeconds = Value("maskCloseSeconds");
+        tuning.sustainOpenSeconds = Value("maskSustainOpenSeconds");
+        tuning.peakReleaseSeconds = Value("maskPeakReleaseSeconds");
+        tuning.activityExponent = Value("maskActivityExponent");
+        tuning.tailBoost = Value("maskTailBoost");
+        tuning.tailExponent = Value("maskTailExponent");
+        tuning.baseGainDb = Value("maskBaseGainDb");
+        tuning.steadyReturn = Value("maskSteadyReturn");
+        tuning.attackBoost = Value("maskAttackBoost");
+        tuning.strengthRangeDb = Value("maskStrengthRangeDb");
+        tuning.initialSlowLevelDb = Value("maskInitialSlowLevelDb");
         return tuning;
     }
 
-    TransientShaperProcessor processor_;
-    DspSnapshot snapshot_{};
-    DspProcessingPlan plan_{};
-    DspExecutionPolicy policy_{};
+    max::dsp::TransientShaperProcessor transientShaper_;
     std::vector<double> left_;
     std::vector<double> right_;
     std::atomic<float>* attack_{};
     std::atomic<float>* sustain_{};
     std::atomic<float>* bypass_{};
+    std::atomic<float>* outputGainDb_{};
 };
 
 } // namespace consolidator::model_plugins

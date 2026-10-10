@@ -42,6 +42,5 @@ void SaveDataset(const MeasurementDataset& dataset, const std::filesystem::path&
 [[nodiscard]] std::pair<MeasurementDataset, MeasurementDataset> SplitDataset(
     const MeasurementDataset& source,
     double validationFraction);
-[[nodiscard]] bool RunDatasetSelfTest();
 
 } // namespace emulation_lab

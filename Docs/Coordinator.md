@@ -157,7 +157,7 @@ The same analyzer also exposes a control-path MathNet FFT of an impulse response
 generated from immutable equalizer filter snapshots. Bank Commit invokes it once
 per target without reading audio capture state or publishing an FFT frame.
 Approximation details are in
-[Approximation.md](Approximation.md).
+[Approximation.md](Dsp/Approximation.md).
 
 ## Process boundary
 

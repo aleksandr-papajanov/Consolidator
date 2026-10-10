@@ -1,5 +1,11 @@
 # Testing
 
+## DSP исключён
+
+Автотесты DSP-процессоров, примитивов и runtime graph запрещены. См. [правила DSP](Dsp/Rules.md).
+EmulationLab/Plugin Doctor используются только для явно запрошенных ручных исследований и прослушивания.
+Тесты protocol, ABI, persistence, Managed lifecycle и транспорта сохраняются.
+
 ## Цель
 
 Тестовая система доказывает наблюдаемые контракты крупных компонентов и
@@ -48,9 +54,8 @@ CommandDecoder → endpoint → router → command handler
 ### Native component/integration
 
 `Tests/Native/Contracts/` сравнивает fixed ABI layout с Managed contract.
-`Tests/Native/Realtime/` использует production DSP consumer и проверяет
-claim/copy semantics triple-buffer exchange без загрузки Max runtime. Native runner должен
-оставаться standalone и не ссылаться на `MaxAPI.dll`.
+Native runner содержит только ABI, persistence blob и restore-gate contracts.
+DSP Realtime suites удалены. Он остаётся standalone и не ссылается на MaxAPI.dll.
 
 ### Published NativeAOT integration
 
@@ -146,19 +151,9 @@ dotnet test Tests/Integration/Consolidator.Integration.Tests.csproj --configurat
 
 node Consolidator.Max/tests/ClientTests.js
 
-cmake -S EmulationLab -B EmulationLab/build
-cmake --build EmulationLab/build --config Release
-ctest --test-dir EmulationLab/build -C Release --output-on-failure
 ```
 
-`EmulationLabSelfTest` covers versioned dataset round-tripping and splitting,
-manifest validation, latency-aligned gain/phase measurement, harmonic floors,
-coherent multitone residual, envelope-based transient timing, stereo isolation,
-wrapped-phase comparison, density-neutral feature-group weighting, schema
-mismatch rejection, conflicting condition/optimizer parameter rejection and
-optimizer convergence.
-Third-party VST capture remains a host verification step and is not part of the
-deterministic self-test.
+EmulationLab self-test и CTest регистрации удалены; ручной workflow описан в [DSP/EmulationLab](Dsp/EmulationLab.md).
 
 Нельзя запускать Integration на старой DLL. Каждый full verification сначала выполняет
 combined Native + Managed publish.

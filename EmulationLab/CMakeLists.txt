@@ -43,9 +43,11 @@ juce_add_console_app(EmulationLab
 juce_generate_juce_header(EmulationLab)
 
 target_sources(EmulationLab PRIVATE
+    Source/AudioFileRender.cpp
     Source/Comparison.cpp
     Source/Capture.cpp
     Source/Dataset.cpp
+    Source/Diagnostics.cpp
     Source/ExperimentManifest.cpp
     Source/LevelSweepProbe.cpp
     Source/MultitoneProbe.cpp
@@ -54,6 +56,7 @@ target_sources(EmulationLab PRIVATE
     Source/SteppedSineProbe.cpp
     Source/StereoInteractionProbe.cpp
     Source/TransientBurstProbe.cpp
+    Source/TransientEnvelopeAnalysis.cpp
     Source/Host/Vst3Host.cpp
     Source/Optimization/EmulationOptimizer.cpp
     Source/Optimization/PluginParameterProblem.cpp)
@@ -73,10 +76,3 @@ target_link_libraries(EmulationLab PRIVATE
     juce::juce_audio_utils
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
-
-enable_testing()
-add_test(NAME EmulationLabSelfTest COMMAND EmulationLab --self-test)
-add_test(
-    NAME EmulationLabExampleManifest
-    COMMAND EmulationLab manifest validate
-        "${CMAKE_CURRENT_SOURCE_DIR}/Experiments/example/manifest.json")

@@ -63,7 +63,7 @@ The graph itself is audio-owned and is not swapped on parameter publications;
 processor history and smoothing state survive every accepted snapshot.
 Parameter publication and telemetry use opposite ownership directions and
 independent synchronization fields inside the fixed exchange. The complete
-telemetry contract is described in [`DspTelemetry.md`](DspTelemetry.md).
+telemetry contract is described in [`DspTelemetry.md`](Dsp/Telemetry.md).
 
 Each Max external owns one managed instance. The instance ID addresses all control and audio calls for that external.
 
@@ -400,7 +400,7 @@ control output.
 `dsp_telemetry` and the aggregated `track_levels` frame also use
 `analysisOutput`. Each has its own latest-only pending slot, independent of FFT
 and of the other telemetry kind. Their shared-memory publication and active-UI
-demand contracts are defined in [`DspTelemetry.md`](DspTelemetry.md).
+demand contracts are defined in [`DspTelemetry.md`](Dsp/Telemetry.md).
 
 Each drain processes at most 32 lossless control frames and 4096 control atoms,
 then processes the latest available analysis frames. If any queue or slot still has work, the qelem is

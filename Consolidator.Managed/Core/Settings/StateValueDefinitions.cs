@@ -25,10 +25,10 @@ public static class StateValueDefinitions
         Compressor = new CompressorDefinitions(
             new StateValueDefinition<float>(
                 0.0F,
-                new FloatRange(0.0F, 1.0F)),
+                new FloatRange(-1.0F, 1.0F)),
             new StateValueDefinition<float>(
                 0.0F,
-                new FloatRange(0.0F, 1.0F)),
+                new FloatRange(-1.0F, 1.0F)),
             new StateValueDefinition<float>(
                 0.0F,
                 new FloatRange(0.0F, 1.0F)),

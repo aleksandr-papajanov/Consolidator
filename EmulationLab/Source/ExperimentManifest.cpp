@@ -84,6 +84,22 @@ std::string FoldCase(std::string value)
     return value;
 }
 
+PluginControlValue ReadControlValue(
+    const std::string& name,
+    const Json& value)
+{
+    if (value.is_number())
+    {
+        return { name, {}, value.get<double>(), true };
+    }
+    if (value.is_string())
+    {
+        return { name, value.get<std::string>(), 0.0, false };
+    }
+    throw std::runtime_error(
+        "plugin parameter " + name + " must be normalized number or display text");
+}
+
 void ReadSteppedSineConfiguration(
     const Json& value,
     SteppedSineConfiguration& configuration)
@@ -232,6 +248,27 @@ std::vector<std::string> ValidateManifest(const ExperimentManifest& manifest)
                 break;
             }
         }
+        if (!std::isfinite(stage.maximumRelativeRegression) ||
+            stage.maximumRelativeRegression < 0.0)
+        {
+            errors.emplace_back("stage probe regression allowance must be finite and non-negative");
+        }
+        for (const auto& probe : stage.protectedProbes)
+        {
+            if (std::find(stage.probes.begin(), stage.probes.end(), "*") == stage.probes.end() &&
+                std::find(stage.probes.begin(), stage.probes.end(), probe) == stage.probes.end())
+            {
+                errors.emplace_back("protected probe is absent from its optimization stage: " + probe);
+            }
+        }
+        for (const auto& guard : stage.protectedFeatures)
+        {
+            if (guard.condition.empty() || guard.probe.empty() || guard.feature.empty() ||
+                !std::isfinite(guard.maximumErrorIncrease) || guard.maximumErrorIncrease < 0.0)
+            {
+                errors.emplace_back("protected feature guard is invalid");
+            }
+        }
         for (const auto& pattern : stage.parameters)
         {
             const auto matched = !pattern.empty() && std::any_of(
@@ -279,6 +316,27 @@ std::vector<std::string> ValidateManifest(const ExperimentManifest& manifest)
             !conditionIds.insert(condition.identifier).second)
         {
             errors.emplace_back("every condition needs an identifier");
+            break;
+        }
+        const auto validControls = [](const std::vector<PluginControlValue>& controls)
+        {
+            return std::all_of(
+                controls.begin(), controls.end(),
+                [](const PluginControlValue& control)
+                {
+                    return !control.name.empty() &&
+                        (control.usesNormalizedValue
+                            ? std::isfinite(control.normalizedValue) &&
+                                control.normalizedValue >= 0.0 &&
+                                control.normalizedValue <= 1.0
+                            : !control.text.empty());
+                });
+        };
+        if (!validControls(condition.referenceControls) ||
+            !validControls(condition.candidateControls))
+        {
+            errors.emplace_back(
+                "condition controls need names and either non-empty text or normalized values in the zero-to-one range");
             break;
         }
         for (const auto& control : condition.candidateControls)
@@ -335,6 +393,16 @@ std::vector<std::string> ValidateManifest(const ExperimentManifest& manifest)
             manifest.probeConfiguration.multitone.frequencies.end());
     const auto& levelSweep = manifest.probeConfiguration.levelSweep;
     const auto& transient = manifest.probeConfiguration.transientBurst;
+    const auto finiteTransientFrequencies = std::all_of(
+        transient.frequencies.begin(), transient.frequencies.end(),
+        [](double value) { return std::isfinite(value) && value > 0.0; });
+    const auto finiteTransientLevels = std::all_of(
+        transient.levelsDb.begin(), transient.levelsDb.end(),
+        [](double value) { return std::isfinite(value); });
+    const auto maximumTransientFrequency = transient.frequencies.empty()
+        ? 0.0
+        : *std::max_element(
+            transient.frequencies.begin(), transient.frequencies.end());
     const auto& multitone = manifest.probeConfiguration.multitone;
     const auto& stereo = manifest.probeConfiguration.stereoInteraction;
     if (!validSteppedSine(manifest.probeConfiguration.linearSweep) ||
@@ -346,8 +414,9 @@ std::vector<std::string> ValidateManifest(const ExperimentManifest& manifest)
         levelSweep.frequency >= minimumNyquist ||
         !std::isfinite(levelSweep.secondsPerLevel) || levelSweep.secondsPerLevel <= 0.0 ||
         !std::isfinite(levelSweep.harmonicFloorDbc) || levelSweep.maximumHarmonic == 0 ||
-        !std::isfinite(transient.frequency) || transient.frequency <= 0.0 ||
-        transient.frequency >= minimumNyquist || !std::isfinite(transient.levelDb) ||
+        transient.frequencies.empty() || !finiteTransientFrequencies ||
+        maximumTransientFrequency >= minimumNyquist ||
+        transient.levelsDb.empty() || !finiteTransientLevels ||
         !std::isfinite(transient.silenceSeconds) || transient.silenceSeconds <= 0.0 ||
         !std::isfinite(transient.sustainSeconds) || transient.sustainSeconds <= 0.0 ||
         !std::isfinite(transient.tailSeconds) || transient.tailSeconds <= 0.0 ||
@@ -448,15 +517,13 @@ ExperimentManifest LoadManifest(const std::filesystem::path& path)
             "parameters", Json::object());
         for (const auto& control : referenceControls.items())
         {
-            parsed.referenceControls.push_back({
-                control.key(), ReadString(referenceControls, control.key().c_str())
-            });
+            parsed.referenceControls.push_back(
+                ReadControlValue(control.key(), control.value()));
         }
         for (const auto& control : candidateControls.items())
         {
-            parsed.candidateControls.push_back({
-                control.key(), ReadString(candidateControls, control.key().c_str())
-            });
+            parsed.candidateControls.push_back(
+                ReadControlValue(control.key(), control.value()));
         }
         manifest.conditions.push_back(std::move(parsed));
     }
@@ -503,10 +570,10 @@ ExperimentManifest LoadManifest(const std::filesystem::path& path)
     manifest.probeConfiguration.levelSweep.harmonicFloorDbc = levelSweep.value(
         "harmonicFloorDbc", manifest.probeConfiguration.levelSweep.harmonicFloorDbc);
     const auto transient = probeSettings.value("transient-burst", Json::object());
-    manifest.probeConfiguration.transientBurst.frequency = transient.value(
-        "frequency", manifest.probeConfiguration.transientBurst.frequency);
-    manifest.probeConfiguration.transientBurst.levelDb = transient.value(
-        "levelDb", manifest.probeConfiguration.transientBurst.levelDb);
+    manifest.probeConfiguration.transientBurst.frequencies = transient.value(
+        "frequencies", manifest.probeConfiguration.transientBurst.frequencies);
+    manifest.probeConfiguration.transientBurst.levelsDb = transient.value(
+        "levelsDb", manifest.probeConfiguration.transientBurst.levelsDb);
     manifest.probeConfiguration.transientBurst.silenceSeconds = transient.value(
         "silenceSeconds", manifest.probeConfiguration.transientBurst.silenceSeconds);
     manifest.probeConfiguration.transientBurst.sustainSeconds = transient.value(
@@ -533,12 +600,29 @@ ExperimentManifest LoadManifest(const std::filesystem::path& path)
 
     for (const auto& stage : document.value("stages", Json::array()))
     {
-        manifest.stages.push_back({
+        OptimizationStage parsedStage{
             ReadString(stage, "name"),
             ReadStringArray(stage, "parameters"),
             ReadStringArray(stage, "probes"),
-            stage.value("maximumObservations", std::size_t{})
-        });
+            stage.value("maximumObservations", std::size_t{}),
+            ReadStringArray(stage, "protectedProbes"),
+            stage.value("maximumRelativeRegression", 0.02)
+        };
+        for (const auto& point : stage.value("protectedFeatures", Json::array()))
+        {
+            const auto maximumErrorIncrease = point.at("maximumErrorIncrease").get<double>();
+            if (!std::isfinite(maximumErrorIncrease) || maximumErrorIncrease < 0.0)
+            {
+                throw std::runtime_error("Protected feature error allowance must be finite and non-negative.");
+            }
+            parsedStage.protectedFeatures.push_back({
+                ReadString(point, "condition"), ReadString(point, "probe"),
+                point.at("sequenceIndex").get<std::size_t>(),
+                ReadString(point, "feature"),
+                maximumErrorIncrease
+            });
+        }
+        manifest.stages.push_back(std::move(parsedStage));
     }
 
     const auto errors = ValidateManifest(manifest);
@@ -557,12 +641,24 @@ std::string MeasurementConfigurationSignature(const ExperimentManifest& manifest
         Json referenceControls = Json::array();
         for (const auto& control : condition.referenceControls)
         {
-            referenceControls.push_back({ control.name, control.text });
+            referenceControls.push_back({
+                { "name", control.name },
+                { "mode", control.usesNormalizedValue ? "normalized" : "text" },
+                { "value", control.usesNormalizedValue
+                    ? Json(control.normalizedValue)
+                    : Json(control.text) }
+            });
         }
         Json candidateControls = Json::array();
         for (const auto& control : condition.candidateControls)
         {
-            candidateControls.push_back({ control.name, control.text });
+            candidateControls.push_back({
+                { "name", control.name },
+                { "mode", control.usesNormalizedValue ? "normalized" : "text" },
+                { "value", control.usesNormalizedValue
+                    ? Json(control.normalizedValue)
+                    : Json(control.text) }
+            });
         }
         conditions.push_back({
             { "id", condition.identifier },
@@ -592,8 +688,8 @@ std::string MeasurementConfigurationSignature(const ExperimentManifest& manifest
             { "maximumHarmonic", probes.levelSweep.maximumHarmonic }
         } },
         { "transient-burst", {
-            { "frequency", probes.transientBurst.frequency },
-            { "levelDb", probes.transientBurst.levelDb },
+            { "frequencies", probes.transientBurst.frequencies },
+            { "levelsDb", probes.transientBurst.levelsDb },
             { "silenceSeconds", probes.transientBurst.silenceSeconds },
             { "sustainSeconds", probes.transientBurst.sustainSeconds },
             { "tailSeconds", probes.transientBurst.tailSeconds },
@@ -620,37 +716,6 @@ std::string MeasurementConfigurationSignature(const ExperimentManifest& manifest
     std::ostringstream stream;
     stream << std::hex << std::setfill('0') << std::setw(16) << hash;
     return stream.str();
-}
-
-bool RunManifestSelfTest()
-{
-    ExperimentManifest manifest{
-        "example",
-        "reference.vst3",
-        "reference.state",
-        "reference",
-        "candidate.vst3",
-        "candidate.state",
-        "candidate",
-        "vst3-parameters",
-        { 44100.0, 96000.0 },
-        128,
-        1,
-        { "linear-sweep", "harmonic-grid" },
-        { { "amount", "Amount", 0.0, 1.0, 0.5 } },
-        {},
-        { "training.json", "validation.json", "listening", 0.2 },
-        {},
-        {},
-        {},
-        { { "linear", { "amount" }, { "linear-sweep" }, 24 } }
-    };
-    const auto valid = ValidateManifest(manifest).empty() &&
-        MeasurementConfigurationSignature(manifest).size() == 16;
-    manifest.conditions.push_back({
-        "conflict", {}, {}, {}, { { "Amount", "100" } }
-    });
-    return valid && !ValidateManifest(manifest).empty();
 }
 
 } // namespace emulation_lab

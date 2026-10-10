@@ -1,12 +1,15 @@
+#include "AudioFileRender.h"
 #include "Capture.h"
 #include "Comparison.h"
 #include "Dataset.h"
+#include "Diagnostics.h"
 #include "ExperimentManifest.h"
 #include "Host/Vst3Host.h"
 #include "Optimization/EmulationOptimizer.h"
 #include "Optimization/PluginParameterProblem.h"
 #include "Probe.h"
 #include "RunMetadata.h"
+#include "TransientEnvelopeAnalysis.h"
 
 #include <algorithm>
 #include <cmath>
@@ -172,11 +175,65 @@ int FitCommand(int argc, char** argv)
         LoadFit(manifest, values, argv[4]);
     }
 
+    const auto validationReference = emulation_lab::LoadDataset(manifest.splits.validation);
+    RequireManifestDataset(manifest, validationReference);
+    std::vector<std::string> validationObservationIds;
+    validationObservationIds.reserve(validationReference.observations.size());
+    for (const auto& observation : validationReference.observations)
+    {
+        validationObservationIds.push_back(observation.observationId);
+    }
+    auto guardReference = validationReference;
+    std::unordered_set<std::string> includedIds(
+        validationObservationIds.begin(), validationObservationIds.end());
+    for (const auto& observation : reference.observations)
+    {
+        const auto protectedObservation = std::any_of(
+            manifest.stages.begin(), manifest.stages.end(),
+            [&observation](const auto& stage)
+            {
+                return std::any_of(stage.protectedFeatures.begin(),
+                    stage.protectedFeatures.end(), [&observation](const auto& guard)
+                    {
+                        return observation.conditionId == guard.condition &&
+                            observation.probeId == guard.probe &&
+                            observation.sequenceIndex == guard.sequenceIndex;
+                    });
+            });
+        if (protectedObservation && includedIds.insert(observation.observationId).second)
+        {
+            validationObservationIds.push_back(observation.observationId);
+            guardReference.observations.push_back(observation);
+        }
+    }
+    emulation_lab::PluginCaptureSession validationSession(
+        manifest, "candidate", {}, std::move(validationObservationIds), true);
+    const auto captureValidation = [&manifest, &validationSession](
+        const std::vector<double>& candidateValues)
+    {
+        std::vector<emulation_lab::PluginParameterValue> assignments;
+        for (std::size_t index = 0; index < candidateValues.size(); ++index)
+        {
+            assignments.push_back({
+                manifest.candidateParameters[index].pluginParameter,
+                candidateValues[index]
+            });
+        }
+        return validationSession.Capture(assignments);
+    };
+    auto validationCapture = captureValidation(values);
+    auto validationReport = emulation_lab::CompareDatasets(
+        validationReference, validationCapture.dataset, manifest.objective);
+    auto baselineReportPath = outputPath;
+    baselineReportPath.replace_extension(".baseline-validation-report.json");
+    emulation_lab::SaveComparisonReport(validationReport, baselineReportPath);
+
     for (const auto& stage : manifest.stages)
     {
         emulation_lab::PluginParameterProblem problem(
             manifest, reference, stage.parameters, stage.probes, values,
-            stage.maximumObservations);
+            stage.maximumObservations, stage.protectedProbes,
+            stage.maximumRelativeRegression);
         std::vector<double> initial;
         for (const auto index : problem.ParameterIndices())
         {
@@ -207,36 +264,35 @@ int FitCommand(int argc, char** argv)
                 checkpointPath.replace_extension("." + stage.name + ".checkpoint.json");
                 SaveFit(manifest, checkpointValues, checkpointPath, stage.name);
             });
+        auto proposedValues = values;
         for (std::size_t index = 0; index < result.best.parameterValues.size(); ++index)
         {
-            values[problem.ParameterIndices()[index]] = result.best.parameterValues[index];
+            proposedValues[problem.ParameterIndices()[index]] = result.best.parameterValues[index];
+        }
+        auto proposedCapture = captureValidation(proposedValues);
+        const auto proposedReport = emulation_lab::CompareDatasets(
+            validationReference, proposedCapture.dataset, manifest.objective);
+        const auto accepted = emulation_lab::AcceptStageComparison(
+            validationReport, proposedReport, stage.protectedProbes,
+            stage.maximumRelativeRegression) &&
+            emulation_lab::AcceptFeatureGuards(
+                guardReference, validationCapture.dataset, proposedCapture.dataset,
+                stage.protectedFeatures);
+        if (accepted)
+        {
+            values = std::move(proposedValues);
+            validationCapture = std::move(proposedCapture);
+            validationReport = proposedReport;
         }
         auto stagePath = outputPath;
         stagePath.replace_extension("." + stage.name + ".json");
         SaveFit(manifest, values, stagePath, stage.name);
         std::cout << "Completed stage " << stage.name <<
-            ": objective=" << result.best.evaluation.objective << '\n';
+            ": objective=" << result.best.evaluation.objective <<
+            ", validation=" << proposedReport.weightedLoss <<
+            (accepted ? ", accepted" : ", rejected") << '\n';
     }
     SaveFit(manifest, values, outputPath, manifest.stages.back().name);
-    const auto validationReference = emulation_lab::LoadDataset(manifest.splits.validation);
-    RequireManifestDataset(manifest, validationReference);
-    std::vector<emulation_lab::PluginParameterValue> assignments;
-    for (std::size_t index = 0; index < values.size(); ++index)
-    {
-        assignments.push_back({
-            manifest.candidateParameters[index].pluginParameter,
-            values[index]
-        });
-    }
-    std::vector<std::string> validationObservationIds;
-    validationObservationIds.reserve(validationReference.observations.size());
-    for (const auto& observation : validationReference.observations)
-    {
-        validationObservationIds.push_back(observation.observationId);
-    }
-    emulation_lab::PluginCaptureSession validationSession(
-        manifest, "candidate", {}, std::move(validationObservationIds), true);
-    auto validationCapture = validationSession.Capture(assignments);
     auto candidatePath = outputPath;
     candidatePath.replace_extension(".validation-candidate.json");
     auto environmentPath = candidatePath;
@@ -246,10 +302,7 @@ int FitCommand(int argc, char** argv)
     emulation_lab::SaveRunMetadata(validationCapture.metadata, environmentPath);
     auto reportPath = outputPath;
     reportPath.replace_extension(".validation-report.json");
-    emulation_lab::SaveComparisonReport(
-        emulation_lab::CompareDatasets(
-            validationReference, validationCapture.dataset, manifest.objective),
-        reportPath);
+    emulation_lab::SaveComparisonReport(validationReport, reportPath);
     return 0;
 }
 
@@ -260,20 +313,41 @@ int main(int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI juceRuntime;
     try
     {
-        if (argc == 2 && std::string(argv[1]) == "--self-test")
+        if (argc == 6 && std::string(argv[1]) == "transient-envelope")
         {
-            const auto datasetPassed = emulation_lab::RunDatasetSelfTest();
-            const auto manifestPassed = emulation_lab::RunManifestSelfTest();
-            const auto probePassed = emulation_lab::RunProbeSelfTest();
-            const auto comparisonPassed = emulation_lab::RunComparisonSelfTest();
-            const auto optimizerPassed = emulation_lab::RunOptimizerSelfTest();
-            std::cout << "dataset=" << datasetPassed << '\n'
-                << "manifest=" << manifestPassed << '\n'
-                << "probe=" << probePassed << '\n'
-                << "comparison=" << comparisonPassed << '\n'
-                << "optimizer=" << optimizerPassed << '\n';
-            return datasetPassed && manifestPassed && probePassed &&
-                comparisonPassed && optimizerPassed ? 0 : 1;
+            emulation_lab::AnalyzeTransientEnvelopes(argv[2], argv[3], argv[4], argv[5]);
+            std::cout << "Transient envelope report: " << argv[5] << '\n';
+            return 0;
+        }
+        if (argc >= 7 && std::string(argv[1]) == "render-wav")
+        {
+            const auto manifest = emulation_lab::LoadManifest(argv[3]);
+            std::vector<std::pair<std::string, double>> overrides;
+            for (auto index = 7; index < argc; ++index)
+            {
+                const auto assignment = std::string(argv[index]);
+                const auto separator = assignment.find('=');
+                if (separator == std::string::npos)
+                {
+                    throw std::runtime_error("Invalid render override: " + assignment);
+                }
+                overrides.emplace_back(
+                    assignment.substr(0, separator),
+                    std::stod(assignment.substr(separator + 1)));
+            }
+            emulation_lab::RenderAudioFile(
+                manifest, argv[2], argv[4], argv[5], argv[6], overrides);
+            std::cout << "Rendered WAV: " << argv[6] << '\n';
+            return 0;
+        }
+        if ((argc == 6 || argc == 7) && std::string(argv[1]) == "diagnose")
+        {
+            const auto manifest = emulation_lab::LoadManifest(argv[3]);
+            emulation_lab::RunDiagnostics(
+                manifest, argv[2], argv[4], argv[5],
+                argc == 7 ? std::filesystem::path(argv[6]) : std::filesystem::path{});
+            std::cout << "Diagnostic report: " << argv[5] << '\n';
+            return 0;
         }
         if (argc == 4 && std::string(argv[1]) == "manifest" &&
             std::string(argv[2]) == "validate")
@@ -455,10 +529,11 @@ int main(int argc, char** argv)
         "  plugin parameter-manifest <bundle> <output.json> [query]\n"
         "  plugin save-state <bundle> <output.state> <query|-> [Name=Text ...]\n"
         "  capture <reference|candidate> <manifest> <output.json>\n"
+        "  diagnose <reference|candidate> <manifest> <condition> <output.json> [fit.json]\n"
+        "  render-wav <reference|candidate> <manifest> <condition> <input.wav> <output.wav> [Name=NormalizedValue ...]\n"
         "  split <manifest> <reference-full.json>\n"
         "  compare <manifest> <reference.json> <candidate.json> <report.json>\n"
         "  validate <manifest> <reference.json> <candidate.json> <max-loss>\n"
-        "  fit <manifest> <output.json> [resume.json]\n"
-        "  --self-test\n";
+        "  fit <manifest> <output.json> [resume.json]\n";
     return 1;
 }

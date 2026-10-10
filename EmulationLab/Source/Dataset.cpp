@@ -235,32 +235,4 @@ std::pair<MeasurementDataset, MeasurementDataset> SplitDataset(
     return { std::move(training), std::move(validation) };
 }
 
-bool RunDatasetSelfTest()
-{
-    const MeasurementDataset dataset{
-        kDatasetSchemaVersion, "example", "configuration-001", "reference", "run-001",
-        "run-001.environment.json",
-        { { "tone-44100-100--12", "default", "stepped-sine-44100", 0, "stepped-sine", "2",
-            44100.0, -12.0, 100.0, { { "gain.db", "gainDb", "dB", 0.5, 1.0 } } } }
-    };
-    const auto path = std::filesystem::temp_directory_path() /
-        "emulation-lab-dataset-v3-self-test.json";
-    SaveDataset(dataset, path);
-    const auto loaded = LoadDataset(path);
-    std::filesystem::remove(path);
-    auto splitSource = loaded;
-    for (auto index = 1; index < 100; ++index)
-    {
-        auto observation = splitSource.observations.front();
-        observation.observationId = "observation-" + std::to_string(index);
-        observation.sequenceId = "sequence-" + std::to_string(index);
-        splitSource.observations.push_back(std::move(observation));
-    }
-    const auto split = SplitDataset(splitSource, 0.5);
-    return loaded.schemaVersion == kDatasetSchemaVersion &&
-        loaded.experimentName == dataset.experimentName && loaded.observations.size() == 1 &&
-        loaded.observations.front().features.front().identifier == "gain.db" &&
-        split.first.observations.size() + split.second.observations.size() == 100;
-}
-
 } // namespace emulation_lab

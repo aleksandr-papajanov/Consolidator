@@ -6,6 +6,7 @@
 #include <numbers>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace emulation_lab
 {
@@ -67,16 +68,35 @@ ProbeResult Analyze(
     }
     const auto rms = std::sqrt(sumSquares /
         static_cast<double>(std::max<std::size_t>(output.size(), 1)));
-    return {
-        "level-sweep", "2",
-        {
+    std::vector<ProbeFeature> features{
             { "gain.db", "gainDb", "dB", ToDecibels(fundamental) - levelDb, 1.0 },
             { "thd.dbc", "thd", "dBc", ToDecibels(std::sqrt(harmonicEnergy) /
                 std::max(fundamental, kMinimumAmplitude)), 6.0, configuration.harmonicFloorDbc },
             { "crest.db", "peak", "dB", ToDecibels(peak /
                 std::max(rms, kMinimumAmplitude)), 2.0 }
+        };
+    const auto windowSamples = static_cast<std::size_t>(std::round(0.020 * sampleRate));
+    for (const auto centerMs : { 50, 150, 350, 750 })
+    {
+        const auto center = static_cast<std::size_t>(std::round(
+            static_cast<double>(centerMs) * 0.001 * sampleRate));
+        if (center < windowSamples / 2 || center + windowSamples / 2 > output.size())
+        {
+            continue;
         }
-    };
+        auto windowEnergy = 0.0;
+        for (auto index = center - windowSamples / 2;
+            index < center - windowSamples / 2 + windowSamples; ++index)
+        {
+            windowEnergy += output[index] * output[index];
+        }
+        const auto windowRms = std::sqrt(windowEnergy / static_cast<double>(windowSamples));
+        features.push_back({
+            "gain." + std::to_string(centerMs) + "ms.db", "gainDb", "dB",
+            ToDecibels(windowRms) - levelDb + 3.0102999566, 2.0
+        });
+    }
+    return { "level-sweep", "3", std::move(features) };
 }
 
 } // namespace

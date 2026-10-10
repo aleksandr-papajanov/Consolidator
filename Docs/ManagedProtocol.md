@@ -142,7 +142,7 @@ equalizer response by summing the active bank responses in dB at each
 frequency. It is displayed alongside the existing selected-bank/filter
 curves; this query does not alter target selection or editable bindings.
 `fft` and `dsp_telemetry` are the streamed latest-only analysis frames; the
-latter is defined in [`DspTelemetry.md`](DspTelemetry.md).
+latter is defined in [`DspTelemetry.md`](Dsp/Telemetry.md).
 
 ## Routing and Core ownership
 
@@ -316,7 +316,7 @@ uses the dedicated `set_processor_bypass` command. Bank bypass uses the
 dedicated `set_bank_bypass` command. Both commands carry an explicit target
 instance and do not change the source UI selection. Direct writes to
 instance-owned processor bypass values are rejected. The full contract is
-documented in [ProcessorActivity.md](ProcessorActivity.md).
+documented in [ProcessorActivity.md](Dsp/ProcessorActivity.md).
 
 The request bodies are:
 
@@ -352,7 +352,7 @@ commit_bank targetInstanceId bankIndex local|group
 The command resolves the exact bank or bank group, calculates each result on the
 Managed control path, and applies every successful result in one history
 transaction. Its detailed contract is defined in
-[Approximation.md](Approximation.md).
+[Approximation.md](Dsp/Approximation.md).
 
 Where a `bankId` is part of an observation, topology, registry, or notification
 contract, it is zero-based and uses the range `0..6`. The protocol,

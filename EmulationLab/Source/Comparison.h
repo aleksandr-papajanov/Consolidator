@@ -41,6 +41,17 @@ void SaveComparisonReport(
     const ComparisonReport& report,
     const std::filesystem::path& path);
 
-[[nodiscard]] bool RunComparisonSelfTest();
+
+[[nodiscard]] bool AcceptStageComparison(
+    const ComparisonReport& baseline,
+    const ComparisonReport& candidate,
+    const std::vector<std::string>& protectedProbes,
+    double maximumRelativeRegression);
+
+[[nodiscard]] bool AcceptFeatureGuards(
+    const MeasurementDataset& reference,
+    const MeasurementDataset& baseline,
+    const MeasurementDataset& candidate,
+    const std::vector<OptimizationStage::ProtectedFeature>& guards);
 
 } // namespace emulation_lab

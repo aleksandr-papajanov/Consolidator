@@ -73,6 +73,27 @@ std::vector<PluginParameterDescription> Vst3Plugin::Parameters() const
     return result;
 }
 
+bool Vst3Plugin::Parameter(
+    const std::string& name,
+    PluginParameterDescription& description) const
+{
+    const juce::String parameterName(name);
+    for (auto* parameter : instance_->getParameters())
+    {
+        if (parameter != nullptr && parameter->getName(256).equalsIgnoreCase(parameterName))
+        {
+            const auto value = parameter->getValue();
+            description = {
+                parameter->getName(256).toStdString(),
+                parameter->getText(value, 256).toStdString(),
+                value
+            };
+            return true;
+        }
+    }
+    return false;
+}
+
 void Vst3Plugin::Reprepare()
 {
     instance_->releaseResources();

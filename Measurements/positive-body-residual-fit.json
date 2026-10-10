@@ -1,1 +1,0 @@
-{"stage": "positive-body", "candidateCorrected": true, "rootMeanSquareErrorDb": 0.869904949594103, "evaluationCount": 578, "parameters": {"shoulderGainDb": 9.572235323503445, "peakGainDb": -16.670291304582612, "notchGainDb": -3.484125018551535e-11}}

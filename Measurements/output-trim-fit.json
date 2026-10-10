@@ -1,1 +1,0 @@
-{"stage": "output-trim", "anchors": [{"levelDb": 3.0, "gainDb": -1.733329633488126, "rootMeanSquareErrorDb": 0.000859242879006}, {"levelDb": 6.0, "gainDb": -4.288986445948266, "rootMeanSquareErrorDb": 0.000360878687754}, {"levelDb": 10.0, "gainDb": -8.050147312358334, "rootMeanSquareErrorDb": 0.000138426289969}]}

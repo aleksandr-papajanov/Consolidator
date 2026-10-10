@@ -39,6 +39,9 @@ public:
         const std::string& text);
 
     [[nodiscard]] std::vector<PluginParameterDescription> Parameters() const;
+    [[nodiscard]] bool Parameter(
+        const std::string& name,
+        PluginParameterDescription& description) const;
 
     void Reprepare();
 

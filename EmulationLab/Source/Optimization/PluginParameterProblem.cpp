@@ -3,6 +3,8 @@
 #include "Comparison.h"
 
 #include <algorithm>
+#include <cmath>
+#include <map>
 #include <stdexcept>
 #include <utility>
 
@@ -30,21 +32,54 @@ PluginParameterProblem::PluginParameterProblem(
     std::vector<std::string> parameterPatterns,
     std::vector<std::string> probes,
     std::vector<double> baseValues,
-    std::size_t maximumObservations)
+    std::size_t maximumObservations,
+    std::vector<std::string> protectedProbes,
+    double maximumRelativeRegression)
     : manifest_(std::move(manifest)),
       reference_(FilterDataset(reference, probes)),
       probes_(std::move(probes)),
-      baseValues_(std::move(baseValues))
+      baseValues_(std::move(baseValues)),
+      protectedProbes_(std::move(protectedProbes)),
+      maximumRelativeRegression_(maximumRelativeRegression)
 {
+    if (!std::isfinite(maximumRelativeRegression_) || maximumRelativeRegression_ < 0.0)
+    {
+        throw std::invalid_argument("Maximum relative probe regression must be non-negative and finite.");
+    }
     if (maximumObservations > 0 && reference_.observations.size() > maximumObservations)
     {
+        std::map<std::string, std::vector<DatasetObservation>> buckets;
+        for (const auto& observation : reference_.observations)
+        {
+            buckets[observation.conditionId + "/" + observation.probeId].push_back(observation);
+        }
         std::vector<DatasetObservation> selected;
         selected.reserve(maximumObservations);
-        for (std::size_t index = 0; index < maximumObservations; ++index)
+        const auto perBucket = std::max<std::size_t>(
+            1, (maximumObservations + buckets.size() - 1) / buckets.size());
+        for (std::size_t round = 0; selected.size() < maximumObservations; ++round)
         {
-            const auto sourceIndex = index * (reference_.observations.size() - 1) /
-                std::max<std::size_t>(maximumObservations - 1, 1);
-            selected.push_back(reference_.observations[sourceIndex]);
+            auto added = false;
+            for (const auto& [key, observations] : buckets)
+            {
+                if (selected.size() == maximumObservations)
+                {
+                    break;
+                }
+                if (round >= observations.size())
+                {
+                    continue;
+                }
+                const auto sourceIndex = std::min(
+                    observations.size() - 1,
+                    (2 * round + 1) * observations.size() / (2 * perBucket));
+                selected.push_back(observations[sourceIndex]);
+                added = true;
+            }
+            if (!added)
+            {
+                break;
+            }
         }
         reference_.observations = std::move(selected);
     }
@@ -85,6 +120,28 @@ PluginParameterProblem::PluginParameterProblem(
     }
     captureSession_ = std::make_unique<PluginCaptureSession>(
         manifest_, "candidate", probes_, std::move(observationIds), false);
+    for (const auto& probe : protectedProbes_)
+    {
+        const auto present = std::any_of(reference_.observations.begin(),
+            reference_.observations.end(), [&probe](const auto& observation)
+            {
+                return observation.probeId == probe;
+            });
+        if (!present)
+        {
+            throw std::invalid_argument("Protected probe is not in the stage: " + probe);
+        }
+    }
+    if (!protectedProbes_.empty())
+    {
+        std::vector<double> initial;
+        initial.reserve(parameterIndices_.size());
+        for (const auto index : parameterIndices_)
+        {
+            initial.push_back(baseValues_[index]);
+        }
+        baselineProbeRmse_ = Evaluate(initial).diagnostics;
+    }
 }
 
 std::span<const ModelParameter> PluginParameterProblem::Parameters() const noexcept
@@ -125,7 +182,23 @@ ModelEvaluation PluginParameterProblem::Evaluate(
     {
         diagnostics.push_back(probe.normalizedRmse);
     }
-    return { report.weightedLoss, std::move(diagnostics) };
+    auto objective = report.weightedLoss;
+    for (std::size_t index = 0; index < report.probes.size(); ++index)
+    {
+        const auto& probe = report.probes[index];
+        if (std::find(protectedProbes_.begin(), protectedProbes_.end(), probe.probeId) ==
+            protectedProbes_.end() || baselineProbeRmse_.empty())
+        {
+            continue;
+        }
+        const auto limit = baselineProbeRmse_[index] *
+            (1.0 + maximumRelativeRegression_);
+        if (probe.normalizedRmse > limit)
+        {
+            objective += 1000.0 + 1000.0 * (probe.normalizedRmse - limit);
+        }
+    }
+    return { objective, std::move(diagnostics) };
 }
 
 const std::vector<std::size_t>& PluginParameterProblem::ParameterIndices() const noexcept

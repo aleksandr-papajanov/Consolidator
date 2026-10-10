@@ -646,7 +646,10 @@ assertion, ослаблять проверку или удалять тест т
 - shared DSP state читается корректно;
 - audio transfer не выполняет allocations/locks в realtime path.
 
-DSP algorithms тестируются отдельно от Max и Managed.
+Автоматические тесты DSP-алгоритмов, DSP-примитивов и runtime graph запрещены
+политикой проекта. Ручные исследования EmulationLab/Plugin Doctor и прослушивание
+выполняются по явному запросу пользователя. Это не означает недетерминированность
+алгоритмов. Подробности: [правила DSP](Dsp/Rules.md).
 
 ---
 

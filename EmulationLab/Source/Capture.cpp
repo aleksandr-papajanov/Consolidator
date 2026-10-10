@@ -170,13 +170,14 @@ void AppendSingle(
     ProbeResult result,
     double sampleRate,
     double level,
-    double frequency)
+    double frequency,
+    std::size_t sequenceIndex = 0)
 {
     const auto sequence = condition + "-" + result.probeId + "-" +
         std::to_string(static_cast<long long>(sampleRate));
     dataset.observations.push_back({
-        ObservationId(condition, result.probeId, sampleRate, 0, level, frequency),
-        condition, sequence, 0, result.probeId, result.probeVersion,
+        ObservationId(condition, result.probeId, sampleRate, sequenceIndex, level, frequency),
+        condition, sequence, sequenceIndex, result.probeId, result.probeVersion,
         sampleRate, level, frequency, std::move(result.features)
     });
 }
@@ -291,9 +292,28 @@ struct PluginCaptureSession::Impl
             }
             for (const auto& control : entry.controls)
             {
-                if (!entry.plugin->SetParameterText(control.name, control.text))
+                const auto applied = control.usesNormalizedValue
+                    ? entry.plugin->SetParameterNormalized(
+                        control.name, control.normalizedValue)
+                    : entry.plugin->SetParameterText(control.name, control.text);
+                if (!applied)
                 {
                     throw std::runtime_error("Plugin control not found: " + control.name);
+                }
+                if (includeMetadata)
+                {
+                    PluginParameterDescription description;
+                    if (!entry.plugin->Parameter(control.name, description))
+                    {
+                        throw std::runtime_error(
+                            "Applied plugin control could not be read back: " + control.name);
+                    }
+                    capture.metadata.appliedControls.push_back(
+                        entry.conditionId + "@" +
+                        std::to_string(static_cast<long long>(entry.sampleRate)) + ":" +
+                        description.name + "=" +
+                        std::to_string(description.normalizedValue) + " [" +
+                        description.text + "]");
                 }
             }
             for (const auto& parameter : parameterValues)
@@ -348,17 +368,26 @@ struct PluginCaptureSession::Impl
                 else if (probeId == "transient-burst")
                 {
                     const auto& configuration = manifest.probeConfiguration.transientBurst;
-                    const auto id = ObservationId(
-                        entry.conditionId, probeId, entry.sampleRate, 0,
-                        configuration.levelDb, configuration.frequency);
-                    if (!selectedObservationIds.empty() && !selectedObservationIds.contains(id))
+                    auto sequenceIndex = std::size_t{};
+                    for (const auto frequency : configuration.frequencies)
                     {
-                        continue;
+                        for (const auto levelDb : configuration.levelsDb)
+                        {
+                            const auto id = ObservationId(
+                                entry.conditionId, probeId, entry.sampleRate,
+                                sequenceIndex, levelDb, frequency);
+                            if (selectedObservationIds.empty() ||
+                                selectedObservationIds.contains(id))
+                            {
+                                AppendSingle(
+                                    capture.dataset, entry.conditionId,
+                                    TransientBurstProbe(configuration).Run(
+                                        context, processor, frequency, levelDb),
+                                    entry.sampleRate, levelDb, frequency, sequenceIndex);
+                            }
+                            ++sequenceIndex;
+                        }
                     }
-                    AppendSingle(
-                        capture.dataset, entry.conditionId,
-                        TransientBurstProbe(configuration).Run(context, processor),
-                        entry.sampleRate, configuration.levelDb, configuration.frequency);
                 }
                 else if (probeId == "multitone")
                 {

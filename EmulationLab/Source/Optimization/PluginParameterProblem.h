@@ -20,7 +20,9 @@ public:
         std::vector<std::string> parameterPatterns,
         std::vector<std::string> probes,
         std::vector<double> baseValues,
-        std::size_t maximumObservations = 0);
+        std::size_t maximumObservations = 0,
+        std::vector<std::string> protectedProbes = {},
+        double maximumRelativeRegression = 0.02);
 
     [[nodiscard]] std::span<const ModelParameter> Parameters() const noexcept override;
     [[nodiscard]] ModelEvaluation Evaluate(
@@ -35,6 +37,9 @@ private:
     std::vector<double> baseValues_;
     std::vector<std::size_t> parameterIndices_;
     std::vector<ModelParameter> parameters_;
+    std::vector<std::string> protectedProbes_;
+    std::vector<double> baselineProbeRmse_;
+    double maximumRelativeRegression_{};
     mutable std::unique_ptr<PluginCaptureSession> captureSession_;
 };
 

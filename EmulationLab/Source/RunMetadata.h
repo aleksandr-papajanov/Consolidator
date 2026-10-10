@@ -25,6 +25,7 @@ struct RunMetadata
     std::size_t blockSize{};
     unsigned int seed{};
     std::vector<std::string> processingContexts;
+    std::vector<std::string> appliedControls;
     std::vector<std::size_t> latencySamples;
     std::vector<std::string> probes;
 };

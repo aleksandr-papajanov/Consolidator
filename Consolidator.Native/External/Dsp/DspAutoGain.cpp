@@ -29,6 +29,10 @@ void DspAutoGain::Reset() noexcept
 
 double DspAutoGain::Process(double inputEnergy, double outputEnergy, double activity) noexcept
 {
+    if (!tuning_.enabled)
+    {
+        return 1.0;
+    }
     if (activity <= 0.0)
     {
         Reset();

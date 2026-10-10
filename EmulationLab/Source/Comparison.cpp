@@ -221,41 +221,102 @@ void SaveComparisonReport(
     output << document.dump(2) << '\n';
 }
 
-bool RunComparisonSelfTest()
+bool AcceptStageComparison(
+    const ComparisonReport& baseline,
+    const ComparisonReport& candidate,
+    const std::vector<std::string>& protectedProbes,
+    double maximumRelativeRegression)
 {
-    MeasurementDataset reference{
-        kDatasetSchemaVersion, "test", "configuration-001", "reference", "r1", "",
-        { { "a", "default", "s", 0, "stepped-sine", "2", 48000.0, -6.0, 1000.0,
-            { { "phase.degrees", "phase", "degrees", 179.0, 30.0,
-                -std::numeric_limits<double>::infinity(), FeatureComparison::WrappedDegrees } } } }
-    };
-    auto candidate = reference;
-    candidate.side = "candidate";
-    candidate.observations.front().features.front().value = -179.0;
-    reference.observations.front().features.push_back(
-        { "harmonic.2.dbc", "harmonics", "dBc", -100.0, 6.0 });
-    candidate.observations.front().features.push_back(
-        { "harmonic.2.dbc", "harmonics", "dBc", -94.0, 6.0 });
-    const auto report = CompareDatasets(reference, candidate, {});
-    reference.observations.front().features.push_back(
-        { "harmonic.3.dbc", "harmonics", "dBc", -100.0, 6.0 });
-    candidate.observations.front().features.push_back(
-        { "harmonic.3.dbc", "harmonics", "dBc", -94.0, 6.0 });
-    const auto denseReport = CompareDatasets(reference, candidate, {});
-    auto rejectedSchemaMismatch = false;
-    candidate.observations.front().features.front().identifier = "different";
-    try
+    if (candidate.matchedObservations != baseline.matchedObservations ||
+        candidate.unmatchedReferenceObservations != 0 ||
+        !(candidate.weightedLoss < baseline.weightedLoss))
     {
-        static_cast<void>(CompareDatasets(reference, candidate, {}));
+        return false;
     }
-    catch (const std::runtime_error&)
+    for (const auto& probeId : protectedProbes)
     {
-        rejectedSchemaMismatch = true;
+        const auto findProbe = [&probeId](const auto& probes)
+        {
+            return std::find_if(probes.begin(), probes.end(),
+                [&probeId](const auto& probe) { return probe.probeId == probeId; });
+        };
+        const auto original = findProbe(baseline.probes);
+        const auto proposed = findProbe(candidate.probes);
+        if (original == baseline.probes.end() || proposed == candidate.probes.end() ||
+            proposed->normalizedRmse > original->normalizedRmse *
+                (1.0 + maximumRelativeRegression))
+        {
+            return false;
+        }
     }
-    return report.matchedObservations == 1 && report.unmatchedReferenceObservations == 0 &&
-        report.weightedLoss > 0.0 && report.weightedLoss < 1.0 &&
-        std::abs(report.weightedLoss - denseReport.weightedLoss) < 1.0e-12 &&
-        rejectedSchemaMismatch;
+    return true;
+}
+
+bool AcceptFeatureGuards(
+    const MeasurementDataset& reference,
+    const MeasurementDataset& baseline,
+    const MeasurementDataset& candidate,
+    const std::vector<OptimizationStage::ProtectedFeature>& guards)
+{
+    for (const auto& guard : guards)
+    {
+        auto matched = false;
+        for (const auto& observation : reference.observations)
+        {
+            if (observation.conditionId != guard.condition ||
+                observation.probeId != guard.probe ||
+                observation.sequenceIndex != guard.sequenceIndex)
+            {
+                continue;
+            }
+            matched = true;
+            const auto findObservation = [&observation](const auto& dataset)
+            {
+                return std::find_if(dataset.observations.begin(), dataset.observations.end(),
+                    [&observation](const auto& value)
+                    {
+                        return value.observationId == observation.observationId;
+                    });
+            };
+            const auto previous = findObservation(baseline);
+            const auto proposed = findObservation(candidate);
+            const auto findFeature = [&guard](const auto& features)
+            {
+                return std::find_if(features.begin(), features.end(),
+                    [&guard](const auto& value)
+                    {
+                        return value.identifier == guard.feature;
+                    });
+            };
+            const auto targetFeature = findFeature(observation.features);
+            if (previous == baseline.observations.end() ||
+                proposed == candidate.observations.end() ||
+                targetFeature == observation.features.end())
+            {
+                throw std::runtime_error("Protected feature is missing from a candidate capture.");
+            }
+            const auto previousFeature = findFeature(previous->features);
+            const auto proposedFeature = findFeature(proposed->features);
+            if (previousFeature == previous->features.end() ||
+                proposedFeature == proposed->features.end())
+            {
+                throw std::runtime_error("Protected feature is missing from a candidate observation.");
+            }
+            const auto previousError = std::abs(
+                FeatureError(*targetFeature, *previousFeature) * targetFeature->scale);
+            const auto proposedError = std::abs(
+                FeatureError(*targetFeature, *proposedFeature) * targetFeature->scale);
+            if (proposedError > previousError + guard.maximumErrorIncrease)
+            {
+                return false;
+            }
+        }
+        if (!matched)
+        {
+            throw std::runtime_error("Protected feature guard does not match reference observations.");
+        }
+    }
+    return true;
 }
 
 } // namespace emulation_lab

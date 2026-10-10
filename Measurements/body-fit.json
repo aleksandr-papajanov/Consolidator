@@ -1,1 +1,0 @@
-{"stage": "body", "sampleRate": 44100.0, "referenceLevelDb": -30.0, "rootMeanSquareErrorDb": 0.370948777835793, "evaluationCount": 1066, "parameters": {"peakFrequency": 81.037969928338541, "peakGainDb": 14.676466894997784, "peakQ": 0.724974701227345, "notchFrequency": 34.153834638980186, "notchGainDb": -9.42724401268938, "notchQ": 1.666228746451365}}

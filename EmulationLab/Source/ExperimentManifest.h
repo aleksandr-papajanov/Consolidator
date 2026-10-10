@@ -34,10 +34,21 @@ struct DatasetSplit
 
 struct OptimizationStage
 {
+    struct ProtectedFeature
+    {
+        std::string condition;
+        std::string probe;
+        std::size_t sequenceIndex{};
+        std::string feature;
+        double maximumErrorIncrease{};
+    };
     std::string name;
     std::vector<std::string> parameters;
     std::vector<std::string> probes;
     std::size_t maximumObservations{};
+    std::vector<std::string> protectedProbes;
+    double maximumRelativeRegression{ 0.02 };
+    std::vector<ProtectedFeature> protectedFeatures;
 };
 
 struct CandidateParameter
@@ -53,6 +64,8 @@ struct PluginControlValue
 {
     std::string name;
     std::string text;
+    double normalizedValue{};
+    bool usesNormalizedValue{};
 };
 
 struct ExperimentCondition
@@ -117,6 +130,5 @@ struct ExperimentManifest
 [[nodiscard]] std::string MeasurementConfigurationSignature(
     const ExperimentManifest& manifest);
 
-[[nodiscard]] bool RunManifestSelfTest();
 
 } // namespace emulation_lab

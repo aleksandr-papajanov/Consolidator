@@ -33,6 +33,52 @@
 *.coverage
 *.coveragexml
 
+# Local DSP measurements, reports and diagnostics
+/Measurements/
+/diagnostics/
+/results/
+*.log
+*.tmp
+*.bak
+
+# Audio inputs and rendered output are local research data
+*.wav
+*.aif
+*.aiff
+*.flac
+*.mp3
+*.ogg
+/EmulationLab/RawAudio/**
+!/EmulationLab/RawAudio/README.md
+
+# Experiment output is ignored by default; keep manifests and source files
+/EmulationLab/Experiments/**
+!/EmulationLab/Experiments/**/
+!/EmulationLab/Experiments/**/manifest.json
+!/EmulationLab/Experiments/**/README.md
+!/EmulationLab/Experiments/**/*.cpp
+!/EmulationLab/Experiments/**/*.h
+!/EmulationLab/Experiments/**/*.hpp
+!/EmulationLab/Experiments/**/*.cs
+!/EmulationLab/Experiments/**/*.js
+!/EmulationLab/Experiments/**/*.py
+!/EmulationLab/Experiments/**/*.ps1
+!/EmulationLab/Experiments/**/*.cmake
+!/EmulationLab/Experiments/**/CMakeLists.txt
+
+# Keep generated sources excluded even inside experiment directories
+**/build/
+**/bin/
+**/obj/
+**/__pycache__/
+*.pyc
+
+# Compiled plugin bundles and offline datasets
+*.vst3
+!/ModelPlugins.Vst3/
+*.clap
+*.eldataset
+
 # Local operating-system files
 .DS_Store
 Thumbs.db

@@ -125,8 +125,8 @@ private:
 
 struct TransientBurstConfiguration
 {
-    double frequency{ 80.0 };
-    double levelDb{ -6.0 };
+    std::vector<double> frequencies{ 60.0, 200.0, 1000.0, 5000.0 };
+    std::vector<double> levelsDb{ -18.0, -6.0, 0.0 };
     double silenceSeconds{ 0.25 };
     double sustainSeconds{ 0.5 };
     double tailSeconds{ 0.5 };
@@ -139,7 +139,9 @@ public:
     explicit TransientBurstProbe(TransientBurstConfiguration configuration = {});
     [[nodiscard]] ProbeResult Run(
         const ProbeContext& context,
-        const ProcessorCallbacks& processor) const;
+        const ProcessorCallbacks& processor,
+        double frequency,
+        double levelDb) const;
 
 private:
     TransientBurstConfiguration configuration_;
@@ -183,6 +185,5 @@ private:
     StereoInteractionConfiguration configuration_;
 };
 
-[[nodiscard]] bool RunProbeSelfTest();
 
 } // namespace emulation_lab

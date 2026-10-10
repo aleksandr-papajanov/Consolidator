@@ -7,6 +7,7 @@ namespace consolidator::max::dsp
 
 struct DspAutoGainTuning
 {
+    bool enabled{ true };
     double energySeconds{ 1.0 };
     double correctionSeconds{ 2.0 };
     double compensationRatio{ 0.5 };

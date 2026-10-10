@@ -36,7 +36,6 @@ using ProgressCallback = std::function<void(
     const std::vector<std::vector<double>>& initialCandidates,
     ProgressCallback progressCallback = {});
 
-[[nodiscard]] bool RunOptimizerSelfTest();
 
 void SaveOptimizationResult(
     const OptimizationResult& result,

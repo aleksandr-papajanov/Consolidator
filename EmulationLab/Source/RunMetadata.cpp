@@ -18,7 +18,7 @@ void SaveRunMetadata(
         std::filesystem::create_directories(parent);
     }
     const nlohmann::json document{
-        { "schemaVersion", 3 },
+        { "schemaVersion", 4 },
         { "experiment", metadata.experimentName },
         { "configurationSignature", metadata.configurationSignature },
         { "side", metadata.side },
@@ -34,6 +34,7 @@ void SaveRunMetadata(
         { "blockSize", metadata.blockSize },
         { "seed", metadata.seed },
         { "processingContexts", metadata.processingContexts },
+        { "appliedControls", metadata.appliedControls },
         { "latencySamples", metadata.latencySamples },
         { "probes", metadata.probes }
     };

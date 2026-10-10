@@ -1,45 +1,27 @@
 # Documentation Index
 
-Документация `InteropSandbox` разделена по scope. Каждый отдельный архитектурный или workflow-вопрос должен иметь свой небольшой файл, а не добавляться в один большой документ.
+Документы разделены по scope. [DSP: алгоритмы и EmulationLab](Dsp/README.md).
 
-| Файл | Содержание |
+| Документ | Scope |
 | --- | --- |
-| [`Rules.md`](Rules.md) | Архитектурные границы, ответственность C++/C#/JavaScript, ABI, lifecycle, realtime, зависимости, ошибки и тестовые требования. |
-| [`Formatting.md`](Formatting.md) | Общие правила форматирования, выбор языка/слоя и tooling. |
-| [`CppFormatting.md`](CppFormatting.md) | Форматирование, naming, includes, ownership и ABI-boundary conventions для C++. |
-| [`CSharpFormatting.md`](CSharpFormatting.md) | Форматирование, naming, using directives, managed dependencies и NativeAOT interop conventions для C#. |
-| [`JavaScriptFormatting.md`](JavaScriptFormatting.md) | ES5-compatible Max runtime style, include order, callbacks, lifecycle, protocol и UI layer conventions для JavaScript. |
-| [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md) | Текущий контракт связи Managed/C++/Max: ABI atoms, callbacks, queue/qelem, ownership и unregister barrier. |
-| [`Persistence.md`](Persistence.md) | Версионированный Managed snapshot, Max Blob parameter, save/restore barriers, validation и history baseline. |
-| [`UiPerformance.md`](UiPerformance.md) | Batching target snapshots и правила снижения Max JavaScript UI scheduler work. |
-| [`ManagedProtocol.md`](ManagedProtocol.md) | Граница Managed protocol: atom decoding, command types, relative paths, routing scopes и response encoding. |
-| [`BankIndexContract.md`](BankIndexContract.md) | Единый zero-based контракт индексов банков `0..6`. |
-| [`Coordinator.md`](Coordinator.md) | Ownership общих Managed services, per-instance state и границы control/audio paths. |
-| [`DspStatePipeline.md`](DspStatePipeline.md) | DSP snapshot publication, local JavaScript curves, analyzer configuration и FFT capture. |
-| [`Approximation.md`](Approximation.md) | Offline свёртка текущего EQ-банка в стандартные фильтры банка 1, routing и атомарное применение. |
-| [`DspRuntimeFoundation.md`](DspRuntimeFoundation.md) | Native DSP runtime graph, processor lifecycle, sidechain and parallel processing foundation. |
-| [`DspImplementation.md`](DspImplementation.md) | Per-processor contracts, shared DSP primitives and hot-path optimization boundaries. |
-| [`AdaptiveCompression.md`](AdaptiveCompression.md) | One-knob target gain reduction, adaptive threshold, Timing modes, RMS makeup and parallel mixing. |
-| [`PolishHarmonics.md`](PolishHarmonics.md) | Thick harmonic synthesis/upward compression, Air shelves/dynamic coloration, antialiasing and serial additive topology. |
-| [`DspTelemetry.md`](DspTelemetry.md) | Latest-only native DSP telemetry, active-instance demand, realtime exchange and automated-control ownership. |
-| [`FilterCatalog.md`](FilterCatalog.md) | Filter kinds, parameter capabilities and legacy-derived defaults. |
-| [`StateInfrastructure.md`](StateInfrastructure.md) | Независимые state tree, registry, history и observer contracts. |
-| [`StateHistory.md`](StateHistory.md) | Managed state values, observers, topology peers, history и UI notifications. |
-| [`Testing.md`](Testing.md) | Философия тестов, уровни, сквозные use cases, структура suites и команды запуска. |
-| [`V8Migration.md`](V8Migration.md) | Инвентаризация Max JavaScript runtime и план перехода с `js`/`jsui` на `v8`/`v8ui`. |
-| [`MaxV8RuntimeDiagnostics.md`](MaxV8RuntimeDiagnostics.md) | Диагностика загрузки Max for Live UI: LiveAPI lifecycle, activity, protocol snapshots, host-only проверки и пересборка `.amxd`. |
-| [`RuntimeMetrics.md`](RuntimeMetrics.md) | Фоновый сбор runtime-метрик Managed и публикация только обнаруженных проблем. |
-| [`ProcessorActivity.md`](ProcessorActivity.md) | Derived Managed processor activity status, registry deltas and processor B/S commands. |
-| [`ModelPluginsVst3.md`](ModelPluginsVst3.md) | Independent parameterized VST3 model adapters for Plugin Doctor and Emulation Lab fitting. |
-| [`EmulationLab.md`](EmulationLab.md) | Unified black-box measurement, staged optimization, validation and reporting workflow. |
-| [`RevivalShimmerEmulation.md`](RevivalShimmerEmulation.md) | Measured Revival Shimmer topology, native Air model, multi-amount reference normalization and offline fitting workflow. |
+| [BankIndexContract.md](BankIndexContract.md) | BankIndexContract |
+| [CSharpFormatting.md](CSharpFormatting.md) | CSharpFormatting |
+| [Coordinator.md](Coordinator.md) | Coordinator |
+| [CppFormatting.md](CppFormatting.md) | CppFormatting |
+| [Formatting.md](Formatting.md) | Formatting |
+| [JavaScriptFormatting.md](JavaScriptFormatting.md) | JavaScriptFormatting |
+| [ManagedNativeCommunication.md](ManagedNativeCommunication.md) | ManagedNativeCommunication |
+| [ManagedProtocol.md](ManagedProtocol.md) | ManagedProtocol |
+| [MaxV8RuntimeDiagnostics.md](MaxV8RuntimeDiagnostics.md) | MaxV8RuntimeDiagnostics |
+| [Persistence.md](Persistence.md) | Persistence |
+| [Rules.md](Rules.md) | Rules |
+| [RuntimeMetrics.md](RuntimeMetrics.md) | RuntimeMetrics |
+| [StateHistory.md](StateHistory.md) | StateHistory |
+| [StateInfrastructure.md](StateInfrastructure.md) | StateInfrastructure |
+| [Testing.md](Testing.md) | Testing |
+| [UiPerformance.md](UiPerformance.md) | UiPerformance |
+| [V8Migration.md](V8Migration.md) | V8Migration |
+| [DSP](Dsp/README.md) | Правила, каждый процессор, runtime, state и ручные исследования |
 
-## Правила работы с документацией
-
-- Перед задачей прочитать этот индекс и документы, относящиеся к затрагиваемому scope.
-- Если способ работы системы или кодовый путь не понятен, сначала искать объяснение в документации, затем читать реализацию.
-- При добавлении функциональности обновлять соответствующую документацию в том же изменении.
-- Не раздувать существующие документы: новый самостоятельный scope оформлять отдельным небольшим файлом.
-- Новый файл документации сразу добавлять в эту таблицу.
-- Перед коммитом проверить, что документация соответствует изменённому коду.
-
+Новый самостоятельный scope сразу добавлять в этот индекс или индекс DSP.
+Документация соответствует текущему коду; историю гипотез хранить кратко рядом с процессором.

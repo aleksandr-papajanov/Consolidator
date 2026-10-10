@@ -24,13 +24,13 @@
   "conditions": [
     {
       "id": "minimum",
-      "reference": { "parameters": { "Amount": "0" } },
-      "candidate": { "parameters": { "Amount": "0" } }
+      "reference": { "parameters": { "Amount": 0.0 } },
+      "candidate": { "parameters": { "Amount": 0.0 } }
     },
     {
       "id": "maximum",
-      "reference": { "parameters": { "Amount": "100" } },
-      "candidate": { "parameters": { "Amount": "100" } }
+      "reference": { "parameters": { "Amount": 1.0 } },
+      "candidate": { "parameters": { "Amount": 1.0 } }
     }
   ],
   "probes": [
@@ -67,8 +67,8 @@
       "maximumHarmonic": 8
     },
     "transient-burst": {
-      "frequency": 80,
-      "levelDb": -6,
+      "frequencies": [60, 200, 1000, 5000],
+      "levelsDb": [-18, -6, 0],
       "silenceSeconds": 0.25,
       "sustainSeconds": 0.5,
       "tailSeconds": 0.5

@@ -83,7 +83,6 @@ juce_add_plugin(ConsolidatorTransientShaperModel
     COPY_PLUGIN_AFTER_BUILD TRUE)
 target_sources(ConsolidatorTransientShaperModel PRIVATE
     Source/TransientShaperPluginProcessor.cpp
-    ../Consolidator.Native/External/Dsp/DspAutoGain.cpp
-    ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp
-    ../Consolidator.Native/External/Dsp/TransientShaperProcessor.cpp)
+    ../Consolidator.Native/External/Dsp/TransientShaperProcessor.cpp
+    ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
 configure_model_plugin(ConsolidatorTransientShaperModel)

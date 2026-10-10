@@ -100,6 +100,10 @@ If no issues are found, say so clearly and list remaining test or host-verificat
 
 ## 4. Verification
 
+DSP review uses direct source/ownership inspection. DSP automated tests are
+prohibited by `Docs/Dsp/Rules.md`; do not create or run them. Explicitly requested
+EmulationLab research is separate. Native tests below cover ABI/persistence only.
+
 Run builds, tests, or Git commands only after explicit user permission. For authorized verification, use the InteropSandbox workflow:
 
 - full build: `InteropSandbox/.vscode/build-all.cmd`;

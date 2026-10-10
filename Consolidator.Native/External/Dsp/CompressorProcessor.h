@@ -2,7 +2,6 @@
 
 #include "CompressionProcessor.h"
 #include "DetectorProcessor.h"
-#include "DspGainRamp.h"
 #include "DspProcessor.h"
 #include "TransientShaperProcessor.h"
 
@@ -18,11 +17,9 @@ public:
     void Process(DspProcessingFrame& frame) noexcept override;
 
 private:
-    DetectorProcessor detector_{ 4 };
     DetectorProcessor compressionDetector_{ 4 };
     TransientShaperProcessor transientShaper_;
     CompressionProcessor compression_;
-    DspGainRamp output_;
 };
 
 } // namespace consolidator::max::dsp

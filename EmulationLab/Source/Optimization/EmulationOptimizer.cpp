@@ -157,32 +157,6 @@ void SetBounds(
     optimizer.set_upper_bounds(upperBounds);
 }
 
-class QuadraticProblem final : public IEmulationProblem
-{
-public:
-    [[nodiscard]] std::span<const ModelParameter> Parameters() const noexcept override
-    {
-        return parameters_;
-    }
-
-    [[nodiscard]] ModelEvaluation Evaluate(
-        std::span<const double> values) const override
-    {
-        const auto firstError = values[0] - 0.25;
-        const auto secondError = values[1] + 0.5;
-        return {
-            firstError * firstError + secondError * secondError,
-            { firstError, secondError }
-        };
-    }
-
-private:
-    const std::array<ModelParameter, 2> parameters_{ {
-        { "first", -1.0, 1.0 },
-        { "second", -1.0, 1.0 }
-    } };
-};
-
 } // namespace
 
 OptimizationResult Optimize(
@@ -242,26 +216,6 @@ OptimizationResult Optimize(
 
     SortBeam(context.beam);
     return { context.beam.front(), std::move(context.beam), context.evaluationCount };
-}
-
-bool RunOptimizerSelfTest()
-{
-    QuadraticProblem problem;
-    OptimizationOptions options;
-    options.globalEvaluationLimit = 8;
-    options.localEvaluationLimit = 8;
-    options.beamWidth = 2;
-    const auto result = Optimize(problem, options, { { 0.9, 0.9 } });
-    const auto checkpoint = std::filesystem::temp_directory_path() /
-        "emulation-lab-optimizer-self-test.json";
-    SaveOptimizationResult(result, problem.Parameters(), checkpoint);
-    const auto checkpointWritten = std::filesystem::exists(checkpoint);
-    std::filesystem::remove(checkpoint);
-    return checkpointWritten &&
-        !result.beam.empty() &&
-        result.beam.size() <= options.beamWidth &&
-        result.best.evaluation.objective < 0.1 &&
-        result.best.parameterValues.size() == problem.Parameters().size();
 }
 
 void SaveOptimizationResult(

@@ -3,146 +3,217 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 
 #include "DspMath.h"
+#include "DspOnePole.h"
 #include "DspProcessingPrimitives.h"
-
-namespace
-{
-[[nodiscard]] double FollowEnvelope(
-    double input,
-    double envelope,
-    double coefficient) noexcept
-{
-    return envelope + coefficient * (input - envelope);
-}
-
-}
 
 namespace consolidator::max::dsp
 {
 
-void TransientShaperProcessor::SetTuningBeforePrepare(
-    const TransientShaperTuning& tuning) noexcept
+namespace
+{
+
+double AmountGain(double fullGain, double amount) noexcept
+{
+    // Exact common amounts of fullGain^amount avoid unnecessary power calls.
+    if (amount == 0.0)
+    {
+        return 1.0;
+    }
+    if (amount == 1.0)
+    {
+        return fullGain;
+    }
+    if (amount == -1.0)
+    {
+        return 1.0 / fullGain;
+    }
+    if (amount == 0.5)
+    {
+        return std::sqrt(fullGain);
+    }
+    if (amount == -0.5)
+    {
+        return 1.0 / std::sqrt(fullGain);
+    }
+    return std::pow(fullGain, amount);
+}
+
+} // namespace
+
+void TransientShaperProcessor::SetTuningBeforePrepare(const TransientShaperTuning& tuning) noexcept
 {
     tuning_ = tuning;
 }
 
-void TransientShaperProcessor::Prepare(
-    const DspProcessingContext& context) noexcept
+void TransientShaperProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
-    attack_.Prepare(context);
-    sustain_.Prepare(context);
-    activeMix_.Prepare(context);
-    autoGain_.SetTuningBeforePrepare(tuning_.autoGain);
-    autoGain_.Prepare(context);
-    sustainCoefficient_ = TimeCoefficient(
-        tuning_.sustainEnvelopeSeconds, context.sampleRate);
-    fastAttackCoefficient_ = TimeCoefficient(
-        tuning_.fastEnvelopeSeconds, context.sampleRate);
-    slowAttackCoefficient_ = TimeCoefficient(
-        tuning_.slowEnvelopeSeconds, context.sampleRate);
-    detectorCoefficient_ = TimeCoefficient(
-        tuning_.detectorSeconds, context.sampleRate);
-    // Symmetric followers have the same DC gain; different time constants
-    // then measure envelope motion instead of different peak biases.
-    gainAttackCoefficient_ = TimeCoefficient(
-        tuning_.gainAttackSeconds, context.sampleRate);
-    gainReleaseCoefficient_ = TimeCoefficient(
-        tuning_.gainReleaseSeconds, context.sampleRate);
+    const auto& tuning = tuning_;
+    outputGain_.Prepare(context);
+    outputHighpassCoefficient_ = onepole::FilterCoefficient(10.0, context.sampleRate);
+    attackAmount_.Prepare(context);
+    sustainAmount_.Prepare(context);
+    const auto angle = 2.0 * std::numbers::pi * tuning.sidechainHz / context.sampleRate;
+    const auto cosine = std::cos(angle);
+    const auto alpha = std::sin(angle) / (2.0 * 0.71);
+    const auto inverseA0 = 1.0 / (1.0 + alpha);
+    b0_ = (1.0 + cosine) * 0.5 * inverseA0;
+    b1_ = -(1.0 + cosine) * inverseA0;
+    b2_ = b0_;
+    a1_ = -2.0 * cosine * inverseA0;
+    a2_ = (1.0 - alpha) * inverseA0;
+    fastAttackCoefficient_ = TimeCoefficient(tuning.fastAttackSeconds, context.sampleRate);
+    fastReleaseCoefficient_ = TimeCoefficient(tuning.fastReleaseSeconds, context.sampleRate);
+    slowAttackCoefficient_ = TimeCoefficient(tuning.slowAttackSeconds, context.sampleRate);
+    slowReleaseCoefficient_ = TimeCoefficient(tuning.slowReleaseSeconds, context.sampleRate);
+    onsetAttackCoefficient_ = TimeCoefficient(0.0002, context.sampleRate);
+    onsetReleaseCoefficient_ = TimeCoefficient(0.003, context.sampleRate);
+    contextCoefficient_ = TimeCoefficient(tuning.contextSeconds, context.sampleRate);
+    attackOpenCoefficient_ = TimeCoefficient(0.00001, context.sampleRate);
+    attackReleaseCoefficient_ = TimeCoefficient(tuning.attackReleaseSeconds, context.sampleRate);
+    attackAdditionDecay_ = std::exp(-1.0 / (tuning.attackAdditionReleaseSeconds * context.sampleRate));
+    maskCloseCoefficient_ = TimeCoefficient(tuning.maskCloseSeconds, context.sampleRate);
+    sustainOpenCoefficient_ = TimeCoefficient(tuning.sustainOpenSeconds, context.sampleRate);
+    peakDecay_ = std::exp(-1.0 / (tuning.peakReleaseSeconds * context.sampleRate));
+    peakDecayDb_ = 20.0 * std::log10(peakDecay_);
+    riseNormalization_ = 1.0 / (std::pow(10.0, tuning.riseDb / 10.0) - 1.0);
+    baseGain_ = DbToGain(tuning.baseGainDb);
+    initialSlowPower_ = std::pow(10.0, tuning.initialSlowLevelDb / 10.0);
+    Reset();
 }
 
 void TransientShaperProcessor::Reset() noexcept
 {
-    attack_.Reset();
-    sustain_.Reset();
-    activeMix_.Reset();
-    fastEnvelope_ = 0.0;
-    slowEnvelope_ = 0.0;
-    sustainEnvelope_ = 0.0;
-    autoGain_.Reset();
-    gainDb_ = 0.0;
-    detectorEnergy_ = 0.0;
-    detectorGateOpen_ = false;
+    attackAmount_.Reset();
+    sustainAmount_.Reset();
+    filterStates_ = {};
+    outputGain_.Reset();
+    outputHighpassStates_ = {};
+    fastPower_ = 0.0;
+    slowPower_ = initialSlowPower_;
+    onsetPower_ = 0.0;
+    contextPower_ = 0.0;
+    peak_ = 0.0;
+    peakDb_ = -240.0;
+    attackMask_ = 0.0;
+    extendedAttackMask_ = 0.0;
+    sustainMask_ = 0.0;
 }
 
-void TransientShaperProcessor::SetParameters(
-    const DspSnapshot& snapshot) noexcept
+void TransientShaperProcessor::SetAmounts(double attack, double sustain) noexcept
 {
-    attack_.SetTarget(snapshot.compressorAttack);
-    sustain_.SetTarget(snapshot.compressorSustain);
-    activeMix_.SetTarget(snapshot.compressorAttack > 0.0F || snapshot.compressorSustain > 0.0F ? 1.0 : 0.0);
+    attackAmount_.SetTarget(attack);
+    sustainAmount_.SetTarget(sustain);
 }
 
-void TransientShaperProcessor::Process(
-    DspProcessingFrame& frame) noexcept
+void TransientShaperProcessor::SetParameters(const DspSnapshot& snapshot) noexcept
 {
-    const auto processLeft = frame.plan.channelMode != DspChannelMode::Right;
-    const auto processRight = frame.plan.channelMode != DspChannelMode::Left;
-    const auto selected = SelectChannels(frame.main, frame.plan.channelMode);
-    for (std::size_t index = 0; index < frame.main.frameCount; ++index)
+    SetAmounts(snapshot.compressorAttack, snapshot.compressorSustain);
+    SetOutputGainDb(snapshot.compressorOutputDb);
+}
+
+void TransientShaperProcessor::SetOutputGainDb(double gainDb) noexcept
+{
+    outputGain_.SetTarget(DbToGain(gainDb));
+}
+
+void TransientShaperProcessor::Process(DspProcessingFrame& frame) noexcept
+{
+    Process(frame.main, frame.plan.channelMode);
+}
+
+double TransientShaperProcessor::Filter(double input, std::size_t channel) noexcept
+{
+    auto& state = filterStates_[channel];
+    const auto output = b0_ * input + state[0];
+    state[0] = b1_ * input - a1_ * output + state[1];
+    state[1] = b2_ * input - a2_ * output;
+    return output;
+}
+
+void TransientShaperProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
+{
+    const auto selected = SelectChannels(audio, mode);
+    auto* left = selected.left;
+    auto* right = selected.right;
+    constexpr auto maximumGain = 63.095734448;
+    for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
-        const auto left = !processLeft || frame.detectorSignal.left == nullptr
-            ? 0.0
-            : std::abs(frame.detectorSignal.left[index]);
-        const auto right = !processRight || frame.detectorSignal.right == nullptr
-            ? 0.0
-            : std::abs(frame.detectorSignal.right[index]);
-        const auto magnitude = std::max(left, right);
-        detectorEnergy_ += detectorCoefficient_ * (magnitude * magnitude - detectorEnergy_);
-        const auto detectorLevel = std::sqrt(std::max(0.0, detectorEnergy_));
-        if (detectorLevel < tuning_.minimumDetectorLevel)
+        const auto magnitude = std::max(
+            left != nullptr ? std::abs(Filter(left[index], 0)) : 0.0,
+            right != nullptr ? std::abs(Filter(right[index], 1)) : 0.0);
+        const auto power = magnitude * magnitude;
+        fastPower_ += (power > fastPower_ ? fastAttackCoefficient_ : fastReleaseCoefficient_) *
+            (power - fastPower_);
+        slowPower_ += (power > slowPower_ ? slowAttackCoefficient_ : slowReleaseCoefficient_) *
+            (power - slowPower_);
+        onsetPower_ += (power > onsetPower_ ? onsetAttackCoefficient_ : onsetReleaseCoefficient_) *
+            (power - onsetPower_);
+        const auto decayedPeak = peak_ * peakDecay_;
+        if (magnitude > decayedPeak)
         {
-            detectorGateOpen_ = false;
+            peak_ = magnitude;
+            peakDb_ = 20.0 * std::log10(std::max(peak_, 1.0e-12));
         }
-        else if (detectorLevel > 2.0 * tuning_.minimumDetectorLevel)
+        else
         {
-            detectorGateOpen_ = true;
+            peak_ = decayedPeak;
+            peakDb_ = std::max(-240.0, peakDb_ + peakDecayDb_);
         }
-
-        fastEnvelope_ = FollowEnvelope(
-            detectorLevel,
-            fastEnvelope_,
-            fastAttackCoefficient_);
-        slowEnvelope_ = FollowEnvelope(
-            detectorLevel,
-            slowEnvelope_,
-            slowAttackCoefficient_);
-        sustainEnvelope_ = FollowEnvelope(detectorLevel, sustainEnvelope_, sustainCoefficient_);
-
-        const auto attack = std::clamp(attack_.NextValue(), 0.0, 1.0);
-        const auto sustain = std::clamp(sustain_.NextValue(), 0.0, 1.0);
-        auto targetGainDb = 0.0;
-        if (detectorGateOpen_ &&
-            fastEnvelope_ >= tuning_.minimumDetectorLevel &&
-            slowEnvelope_ >= tuning_.minimumDetectorLevel)
+        const auto novelty = std::clamp(
+            (onsetPower_ / std::max(contextPower_, 1.0e-24) - 1.0) * riseNormalization_, 0.0, 1.0);
+        const auto attackTarget = novelty * magnitude / std::max(peak_, 1.0e-12);
+        attackMask_ += (attackTarget > attackMask_ ? attackOpenCoefficient_ : attackReleaseCoefficient_) *
+            (attackTarget - attackMask_);
+        extendedAttackMask_ = std::max(attackMask_, extendedAttackMask_ * attackAdditionDecay_);
+        contextPower_ += contextCoefficient_ * (onsetPower_ - contextPower_);
+        const auto activityRatio = fastPower_ / std::max(peak_ * peak_, 1.0e-24);
+        const auto activity = activityRatio >= 1.0
+            ? 1.0 : std::pow(activityRatio, tuning_.activityExponent);
+        const auto sustainTarget = (1.0 - attackMask_) * activity;
+        sustainMask_ += (sustainTarget > sustainMask_ ? sustainOpenCoefficient_ : maskCloseCoefficient_) *
+            (sustainTarget - sustainMask_);
+        const auto attack = attackAmount_.NextValue();
+        const auto sustain = sustainAmount_.NextValue();
+        auto sustainGain = 0.0;
+        if (sustain != 0.0)
         {
-            const auto envelopeDifferenceDb = 20.0 * std::log10(
-                fastEnvelope_ / slowEnvelope_);
-            const auto attackDb = std::clamp(
-                tuning_.attackScale * envelopeDifferenceDb,
-                0.0,
-                tuning_.maximumAttackDb);
-            const auto sustainDb = std::clamp(
-                tuning_.sustainScale * 20.0 * std::log10(
-                    std::max(sustainEnvelope_, tuning_.minimumDetectorLevel) / fastEnvelope_),
-                0.0,
-                tuning_.maximumSustainDb);
-            targetGainDb =
-                attack * attackDb +
-                sustain * sustainDb;
+            const auto strength = std::clamp(
+                1.0 + peakDb_ / tuning_.strengthRangeDb, 0.0, 1.0);
+            const auto slowPower = std::max(slowPower_, 1.0e-24);
+            const auto fastPower = std::max(fastPower_, 1.0e-24);
+            const auto excess = slowPower > fastPower && strength > 0.0
+                ? std::pow(slowPower / fastPower, tuning_.tailExponent * strength) - 1.0 : 0.0;
+            sustainGain = tuning_.steadyReturn + tuning_.tailBoost * excess;
         }
-
-        const auto gainCoefficient = targetGainDb > gainDb_
-            ? gainAttackCoefficient_
-            : gainReleaseCoefficient_;
-        gainDb_ += gainCoefficient * (targetGainDb - gainDb_);
-        const auto activity = activeMix_.NextValue();
-        const auto gain = DbToGain(activity * gainDb_);
-        const auto inputEnergy = selected.MeanSquare(index);
-        const auto compensatedGain = gain * autoGain_.Process(inputEnergy, inputEnergy * gain * gain, activity);
-
-        selected.ApplyGain(index, compensatedGain);
+        const auto fullSustainGain = std::min(maximumGain,
+            baseGain_ + sustainMask_ * sustainGain);
+        const auto baseAndSustainGain = AmountGain(fullSustainGain, sustain);
+        const auto attackAdditionMask = attackMask_ + tuning_.attackAdditionMix *
+            (extendedAttackMask_ - attackMask_);
+        const auto fullAttackGain = 1.0 + tuning_.attackBoost * attackAdditionMask;
+        const auto combinedGain = std::clamp(
+            baseAndSustainGain * AmountGain(fullAttackGain, attack), 1.0 / maximumGain, maximumGain);
+        const auto attackStageGain = combinedGain / baseAndSustainGain;
+        outputGain_.Advance(1);
+        const auto outputGain = outputGain_.CurrentValue();
+        // Limit Sustain before Attack and the output filter; limit the final output again.
+        if (left != nullptr)
+        {
+            const auto sustainLeft = std::clamp(left[index] * baseAndSustainGain, -1.0, 1.0);
+            const auto outputLeft = outputGain * onepole::HighPass(
+                sustainLeft * attackStageGain, outputHighpassCoefficient_, outputHighpassStates_[0]);
+            left[index] = std::clamp(outputLeft, -1.0, 1.0);
+        }
+        if (right != nullptr)
+        {
+            const auto sustainRight = std::clamp(right[index] * baseAndSustainGain, -1.0, 1.0);
+            const auto outputRight = outputGain * onepole::HighPass(
+                sustainRight * attackStageGain, outputHighpassCoefficient_, outputHighpassStates_[1]);
+            right[index] = std::clamp(outputRight, -1.0, 1.0);
+        }
     }
 }
 
