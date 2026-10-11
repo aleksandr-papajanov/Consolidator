@@ -3,7 +3,7 @@
 #include "CompressionProcessor.h"
 #include "DetectorProcessor.h"
 #include "DspProcessor.h"
-#include "TransientShaperProcessor.h"
+#include "Processors/TransientShaper/TransientShaperProcessor.h"
 
 namespace consolidator::max::dsp
 {
@@ -18,7 +18,7 @@ public:
 
 private:
     DetectorProcessor compressionDetector_{ 4 };
-    TransientShaperProcessor transientShaper_;
+    processors::TransientShaperProcessor transientShaper_;
     CompressionProcessor compression_;
 };
 

@@ -7,7 +7,7 @@
 
 #include <JuceHeader.h>
 
-#include "Cla3aProcessor.h"
+#include "Processors/Cla3a/Cla3aProcessor.h"
 
 namespace consolidator::model_plugins
 {
@@ -42,7 +42,7 @@ void AddAttenuation(
 juce::AudioProcessorValueTreeState::ParameterLayout CreateParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> values;
-    const max::dsp::Cla3aControls defaults;
+    const max::dsp::processors::Cla3aControls defaults;
     AddAttenuation(values, "input", "Input", defaults.inputGain);
     AddAttenuation(values, "output", "Output", defaults.outputGain);
     values.push_back(std::make_unique<juce::AudioParameterBool>(
@@ -187,7 +187,7 @@ public:
     juce::AudioProcessorValueTreeState parameters_;
 
 private:
-    max::dsp::Cla3aProcessor processor_;
+    max::dsp::processors::Cla3aProcessor processor_;
     std::vector<double> left_;
     std::vector<double> right_;
     std::atomic<float>* input_{};

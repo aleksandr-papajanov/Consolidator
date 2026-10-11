@@ -43,7 +43,7 @@ target_sources(ConsolidatorThickModel PRIVATE
     Source/ThickAirModelPluginProcessor.cpp
     ../Consolidator.Native/External/Dsp/DspBiquad.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp
-    ../Consolidator.Native/External/Dsp/PolishThickProcessor.cpp)
+    ../Consolidator.Native/External/Dsp/Processors/Thick/PolishThickProcessor.cpp)
 target_compile_definitions(ConsolidatorThickModel PRIVATE
     CONSOLIDATOR_THICK_MODEL=1)
 configure_model_plugin(ConsolidatorThickModel)
@@ -62,9 +62,8 @@ juce_add_plugin(ConsolidatorAirModel
     COPY_PLUGIN_AFTER_BUILD TRUE)
 target_sources(ConsolidatorAirModel PRIVATE
     Source/ThickAirModelPluginProcessor.cpp
-    ../Consolidator.Native/External/Dsp/DspBiquad.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp
-    ../Consolidator.Native/External/Dsp/PolishAirProcessor.cpp)
+    ../Consolidator.Native/External/Dsp/Processors/Air/PolishAirProcessor.cpp)
 target_compile_definitions(ConsolidatorAirModel PRIVATE
     CONSOLIDATOR_AIR_MODEL=1)
 configure_model_plugin(ConsolidatorAirModel)
@@ -83,7 +82,7 @@ juce_add_plugin(ConsolidatorTransientShaperModel
     COPY_PLUGIN_AFTER_BUILD TRUE)
 target_sources(ConsolidatorTransientShaperModel PRIVATE
     Source/TransientShaperPluginProcessor.cpp
-    ../Consolidator.Native/External/Dsp/TransientShaperProcessor.cpp
+    ../Consolidator.Native/External/Dsp/Processors/TransientShaper/TransientShaperProcessor.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
 configure_model_plugin(ConsolidatorTransientShaperModel)
 
@@ -102,7 +101,7 @@ juce_add_plugin(ConsolidatorCla76Model
     COPY_PLUGIN_AFTER_BUILD TRUE)
 target_sources(ConsolidatorCla76Model PRIVATE
     Source/Cla76PluginProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Cla76Processor.cpp
+    ../Consolidator.Native/External/Dsp/Processors/Cla76/Cla76Processor.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
 configure_model_plugin(ConsolidatorCla76Model)
 
@@ -120,7 +119,7 @@ juce_add_plugin(ConsolidatorCla3aModel
     COPY_PLUGIN_AFTER_BUILD TRUE)
 target_sources(ConsolidatorCla3aModel PRIVATE
     Source/Cla3aPluginProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Cla3aProcessor.cpp
+    ../Consolidator.Native/External/Dsp/Processors/Cla3a/Cla3aProcessor.cpp
     ../Consolidator.Native/External/Dsp/DspBiquad.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
 configure_model_plugin(ConsolidatorCla3aModel)

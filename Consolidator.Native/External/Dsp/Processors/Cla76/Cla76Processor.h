@@ -1,12 +1,15 @@
 #pragma once
 
 #include <array>
-#include "DspParameterRamp.h"
-#include "DspProcessingContext.h"
+#include <cstddef>
 
-namespace consolidator::max::dsp
+#include "../../DspParameterRamp.h"
+#include "../../DspProcessingContext.h"
+
+namespace consolidator::max::dsp::processors
 {
 
+// Input/Output are amplitude gains; Attack/Release increase with time, Ratio morphs 4:1 to ALL.
 struct Cla76Controls
 {
     double inputGain{ 0.03 };
@@ -16,7 +19,7 @@ struct Cla76Controls
     double ratio{};
 };
 
-struct Cla76CompressionTuning
+struct Cla76CompressionConfig
 {
     double thresholdDb{ -25.7 };
     double kneeDb{ 6.0 };
@@ -30,10 +33,10 @@ struct Cla76CompressionTuning
     double thresholdAttackSpanDb{};
 };
 
-struct Cla76Tuning
+struct Cla76Config
 {
-    Cla76CompressionTuning normal;
-    Cla76CompressionTuning all{
+    Cla76CompressionConfig normal;
+    Cla76CompressionConfig all{
         -25.84, 6.0, 0.9,
         { -6.918, -1.498, -0.812 },
         { -1.899, -1.597, -1.284, -0.923, 0.101, 0.489 },
@@ -67,13 +70,22 @@ public:
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
-    const Cla76Tuning tuning_;
-    Cla76CompressionTuning activeMode_;
+    void UpdateMode(double ratio) noexcept;
+    void UpdateControlCoefficients(double attack, double release, double ratio) noexcept;
+    [[nodiscard]] double CalculateTargetReductionDb() const noexcept;
+    void UpdateDetector(double detectorAmplitude, double ratio) noexcept;
+    [[nodiscard]] double UpdateMemoryReductionDb(double targetDb, double ratio) noexcept;
+    [[nodiscard]] double ProcessColourSample(double input, std::size_t channel) noexcept;
+
+    inline static constexpr Cla76Config kConfig{};
+    Cla76CompressionConfig activeMode_;
     DspParameterRamp inputGain_{ Cla76Controls{}.inputGain };
     DspParameterRamp outputGain_{ Cla76Controls{}.outputGain };
     DspParameterRamp attack_{ 7.0 - 6.0 * Cla76Controls{}.attack };
     DspParameterRamp release_{ 7.0 - 6.0 * Cla76Controls{}.release };
     DspParameterRamp ratio_{ Cla76Controls{}.ratio };
+
+    // Curve and time coefficients are cached until their live controls change.
     double sampleRate_{};
     double inputCalibration_{};
     double outputCalibration_{};
@@ -83,6 +95,8 @@ private:
     double cachedAttack_{ -1.0 };
     double cachedRelease_{ -1.0 };
     double cachedRatio_{ -1.0 };
+
+    // One linked detector and a warm ALL memory serve every Ratio setting.
     double detectorPower_{};
     double allMemoryReductionDb_{};
     double allMemoryLimitDb_{};
@@ -96,4 +110,4 @@ private:
     std::array<double, 2> colourPoleStates_{};
 };
 
-} // namespace consolidator::max::dsp
+} // namespace consolidator::max::dsp::processors

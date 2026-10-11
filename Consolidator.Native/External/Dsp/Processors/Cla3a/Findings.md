@@ -1,6 +1,6 @@
 # CLA-3A findings
 
-Current algorithm and final manual figures: [Cla3aProcessor](Cla3aProcessor.md).
+Current algorithm and final manual figures: [Cla3aProcessor](README.md).
 Removed proposals are not runtime options.
 
 - Original reference identification swept only Gain/Peak Reduction. Compressor mode
@@ -34,4 +34,4 @@ Removed proposals are not runtime options.
   causes, not identified circuitry.
 
 Raw inputs stay in EmulationLab/RawAudio. General workflow:
-[EmulationLab](EmulationLab.md). DSP test suites remain prohibited by [rules](Rules.md).
+[EmulationLab](../../../../../Docs/Dsp/EmulationLab.md). DSP test suites remain prohibited by [rules](../../../../../Docs/Dsp/Rules.md).

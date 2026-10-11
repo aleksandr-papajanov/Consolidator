@@ -3,41 +3,40 @@
 #include <array>
 #include <cstddef>
 
-#include "DspParameterRamp.h"
-#include "DspProcessor.h"
+#include "../../DspParameterRamp.h"
+#include "../../DspProcessor.h"
 
-namespace consolidator::max::dsp
+namespace consolidator::max::dsp::processors
 {
 
-struct TransientShaperTuning
+struct TransientShaperConfig
 {
     double sidechainHz{ 20 };
-    double fastAttackSeconds{ 0.0034477633992907584 };
-    double fastReleaseSeconds{ 0.016644667100611195 };
-    double slowAttackSeconds{ 0.002835169247362377 };
-    double slowReleaseSeconds{ 0.567710585907637 };
-    double contextSeconds{ 0.008885734518090072 };
-    double riseDb{ 12.564163257544818 };
-    double attackReleaseSeconds{ 0.01351927729339474 };
+    double fastAttackSeconds{ 0.00345 };
+    double fastReleaseSeconds{ 0.01664 };
+    double slowAttackSeconds{ 0.00284 };
+    double slowReleaseSeconds{ 0.568 };
+    double contextSeconds{ 0.00889 };
+    double riseDb{ 12.56 };
+    double attackReleaseSeconds{ 0.01352 };
     double attackAdditionReleaseSeconds{ 0.06 };
     double attackAdditionMix{ 0.1 };
-    double maskCloseSeconds{ 0.000024749356830366314 };
-    double sustainOpenSeconds{ 0.0011378798407084899 };
-    double peakReleaseSeconds{ 0.27062024726861245 };
-    double activityExponent{ 0.06254245501785538 };
-    double tailBoost{ 0.885334151720199 };
-    double tailExponent{ 0.4259033384869872 };
+    double maskCloseSeconds{ 0.000025 };
+    double sustainOpenSeconds{ 0.00114 };
+    double peakReleaseSeconds{ 0.271 };
+    double tailBoost{ 0.885 };
+    double tailExponent{ 0.426 };
     double baseGainDb{ -4.55 };
-    double steadyReturn{ 0.12244010826368798 };
-    double attackBoost{ 4.736178853237579 };
-    double strengthRangeDb{ 116.89195607518414 };
+    double steadyReturn{ 0.1224 };
+    double attackBoost{ 4.736 };
+    double strengthRangeDb{ 117.0 };
     double initialSlowLevelDb{ -20 };
 };
 
+// Relative-onset masks with signed gain controls and permanent two-stage limiting.
 class TransientShaperProcessor final : public DspProcessor
 {
 public:
-    void SetTuningBeforePrepare(const TransientShaperTuning& tuning) noexcept;
     void Prepare(const DspProcessingContext& context) noexcept override;
     void Reset() noexcept override;
     void SetParameters(const DspSnapshot& snapshot) noexcept override;
@@ -47,12 +46,22 @@ public:
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
-    double Filter(double input, std::size_t channel) noexcept;
+    void PrepareSidechainFilter(double sampleRate) noexcept;
+    void PrepareDetectorCoefficients(double sampleRate) noexcept;
+    void UpdatePowerFollowers(double power) noexcept;
+    void UpdateHeldPeak(double magnitude) noexcept;
+    void UpdateMasks(double magnitude) noexcept;
+    [[nodiscard]] double CalculateSustainStageGain(double sustain) const noexcept;
+    [[nodiscard]] double CalculateAttackStageGain(double attack, double sustainGain) const noexcept;
+    [[nodiscard]] double ProcessOutputSample(
+        double input, std::size_t channel, double sustainGain, double attackGain, double outputGain) noexcept;
+    [[nodiscard]] double FilterSidechainSample(double input, std::size_t channel) noexcept;
 
-    TransientShaperTuning tuning_;
+    inline static constexpr TransientShaperConfig kConfig{};
     DspParameterRamp attackAmount_;
     DspParameterRamp sustainAmount_;
     DspParameterRamp outputGain_{ 1.0 };
+    double outputGainDb_{};
     double outputHighpassCoefficient_{};
     std::array<std::array<double, 1>, 2> outputHighpassStates_{};
     std::array<std::array<double, 2>, 2> filterStates_{};
@@ -61,6 +70,8 @@ private:
     double b2_{};
     double a1_{};
     double a2_{};
+
+    // Prepared follower/mask coefficients; runtime processing never recompiles filters.
     double fastAttackCoefficient_{};
     double fastReleaseCoefficient_{};
     double slowAttackCoefficient_{};
@@ -78,6 +89,8 @@ private:
     double riseNormalization_{};
     double baseGain_{};
     double initialSlowPower_{};
+
+    // Linked histories stay warm at neutral amounts so live control changes reuse the same context.
     double fastPower_{};
     double slowPower_{};
     double onsetPower_{};
@@ -89,4 +102,4 @@ private:
     double sustainMask_{};
 };
 
-} // namespace consolidator::max::dsp
+} // namespace consolidator::max::dsp::processors

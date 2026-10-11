@@ -1,15 +1,15 @@
 # Cla3aProcessor
 
-[Native implementation](../../Consolidator.Native/External/Dsp/Cla3aProcessor.cpp),
-[constants](../../Consolidator.Native/External/Dsp/Cla3aProcessor.h),
-[VST3 adapter](../../ModelPlugins.Vst3/Source/Cla3aPluginProcessor.cpp).
+[Native implementation](Cla3aProcessor.cpp),
+[constants](Cla3aProcessor.h),
+[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/Cla3aPluginProcessor.cpp).
 
 ## Scope and ownership
 
 A simplified optical compressor based on manual comparison with Waves CLA-3A
 Stereo in Compressor mode. Input/Output use amplitude controls 0..1 with the same
 -infinity..0 dB display and 0.3 host-range skew as CLA-76. Defaults display
--30.04625/-22.9 dB, preserving the previous default sound. Both use 10 ms amplitude
+about -30.46/-18.42 dB, from Native amplitude defaults 0.03/0.12. Both use 10 ms amplitude
 ramps. Other reference settings retain instantiated defaults.
 Exact hardware/plugin matching is not a goal; small differences are accepted for
 runtime simplicity. One Native implementation is compiled directly by VST3.
@@ -19,10 +19,10 @@ it is not yet connected to the Managed runtime graph/ABI. No extra research cont
 
 | Control | Host display | Default amplitude | Effective default gain |
 | --- | --- | --- | --- |
-| Input | -infinity..0 dB | 0.03145484141817798 | detector -14.04625 dB |
-| Output | -infinity..0 dB | 0.0716143410212902 | audio +7.1 dB |
+| Input | -infinity..0 dB | 0.03 | detector about -14.46 dB |
+| Output | -infinity..0 dB | 0.12 | audio about +11.58 dB |
 
-Native Cla3aControls owns the defaults; Cla3aTuning owns calibration and algorithm
+Native Cla3aControls owns the defaults; Cla3aConfig owns calibration and algorithm
 constants. VST3 owns only the display conversion and host parameter mapping.
 
 ## Detector and curve
@@ -98,7 +98,7 @@ less than 1% and was not retained. Rounded constants are intentional.
 CPU speedup was not measured. Structurally, audio passes drop from six to three;
 positive-target adaptive release uses one exponential instead of up to three.
 Source review found no new ownership/realtime issues. Useful limitations:
-[findings](Cla3aFindings.md).
+[findings](Findings.md).
 
 ## Control conversion
 
@@ -124,3 +124,14 @@ The attenuation interface retains the previous maximum gains and extends both
 lower endpoints to zero amplitude. Zero Input removes detector excitation;
 zero Output mutes the audio.
 Use a fresh instance after this range/unit change; preset migration is not provided.
+
+## Code map
+
+- PrepareDetector and PrepareColourFilters compile fixed coefficients before processing.
+- CalculateTargetReductionDb reads the preceding detector power at the fixed threshold.
+- UpdateDetector applies detector weighting and sensitivity, then advances linked power.
+- UpdateOpticalGain advances fast/slow dB memories and returns their combined gain.
+- ProcessHighPassSample runs the audio HP; the shelf and Output retain their separate block passes.
+
+The model is complete. This organization refactor changes source layout and method boundaries;
+control ranges, constants, state update order and signal routing are retained.

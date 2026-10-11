@@ -39,6 +39,16 @@ Thick and Air keep separate transfer functions. Saturation retains its specializ
 rationalized antiderivative quotient rather than using the general difference
 formula, which would lose its cancellation resistance.
 
+## Finished model organization
+
+[Processors](../../Consolidator.Native/External/Dsp/Processors/README.md) contains
+Cla76, Cla3a, TransientShaper, Air and Thick. Each folder owns .h/.cpp, algorithm
+README and Findings. Namespace consolidator::max::dsp::processors separates these
+finished algorithms from shared primitives and graph/composite processors. Native
+and VST3 compile the same sources; no forwarding headers remain at old paths.
+Named private methods expose the processing stages without allocation or extra
+audio passes.
+
 ## Reduced hot-path work
 
 - A settled 100% wet device processes main audio directly, with a local frame so
@@ -50,9 +60,10 @@ formula, which would lose its cancellation resistance.
   At Split endpoints only the audible nonlinear path is evaluated; at zero Drive
   neither needs nonlinear evaluation. Crossovers and all previous-sample histories
   still advance, including for the inaudible path, so automation can resume it.
-- Thick evaluates the polynomial directly inside `[-1,1]`, without evaluating
-  the exponential overload extension at zero distance. The outside transfer and
-  its antiderivative are unchanged.
+- Thick evaluates its finite H2..H159 bank through a geometric-series formula
+  with seven Chebyshev doubling steps. The high-order end correction remains.
+  Body level uses a rational function; Air uses a quadratic level function,
+  held-peak caching and a direct Amount multiplier. Neither searches level anchors.
 - Limiter converts a settled Target to linear gain once per block. During a ramp
   it preserves per-sample ceiling calculation, including immediate downward
   target enforcement and the final hard clamp. After the ramp ends mid-block,
@@ -66,8 +77,10 @@ formula, which would lose its cancellation resistance.
 Detector buffers intentionally remain independent copies, including for neutral
 EQ: downstream processors modify main audio while reading detector samples.
 Stateful detectors and filter histories are not skipped merely because a knob is
-zero. No approximate log/exp, reduced control rate, oversampling changes or DSP
-coefficient retuning are introduced by this refactor.
+zero. No approximate log/exp, reduced control rate or oversampling change is used.
+The final Polish/Transient simplification rounds Native constants and removes weak
+Air harmonic corrections after requested manual comparison. Transient activity
+uses four sqrt operations for its rounded 1/16 exponent; signed gain law is retained.
 
 
 ## Review

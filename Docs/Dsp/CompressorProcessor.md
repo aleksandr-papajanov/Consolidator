@@ -3,7 +3,7 @@
 [Исходник](../../Consolidator.Native/External/Dsp/CompressorProcessor.cpp).
 
 Wet-путь: detector EQ → [Compression](CompressionProcessor.md)/makeup →
-[TransientShaperProcessor](TransientShaperProcessor.md) с собственным HP20 detector →
+[TransientShaperProcessor](../../Consolidator.Native/External/Dsp/Processors/TransientShaper/README.md) с собственным HP20 detector →
 HP10 → Compressor Output Gain → постоянный sample clamp.
 
 TransientShaperProcessor реализует последние этапы; тот же исходник используется VST3.

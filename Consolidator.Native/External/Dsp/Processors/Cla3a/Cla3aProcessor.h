@@ -1,22 +1,24 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 
-#include "DspBiquad.h"
-#include "DspParameterRamp.h"
-#include "DspProcessingContext.h"
+#include "../../DspBiquad.h"
+#include "../../DspParameterRamp.h"
+#include "../../DspProcessingContext.h"
 
-namespace consolidator::max::dsp
+namespace consolidator::max::dsp::processors
 {
 
+// Amplitude controls: Input scales only detector sensitivity; Output scales audio.
 struct Cla3aControls
 {
-    double inputGain{ 0.03145484141817798 };
-    double outputGain{ 0.0716143410212902 };
+    double inputGain{ 0.03 };
+    double outputGain{ 0.12 };
 };
 
-// Effective optical model constants fitted during explicitly requested manual research.
-struct Cla3aTuning
+// Fixed optical model configuration, compiled once and shared by processor instances.
+struct Cla3aConfig
 {
     double inputCalibrationDb{ 16.0 };
     double outputCalibrationDb{ 30.0 };
@@ -41,6 +43,7 @@ struct Cla3aTuning
     double slowFraction{ 0.18 };
 };
 
+// Fixed-threshold optical approximation with fast and slow gain-reduction memories.
 class Cla3aProcessor final
 {
 public:
@@ -50,7 +53,14 @@ public:
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
-    const Cla3aTuning tuning_;
+    void PrepareDetector(double sampleRate) noexcept;
+    void PrepareColourFilters(const DspProcessingContext& context) noexcept;
+    [[nodiscard]] double CalculateTargetReductionDb() const noexcept;
+    void UpdateDetector(const std::array<double*, 2>& channels, std::size_t index, double inputGain) noexcept;
+    [[nodiscard]] double UpdateOpticalGain(double targetDb) noexcept;
+    [[nodiscard]] double ProcessHighPassSample(double input, std::size_t channel) noexcept;
+
+    inline static constexpr Cla3aConfig kConfig{};
     DspParameterRamp input_{ Cla3aControls{}.inputGain };
     DspParameterRamp output_{ Cla3aControls{}.outputGain };
     double detectorAttackCoefficient_{};
@@ -60,6 +70,8 @@ private:
     double inverseSampleRate_{};
     double fastZeroTargetCoefficient_{};
     double slowZeroTargetCoefficient_{};
+
+    // Shared detector power precedes two dB reduction histories; filters remain per channel.
     double detectorPower_{};
     double detectorShelfCoefficient_{};
     double detectorLowLoss_{};
@@ -74,4 +86,4 @@ private:
     DspBiquadCascade highShelfFilter_;
 };
 
-} // namespace consolidator::max::dsp
+} // namespace consolidator::max::dsp::processors

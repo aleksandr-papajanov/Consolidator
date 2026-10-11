@@ -1,6 +1,6 @@
 # CLA-76 useful research findings
 
-Research is complete. [Cla76Processor](Cla76Processor.md) describes the current
+Research is complete. [Cla76Processor](README.md) describes the current
 algorithm; old datasets, manifests, scores and intermediate revisions are not
 the production specification. Raw inputs remain in EmulationLab/RawAudio.
 The final simplification keeps the meaningful ALL dynamics and one-pole colour,
@@ -34,5 +34,5 @@ pass. Current manual comparison figures are in the processor document.
 
 Exact full-band, full-level and musical equivalence is not claimed. Earlier numerical
 scores preceded nominal gain controls and removal of research overrides; final
-simplification scores compare the current public controls. See [EmulationLab](EmulationLab.md) for future
-manual work and [DSP rules](Rules.md) for the prohibited automated test scope.
+simplification scores compare the current public controls. See [EmulationLab](../../../../../Docs/Dsp/EmulationLab.md) for future
+manual work and [DSP rules](../../../../../Docs/Dsp/Rules.md) for the prohibited automated test scope.

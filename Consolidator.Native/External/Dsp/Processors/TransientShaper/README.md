@@ -1,8 +1,8 @@
 # TransientShaperProcessor — общий Native / VST3 DSP
 
-[Алгоритм](../../Consolidator.Native/External/Dsp/TransientShaperProcessor.cpp),
-[настройки](../../Consolidator.Native/External/Dsp/TransientShaperProcessor.h),
-[адаптер](../../ModelPlugins.Vst3/Source/TransientShaperPluginProcessor.cpp).
+[Алгоритм](TransientShaperProcessor.cpp),
+[настройки](TransientShaperProcessor.h),
+[адаптер](../../../../../ModelPlugins.Vst3/Source/TransientShaperPluginProcessor.cpp).
 Это единственная реализация транзиент-шейпера. Native Compressor и VST3 компилируют
 один TransientShaperProcessor.cpp и вызывают один Process. JUCE-адаптер хранит только
 параметры хоста, state и заранее выделенные float/double буферы. Старый Native
@@ -12,30 +12,30 @@ Attack/Sustain: −1…+1, 0 нейтрально. Output Gain — ручной,
 ## Детекторы и маски
 
 Linked stereo detector — максимум модуля исходного сигнала после HP20, Q0.71.
-Onset power follower: attack0.2 мс/release3 мс; context8.885735 мс.
-Отношение onset/context создаёт continuous novelty, rise scale12.564163 дБ.
+Onset power follower: attack0.2 мс/release3 мс; context8.89 мс.
+Отношение onset/context создаёт continuous novelty, rise scale12.56 дБ.
 Novelty взвешивается текущим модулем относительно held peak.
 Абсолютного порога dBFS и бинарной event/rearm логики нет.
 
-Attack mask открывается с постоянной10 мкс, спадает13.519277 мс.
+Attack mask открывается с постоянной10 мкс, спадает13.52 мс.
 Attack addition mask содержит90% исходной маски и10% её decaying peak с постоянной60 мс.
 Расширение не управляет Sustain и остаётся тёплым при Attack0.
 Sustain mask=(1−AttackMask)*activity; activity — степень отношения fast power к held peak²,
-exponent0.062542455. Открытие1.137880 мс, закрытие24.749357 мкс.
+exponent1/16: четыре вложенных sqrt вместо pow. Открытие1.14 мс, закрытие25 мкс.
 
-Fast power:3.447763/16.644667 мс; slow power:2.835169/567.710586 мс.
-Held peak release270.620247 мс. Slow power начинается с −20 дБ, другие followers с нуля.
+Fast power:3.45/16.64 мс; slow power:2.84/568 мс.
+Held peak release271 мс. Slow power начинается с −20 дБ, другие followers с нуля.
 Slow/fast используют исходную, не обрезанную маской энергию.
 
 ```text
-strength = clamp(1 + peakDb/116.891956, 0, 1)
-tail = 0.122440108 + 0.885334152 * max((slow/fast)^(0.425903338*strength) - 1, 0)
+strength = clamp(1 + peakDb/117, 0, 1)
+tail = 0.1224 + 0.885 * max((slow/fast)^(0.426*strength) - 1, 0)
 ```
 
 ## Единая signed gain law
 
 ```text
-FA = 1 + 4.736178853 * AttackAdditionMask
+FA = 1 + 4.736 * AttackAdditionMask
 FS = min(maximumGain, baseGain + SustainMask * tail)
 GS = FS ^ SustainAmount
 G  = clamp(GS * FA ^ AttackAmount, 1/maximumGain, maximumGain)
@@ -53,16 +53,20 @@ Bypass возвращает raw audio. Limit-параметра и пути бе
 
 ## Реализация
 
-21 tuning controls считываются в Prepare. States/gain math — double; буферы выделяются
+Константы принадлежат immutable Native TransientShaperConfig; research controls
+и API изменения коэффициентов удалены. States/gain math — double; буферы выделяются
 заранее, realtime не содержит allocation, locks, I/O или FFT. Peak dB пересчитывается
 при новом peak, иначе продвигается точным dB decay. Степени с заранее известным
 clamped результатом не вычисляются. Amount0/±1 имеют точные короткие расчёты;
 ±0.5 используют sqrt/reciprocal sqrt, остальные значения — pow. LUT, численных
-аппроксимаций и пониженной частоты управления нет.
+аппроксимаций log/exp и пониженной частоты управления нет. Activity exponent
+округлён до точной степени1/16; остальные времена/константы округлены умеренно.
+Output dB conversion кешируется до изменения ручки. Если combined gain не достиг
+общего лимита, Attack stage использует уже вычисленный Attack gain без деления на GS.
 
 Normalized Attack/Sustain в VST3=(amount+1)/2:0.5 означает нейтральную ручку.
 Старая normalized automation имела другой диапазон. Для обновлённого range нужен
-свежий экземпляр. [Полезные выводы](TransientShaperFindings.md).
+свежий экземпляр. [Полезные выводы](Findings.md).
 
 ## Интеграция и lifecycle
 
@@ -75,9 +79,8 @@ Managed физический диапазон Attack/Sustain −1…+1; default 
 вместо JUCE floor(fs*0.01); при стандартных 44.1/48/96 кГц длина одинаковая.
 
 Prepare компилирует коэффициенты и сбрасывает состояния; Reset сохраняет targets
-ручек и устанавливает их как текущие значения. SetTuningBeforePrepare применяется
-только перед Prepare. Native использует defaults header; VST3 передаёт те же
-настройки через 21 prepare-only tuning control, хранимый хостом как float.
+ручек и устанавливает их как текущие значения. Native и VST3 используют одни
+константы header, без host overrides. В VST3 остаются Attack, Sustain, Output Gain и Bypass.
 
 Process(DspProcessingFrame&) только выбирает audio/channel mode и вызывает общий
 Process(DspAudioBuffer, mode). Stereo связывает детектор по максимальному модулю;
@@ -92,4 +95,20 @@ DspParallelStage; в отключённом VST3 bypass возвращает и�
 Native граф содержит другие устройства и потому не равен изолированному VST3.
 Для сопоставимого сигнала отключить Compression, Parallel и остальные устройства.
 
-Объединение выполнено по исходникам; сборка и новые аудиоизмерения не выполнялись.
+После финального упрощения VST3 и Native external собраны и установлены.
+Ручное сравнение прежнего/нового выхода: девять signed комбинаций на16-секундной
+записи и тонах60/120/1000/12000 Гц при−30/−18/−12/−6/0/+6 дБFS,44.1/96 кГц.
+Максимальная RMS-разница относительно прежнего выхода:0.087% на записи,0.031% на тонах;
+максимальная разница settled RMS level0.014 дБ. Это локальное сравнение моделей,
+не гарантия соответствия референсу или слышимой эквивалентности. CPU не измерялся.
+
+## Code map
+
+- PrepareSidechainFilter and PrepareDetectorCoefficients compile the fixed model.
+- FilterSidechainSample feeds UpdatePowerFollowers and UpdateHeldPeak.
+- UpdateMasks computes onset, attack addition and sustain activity without skipping neutral controls.
+- CalculateSustainStageGain and CalculateAttackStageGain implement the signed gain law.
+- ProcessOutputSample keeps the first clamp before the output HP and the final clamp after Output.
+
+The model is complete. This organization refactor changes source layout and method boundaries;
+control ranges, constants, state update order and signal routing are retained.

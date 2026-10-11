@@ -1,9 +1,9 @@
 # Cla76Processor
 
-[Native core](../../Consolidator.Native/External/Dsp/Cla76Processor.cpp),
-[coefficients and defaults](../../Consolidator.Native/External/Dsp/Cla76Processor.h),
-[VST3 adapter](../../ModelPlugins.Vst3/Source/Cla76PluginProcessor.cpp),
-[useful research findings](Cla76Findings.md).
+[Native core](Cla76Processor.cpp),
+[coefficients and defaults](Cla76Processor.h),
+[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/Cla76PluginProcessor.cpp),
+[useful research findings](Findings.md).
 
 ## Ownership and controls
 
@@ -28,8 +28,8 @@ Ratio morphs endpoint parameters using one detector/history, with no audio cross
 
 VST3 contains five user controls, Bypass, host state/UI and preallocated float/double
 buffer conversion. There are no research parameters, tunable DSP coefficients or
-ReadTuning path in the adapter. Display conversion between dB text and amplitude
-belongs to the host UI. Cla76Tuning is immutable Native configuration.
+coefficient-reading API in the adapter. Display conversion between dB text and amplitude
+belongs to the host UI. Cla76Config is immutable Native configuration.
 Presets store only the six host controls; restoration requires every current
 control to be valid before any is applied. No aliases or migration exist.
 
@@ -60,7 +60,7 @@ Normal threshold is -25.7 dB, knee 6 dB, slope 0.75.
 ALL base threshold is -25.84 dB, knee 6 dB, slope 0.9,
 output offset +0.65 dB and Attack threshold span 0.46*u.
 Here u=(referenceAttack-4)/3. Threshold/slope offsets are polynomials of
-r=(referenceRelease-4)/3. Their coefficients belong to Cla76Tuning.
+r=(referenceRelease-4)/3. Their coefficients belong to Cla76Config.
 Fast coupling k=Ratio*u*clamp((referenceRelease-5)/2,0,1) adds k dB to the
 threshold and 0.020*k to slope. ALL-only contributions vanish at Ratio zero.
 
@@ -144,12 +144,24 @@ These observations are manual investigation, not DSP automated tests.
 
 A bounded timing proposal based on measured-envelope time scaling offered only
 0.012 dB normal/0.008 dB ALL approximate attack RMSE improvement. It was not
-adopted; it does not warrant further tuning or runtime complexity. The Release
+adopted; it does not warrant further configuration or runtime complexity. The Release
 VST3 was built and installed after removing the unused target dependency. Source
 review found no new ownership/realtime issues. CPU speedup was not benchmarked.
 
 Process performs no allocation, locking, logging, I/O, offline fitting or Managed
 calls. VST3 target is ConsolidatorCla76Model_VST3. Restart the host after installation.
-[DSP rules](Rules.md) prohibit automated audio tests; manual research requires
+[DSP rules](../../../../../Docs/Dsp/Rules.md) prohibit automated audio tests; manual research requires
 an explicit request. Source review and an authorized build do not establish
 perceptual equivalence or exact reference matching.
+
+## Code map
+
+- Process reads the control ramps, updates cached coefficients and applies one sample loop.
+- UpdateMode morphs 4:1/ALL coefficients and invalidates timing caches.
+- UpdateControlCoefficients compiles the effective timing, curve and bounded-memory laws.
+- CalculateTargetReductionDb reads the preceding detector state.
+- UpdateDetector charges power or releases amplitude; UpdateMemoryReductionDb advances ALL history.
+- ProcessColourSample applies the prepared one-pole colour before output gain.
+
+The model is complete. This organization refactor changes source layout and method boundaries;
+control ranges, constants, state update order and signal routing are retained.
