@@ -41,3 +41,21 @@ See [EmulationLab](EmulationLab.md) for commands and interpretation.
 
 A new emulation target adds a plugin target and thin adapter here, compiling its
 production Native processor. Algorithms must not be copied into adapter source.
+
+## CLA-76 Bluey
+
+Consolidator CLA-76 Bluey Model compiles the shared [Cla76Processor](Cla76Processor.md).
+It contains five user controls: Input, Output, Attack, Release and Ratio, plus Bypass.
+Attack/Release/Ratio are numeric 0..1. Attack/Release increase with time; Ratio
+selects 4:1 at zero and ALL at one. Input/Output use nominal amplitude gain with
+dB text display. Defaults come from Native Cla76Controls.
+
+There are no research controls or coefficient overrides. Immutable Native tuning
+owns all detector, compression, timing, memory and filter coefficients. The adapter
+owns host state, generic UI, Bypass and preallocated stereo float/double conversion;
+its dB text conversion is UI formatting, not another audio algorithm.
+
+Presets contain the six host controls. All current controls must be valid before
+restoration; no aliases or migration exist. Processor Reset preserves control
+targets and clears histories. The Native graph has not been extended for CLA-76.
+Research is complete; useful observations are in [findings](Cla76Findings.md).

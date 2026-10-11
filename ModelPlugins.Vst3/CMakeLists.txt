@@ -86,3 +86,23 @@ target_sources(ConsolidatorTransientShaperModel PRIVATE
     ../Consolidator.Native/External/Dsp/TransientShaperProcessor.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
 configure_model_plugin(ConsolidatorTransientShaperModel)
+
+
+juce_add_plugin(ConsolidatorCla76Model
+    COMPANY_NAME "Consolidator"
+    BUNDLE_ID "com.consolidator.cla76-bluey-model"
+    PLUGIN_MANUFACTURER_CODE Cnsl
+    PLUGIN_CODE Cl76
+    FORMATS VST3
+    PRODUCT_NAME "Consolidator CLA-76 Bluey Model"
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    COPY_PLUGIN_AFTER_BUILD TRUE)
+target_sources(ConsolidatorCla76Model PRIVATE
+    Source/Cla76PluginProcessor.cpp
+    ../Consolidator.Native/External/Dsp/Cla76Processor.cpp
+    ../Consolidator.Native/External/Dsp/DspBiquad.cpp
+    ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
+configure_model_plugin(ConsolidatorCla76Model)

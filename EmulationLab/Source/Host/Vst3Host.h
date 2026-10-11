@@ -1,5 +1,7 @@
 #pragma once
 
+#include <map>
+
 #include "Probe.h"
 
 #include <JuceHeader.h>
@@ -79,6 +81,7 @@ public:
 
 private:
     juce::AudioPluginFormatManager formats_;
+    std::map<std::filesystem::path, std::vector<juce::PluginDescription>> descriptions_;
 };
 
 } // namespace emulation_lab

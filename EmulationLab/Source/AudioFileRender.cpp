@@ -11,7 +11,11 @@
 namespace emulation_lab
 {
 
-void RenderAudioFile(
+namespace
+{
+
+void RenderAudioFileWithHost(
+    Vst3Host& host,
     const ExperimentManifest& manifest,
     const std::string& side,
     const std::string& conditionId,
@@ -56,7 +60,6 @@ void RenderAudioFile(
     const auto& state = reference ? condition->referenceState : condition->candidateState;
     const auto& baseState = reference ? manifest.referenceState : manifest.candidateState;
     const auto blockSize = static_cast<int>(manifest.blockSize);
-    Vst3Host host;
     std::string error;
     auto plugin = host.Open(pluginPath, query, reader->sampleRate, blockSize, error);
     if (plugin == nullptr)
@@ -139,6 +142,39 @@ void RenderAudioFile(
         }
     }
     writer->flush();
+}
+
+} // namespace
+
+void RenderAudioFile(
+    const ExperimentManifest& manifest,
+    const std::string& side,
+    const std::string& conditionId,
+    const std::filesystem::path& inputPath,
+    const std::filesystem::path& outputPath,
+    const std::vector<std::pair<std::string, double>>& overrides)
+{
+    Vst3Host host;
+    RenderAudioFileWithHost(host, manifest, side, conditionId, inputPath, outputPath, overrides);
+}
+
+void RenderAudioFiles(
+    const ExperimentManifest& manifest,
+    const std::string& side,
+    const std::filesystem::path& inputPath,
+    const std::filesystem::path& outputDirectory)
+{
+    Vst3Host host;
+    for (const auto& condition : manifest.conditions)
+    {
+        const auto fileName = std::filesystem::path(condition.identifier + ".wav");
+        if (fileName.filename() != fileName)
+        {
+            throw std::runtime_error("Render condition must be a file name: " + condition.identifier);
+        }
+        RenderAudioFileWithHost(
+            host, manifest, side, condition.identifier, inputPath, outputDirectory / fileName, {});
+    }
 }
 
 } // namespace emulation_lab

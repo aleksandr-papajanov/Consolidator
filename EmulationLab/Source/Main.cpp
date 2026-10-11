@@ -319,6 +319,13 @@ int main(int argc, char** argv)
             std::cout << "Transient envelope report: " << argv[5] << '\n';
             return 0;
         }
+        if (argc == 6 && std::string(argv[1]) == "render-grid")
+        {
+            const auto manifest = emulation_lab::LoadManifest(argv[3]);
+            emulation_lab::RenderAudioFiles(manifest, argv[2], argv[4], argv[5]);
+            std::cout << "Rendered condition WAVs: " << argv[5] << '\n';
+            return 0;
+        }
         if (argc >= 7 && std::string(argv[1]) == "render-wav")
         {
             const auto manifest = emulation_lab::LoadManifest(argv[3]);
@@ -530,6 +537,7 @@ int main(int argc, char** argv)
         "  plugin save-state <bundle> <output.state> <query|-> [Name=Text ...]\n"
         "  capture <reference|candidate> <manifest> <output.json>\n"
         "  diagnose <reference|candidate> <manifest> <condition> <output.json> [fit.json]\n"
+        "  render-grid <reference|candidate> <manifest> <input.wav> <output-directory>\n"
         "  render-wav <reference|candidate> <manifest> <condition> <input.wav> <output.wav> [Name=NormalizedValue ...]\n"
         "  split <manifest> <reference-full.json>\n"
         "  compare <manifest> <reference.json> <candidate.json> <report.json>\n"

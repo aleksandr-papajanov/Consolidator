@@ -23,6 +23,12 @@ $manifest = 'EmulationLab/Experiments/transient-master/manifest.json'
 Signed Attack/Sustain:−1→0, 0→0.5, +1→1. Output Gain−12…12 дБ:0.5 нейтрально.
 У текущего candidate нет Limit-параметра; reference Limit1 задан условиями manifest.
 render-wav сохраняет rate/stereo, пишет float32 WAV, не нормализует и не вычитает latency.
+`render-grid <reference|candidate> <manifest> <input.wav> <output-directory>`
+рендерит тот же вход для всех conditions в `<condition>.wav`. Каждый condition
+получает новый экземпляр плагина и Reprepare; только сканирование bundle разделено
+через один Vst3Host. Overrides отсутствуют: параметры берутся из manifest.
+Condition IDs должны быть именами файлов без компонентов пути. Существующие WAV
+не перезаписываются. Это ручное исследование, не DSP test suite.
 Существующий output не перезаписывается. Для transient-envelope нужны одинаковые
 sample rate, длина и выравнивание файлов. Raw inputs: [каталог](../../EmulationLab/RawAudio/README.md).
 
@@ -92,3 +98,15 @@ EmulationLab/Experiments. В Experiments сохраняются manifest.json, R
 исходники/скрипты. RawAudio остаётся локальным вместе с catalog.json; его README
 хранится в репозитории. Результаты экспериментов не добавлять в исходный код или Docs.
 Игнорирование не удаляет файлы и не снимает уже отслеживаемые файлы с учёта Git.
+
+WaveShell открывается медленно при первом сканировании: JUCE перечисляет все его
+компоненты. Vst3Host хранит descriptions по абсолютному пути bundle на время
+своей жизни, поэтому серия conditions/sample rates сканирует каждый bundle один раз.
+Кэш не сохраняется между запусками и не содержит состояния DSP. После изменения
+установленного плагина запускать новый процесс исследования.
+
+Stepped-sine probe v3 сохраняет также harmonic.N.real/imag: комплексную гармонику,
+нормированную к модулю выходного fundamental и повернутую на -N*phase(input fundamental).
+Это сохраняет знак/фазу гармоники. Одних dBc недостаточно для выбора полярности
+нелинейного компонента. При смене probe version заново снимать обе стороны; старые
+amplitude-only datasets не превращать в измерения комплексных гармоник.

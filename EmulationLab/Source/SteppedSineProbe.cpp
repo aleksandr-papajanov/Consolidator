@@ -90,13 +90,24 @@ ProbeResult Analyze(
         {
             break;
         }
-        const auto amplitude = std::abs(MeasureFrequency(output, sampleRate, harmonicFrequency));
+        const auto projection = MeasureFrequency(output, sampleRate, harmonicFrequency);
+        const auto amplitude = std::abs(projection);
+        const auto relative = projection / std::max(fundamentalAmplitude, kMinimumAmplitude) *
+            std::polar(1.0, -static_cast<double>(harmonic) * std::arg(inputFundamental));
         harmonicEnergy += amplitude * amplitude;
         features.push_back({
             "harmonic." + std::to_string(harmonic) + ".dbc",
             "harmonics", "dBc",
             ToDecibels(amplitude / std::max(fundamentalAmplitude, kMinimumAmplitude)),
             6.0, harmonicFloorDbc
+        });
+        features.push_back({
+            "harmonic." + std::to_string(harmonic) + ".real",
+            "harmonics", "ratio", relative.real(), 0.01
+        });
+        features.push_back({
+            "harmonic." + std::to_string(harmonic) + ".imag",
+            "harmonics", "ratio", relative.imag(), 0.01
         });
     }
     features.push_back({
@@ -105,7 +116,7 @@ ProbeResult Analyze(
             std::max(fundamentalAmplitude, kMinimumAmplitude)),
         6.0, harmonicFloorDbc
     });
-    return { "stepped-sine", "2", std::move(features) };
+    return { "stepped-sine", "3", std::move(features) };
 }
 
 } // namespace

@@ -219,17 +219,30 @@ std::unique_ptr<Vst3Plugin> Vst3Host::Open(
         return nullptr;
     }
 
-    juce::OwnedArray<juce::PluginDescription> descriptions;
-    format->findAllTypesForFile(descriptions, bundle.string());
-    const juce::PluginDescription* selected = nullptr;
-    for (const auto* description : descriptions)
+    const auto key = std::filesystem::absolute(bundle).lexically_normal();
+    auto iterator = descriptions_.find(key);
+    if (iterator == descriptions_.end())
     {
-        if (description != nullptr &&
-            (query.empty() ||
-                description->name.containsIgnoreCase(query) ||
-                description->descriptiveName.containsIgnoreCase(query)))
+        juce::OwnedArray<juce::PluginDescription> scanned;
+        format->findAllTypesForFile(scanned, key.string());
+        std::vector<juce::PluginDescription> descriptions;
+        for (const auto* description : scanned)
         {
-            selected = description;
+            if (description != nullptr)
+            {
+                descriptions.push_back(*description);
+            }
+        }
+        iterator = descriptions_.emplace(key, std::move(descriptions)).first;
+    }
+    const juce::PluginDescription* selected = nullptr;
+    for (const auto& description : iterator->second)
+    {
+        if (query.empty() ||
+            description.name.containsIgnoreCase(query) ||
+            description.descriptiveName.containsIgnoreCase(query))
+        {
+            selected = &description;
             break;
         }
     }
