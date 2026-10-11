@@ -3,6 +3,9 @@
 Research is complete. [Cla76Processor](Cla76Processor.md) describes the current
 algorithm; old datasets, manifests, scores and intermediate revisions are not
 the production specification. Raw inputs remain in EmulationLab/RawAudio.
+The final simplification keeps the meaningful ALL dynamics and one-pole colour,
+removes two corrective biquads, rounds constants and merges all audio into one
+pass. Current manual comparison figures are in the processor document.
 
 - A power detector for Attack and an amplitude detector for ordinary Release
   gave a useful fit. The gain must use preceding detector state, otherwise the
@@ -29,7 +32,7 @@ the production specification. Raw inputs remain in EmulationLab/RawAudio.
   the first peak. Compare waveform shape after removing a scalar level offset,
   and report the level separately. Cold start and continuous history differ.
 
-Exact full-band, full-level and musical equivalence is not claimed. Past numerical
-scores preceded nominal gain controls and removal of research overrides, so they
-are not current accuracy guarantees. See [EmulationLab](EmulationLab.md) for future
+Exact full-band, full-level and musical equivalence is not claimed. Earlier numerical
+scores preceded nominal gain controls and removal of research overrides; final
+simplification scores compare the current public controls. See [EmulationLab](EmulationLab.md) for future
 manual work and [DSP rules](Rules.md) for the prohibited automated test scope.

@@ -1,9 +1,6 @@
 #pragma once
 
 #include <array>
-#include <cstddef>
-
-#include "DspBiquad.h"
 #include "DspParameterRamp.h"
 #include "DspProcessingContext.h"
 
@@ -12,9 +9,9 @@ namespace consolidator::max::dsp
 
 struct Cla76Controls
 {
-    double inputGain{ 0.03162277660168379 };
-    double outputGain{ 0.12589254117941673 };
-    double attack{ 2.0 / 3.0 };
+    double inputGain{ 0.03 };
+    double outputGain{ 0.12 };
+    double attack{ 0.66 };
     double release{ 0.5 };
     double ratio{};
 };
@@ -24,12 +21,11 @@ struct Cla76CompressionTuning
     double thresholdDb{ -25.7 };
     double kneeDb{ 6.0 };
     double compressionSlope{ 0.75 };
-    // Log seconds: c0 + c1*a + c2*(sqrt(a*a + 0.02*0.02) - 0.02).
-    std::array<double, 3> attackLaw{ -5.125359509721171, -1.2918197081985978, -0.729459131745406 };
+    // Log seconds: c0 + c1*a + c2*abs(a).
+    std::array<double, 3> attackLaw{ -5.125, -1.292, -0.729 };
     // Ascending polynomial coefficients in r=(Release-4)/3, log seconds.
     std::array<double, 6> releaseLaw{
-        -0.17332146514171948, -1.3056680359959605, -0.7315240314736943,
-        -0.486904097125937, 0.00003040339794666644, 0.2841467472894941 };
+        -0.173, -1.306, -0.732, -0.487, 0.0, 0.284 };
     double outputOffsetDb{};
     double thresholdAttackSpanDb{};
 };
@@ -38,35 +34,26 @@ struct Cla76Tuning
 {
     Cla76CompressionTuning normal;
     Cla76CompressionTuning all{
-        -25.83700092117243, 6.0, 0.902,
-        { -6.918178716004377, -1.4976668027306437, -0.8120156932379566 },
-        { -1.8989180202116605, -1.5967680072896404, -1.2838562017458446,
-            -0.9225218105292984, 0.10055313825791018, 0.48935515935888774 },
-        0.65, 0.45899079779061014 };
-    std::array<double, 3> allCarrierAttackLaw{
-        -5.9988440312123705, -1.0395796482501838, -0.5748830148800053 };
+        -25.84, 6.0, 0.9,
+        { -6.918, -1.498, -0.812 },
+        { -1.899, -1.597, -1.284, -0.923, 0.101, 0.489 },
+        0.65, 0.46 };
+    std::array<double, 3> allCarrierAttackLaw{ -5.999, -1.04, -0.575 };
     double allReleaseCurrentRatio{ 1.5 };
     double allFastReleaseThresholdAttackSpanDb{ 1.0 };
     double allFastReleaseSlopeAttackSpan{ 0.020 };
     // Log-domain quadratic surfaces: 1, a, r, a*a, a*r, r*r; a/r=(control-4)/3.
     std::array<double, 6> allMemoryLimitLaw{
-        1.5912662073743356, -0.242211326642396, -0.6096587288368607,
-        -0.22482866754650016, 0.001532296633991284, -0.3105861935699487 };
+        1.59, -0.24, -0.61, -0.22, 0.0, -0.31 };
     std::array<double, 6> allMemoryTimeLaw{
-        -0.07037682319881366, 0.2838750608192708, -0.3250469108680383,
-        0.18243866968916117, -0.23098252416309983, -0.10431072445928585 };
+        -0.07, 0.284, -0.325, 0.182, -0.231, -0.104 };
     // Ascending polynomial coefficients in r=(Release-4)/3.
     std::array<double, 5> allThresholdLaw{ 0.47, 1.355, 0.84, -1.395, -1.89 };
-    std::array<double, 5> allSlopeLaw{ 0.00605, -0.003625, -0.037125, -0.021375, 0.006075 };
-    double lowShelfHz{ 13.698060446831752 };
-    double lowShelfDb{ 0.9261177935379185 };
-    double bellHz{ 83.1408184281944 };
-    double bellQ{ 0.5314781351325771 };
-    double bellDb{ -0.20324792807856784 };
-    double colourPoleHz{ 14786.662130741144 };
-    double colourFeedthrough{ 0.6523724094256391 };
+    std::array<double, 5> allSlopeLaw{ 0.006, -0.004, -0.037, -0.021, 0.006 };
+    double colourPoleHz{ 14800 };
+    double colourFeedthrough{ 0.652 };
     double inputCalibrationDb{ 30.0 };
-    double outputCalibrationDb{ 27.18 };
+    double outputCalibrationDb{ 27.2 };
 };
 
 // Shared Bluey core with continuous 4:1-to-ALL controls.
@@ -104,7 +91,6 @@ private:
     double activeThresholdDb_{};
     double compressionStartPower_{};
     double activeCompressionSlope_{};
-    std::array<DspBiquadCascade, 2> colourFilters_;
     double colourPole_{};
     double colourNumerator_{};
     std::array<double, 2> colourPoleStates_{};

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdint>
 #include <cmath>
 #include <cstddef>
 
@@ -67,22 +66,9 @@ void Cla76Processor::Prepare(const DspProcessingContext& context) noexcept
     attack_.Prepare(context);
     release_.Prepare(context);
     ratio_.Prepare(context);
-    colourFilters_ = {};
-    const std::array<FilterSnapshot, 2> filters{{
-        { 1, static_cast<std::uint32_t>(DspFilterType::LowShelf),
-            static_cast<float>(tuning_.lowShelfHz), static_cast<float>(tuning_.lowShelfDb), 0.707F, 0.707F },
-        { 1, static_cast<std::uint32_t>(DspFilterType::Bell),
-            static_cast<float>(tuning_.bellHz), static_cast<float>(tuning_.bellDb),
-            static_cast<float>(tuning_.bellQ), 0.0F }
-    }};
-    for (std::size_t index = 0; index < colourFilters_.size(); ++index)
-    {
-        colourFilters_[index].Prepare(context);
-        colourFilters_[index].SetParameters(filters[index], true);
-    }
     const auto tangent = std::tan(3.141592653589793 *
         std::min(tuning_.colourPoleHz, sampleRate_ * 0.499) / sampleRate_);
-    // Keep the unity-DC filter attenuating, including at lower rates and research control extremes.
+    // Keep the unity-DC filter attenuating at lower sample rates as well.
     colourPole_ = std::max((1.0 - tangent) / (1.0 + tangent), 1.0 - 2.0 * tuning_.colourFeedthrough);
     colourNumerator_ = 1.0 - colourPole_ - tuning_.colourFeedthrough;
     Reset();
@@ -98,10 +84,6 @@ void Cla76Processor::Reset() noexcept
     detectorPower_ = 0.0;
     allMemoryReductionDb_ = 0.0;
     colourPoleStates_ = {};
-    for (auto& filter : colourFilters_)
-    {
-        filter.Reset();
-    }
     cachedAttack_ = -1.0;
     cachedRelease_ = -1.0;
     cachedRatio_ = -1.0;
@@ -121,6 +103,7 @@ void Cla76Processor::SetControls(
 void Cla76Processor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
 {
     const auto selected = SelectChannels(audio, mode);
+    const std::array<double*, 2> channels{ selected.left, selected.right };
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
         const auto inputGain = inputGain_.NextValue() * inputCalibration_;
@@ -156,8 +139,7 @@ void Cla76Processor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
         if (timingChanged)
         {
             const auto position = (attack - 4.0) / 3.0;
-            // Smooth the former midpoint kink over 0.06 knob units; share the basis across modes.
-            const auto bend = std::sqrt(position * position + 0.0004) - 0.02;
+            const auto bend = std::abs(position);
             const auto baseLog = AttackLogTime(position, bend, activeMode_.attackLaw);
             const auto allLog = AttackLogTime(position, bend, tuning_.all.attackLaw);
             const auto carrierLog = AttackLogTime(position, bend, tuning_.allCarrierAttackLaw);
@@ -231,21 +213,13 @@ void Cla76Processor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
         const auto reductionDb = targetDb + ratio *
             (std::min(allMemoryReductionDb_, memoryTargetDb) - memoryTargetDb);
         const auto compressionGain = reductionDb == 0.0 ? 1.0 : DbToGain(-reductionDb);
-        selected.ApplyGain(index, inputGain * compressionGain * modeOutputGain_);
-    }
-    for (auto& filter : colourFilters_)
-    {
-        filter.Process(audio, mode);
-    }
-    const std::array<double*, 2> channels{ selected.left, selected.right };
-    for (std::size_t index = 0; index < audio.frameCount; ++index)
-    {
+        const auto processedGain = inputGain * compressionGain * modeOutputGain_;
         const auto outputGain = outputGain_.NextValue() * outputCalibration_;
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
         {
             if (channels[channel] != nullptr)
             {
-                const auto input = channels[channel][index];
+                const auto input = channels[channel][index] * processedGain;
                 const auto output = tuning_.colourFeedthrough * input + colourPoleStates_[channel];
                 colourPoleStates_[channel] = colourNumerator_ * input + colourPole_ * output;
                 channels[channel][index] = output * outputGain;

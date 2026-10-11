@@ -59,3 +59,20 @@ Presets contain the six host controls. All current controls must be valid before
 restoration; no aliases or migration exist. Processor Reset preserves control
 targets and clears histories. The Native graph has not been extended for CLA-76.
 Research is complete; useful observations are in [findings](Cla76Findings.md).
+
+## CLA-3A
+
+Consolidator CLA-3A Model compiles the shared [Cla3aProcessor](Cla3aProcessor.md).
+Input/Output use amplitude 0..1 with -infinity..0 dB text and the same 0.3 skew
+as CLA-76. Native defaults display -30.04625/-22.9 dB. Prepared Native calibration
+adds +16/+30 dB respectively, preserving previous maximum gains and default sound.
+Bypass and these two controls are the complete host/preset interface. Input changes only detector
+sensitivity at a fixed -25.7 dB threshold; Output changes audio gain.
+Use fresh instances: current parameter IDs are input/output/bypass, with no migration.
+Reference Compressor mode and all remaining default settings are fixed.
+The adapter contains no DSP algorithm, tuning overrides or independent constants.
+The optical model has manually fitted stationary gain and target-dependent release.
+Timing, simplified fixed colour and current figures are in [Cla3aProcessor](Cla3aProcessor.md).
+Research conclusions are in [Cla3aFindings](Cla3aFindings.md).
+The fixed detector weighting also lives in Native. Harmonic matching and broader
+dynamic coverage remain open; the adapter has no filter code.

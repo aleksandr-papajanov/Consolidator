@@ -107,6 +107,7 @@
     <ClCompile Include="External\Transport\AtomCodec.cpp" />
     <ClCompile Include="External\Dsp\CompressionProcessor.cpp" />
     <ClCompile Include="External\Dsp\Cla76Processor.cpp" />
+    <ClCompile Include="External\Dsp\Cla3aProcessor.cpp" />
     <ClCompile Include="External\Dsp\CompressorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DspBiquad.cpp" />
@@ -157,6 +158,7 @@
     <ClInclude Include="External\Dsp\TransientShaperProcessor.h" />
     <ClInclude Include="External\Dsp\CompressionProcessor.h" />
     <ClInclude Include="External\Dsp\Cla76Processor.h" />
+    <ClInclude Include="External\Dsp\Cla3aProcessor.h" />
     <ClInclude Include="External\Dsp\CompressorProcessor.h" />
     <ClInclude Include="External\Dsp\EqualizerProcessor.h" />
     <ClInclude Include="External\Dsp\PolishThickProcessor.h" />

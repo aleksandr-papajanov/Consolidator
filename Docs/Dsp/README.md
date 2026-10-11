@@ -8,6 +8,8 @@
 | [Approximation.md](Approximation.md) | Approximation |
 | [Cla76Processor.md](Cla76Processor.md) | CLA-76 Bluey / 4:1 to ALL shared core and emulation |
 | [Cla76Findings.md](Cla76Findings.md) | Useful findings from completed research |
+| [Cla3aProcessor.md](Cla3aProcessor.md) | Shared optical model, fixed threshold and Input/Output controls |
+| [Cla3aFindings.md](Cla3aFindings.md) | Useful conclusions and limitations of the simplified model |
 | [CompressionProcessor.md](CompressionProcessor.md) | CompressionProcessor |
 | [CompressorProcessor.md](CompressorProcessor.md) | CompressorProcessor |
 | [DetectorProcessor.md](DetectorProcessor.md) | DetectorProcessor |

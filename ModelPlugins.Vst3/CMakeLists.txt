@@ -103,6 +103,24 @@ juce_add_plugin(ConsolidatorCla76Model
 target_sources(ConsolidatorCla76Model PRIVATE
     Source/Cla76PluginProcessor.cpp
     ../Consolidator.Native/External/Dsp/Cla76Processor.cpp
-    ../Consolidator.Native/External/Dsp/DspBiquad.cpp
     ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
 configure_model_plugin(ConsolidatorCla76Model)
+
+juce_add_plugin(ConsolidatorCla3aModel
+    COMPANY_NAME "Consolidator"
+    BUNDLE_ID "com.consolidator.cla3a-model"
+    PLUGIN_MANUFACTURER_CODE Cnsl
+    PLUGIN_CODE Cl3a
+    FORMATS VST3
+    PRODUCT_NAME "Consolidator CLA-3A Model"
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    COPY_PLUGIN_AFTER_BUILD TRUE)
+target_sources(ConsolidatorCla3aModel PRIVATE
+    Source/Cla3aPluginProcessor.cpp
+    ../Consolidator.Native/External/Dsp/Cla3aProcessor.cpp
+    ../Consolidator.Native/External/Dsp/DspBiquad.cpp
+    ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp)
+configure_model_plugin(ConsolidatorCla3aModel)
