@@ -9,13 +9,13 @@
 namespace consolidator::max::dsp::processors
 {
 
-// Reduction controls threshold without driving audio; Attack/Release increase with time, Ratio morphs 4:1 to ALL.
+// Reference Input/Output attenuators, Attack/Release 1..7 (slow to fast), Ratio 4:1 to ALL.
 struct Cla76Controls
 {
-    double reduction{ 0.49237375 };
-    double outputGain{ 0.113842 };
-    double attack{ 0.66 };
-    double release{ 0.5 };
+    double inputGain{ 0.03162277660168379 };
+    double outputGain{ 0.12589254117941673 };
+    double attack{ 3.0 };
+    double release{ 4.0 };
     double ratio{};
 };
 
@@ -55,8 +55,7 @@ struct Cla76Config
     std::array<double, 5> allSlopeLaw{ 0.006, -0.004, -0.037, -0.021, 0.006 };
     double colourPoleHz{ 14800 };
     double colourFeedthrough{ 0.652 };
-    double minimumSensitivityDb{ -30.0 };
-    double sensitivitySpanDb{ 60.0 };
+    double inputCalibrationDb{ 30.0 };
     double outputCalibrationDb{ 27.2 };
 };
 
@@ -64,15 +63,16 @@ struct Cla76Config
 class Cla76Processor final
 {
 public:
+    Cla76Processor() noexcept;
     void Prepare(const DspProcessingContext& context) noexcept;
     void Reset() noexcept;
     void SetControls(
-        double reduction, double outputGain, double attack, double release, double ratio) noexcept;
+        double inputGain, double outputGain, double attack, double release, double ratio) noexcept;
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
     void UpdateMode(double ratio) noexcept;
-    void UpdateControlCoefficients(double reduction, double attack, double release, double ratio) noexcept;
+    void UpdateControlCoefficients(double attack, double release, double ratio) noexcept;
     [[nodiscard]] double CalculateTargetReductionDb() const noexcept;
     void UpdateDetector(double detectorAmplitude, double ratio) noexcept;
     [[nodiscard]] double UpdateMemoryReductionDb(double targetDb, double ratio) noexcept;
@@ -80,19 +80,21 @@ private:
 
     inline static constexpr Cla76Config kConfig{};
     Cla76CompressionConfig activeMode_;
-    DspParameterRamp reduction_{ Cla76Controls{}.reduction };
-    DspParameterRamp outputGain_{ Cla76Controls{}.outputGain };
-    DspParameterRamp attack_{ 7.0 - 6.0 * Cla76Controls{}.attack };
-    DspParameterRamp release_{ 7.0 - 6.0 * Cla76Controls{}.release };
+    DspParameterRamp inputGain_;
+    DspParameterRamp outputGain_;
+    DspParameterRamp attack_{ Cla76Controls{}.attack };
+    DspParameterRamp release_{ Cla76Controls{}.release };
     DspParameterRamp ratio_{ Cla76Controls{}.ratio };
 
     // Curve and time coefficients are cached until their live controls change.
     double sampleRate_{};
+    double inputCalibration_{};
     double outputCalibration_{};
     double modeOutputGain_{ 1.0 };
     double attackCoefficient_{};
     double releaseCoefficient_{};
-    double cachedReduction_{ -1.0 };
+    double cachedNominalInput_{ -1.0 };
+    double cachedNominalOutput_{ -1.0 };
     double cachedAttack_{ -1.0 };
     double cachedRelease_{ -1.0 };
     double cachedRatio_{ -1.0 };

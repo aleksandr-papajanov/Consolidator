@@ -14,7 +14,7 @@
 | [Approximation.md](Approximation.md) | Approximation |
 | [CLA-76](../../Consolidator.Native/External/Dsp/Processors/Cla76/README.md) | CLA-76 Bluey / 4:1 to ALL shared core and emulation |
 | [CLA-76 findings](../../Consolidator.Native/External/Dsp/Processors/Cla76/Findings.md) | Useful findings from completed research |
-| [CLA-3A](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md) | Shared optical model, variable threshold and Reduction/Output controls |
+| [CLA-3A](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md) | Shared optical model, reference Gain/Peak Reduction controls |
 | [CLA-3A findings](../../Consolidator.Native/External/Dsp/Processors/Cla3a/Findings.md) | Useful conclusions and limitations of the simplified model |
 | [CompressionProcessor.md](CompressionProcessor.md) | CompressionProcessor |
 | [CompressorProcessor.md](CompressorProcessor.md) | CompressorProcessor |

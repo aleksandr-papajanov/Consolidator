@@ -58,10 +58,11 @@ production Native processor. Algorithms must not be copied into adapter source.
 ## CLA-76 Bluey
 
 Consolidator CLA-76 Bluey Model compiles the shared [Cla76Processor](../../Consolidator.Native/External/Dsp/Processors/Cla76/README.md).
-It contains five user controls: Reduction, Output, Attack, Release and Ratio, plus Bypass.
-Attack/Release/Ratio are numeric 0..1. Attack/Release increase with time; Ratio
-selects 4:1 at zero and ALL at one. Reduction 0..1 lowers the compression
-threshold without driving audio. Output uses nominal amplitude gain with dB text display. Defaults come from Native Cla76Controls.
+It contains Input, Output, Attack, Release and Ratio, plus Bypass. Input/Output
+restore the fitted reference attenuator functions in Native, with -inf..0 dB UI
+text. Defaults are -30/-18 dB. Attack/Release use reference 1..7, slow to fast,
+defaults 3/4. Ratio retains 0..1 morphing from 4:1 to ALL. Old nominal-gain and
+Reduction interfaces are removed. Timing functions and simplified colour remain.
 
 There are no research controls or coefficient overrides. Immutable Native configuration
 owns all detector, compression, timing, memory and filter coefficients. The adapter
@@ -76,12 +77,12 @@ Research is complete; useful observations are in [findings](../../Consolidator.N
 ## CLA-3A
 
 Consolidator CLA-3A Model compiles the shared [Cla3aProcessor](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md).
-Reduction 0..1 moves the threshold from +18.3 to -41.7 dB; zero disables new
-compression. Output uses amplitude 0..1 with -infinity..0 dB display and +30 dB
-calibration. Native defaults are Reduction 0.49237375 / Output 0.12. The optical
-algorithm and colour are unchanged. The former reference knob taper is replaced
-by a simple dB-linear threshold law. Host IDs are reduction/output/bypass;
-use fresh instances, with no preset migration.
+Gain/Peak Reduction restore their reference-normalized 0..1 control laws in Native;
+the host displays/accepts reference 0..10 units. Defaults are 5.50/4.00,
+normalized 0.55/0.4. The final
+simplified cubic threshold and linear-in-dB Gain law are recovered from the saved
+chat. Current detector/optical/filter optimizations remain. Host IDs are
+gain/peakReduction/bypass; use fresh instances, with no preset migration.
 Reference Compressor mode and all remaining default settings are fixed.
 The adapter contains no DSP algorithm, configuration overrides or independent constants.
 The optical model has manually fitted stationary gain and target-dependent release.

@@ -9,7 +9,7 @@ live together in one folder per processor. C++ namespace:
 | [Cla76](Cla76/README.md) | FET compressor, continuous 4:1 to ALL | [Findings](Cla76/Findings.md) |
 | [Cla2a](Cla2a/README.md) | Optical compressor, Reduction and Output | [Findings](Cla2a/Findings.md) |
 | [SslChannel](SslChannel/README.md) | Channel compressor, automatic makeup and normal/Fast attack | [Findings](SslChannel/Findings.md) |
-| [Cla3a](Cla3a/README.md) | Optical compressor, Reduction and Output | [Findings](Cla3a/Findings.md) |
+| [Cla3a](Cla3a/README.md) | Optical compressor, reference Gain and Peak Reduction | [Findings](Cla3a/Findings.md) |
 | [TransientShaper](TransientShaper/README.md) | Signed Attack/Sustain masks and permanent limiting | [Findings](TransientShaper/Findings.md) |
 | [Air](Air/README.md) | High-frequency contour and cubic harmonic enhancement | [Findings](Air/Findings.md) |
 | [Thick](Thick/README.md) | Bass body and finite dense harmonic enhancement | [Findings](Thick/Findings.md) |

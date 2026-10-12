@@ -21,8 +21,8 @@ pass. Current manual comparison figures are in the processor document.
   processor, audio crossfade or event timer.
 - Reference LinearAnalysis depends on signal level and history. Harmonics from
   moving gain do not prove a separate saturation stage. Added saturation was
-  removed. Current Reduction moves threshold without driving audio; nominal Output
-  is independent. Attack/Release/Ratio retain their fitted laws.
+  removed. Current Input/Output restore the measured rational attenuator tapers.
+  Attack/Release use the reference 1..7 orientation and retain their fitted laws.
 - Reference parameter text parsing was unreliable. Verified WaveShell input
   coordinates were -48 dB at 0.125, -30 dB at 0.375 and -18 dB at 0.625.
   Do not extrapolate the low dial from the default coordinate. Bluey=0,
@@ -38,6 +38,16 @@ scores preceded nominal gain controls and removal of research overrides; final
 simplification scores compare the current public controls. See [EmulationLab](../../../../../Docs/Dsp/EmulationLab.md) for future
 manual work and [DSP rules](../../../../../Docs/Dsp/Rules.md) for the prohibited automated test scope.
 
-Current Reduction/Output mapping, the ALL release-current transformation and manual
-static comparison are documented in [README](README.md). Historical Input/Output
-figures describe previous interfaces, not current host parameter IDs.
+Restored reference controls and rational-function provenance are documented in
+[README](README.md). Mathematical timing/colour optimizations remain.
+
+## Reference controls restored from saved conversation
+
+The previously optimized P8/Q7 attenuator functions were recovered with full
+coefficient precision from the saved conversation. They replace the temporary
+linear Reduction/nominal Output controls; no anchor tables or old saturation/
+corrective filter branches were restored. Attack/Release are again reference
+1..7, with 1 slow and 7 fast. Installed VST3 defaults read back -30/-18 dB and
+3/4, Ratio 0 (the fitted 4:1 endpoint). Native and Release VST3 were built and
+installed; timing/memory/one-pole colour coefficients remain the current simplified
+values. No new reference-audio accuracy claim follows from this control restore.

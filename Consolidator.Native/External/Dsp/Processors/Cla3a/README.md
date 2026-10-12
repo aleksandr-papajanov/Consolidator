@@ -11,16 +11,20 @@ One Native implementation is compiled by Native and VST3; the adapter owns only
 host parameters/state, Bypass and preallocated float/double conversion buffers.
 The processor is not connected to the Managed runtime graph/ABI.
 
-| Control | Range | Default |
+| Control | Native domain | Default |
 | --- | --- | --- |
-| Reduction | 0..1 | 0.49237375 |
-| Output | amplitude 0..1, displayed -infinity..0 dB | 0.12 (-18.42 dB displayed) |
+| Gain | normalized 0..1, displayed reference 0..10 | 0.55 (5.50) |
+| Peak Reduction | normalized 0..1, displayed reference 0..10 | 0.4 (4.00) |
 
-Reduction changes threshold without driving audio input. Zero stops new reduction;
-existing optical memories recover. Output remains independent, with a prepared
-+30 dB calibration; displayed -30 dB is unity and -infinity mutes. Controls ramp
-in 10 ms. Native owns defaults and configuration. Host IDs are
-reduction/output/bypass; old presets are not migrated.
+The reference control contract is restored from the saved conversation's final
+simplified model, before Input/Output and Reduction/Output conversions. Gain is
+not nominal dB: outputGainDb=50*(Gain-0.408). Gain zero is finite attenuation,
+not mute. Peak Reduction zero stops new compression while optical memories
+recover. Both controls ramp 10 ms and are cached. Native owns defaults and
+control laws; VST3 supplies the same two reference controls plus Bypass.
+Host IDs are gain/peakReduction/bypass. Use a fresh instance; obsolete presets
+are not migrated. Current optical/filter coefficients and optimized methods
+remain unchanged.
 
 ## Detector and curve
 
@@ -29,14 +33,17 @@ Each selected input channel receives a first-order detector shelf: unity HF gain
 is sample-(1-lowGain)*low. Link by maximum absolute amplitude. One power follower
 charges in 0.1 ms and discharges in 1.7 ms; its preceding state controls current gain.
 The detector receives the weighted raw amplitude without an Input multiplier.
-Reduction moves threshold linearly: T=18.3-60*Reduction dB. At the default,
-T is about -11.2424 dB, retaining the previous startup sensitivity. Maximum
-Reduction reaches -41.7 dB, equivalent to the preceding maximum detector gain.
-Slope remains 0.735 and knee 12.5 dB. Threshold and lower-knee power are cached
-until Reduction changes. Reduction is sensitivity, not a fixed requested number
-of dB of attenuation. Its prior reference knob polynomial did not survive in
-committed history; this simple taper restores the variable-threshold scheme,
-not the exact former Waves knob positions.
+Peak Reduction restores the fitted cubic threshold law:
+
+~~~text
+u = (PeakReduction - 0.6)/0.4
+T = -27.37 + u*(-22.94 + u*(14.42 - 5.13*u))
+~~~
+
+Slope is 0.735 and knee 12.5 dB. The lower-knee power and output gain are cached
+until their respective controls change. No input sensitivity multiplier or new
+linear Reduction taper remains. The polynomial was missing from committed
+history but has now been recovered from the saved chat's final simplified snapshot.
 
 ## Optical histories
 
@@ -60,9 +67,8 @@ coupled-release path or additional detector.
 
 Compression -> second-order highpass -> high shelf -> Output.
 Highpass is 8.8 Hz/Q 0.62. High shelf is 14.5 kHz/Q 0.64/+2.2 dB, using the existing
-DspBiquadCascade. A prepared +30 dB output calibration retains maximum audio gain. Displayed Output 0 dB is maximum gain, and -infinity mutes.
-Effective unity is displayed Output -30 dB. Calibration converts once in Prepare;
-Process multiplies it by the current Output amplitude ramp.
+DspBiquadCascade. Gain uses the reference law above; the temporary +30 dB calibration and
+nominal amplitude Output control are removed.
 
 Compression/highpass share a sample loop, followed by the shelf and Output loops.
 The extra highpass pole, two LF corrective bells, nonlinear bass reinforcement,
@@ -96,20 +102,6 @@ positive-target adaptive release uses one exponential instead of up to three.
 Source review found no new ownership/realtime issues. Useful limitations:
 [findings](Findings.md).
 
-## Mapping from the preceding Input/Output model
-
-For old input amplitude I>0:
-
-~~~text
-Reduction = (20*log10(I)+60)/60
-Output = old Output amplitude
-~~~
-
-This preserves the static detector over-threshold level, knee and optical memories
-for I in 0.001..1. Old Input zero maps to Reduction zero. Weaker sensitivities below
-0.001 are intentionally replaced by the no-new-compression endpoint. Floating-point
-rounding prevents bitwise identity. Automation now moves threshold directly.
-
 ## Code map
 
 - PrepareDetector and PrepareColourFilters compile fixed coefficients before processing.
@@ -119,18 +111,15 @@ rounding prevents bitwise identity. Automation now moves threshold directly.
 - UpdateOpticalGain advances fast/slow dB memories and returns their combined gain.
 - ProcessHighPassSample runs the audio HP; the shelf and Output retain their separate block passes.
 
-The optical model is complete. This interface change retains optical/filter coefficients and state update order.
+The restored interface retains the final simplified optical/filter coefficients and state update order.
 
-## Manual verification of Reduction/Output
+## Restoration scope
 
-Native Release|x64 and this model's Release VST3 were built and installed.
-A requested EmulationLab comparison used 3 static mapped settings on the
-36-second repeated 998.6 Hz probe, at 44.1 kHz / block 128. Whole stereo waveforms
-were compared with saved preceding-model renders, including attacks, releases
-and quiet recovery. Maximum relative waveform RMS difference was
-3.12944e-7 (0.0000313%); maximum sample difference
-relative to the preceding waveform peak was 3.14234e-7.
-These observations cover mapped static settings, not equivalence during automation
-or an accuracy bound against Waves. Optical/timing and colour constants are retained.
-No DSP automated tests were created or run. Source review found no new allocation,
-locking, I/O, host-side algorithm, duplicate API or preset migration path.
+Recovered control coefficients are already the rounded, simplified final values,
+not the early identification prototype. Existing two optical histories, adaptive
+release, shelf, highpass, caches and realtime processing remain. Historical
+simplification figures above describe those algorithm decisions; this restoration
+is not a new claim of exact matching to Waves on all inputs. Native/VST3 compile
+the same processor. Live reference metadata (1001 positions per knob) confirms both readouts are
+linear 0..10. The VST3 formats/accepts that same scale, Native retains normalized
+0..1. The display conversion contains no audio algorithm.

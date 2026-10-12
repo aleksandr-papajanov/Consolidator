@@ -7,12 +7,12 @@ Removed proposals are not runtime options.
   and instantiated reference Mix/Trim/HiFreq/Analog defaults stayed fixed.
   Gain follows about 50 dB per normalized
   unit, unity near 0.408. Gain zero is attenuation, not mute.
-- Current controls are Reduction/Output. Reduction 0..1 lowers threshold from
-  +18.3 to -41.7 dB, with zero disabling new compression. Output is amplitude
-  0..1, displayed -infinity..0 dB, with +30 dB calibration. The prior Input/Output
-  conversion figures are historical; static sensitivity remains mappable. Exact
-  reference knob positions are not restored: the old polynomial was absent from
-  committed history. Optical response and colour coefficients are retained.
+- Gain/Peak Reduction are restored. Gain uses 50*(G-0.408) dB; Peak Reduction
+  restores the cubic law in (P-0.6)/0.4 with coefficients -27.37/-22.94/14.42/-5.13.
+  The exact simplified snapshot was recovered from the saved conversation after
+  committed history proved insufficient. Previous Input/Output and Reduction/Output
+  comparisons are historical. Optical, adaptive-release and colour math remain
+  simplified; the restored control law is not the temporary linear Reduction taper.
 - Recovery depends on signal level, reduction setting and preceding history.
   Two reduction states with target-dependent release give a useful approximation.
   Stronger detector smoothing and coupling the states did not solve bass recovery
@@ -36,3 +36,14 @@ Removed proposals are not runtime options.
 
 Raw inputs stay in EmulationLab/RawAudio. General workflow:
 [EmulationLab](../../../../../Docs/Dsp/EmulationLab.md). DSP test suites remain prohibited by [rules](../../../../../Docs/Dsp/Rules.md).
+
+## Reference controls restored from saved conversation
+
+The final simplified Gain/Peak Reduction law was recovered from the local saved
+conversation instead of guessing a replacement from the later Reduction taper.
+Live Waves CLA-3A metadata confirms both knobs display 0..10 linearly from
+normalized 0..1 (1001 positions each). Candidate defaults read back Gain 5.50 /
+Peak Reduction 4.00. Host IDs and displayed ranges are restored, with no preset
+migration. Native and Release VST3 were built/installed. Current simplified
+optical, release, filter and caching math is retained; no new audio fit or DSP
+automated test was performed during this restoration.

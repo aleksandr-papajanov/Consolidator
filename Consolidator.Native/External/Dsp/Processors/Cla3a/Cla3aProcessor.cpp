@@ -15,9 +15,8 @@ namespace consolidator::max::dsp::processors
 
 void Cla3aProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
-    reduction_.Prepare(context);
-    output_.Prepare(context);
-    outputCalibration_ = DbToGain(kConfig.outputCalibrationDb);
+    peakReduction_.Prepare(context);
+    gain_.Prepare(context);
     PrepareDetector(context.sampleRate);
     PrepareColourFilters(context);
     Reset();
@@ -25,10 +24,12 @@ void Cla3aProcessor::Prepare(const DspProcessingContext& context) noexcept
 
 void Cla3aProcessor::Reset() noexcept
 {
-    reduction_.Reset();
-    cachedReduction_ = -1.0;
-    UpdateReductionCurve(reduction_.CurrentValue());
-    output_.Reset();
+    peakReduction_.Reset();
+    cachedPeakReduction_ = -1.0;
+    UpdateReductionCurve(peakReduction_.CurrentValue());
+    gain_.Reset();
+    cachedGain_ = -1.0;
+    UpdateOutputGain(gain_.CurrentValue());
     detectorPower_ = 0.0;
     detectorShelfStates_ = {};
     fastReductionDb_ = 0.0;
@@ -37,10 +38,10 @@ void Cla3aProcessor::Reset() noexcept
     highShelfFilter_.Reset();
 }
 
-void Cla3aProcessor::SetControls(double reduction, double outputGain) noexcept
+void Cla3aProcessor::SetControls(double gain, double peakReduction) noexcept
 {
-    reduction_.SetTarget(reduction);
-    output_.SetTarget(outputGain);
+    peakReduction_.SetTarget(peakReduction);
+    gain_.SetTarget(gain);
 }
 
 void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
@@ -49,10 +50,10 @@ void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
     const std::array<double*, 2> channels{ selected.left, selected.right };
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
-        const auto reduction = reduction_.NextValue();
-        UpdateReductionCurve(reduction);
+        const auto peakReduction = peakReduction_.NextValue();
+        UpdateReductionCurve(peakReduction);
         // The curve reads the preceding power state; this sample then charges the detector.
-        const auto targetDb = reduction > 0.0 ? CalculateTargetReductionDb() : 0.0;
+        const auto targetDb = peakReduction > 0.0 ? CalculateTargetReductionDb() : 0.0;
         UpdateDetector(channels, index);
         const auto compressionGain = UpdateOpticalGain(targetDb);
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
@@ -67,7 +68,8 @@ void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
     highShelfFilter_.Process(audio, mode);
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
-        selected.ApplyGain(index, output_.NextValue() * outputCalibration_);
+        UpdateOutputGain(gain_.NextValue());
+        selected.ApplyGain(index, outputGain_);
     }
 }
 
@@ -86,16 +88,28 @@ void Cla3aProcessor::PrepareDetector(double sampleRate) noexcept
         (inverseSampleRate_ + kConfig.releaseFloorSeconds + kConfig.slowReleaseSeconds);
 }
 
-void Cla3aProcessor::UpdateReductionCurve(double reduction) noexcept
+void Cla3aProcessor::UpdateReductionCurve(double peakReduction) noexcept
 {
-    if (reduction == cachedReduction_)
+    if (peakReduction == cachedPeakReduction_)
     {
         return;
     }
-    thresholdDb_ = kConfig.thresholdMaximumDb - kConfig.thresholdSpanDb * reduction;
+    const auto position = (peakReduction - 0.6) / 0.4;
+    const auto& law = kConfig.thresholdLaw;
+    thresholdDb_ = law[0] + position * (law[1] + position * (law[2] + position * law[3]));
     const auto start = DbToGain(thresholdDb_ - kConfig.kneeDb * 0.5);
     compressionStartPower_ = start * start;
-    cachedReduction_ = reduction;
+    cachedPeakReduction_ = peakReduction;
+}
+
+void Cla3aProcessor::UpdateOutputGain(double gain) noexcept
+{
+    if (gain == cachedGain_)
+    {
+        return;
+    }
+    outputGain_ = DbToGain((gain - kConfig.gainUnityPosition) * kConfig.gainSpanDb);
+    cachedGain_ = gain;
 }
 
 void Cla3aProcessor::PrepareColourFilters(const DspProcessingContext& context) noexcept
