@@ -7,11 +7,12 @@ Removed proposals are not runtime options.
   and instantiated reference Mix/Trim/HiFreq/Analog defaults stayed fixed.
   Gain follows about 50 dB per normalized
   unit, unity near 0.408. Gain zero is attenuation, not mute.
-- Current controls are detector-only Input and audio Output with -infinity..0 dB
-  attenuation display, amplitude 0..1 and Native +16/+30 dB calibration, at a fixed
-  -25.7 dB threshold. Static conversion preserves the old over-threshold signal
-  and optical response; 15 manual waveform comparisons differed by at most
-  0.000047% relative RMS. Automation equivalence was explicitly not required.
+- Current controls are Reduction/Output. Reduction 0..1 lowers threshold from
+  +18.3 to -41.7 dB, with zero disabling new compression. Output is amplitude
+  0..1, displayed -infinity..0 dB, with +30 dB calibration. The prior Input/Output
+  conversion figures are historical; static sensitivity remains mappable. Exact
+  reference knob positions are not restored: the old polynomial was absent from
+  committed history. Optical response and colour coefficients are retained.
 - Recovery depends on signal level, reduction setting and preceding history.
   Two reduction states with target-dependent release give a useful approximation.
   Stronger detector smoothing and coupling the states did not solve bass recovery

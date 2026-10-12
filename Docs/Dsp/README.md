@@ -6,12 +6,15 @@
 Законченные модели и их документация находятся рядом с Native-кодом:
 [Processors](../../Consolidator.Native/External/Dsp/Processors/README.md).
 
+Упрощённая модель: [CLA-2A](../../Consolidator.Native/External/Dsp/Processors/Cla2a/README.md),
+Текущий интерфейс модели — Reduction/Output; прочие настройки референса фиксированы.
+
 | Документ | Scope |
 | --- | --- |
 | [Approximation.md](Approximation.md) | Approximation |
 | [CLA-76](../../Consolidator.Native/External/Dsp/Processors/Cla76/README.md) | CLA-76 Bluey / 4:1 to ALL shared core and emulation |
 | [CLA-76 findings](../../Consolidator.Native/External/Dsp/Processors/Cla76/Findings.md) | Useful findings from completed research |
-| [CLA-3A](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md) | Shared optical model, fixed threshold and Input/Output controls |
+| [CLA-3A](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md) | Shared optical model, variable threshold and Reduction/Output controls |
 | [CLA-3A findings](../../Consolidator.Native/External/Dsp/Processors/Cla3a/Findings.md) | Useful conclusions and limitations of the simplified model |
 | [CompressionProcessor.md](CompressionProcessor.md) | CompressionProcessor |
 | [CompressorProcessor.md](CompressorProcessor.md) | CompressorProcessor |
@@ -39,3 +42,7 @@
 | [Telemetry.md](Telemetry.md) | Telemetry |
 | [Transient Shaper findings](../../Consolidator.Native/External/Dsp/Processors/TransientShaper/Findings.md) | TransientShaperFindings |
 | [Transient Shaper](../../Consolidator.Native/External/Dsp/Processors/TransientShaper/README.md) | TransientShaperProcessor |
+
+Finished simplified model: [SSLChannel compressor](../../Consolidator.Native/External/Dsp/Processors/SslChannel/README.md), Ratio/Release/Attack/Threshold.
+
+[SSLChannel findings](../../Consolidator.Native/External/Dsp/Processors/SslChannel/Findings.md): initial measurements and remaining limits.

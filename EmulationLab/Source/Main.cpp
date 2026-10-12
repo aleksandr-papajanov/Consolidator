@@ -436,6 +436,44 @@ int main(int argc, char** argv)
             output << document.dump(2) << '\n';
             return 0;
         }
+        if (argc >= 7 && std::string(argv[1]) == "plugin" &&
+            std::string(argv[2]) == "parameter-scale")
+        {
+            emulation_lab::Vst3Host host;
+            std::string error;
+            const auto query = std::string(argv[5]) == "-" ? std::string() : std::string(argv[5]);
+            auto plugin = host.Open(argv[3], query, 44100.0, 128, error);
+            if (plugin == nullptr)
+            {
+                throw std::runtime_error(error);
+            }
+            nlohmann::json document = nlohmann::json::array();
+            for (auto argument = 6; argument < argc; ++argument)
+            {
+                const std::string name(argv[argument]);
+                nlohmann::json scale = nlohmann::json::array();
+                for (auto step = 0; step <= 1000; ++step)
+                {
+                    const auto normalized = static_cast<double>(step) / 1000.0;
+                    emulation_lab::PluginParameterDescription description;
+                    if (!plugin->SetParameterNormalized(name, normalized) ||
+                        !plugin->Parameter(name, description))
+                    {
+                        throw std::runtime_error("Unknown parameter: " + name);
+                    }
+                    scale.push_back({ { "normalized", description.normalizedValue },
+                        { "text", description.text } });
+                }
+                document.push_back({ { "name", name }, { "scale", std::move(scale) } });
+            }
+            std::ofstream output(argv[4]);
+            if (!output)
+            {
+                throw std::runtime_error("Could not write parameter scale.");
+            }
+            output << document.dump(2) << '\n';
+            return 0;
+        }
         if (argc >= 6 && std::string(argv[1]) == "plugin" &&
             std::string(argv[2]) == "save-state")
         {
@@ -534,6 +572,7 @@ int main(int argc, char** argv)
         "  plugin probe <bundle> [query]\n"
         "  plugin describe <bundle> [query]\n"
         "  plugin parameter-manifest <bundle> <output.json> [query]\n"
+        "  plugin parameter-scale <bundle> <output.json> <query|-> <name> [name ...]\n"
         "  plugin save-state <bundle> <output.state> <query|-> [Name=Text ...]\n"
         "  capture <reference|candidate> <manifest> <output.json>\n"
         "  diagnose <reference|candidate> <manifest> <condition> <output.json> [fit.json]\n"

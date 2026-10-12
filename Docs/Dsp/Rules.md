@@ -3,7 +3,7 @@
 ## Реализация
 
 У каждого процессора — один Native исходник, свой документ алгоритма и собственные runtime states.
-Законченные Cla76, Cla3a, TransientShaper, Air и Thick находятся в
+Законченные Cla76, Cla3a, Cla2a, SslChannel, TransientShaper, Air и Thick находятся в
 Consolidator.Native/External/Dsp/Processors: папка процессора содержит .h/.cpp,
 README.md и Findings.md. Namespace — consolidator::max::dsp::processors;
 общие DSP-примитивы и runtime composites остаются в родительской Dsp.

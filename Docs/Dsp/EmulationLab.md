@@ -20,6 +20,11 @@ $manifest = 'EmulationLab/Experiments/transient-master/manifest.json'
 ```
 
 Числа overrides — normalized VST3 values, не отображаемые значения ручки.
+Нельзя считать normalized value процентом шкалы референса: Waves CLA-2A,
+например, отображает Gain 40.00 при normalized 0.535 и Peak Reduction 46.00
+при normalized 0.598. Для выбора по числам интерфейса передавать текстовые
+overrides. `plugin parameter-scale` сохраняет по 1001 паре normalized/text
+для выбранных параметров, без рендера аудио, с одним сканированием bundle.
 Signed Attack/Sustain:−1→0, 0→0.5, +1→1. Output Gain−12…12 дБ:0.5 нейтрально.
 У текущего candidate нет Limit-параметра; reference Limit1 задан условиями manifest.
 render-wav сохраняет rate/stereo, пишет float32 WAV, не нормализует и не вычитает latency.
@@ -29,6 +34,10 @@ render-wav сохраняет rate/stereo, пишет float32 WAV, не норм
 через один Vst3Host. Overrides отсутствуют: параметры берутся из manifest.
 Condition IDs должны быть именами файлов без компонентов пути. Существующие WAV
 не перезаписываются. Это ручное исследование, не DSP test suite.
+Рядом с WAV сохраняется `.parameters.json`: идентификатор реального плагина,
+показания и normalized values всех параметров после применения controls и Reprepare.
+Этот readback позволяет обнаружить неверную шкалу или несоответствие фактических
+настроек манифесту до интерпретации аудиоизмерений.
 Существующий output не перезаписывается. Для transient-envelope нужны одинаковые
 sample rate, длина и выравнивание файлов. Raw inputs: [каталог](../../EmulationLab/RawAudio/README.md).
 
@@ -37,6 +46,7 @@ sample rate, длина и выравнивание файлов. Raw inputs: [�
 ```text
 plugin describe <bundle> [query]
 plugin parameter-manifest <bundle> <output.json> [query]
+plugin parameter-scale <bundle> <output.json> <query|-> <name> [name ...]
 plugin save-state <bundle> <output.state> <query|-> [Name=Text ...]
 manifest validate <manifest>
 capture <reference|candidate> <manifest> <output.json>

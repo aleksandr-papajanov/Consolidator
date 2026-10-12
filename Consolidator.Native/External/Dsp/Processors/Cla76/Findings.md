@@ -21,7 +21,8 @@ pass. Current manual comparison figures are in the processor document.
   processor, audio crossfade or event timer.
 - Reference LinearAnalysis depends on signal level and history. Harmonics from
   moving gain do not prove a separate saturation stage. Added saturation was
-  removed; nominal Input/Output replaced hardware attenuator emulation by choice.
+  removed. Current Reduction moves threshold without driving audio; nominal Output
+  is independent. Attack/Release/Ratio retain their fitted laws.
 - Reference parameter text parsing was unreliable. Verified WaveShell input
   coordinates were -48 dB at 0.125, -30 dB at 0.375 and -18 dB at 0.625.
   Do not extrapolate the low dial from the default coordinate. Bluey=0,
@@ -36,3 +37,7 @@ Exact full-band, full-level and musical equivalence is not claimed. Earlier nume
 scores preceded nominal gain controls and removal of research overrides; final
 simplification scores compare the current public controls. See [EmulationLab](../../../../../Docs/Dsp/EmulationLab.md) for future
 manual work and [DSP rules](../../../../../Docs/Dsp/Rules.md) for the prohibited automated test scope.
+
+Current Reduction/Output mapping, the ALL release-current transformation and manual
+static comparison are documented in [README](README.md). Historical Input/Output
+figures describe previous interfaces, not current host parameter IDs.

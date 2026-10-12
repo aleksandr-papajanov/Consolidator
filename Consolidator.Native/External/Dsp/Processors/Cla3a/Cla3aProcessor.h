@@ -10,19 +10,19 @@
 namespace consolidator::max::dsp::processors
 {
 
-// Amplitude controls: Input scales only detector sensitivity; Output scales audio.
+// Reduction moves the compression threshold; Output is an independent audio amplitude.
 struct Cla3aControls
 {
-    double inputGain{ 0.03 };
+    double reduction{ 0.49237375 };
     double outputGain{ 0.12 };
 };
 
 // Fixed optical model configuration, compiled once and shared by processor instances.
 struct Cla3aConfig
 {
-    double inputCalibrationDb{ 16.0 };
     double outputCalibrationDb{ 30.0 };
-    double thresholdDb{ -25.7 };
+    double thresholdMaximumDb{ 18.3 };
+    double thresholdSpanDb{ 60.0 };
     double kneeDb{ 12.5 };
     double compressionSlope{ 0.735 };
     double detectorAttackSeconds{ 0.0001 };
@@ -43,25 +43,26 @@ struct Cla3aConfig
     double slowFraction{ 0.18 };
 };
 
-// Fixed-threshold optical approximation with fast and slow gain-reduction memories.
+// Variable-threshold optical approximation with fast and slow gain-reduction memories.
 class Cla3aProcessor final
 {
 public:
     void Prepare(const DspProcessingContext& context) noexcept;
     void Reset() noexcept;
-    void SetControls(double inputGain, double outputGain) noexcept;
+    void SetControls(double reduction, double outputGain) noexcept;
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
     void PrepareDetector(double sampleRate) noexcept;
+    void UpdateReductionCurve(double reduction) noexcept;
     void PrepareColourFilters(const DspProcessingContext& context) noexcept;
     [[nodiscard]] double CalculateTargetReductionDb() const noexcept;
-    void UpdateDetector(const std::array<double*, 2>& channels, std::size_t index, double inputGain) noexcept;
+    void UpdateDetector(const std::array<double*, 2>& channels, std::size_t index) noexcept;
     [[nodiscard]] double UpdateOpticalGain(double targetDb) noexcept;
     [[nodiscard]] double ProcessHighPassSample(double input, std::size_t channel) noexcept;
 
     inline static constexpr Cla3aConfig kConfig{};
-    DspParameterRamp input_{ Cla3aControls{}.inputGain };
+    DspParameterRamp reduction_{ Cla3aControls{}.reduction };
     DspParameterRamp output_{ Cla3aControls{}.outputGain };
     double detectorAttackCoefficient_{};
     double detectorReleaseCoefficient_{};
@@ -78,7 +79,8 @@ private:
     std::array<std::array<double, 1>, 2> detectorShelfStates_{};
     double fastReductionDb_{};
     double slowReductionDb_{};
-    double inputCalibration_{};
+    double cachedReduction_{ -1.0 };
+    double thresholdDb_{};
     double outputCalibration_{};
     double compressionStartPower_{};
     std::array<double, 5> highPassCoefficients_{};

@@ -59,9 +59,8 @@ AllControlValues EvaluateAllControls(double attack, double release, const Cla76C
 void Cla76Processor::Prepare(const DspProcessingContext& context) noexcept
 {
     sampleRate_ = context.sampleRate;
-    inputCalibration_ = DbToGain(kConfig.inputCalibrationDb);
     outputCalibration_ = DbToGain(kConfig.outputCalibrationDb);
-    inputGain_.Prepare(context);
+    reduction_.Prepare(context);
     outputGain_.Prepare(context);
     attack_.Prepare(context);
     release_.Prepare(context);
@@ -76,7 +75,7 @@ void Cla76Processor::Prepare(const DspProcessingContext& context) noexcept
 
 void Cla76Processor::Reset() noexcept
 {
-    inputGain_.Reset();
+    reduction_.Reset();
     outputGain_.Reset();
     attack_.Reset();
     release_.Reset();
@@ -84,15 +83,16 @@ void Cla76Processor::Reset() noexcept
     detectorPower_ = 0.0;
     allMemoryReductionDb_ = 0.0;
     colourPoleStates_ = {};
+    cachedReduction_ = -1.0;
     cachedAttack_ = -1.0;
     cachedRelease_ = -1.0;
     cachedRatio_ = -1.0;
 }
 
 void Cla76Processor::SetControls(
-    double inputGain, double outputGain, double attack, double release, double ratio) noexcept
+    double reduction, double outputGain, double attack, double release, double ratio) noexcept
 {
-    inputGain_.SetTarget(inputGain);
+    reduction_.SetTarget(reduction);
     outputGain_.SetTarget(outputGain);
     // Public controls increase with time; fitted laws use the reference knob orientation.
     attack_.SetTarget(7.0 - 6.0 * attack);
@@ -106,19 +106,19 @@ void Cla76Processor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
     const std::array<double*, 2> channels{ selected.left, selected.right };
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
-        const auto inputGain = inputGain_.NextValue() * inputCalibration_;
+        const auto reduction = reduction_.NextValue();
         const auto attack = attack_.NextValue();
         const auto release = release_.NextValue();
         const auto ratio = ratio_.NextValue();
         UpdateMode(ratio);
-        UpdateControlCoefficients(attack, release, ratio);
+        UpdateControlCoefficients(reduction, attack, release, ratio);
         // Apply the envelope established by preceding samples, before charging it with this sample.
-        const auto targetDb = CalculateTargetReductionDb();
-        const auto detectorAmplitude = selected.Peak(index) * inputGain;
+        const auto targetDb = reduction > 0.0 ? CalculateTargetReductionDb() : 0.0;
+        const auto detectorAmplitude = selected.Peak(index);
         UpdateDetector(detectorAmplitude, ratio);
         const auto reductionDb = UpdateMemoryReductionDb(targetDb, ratio);
         const auto compressionGain = reductionDb == 0.0 ? 1.0 : DbToGain(-reductionDb);
-        const auto processedGain = inputGain * compressionGain * modeOutputGain_;
+        const auto processedGain = compressionGain * modeOutputGain_;
         const auto outputGain = outputGain_.NextValue() * outputCalibration_;
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
         {
@@ -162,7 +162,7 @@ void Cla76Processor::UpdateMode(double ratio) noexcept
 }
 
 void Cla76Processor::UpdateControlCoefficients(
-    double attack, double release, double ratio) noexcept
+    double reduction, double attack, double release, double ratio) noexcept
 {
     const auto timingChanged = attack != cachedAttack_ || release != cachedRelease_;
     if (timingChanged)
@@ -183,10 +183,12 @@ void Cla76Processor::UpdateControlCoefficients(
         releaseCoefficient_ = TimeCoefficient(seconds, sampleRate_);
         cachedRelease_ = release;
     }
-    if (timingChanged)
+    if (timingChanged || reduction != cachedReduction_)
     {
+        const auto sensitivityDb = kConfig.minimumSensitivityDb + kConfig.sensitivitySpanDb * reduction;
         const auto attackPosition = (attack - 4.0) / 3.0;
-        const auto baseThresholdDb = activeMode_.thresholdDb + activeMode_.thresholdAttackSpanDb * attackPosition;
+        const auto baseThresholdDb = activeMode_.thresholdDb +
+            activeMode_.thresholdAttackSpanDb * attackPosition - sensitivityDb;
         const auto releasePosition = (release - 4.0) / 3.0;
         const auto controls = EvaluateAllControls(attackPosition, releasePosition, kConfig);
         const auto fastCurveAmount = ratio * attackPosition * std::clamp((release - 5.0) / 2.0, 0.0, 1.0);
@@ -200,6 +202,7 @@ void Cla76Processor::UpdateControlCoefficients(
         allReleaseCurrent_ = kConfig.allReleaseCurrentRatio * std::sqrt(DbToGain(baseThresholdDb));
         const auto compressionStart = DbToGain(activeThresholdDb_ - activeMode_.kneeDb * 0.5);
         compressionStartPower_ = compressionStart * compressionStart;
+        cachedReduction_ = reduction;
     }
 }
 

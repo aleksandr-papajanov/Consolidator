@@ -1,13 +1,15 @@
 # Finished DSP processors
 
-These five models are complete. Production code and its algorithm documentation
+These seven simplified models are complete. Production code and its algorithm documentation
 live together in one folder per processor. C++ namespace:
 `consolidator::max::dsp::processors`.
 
 | Folder | Algorithm | Research notes |
 | --- | --- | --- |
 | [Cla76](Cla76/README.md) | FET compressor, continuous 4:1 to ALL | [Findings](Cla76/Findings.md) |
-| [Cla3a](Cla3a/README.md) | Optical compressor, detector Input and audio Output | [Findings](Cla3a/Findings.md) |
+| [Cla2a](Cla2a/README.md) | Optical compressor, Reduction and Output | [Findings](Cla2a/Findings.md) |
+| [SslChannel](SslChannel/README.md) | Channel compressor, automatic makeup and normal/Fast attack | [Findings](SslChannel/Findings.md) |
+| [Cla3a](Cla3a/README.md) | Optical compressor, Reduction and Output | [Findings](Cla3a/Findings.md) |
 | [TransientShaper](TransientShaper/README.md) | Signed Attack/Sustain masks and permanent limiting | [Findings](TransientShaper/Findings.md) |
 | [Air](Air/README.md) | High-frequency contour and cubic harmonic enhancement | [Findings](Air/Findings.md) |
 | [Thick](Thick/README.md) | Bass body and finite dense harmonic enhancement | [Findings](Thick/Findings.md) |

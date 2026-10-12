@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 #include "Host/Vst3Host.h"
 
@@ -13,6 +16,25 @@ namespace emulation_lab
 
 namespace
 {
+
+void SaveRenderParameters(const Vst3Plugin& plugin, const std::filesystem::path& outputPath)
+{
+    nlohmann::json parameters = nlohmann::json::array();
+    for (const auto& parameter : plugin.Parameters())
+    {
+        parameters.push_back({ { "name", parameter.name }, { "text", parameter.text },
+            { "normalized", parameter.normalizedValue } });
+    }
+    auto path = outputPath;
+    path.replace_extension(".parameters.json");
+    std::ofstream output(path);
+    if (!output)
+    {
+        throw std::runtime_error("Could not write render parameter readback: " + path.string());
+    }
+    output << nlohmann::json({ { "plugin", plugin.Identity() },
+        { "parameters", std::move(parameters) } }).dump(2) << '\n';
+}
 
 void RenderAudioFileWithHost(
     Vst3Host& host,
@@ -96,6 +118,7 @@ void RenderAudioFileWithHost(
     {
         std::filesystem::create_directories(parent);
     }
+    SaveRenderParameters(*plugin, outputPath);
     auto stream = std::make_unique<juce::FileOutputStream>(juce::File(outputPath.string()));
     if (stream->failedToOpen())
     {

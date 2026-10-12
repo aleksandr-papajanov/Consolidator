@@ -1,0 +1,345 @@
+{
+  "name": "cla2a-first-identification",
+  "reference": {
+    "plugin": "C:/Program Files/Common Files/VST3/WaveShell1-VST3 15.0_x64.vst3",
+    "query": "CLA-2A Stereo"
+  },
+  "candidate": {
+    "plugin": "D:\\Projects\\Ableton\\Consolidator/ModelPlugins.Vst3/build/ConsolidatorCla2aModel_artefacts/Release/VST3/Consolidator CLA-2A Model.vst3",
+    "model": "vst3-parameters",
+    "parameters": []
+  },
+  "sampleRates": [
+    44100
+  ],
+  "blockSize": 128,
+  "seed": 5489,
+  "conditions": [
+    {
+      "id": "gain-0",
+      "reference": {
+        "parameters": {
+          "Gain": 0,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.2",
+      "reference": {
+        "parameters": {
+          "Gain": 0.2,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.2,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.4",
+      "reference": {
+        "parameters": {
+          "Gain": 0.4,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.4,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.5",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.6",
+      "reference": {
+        "parameters": {
+          "Gain": 0.6,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.6,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.8",
+      "reference": {
+        "parameters": {
+          "Gain": 0.8,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.8,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-1",
+      "reference": {
+        "parameters": {
+          "Gain": 1,
+          "Peak Reduction": 0
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 1,
+          "Peak Reduction": 0,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.1",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.1
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.1,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.2",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.2
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.2,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.3",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.3
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.3,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.4",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.4
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.4,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.5",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.5
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.5,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.6",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.6
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.6,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.7",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.7
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.7,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.8",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.8
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.8,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-0.9",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.9
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 0.9,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "reduction-1",
+      "reference": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 1
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.5,
+          "Peak Reduction": 1,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.7-reduction-0.5",
+      "reference": {
+        "parameters": {
+          "Gain": 0.7,
+          "Peak Reduction": 0.5
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.7,
+          "Peak Reduction": 0.5,
+          "Bypass": 0
+        }
+      }
+    },
+    {
+      "id": "gain-0.3-reduction-0.8",
+      "reference": {
+        "parameters": {
+          "Gain": 0.3,
+          "Peak Reduction": 0.8
+        }
+      },
+      "candidate": {
+        "parameters": {
+          "Gain": 0.3,
+          "Peak Reduction": 0.8,
+          "Bypass": 0
+        }
+      }
+    }
+  ],
+  "probes": [
+    "harmonic-grid"
+  ],
+  "probeSettings": {
+    "harmonic-grid": {
+      "minimumFrequency": 998.6,
+      "maximumFrequency": 998.6,
+      "pointsPerOctave": 1,
+      "minimumLevelDb": -48,
+      "maximumLevelDb": 0,
+      "levelStepDb": 12,
+      "minimumPreRollSeconds": 5,
+      "minimumMeasurementSeconds": 0.2,
+      "maximumHarmonic": 8
+    }
+  },
+  "splits": {
+    "training": "training.json",
+    "validation": "validation.json",
+    "listening": "listening",
+    "validationFraction": 0.2
+  }
+}

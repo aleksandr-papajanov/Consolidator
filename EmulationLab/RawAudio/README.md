@@ -34,3 +34,16 @@ Probes/processor-simplification-44100.wav и processor-simplification-96000.wav 
 60/120/1000/12000 Гц; на каждой уровни−30/−18/−12/−6/0/+6 dBFS, по1 секунде.
 Края сегментов имеют5 мс fade, правый канал0.8 от левого с фазовым сдвигом0.3 rad.
 Файлы не содержат обработку моделей и сохранены для будущих исследований.
+
+CLA-2A: Probes/cla2a-level-timing-colour.wav — 103 секунды stereo float32, 44.1 kHz.
+Четыре истории уровня по 5/4/5 секунд на 998.6 Hz, семь установившихся уровней
+от −48 до 0 dBFS и тихие тоны от 8 Hz до 20 kHz. Фаза непрерывная; переходы
+уровня не сглажены. Это необработанный вход для исследования компрессии и АЧХ.
+
+Probes/cla2a-short-repeated-9986.wav — 36 секунд stereo float32, 44.1 kHz.
+Три цикла 1/2/1 секунды −20/0/−20 dBFS на 998.6 Hz, затем шесть 4-секундных
+уровней от −48 до 0 dBFS. Непрерывная фаза позволяет сравнить первый запуск
+и накопление компрессии в следующих циклах при одинаковых настройках ручек.
+
+SSLChannel raw probe: `Probes/ssl-channel-level-timing.wav`, 86 seconds at 44.1 kHz,
+stationary 998.6 Hz levels, three long step histories, and frequency pairs.

@@ -5,6 +5,9 @@
 Код и документация законченных DSP-моделей:
 [Processors](../Consolidator.Native/External/Dsp/Processors/README.md).
 
+Завершённая упрощённая модель: [CLA-2A](../Consolidator.Native/External/Dsp/Processors/Cla2a/README.md).
+[Наблюдения CLA-2A](../Consolidator.Native/External/Dsp/Processors/Cla2a/Findings.md).
+
 | Документ | Scope |
 | --- | --- |
 | [BankIndexContract.md](BankIndexContract.md) | BankIndexContract |
@@ -26,8 +29,12 @@
 | [V8Migration.md](V8Migration.md) | V8Migration |
 | [DSP](Dsp/README.md) | Правила, каждый процессор, runtime, state и ручные исследования |
 | [CLA-76 findings](../Consolidator.Native/External/Dsp/Processors/Cla76/Findings.md) | Краткие полезные выводы завершённого исследования |
-| [CLA-3A](../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md) | Общая Native-модель с фиксированным порогом и Input/Output |
+| [CLA-3A](../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md) | Общая Native-модель с Reduction/Output и подвижным порогом |
 | [CLA-3A findings](../Consolidator.Native/External/Dsp/Processors/Cla3a/Findings.md) | Краткие выводы исследований и ограничения упрощённой модели |
 
 Новый самостоятельный scope сразу добавлять в этот индекс или индекс DSP.
 Документация соответствует текущему коду; историю гипотез хранить кратко рядом с процессором.
+
+Finished simplified model: [SSLChannel compressor](../Consolidator.Native/External/Dsp/Processors/SslChannel/README.md), Ratio/Release/Attack/Threshold.
+
+[SSLChannel findings](../Consolidator.Native/External/Dsp/Processors/SslChannel/Findings.md): initial measurements and remaining limits.

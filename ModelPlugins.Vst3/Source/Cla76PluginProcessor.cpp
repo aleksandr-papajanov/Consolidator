@@ -52,7 +52,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout CreateParameterLayout()
                         : static_cast<float>(std::pow(10.0, text.getDoubleValue() / 20.0));
                 })));
     };
-    addAttenuation("input", "Input", defaults.inputGain);
+    AddFloat(values, "reduction", "Reduction", 0, 1, defaults.reduction);
     addAttenuation("output", "Output", defaults.outputGain);
     AddFloat(values, "attack", "Attack", 0, 1, defaults.attack);
     AddFloat(values, "release", "Release", 0, 1, defaults.release);
@@ -77,7 +77,7 @@ public:
         attack_ = parameters_.getRawParameterValue("attack");
         release_ = parameters_.getRawParameterValue("release");
         ratio_ = parameters_.getRawParameterValue("ratio");
-        input_ = parameters_.getRawParameterValue("input");
+        reduction_ = parameters_.getRawParameterValue("reduction");
         bypass_ = parameters_.getRawParameterValue("bypass");
         output_ = parameters_.getRawParameterValue("output");
     }
@@ -88,7 +88,7 @@ public:
             std::max(maximumExpectedSamplesPerBlock, 1));
         left_.assign(capacity, 0.0);
         right_.assign(capacity, 0.0);
-        processor_.SetControls(input_->load(), output_->load(), attack_->load(), release_->load(),
+        processor_.SetControls(reduction_->load(), output_->load(), attack_->load(), release_->load(),
             ratio_->load());
         processor_.Prepare({ sampleRate, capacity });
     }
@@ -117,7 +117,7 @@ public:
         {
             return;
         }
-        processor_.SetControls(input_->load(), output_->load(), attack_->load(), release_->load(),
+        processor_.SetControls(reduction_->load(), output_->load(), attack_->load(), release_->load(),
             ratio_->load());
         auto* left = buffer.getWritePointer(0);
         auto* right = buffer.getWritePointer(1);
@@ -210,7 +210,7 @@ private:
     std::atomic<float>* attack_{};
     std::atomic<float>* release_{};
     std::atomic<float>* ratio_{};
-    std::atomic<float>* input_{};
+    std::atomic<float>* reduction_{};
     std::atomic<float>* bypass_{};
     std::atomic<float>* output_{};
 };

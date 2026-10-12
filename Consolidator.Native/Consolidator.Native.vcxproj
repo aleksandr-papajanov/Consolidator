@@ -108,6 +108,8 @@
     <ClCompile Include="External\Dsp\CompressionProcessor.cpp" />
     <ClCompile Include="External\Dsp\Processors\Cla76\Cla76Processor.cpp" />
     <ClCompile Include="External\Dsp\Processors\Cla3a\Cla3aProcessor.cpp" />
+    <ClCompile Include="External\Dsp\Processors\Cla2a\Cla2aProcessor.cpp" />
+    <ClCompile Include="External\Dsp\Processors\SslChannel\SslChannelProcessor.cpp" />
     <ClCompile Include="External\Dsp\CompressorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DetectorProcessor.cpp" />
     <ClCompile Include="External\Dsp\DspBiquad.cpp" />
@@ -159,6 +161,8 @@
     <ClInclude Include="External\Dsp\CompressionProcessor.h" />
     <ClInclude Include="External\Dsp\Processors\Cla76\Cla76Processor.h" />
     <ClInclude Include="External\Dsp\Processors\Cla3a\Cla3aProcessor.h" />
+    <ClInclude Include="External\Dsp\Processors\Cla2a\Cla2aProcessor.h" />
+    <ClInclude Include="External\Dsp\Processors\SslChannel\SslChannelProcessor.h" />
     <ClInclude Include="External\Dsp\CompressorProcessor.h" />
     <ClInclude Include="External\Dsp\EqualizerProcessor.h" />
     <ClInclude Include="External\Dsp\Processors\Thick\PolishThickProcessor.h" />

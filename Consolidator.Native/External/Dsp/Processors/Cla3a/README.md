@@ -6,24 +6,21 @@
 
 ## Scope and ownership
 
-A simplified optical compressor based on manual comparison with Waves CLA-3A
-Stereo in Compressor mode. Input/Output use amplitude controls 0..1 with the same
--infinity..0 dB display and 0.3 host-range skew as CLA-76. Defaults display
-about -30.46/-18.42 dB, from Native amplitude defaults 0.03/0.12. Both use 10 ms amplitude
-ramps. Other reference settings retain instantiated defaults.
-Exact hardware/plugin matching is not a goal; small differences are accepted for
-runtime simplicity. One Native implementation is compiled directly by VST3.
-The adapter owns only host parameters/state, Bypass and preallocated conversion.
-The processor is included in the Native project and compiled directly into VST3;
-it is not yet connected to the Managed runtime graph/ABI. No extra research controls.
+A simplified optical compressor based on Waves CLA-3A Stereo in Compressor mode.
+One Native implementation is compiled by Native and VST3; the adapter owns only
+host parameters/state, Bypass and preallocated float/double conversion buffers.
+The processor is not connected to the Managed runtime graph/ABI.
 
-| Control | Host display | Default amplitude | Effective default gain |
-| --- | --- | --- | --- |
-| Input | -infinity..0 dB | 0.03 | detector about -14.46 dB |
-| Output | -infinity..0 dB | 0.12 | audio about +11.58 dB |
+| Control | Range | Default |
+| --- | --- | --- |
+| Reduction | 0..1 | 0.49237375 |
+| Output | amplitude 0..1, displayed -infinity..0 dB | 0.12 (-18.42 dB displayed) |
 
-Native Cla3aControls owns the defaults; Cla3aConfig owns calibration and algorithm
-constants. VST3 owns only the display conversion and host parameter mapping.
+Reduction changes threshold without driving audio input. Zero stops new reduction;
+existing optical memories recover. Output remains independent, with a prepared
++30 dB calibration; displayed -30 dB is unity and -infinity mutes. Controls ramp
+in 10 ms. Native owns defaults and configuration. Host IDs are
+reduction/output/bypass; old presets are not migrated.
 
 ## Detector and curve
 
@@ -31,15 +28,15 @@ Each selected input channel receives a first-order detector shelf: unity HF gain
 -1.8 dB LF gain, corner 740 Hz. With low=sample-highpass(sample), detector sample
 is sample-(1-lowGain)*low. Link by maximum absolute amplitude. One power follower
 charges in 0.1 ms and discharges in 1.7 ms; its preceding state controls current gain.
-Input scales the linked detector amplitude before the power follower and does not
-amplify the audio path. A prepared +16 dB calibration preserves the previous
-maximum detector sensitivity. Displayed Input 0 dB applies this maximum; its
-zero-amplitude endpoint feeds zero power while existing histories decay.
-
-Threshold is fixed at -25.7 dB, matching the normal CLA-76 model threshold.
-Slope is 0.735; knee is 12.5 dB. Lower-knee power prepares once.
-The former threshold polynomial is removed from runtime. Input is a simple
-amplitude multiplier; no sample gain conversion or control cache is needed.
+The detector receives the weighted raw amplitude without an Input multiplier.
+Reduction moves threshold linearly: T=18.3-60*Reduction dB. At the default,
+T is about -11.2424 dB, retaining the previous startup sensitivity. Maximum
+Reduction reaches -41.7 dB, equivalent to the preceding maximum detector gain.
+Slope remains 0.735 and knee 12.5 dB. Threshold and lower-knee power are cached
+until Reduction changes. Reduction is sensitivity, not a fixed requested number
+of dB of attenuation. Its prior reference knob polynomial did not survive in
+committed history; this simple taper restores the variable-threshold scheme,
+not the exact former Waves knob positions.
 
 ## Optical histories
 
@@ -63,10 +60,9 @@ coupled-release path or additional detector.
 
 Compression -> second-order highpass -> high shelf -> Output.
 Highpass is 8.8 Hz/Q 0.62. High shelf is 14.5 kHz/Q 0.64/+2.2 dB, using the existing
-DspBiquadCascade. A prepared +30 dB output calibration preserves the previous
-maximum audio gain. Displayed Output 0 dB is maximum gain, and -infinity mutes.
+DspBiquadCascade. A prepared +30 dB output calibration retains maximum audio gain. Displayed Output 0 dB is maximum gain, and -infinity mutes.
 Effective unity is displayed Output -30 dB. Calibration converts once in Prepare;
-Process multiplies it by the current amplitude ramp.
+Process multiplies it by the current Output amplitude ramp.
 
 Compression/highpass share a sample loop, followed by the shelf and Output loops.
 The extra highpass pole, two LF corrective bells, nonlinear bass reinforcement,
@@ -100,38 +96,41 @@ positive-target adaptive release uses one exponential instead of up to three.
 Source review found no new ownership/realtime issues. Useful limitations:
 [findings](Findings.md).
 
-## Control conversion
+## Mapping from the preceding Input/Output model
 
-For static controls, the former threshold T and Gain amount G map to:
+For old input amplitude I>0:
 
 ~~~text
-InputDisplayDb = -25.7 - T - 16
-OutputDisplayDb = 50*(G - 0.408) - 30
+Reduction = (20*log10(I)+60)/60
+Output = old Output amplitude
 ~~~
 
-Scaling detector power adds InputDisplayDb+16 to its measured dB level, preserving the
-over-threshold value, knee target and optical histories from a cold start.
-Floating-point rounding prevents a bitwise guarantee. Automation transitions
-are intentionally different. Host parameter IDs are now input/output/bypass;
-use a fresh instance instead of an old Gain/Peak Reduction preset.
-
-Manual EmulationLab comparison against the approved simplified model used 15
-mapped static control combinations at 44.1 kHz, block size 128, on the continuous
-56-second four-level-pair 998.6 Hz probe. Maximum relative whole-waveform RMS
-error was 4.623e-7 (0.000047%), including attack/release transitions. This measures
-control conversion against the previous model, not accuracy against Waves.
-The attenuation interface retains the previous maximum gains and extends both
-lower endpoints to zero amplitude. Zero Input removes detector excitation;
-zero Output mutes the audio.
-Use a fresh instance after this range/unit change; preset migration is not provided.
+This preserves the static detector over-threshold level, knee and optical memories
+for I in 0.001..1. Old Input zero maps to Reduction zero. Weaker sensitivities below
+0.001 are intentionally replaced by the no-new-compression endpoint. Floating-point
+rounding prevents bitwise identity. Automation now moves threshold directly.
 
 ## Code map
 
 - PrepareDetector and PrepareColourFilters compile fixed coefficients before processing.
-- CalculateTargetReductionDb reads the preceding detector power at the fixed threshold.
-- UpdateDetector applies detector weighting and sensitivity, then advances linked power.
+- UpdateReductionCurve caches the variable threshold and knee start.
+- CalculateTargetReductionDb reads the preceding detector power at this threshold.
+- UpdateDetector applies detector weighting, then advances linked power.
 - UpdateOpticalGain advances fast/slow dB memories and returns their combined gain.
 - ProcessHighPassSample runs the audio HP; the shelf and Output retain their separate block passes.
 
-The model is complete. This organization refactor changes source layout and method boundaries;
-control ranges, constants, state update order and signal routing are retained.
+The optical model is complete. This interface change retains optical/filter coefficients and state update order.
+
+## Manual verification of Reduction/Output
+
+Native Release|x64 and this model's Release VST3 were built and installed.
+A requested EmulationLab comparison used 3 static mapped settings on the
+36-second repeated 998.6 Hz probe, at 44.1 kHz / block 128. Whole stereo waveforms
+were compared with saved preceding-model renders, including attacks, releases
+and quiet recovery. Maximum relative waveform RMS difference was
+3.12944e-7 (0.0000313%); maximum sample difference
+relative to the preceding waveform peak was 3.14234e-7.
+These observations cover mapped static settings, not equivalence during automation
+or an accuracy bound against Waves. Optical/timing and colour constants are retained.
+No DSP automated tests were created or run. Source review found no new allocation,
+locking, I/O, host-side algorithm, duplicate API or preset migration path.

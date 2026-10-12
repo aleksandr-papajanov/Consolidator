@@ -15,9 +15,8 @@ namespace consolidator::max::dsp::processors
 
 void Cla3aProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
-    input_.Prepare(context);
+    reduction_.Prepare(context);
     output_.Prepare(context);
-    inputCalibration_ = DbToGain(kConfig.inputCalibrationDb);
     outputCalibration_ = DbToGain(kConfig.outputCalibrationDb);
     PrepareDetector(context.sampleRate);
     PrepareColourFilters(context);
@@ -26,7 +25,9 @@ void Cla3aProcessor::Prepare(const DspProcessingContext& context) noexcept
 
 void Cla3aProcessor::Reset() noexcept
 {
-    input_.Reset();
+    reduction_.Reset();
+    cachedReduction_ = -1.0;
+    UpdateReductionCurve(reduction_.CurrentValue());
     output_.Reset();
     detectorPower_ = 0.0;
     detectorShelfStates_ = {};
@@ -36,9 +37,9 @@ void Cla3aProcessor::Reset() noexcept
     highShelfFilter_.Reset();
 }
 
-void Cla3aProcessor::SetControls(double inputGain, double outputGain) noexcept
+void Cla3aProcessor::SetControls(double reduction, double outputGain) noexcept
 {
-    input_.SetTarget(inputGain);
+    reduction_.SetTarget(reduction);
     output_.SetTarget(outputGain);
 }
 
@@ -48,10 +49,11 @@ void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
     const std::array<double*, 2> channels{ selected.left, selected.right };
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
-        const auto inputGain = input_.NextValue() * inputCalibration_;
+        const auto reduction = reduction_.NextValue();
+        UpdateReductionCurve(reduction);
         // The curve reads the preceding power state; this sample then charges the detector.
-        const auto targetDb = CalculateTargetReductionDb();
-        UpdateDetector(channels, index, inputGain);
+        const auto targetDb = reduction > 0.0 ? CalculateTargetReductionDb() : 0.0;
+        UpdateDetector(channels, index);
         const auto compressionGain = UpdateOpticalGain(targetDb);
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
         {
@@ -71,8 +73,6 @@ void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
 
 void Cla3aProcessor::PrepareDetector(double sampleRate) noexcept
 {
-    const auto start = DbToGain(kConfig.thresholdDb - kConfig.kneeDb * 0.5);
-    compressionStartPower_ = start * start;
     detectorAttackCoefficient_ = TimeCoefficient(kConfig.detectorAttackSeconds, sampleRate);
     detectorReleaseCoefficient_ = TimeCoefficient(kConfig.detectorReleaseSeconds, sampleRate);
     fastAttackCoefficient_ = TimeCoefficient(kConfig.fastAttackSeconds, sampleRate);
@@ -84,6 +84,18 @@ void Cla3aProcessor::PrepareDetector(double sampleRate) noexcept
         (inverseSampleRate_ + kConfig.releaseFloorSeconds + kConfig.fastReleaseSeconds);
     slowZeroTargetCoefficient_ = inverseSampleRate_ /
         (inverseSampleRate_ + kConfig.releaseFloorSeconds + kConfig.slowReleaseSeconds);
+}
+
+void Cla3aProcessor::UpdateReductionCurve(double reduction) noexcept
+{
+    if (reduction == cachedReduction_)
+    {
+        return;
+    }
+    thresholdDb_ = kConfig.thresholdMaximumDb - kConfig.thresholdSpanDb * reduction;
+    const auto start = DbToGain(thresholdDb_ - kConfig.kneeDb * 0.5);
+    compressionStartPower_ = start * start;
+    cachedReduction_ = reduction;
 }
 
 void Cla3aProcessor::PrepareColourFilters(const DspProcessingContext& context) noexcept
@@ -108,7 +120,7 @@ double Cla3aProcessor::CalculateTargetReductionDb() const noexcept
     auto targetDb = 0.0;
     if (detectorPower_ > compressionStartPower_)
     {
-        const auto overDb = 10.0 * std::log10(detectorPower_) - kConfig.thresholdDb;
+        const auto overDb = 10.0 * std::log10(detectorPower_) - thresholdDb_;
         const auto halfKnee = kConfig.kneeDb * 0.5;
         if (overDb >= halfKnee)
         {
@@ -124,7 +136,7 @@ double Cla3aProcessor::CalculateTargetReductionDb() const noexcept
 }
 
 void Cla3aProcessor::UpdateDetector(
-    const std::array<double*, 2>& channels, std::size_t index, double inputGain) noexcept
+    const std::array<double*, 2>& channels, std::size_t index) noexcept
 {
     auto amplitude = 0.0;
     for (std::size_t channel = 0; channel < channels.size(); ++channel)
@@ -138,8 +150,7 @@ void Cla3aProcessor::UpdateDetector(
             amplitude = std::max(amplitude, std::abs(detectorSample));
         }
     }
-    const auto detectorAmplitude = amplitude * inputGain;
-    const auto power = detectorAmplitude * detectorAmplitude;
+    const auto power = amplitude * amplitude;
     const auto detectorCoefficient = power > detectorPower_
         ? detectorAttackCoefficient_ : detectorReleaseCoefficient_;
     detectorPower_ += detectorCoefficient * (power - detectorPower_);
