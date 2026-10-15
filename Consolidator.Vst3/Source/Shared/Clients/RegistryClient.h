@@ -60,7 +60,7 @@ public:
     [[nodiscard]] const std::vector<RegistryInstance>& Instances() const;
     [[nodiscard]] const RegistryInstance* Find(std::uint64_t instance) const;
     [[nodiscard]] const RegistryBank* FindBank(std::uint64_t instance, int bank) const;
-    [[nodiscard]] std::optional<std::uint32_t> NextGroup() const;
+    [[nodiscard]] bool CanCreateGroup() const;
 
 private:
     struct Snapshot

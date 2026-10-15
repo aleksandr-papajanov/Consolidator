@@ -9,7 +9,7 @@ namespace consolidator::max::dsp::processors
 {
 
 // Mean attenuation of eight unnormalised musical sources. This is a settings law,
-// not a signal follower; source-specific differences remain. See Docs/Dsp/ProgramMakeup.md.
+// not a signal follower; source-specific differences remain. See Consolidator.Native/Docs/Aspects/ProgramMakeup.md.
 inline double ProgramReductionDb(double reduction, double onset, double width, double slope) noexcept
 {
     const auto position = std::max(reduction - onset, 0.0);

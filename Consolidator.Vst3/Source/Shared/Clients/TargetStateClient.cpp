@@ -28,7 +28,7 @@ void TargetStateClient::Observe(UiTarget target)
     Invalidate();
     target_ = std::move(target);
     // All requests select the same bank; EQ is last to retain the main graph focus.
-    for (const auto* context : { "input", "saturator", "compressor", "polish", "output", "equalizer" })
+    for (const auto* context : { "gain_staging", "saturator", "compressor", "polish", "equalizer" })
     {
         const auto request = commands_.Request("observe_target", { std::to_string(target_.instance),
             static_cast<std::int64_t>(target_.bank), std::string(context) });

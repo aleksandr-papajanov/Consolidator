@@ -14,7 +14,6 @@
 #include "Features/Tracks/Controls/TrackListControl.h"
 #include "Features/Tracks/Controls/InstanceButtonsControl.h"
 #include "Features/Tracks/Controllers/TrackController.h"
-#include "Shared/Editing/HistoryActionSession.h"
 #include "Shared/Editing/DialGestureSession.h"
 #include "Shared/Controls/InactiveOverlay.h"
 #include "Shared/Controls/ActionButton.h"
@@ -87,7 +86,6 @@ private:
     shared::clients::RegistryClient registry_;
     shared::clients::TrackLevelClient trackLevels_;
     std::uint64_t nextTransaction_{ 1 };
-    shared::editing::HistoryActionSession historyActions_;
     features::tracks::controllers::TrackController trackActions_;
     features::tracks::viewmodels::TracksViewModel tracks_;
     features::tracks::controls::TrackListControl trackList_;

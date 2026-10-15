@@ -17,7 +17,7 @@ class ParameterControl final : public juce::Component
 {
 public:
     ParameterControl(shared::controls::parameter::viewmodels::ParameterViewModel& model,
-        shared::editing::ParameterIntents intents);
+        shared::editing::ParameterIntents intents, juce::String buttonLabel, int connectedEdges);
     [[nodiscard]] const std::string& Path() const;
     [[nodiscard]] shared::controls::parameter::viewmodels::ParameterViewModel& Model();
     void Refresh();
@@ -37,6 +37,7 @@ private:
     shared::editing::ParameterIntents intents_;
     std::unique_ptr<shared::controls::dial::DialControl> dial_;
     ParameterButton button_;
+    juce::String buttonLabel_;
     juce::Colour scopeColor_;
     bool choiceDragging_{};
     double choicePosition_{};

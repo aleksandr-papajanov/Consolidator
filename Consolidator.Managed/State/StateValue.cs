@@ -158,6 +158,7 @@ public sealed class StateValue<TValue> : IHistoryValue, IDisposable
         _previousValue = previousValue;
         _pendingValue = pendingValue;
         _pendingTransaction = transaction;
+        transaction.TrackChange(this);
         transaction.AddCommittedChange(() =>
             NotifyObservers(previousValue, pendingValue));
         transaction.Add(new StateValueTransactionEntry(this));

@@ -15,7 +15,9 @@ DialViewModel::DialViewModel(const shared::presentation::StateValueViewModel& st
 {
     const auto last = state.Path().substr(state.Path().rfind('.') + 1);
     logarithmic_ = last == "frequency";
-    decibels_ = last == "gain" || last == "level" || last == "target" || last == "output";
+    decibels_ = last == "gain" || last == "level" || last == "target" || last == "output" ||
+        last == "input_level" || last == "input_target" ||
+        last == "output_level" || last == "output_target" || last == "limit";
     if (decibels_)
     {
         suffix_ = " dB";

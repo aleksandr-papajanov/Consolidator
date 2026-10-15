@@ -54,8 +54,8 @@ public sealed class CommandRoundTripTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
+            Symbol("gain_staging"),
+            Symbol("input_level"),
             Symbol("value"),
             Float(5.5),
             Symbol("copy"));
@@ -66,8 +66,8 @@ public sealed class CommandRoundTripTests
         var change = Assert.Single(
             instance.Frames,
             frame => frame.Selector == "state_changed" &&
-                frame.Atoms[1].SymbolValue == "input_gain.level");
-        Assert.Equal("input_gain.level", change.Atoms[1].SymbolValue);
+                frame.Atoms[1].SymbolValue == "gain_staging.input_level");
+        Assert.Equal("gain_staging.input_level", change.Atoms[1].SymbolValue);
         Assert.Equal(5.5, change.Atoms[2].FloatValue);
 
         instance.ClearFrames();
@@ -79,8 +79,8 @@ public sealed class CommandRoundTripTests
             Symbol("102"),
             Integer(1),
             Symbol("query"),
-            Symbol("input_gain"),
-            Symbol("level"));
+            Symbol("gain_staging"),
+            Symbol("input_level"));
         instance.WaitForResponse("102");
 
         var response = instance.Single("state_done");
@@ -320,8 +320,8 @@ public sealed class CommandRoundTripTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
+            Symbol("gain_staging"),
+            Symbol("input_level"),
             Symbol("value"),
             Float(gain),
             Symbol("copy"));
@@ -347,8 +347,8 @@ public sealed class CommandRoundTripTests
             Symbol(requestId),
             Integer(1),
             Symbol("query"),
-            Symbol("input_gain"),
-            Symbol("level"));
+            Symbol("gain_staging"),
+            Symbol("input_level"));
         instance.WaitForResponse(requestId);
         return instance.Single("state_done").Atoms[^1].FloatValue;
     }

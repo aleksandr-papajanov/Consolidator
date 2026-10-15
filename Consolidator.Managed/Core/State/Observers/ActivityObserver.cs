@@ -115,13 +115,15 @@ internal sealed class ActivityObserver
 
     private ProcessorStatus CreateStatus(ProcessorId processorId) => processorId switch
     {
-        ProcessorId.Input => new(
+        ProcessorId.GainStaging => new(
             processorId,
             DspActivityCalculator.IsInputGainActive(
-                _dsp.InputGain.Level.Value,
-                _dsp.InputGain.Width.Value,
-                _dsp.InputGain.Leveler.Value),
-            _dsp.InputGain.Bypass.Value),
+                _dsp.GainStaging.InputLevel.Value,
+                _dsp.GainStaging.Width.Value,
+                _dsp.GainStaging.InputLeveler.Value) ||
+                MathF.Abs(_dsp.GainStaging.OutputLevel.Value) > ActivityEpsilon ||
+                _dsp.GainStaging.OutputLeveler.Value || _dsp.GainStaging.Limit.Value < 0,
+            _dsp.GainStaging.Bypass.Value),
         ProcessorId.Saturator => new(
             processorId,
             MathF.Abs(_dsp.Saturator.Drive.Value) > ActivityEpsilon ||
@@ -143,11 +145,6 @@ internal sealed class ActivityObserver
             MathF.Abs(_dsp.Polish.Thick.Value) > ActivityEpsilon ||
                 MathF.Abs(_dsp.Polish.Air.Value) > ActivityEpsilon,
             _dsp.Polish.Bypass.Value),
-        ProcessorId.Output => new(
-            processorId,
-            MathF.Abs(_dsp.OutputGain.Level.Value) > ActivityEpsilon ||
-                _dsp.OutputGain.Limiter.Value,
-            _dsp.OutputGain.Bypass.Value),
         _ => throw new ArgumentOutOfRangeException(nameof(processorId))
     };
 

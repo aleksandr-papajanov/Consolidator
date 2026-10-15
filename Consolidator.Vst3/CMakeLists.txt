@@ -62,12 +62,12 @@ target_sources(Consolidator PRIVATE
     Source/Features/ChannelStrip/Bindings/ChannelStripBindings.cpp
     Source/Shared/Controls/Parameter/Bindings/ParameterBindings.cpp
     Source/Features/Equalizer/Bindings/AnalyzerBindings.cpp
-    Source/Features/ChannelStrip/Input/Bindings/InputBindings.cpp
+    Source/Features/ChannelStrip/GainStaging/Bindings/GainStagingBindings.cpp
     Source/Shared/Clients/InputTelemetryClient.cpp
     Source/Shared/Presentation/StateValueViewModel.cpp
     Source/Shared/Controls/Parameter/ViewModels/ParameterViewModel.cpp
     Source/Shared/Controls/Dial/DialViewModel.cpp
-    Source/Features/ChannelStrip/Input/ViewModels/InputLevelerViewModel.cpp
+    Source/Features/ChannelStrip/GainStaging/ViewModels/InputLevelerViewModel.cpp
     Source/Features/Equalizer/ViewModels/AnalyzerViewModel.cpp
     Source/Features/Tracks/ViewModels/TracksViewModel.cpp
     Source/Features/Tracks/ViewModels/TrackFeedback.cpp
@@ -83,7 +83,6 @@ target_sources(Consolidator PRIVATE
     Source/Features/Equalizer/Controls/AnalyzerControl.cpp
     Source/Features/Equalizer/Controls/AnalyzerRenderer.cpp
     Source/Shared/Editing/DialGestureSession.cpp
-    Source/Shared/Editing/HistoryActionSession.cpp
     Source/Shared/Clients/RegistryClient.cpp
     Source/Shared/Clients/ProtocolClient.cpp
     Source/Shared/Clients/TargetStateClient.cpp
@@ -96,7 +95,6 @@ target_sources(Consolidator PRIVATE
     Source/Features/Tracks/Controls/InstanceButtonsControl.cpp
     Source/Features/Tracks/Controls/BankCellRenderer.cpp
     Source/Features/Tracks/Controllers/BankCellInteraction.cpp
-    Source/Features/Tracks/Controllers/GroupEditor.cpp
     Source/Features/Tracks/Controllers/TrackController.cpp
     Source/Shared/Protocol/ProtocolFrame.cpp
     Source/Host/Plugin/WindowsPluginHost.cpp

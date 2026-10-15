@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Consolidator.Managed.Core.Services.Persistence;
 
-internal sealed record PersistentStateV4(
+internal sealed record PersistentState(
     int Schema,
     PersistentInstance Instance,
     PersistentBank[] Banks,
@@ -13,15 +13,16 @@ internal sealed record PersistentInstance(bool Mute, bool Solo, bool Bypass);
 internal sealed record PersistentBank(uint? Group);
 
 internal sealed record PersistentDsp(
-    PersistentInput Input,
+    PersistentGainStaging GainStaging,
     PersistentSaturator Saturator,
     PersistentCompressor Compressor,
     PersistentEqualizer Equalizer,
-    PersistentPolish Polish,
-    PersistentOutput Output);
+    PersistentPolish Polish);
 
-internal sealed record PersistentInput(float Level, float Target, float Width, bool Leveler, bool Bypass);
-internal sealed record PersistentOutput(float Level, float Target, bool Limiter, bool Bypass);
+internal sealed record PersistentGainStaging(
+    float InputLevel, float InputTarget, bool InputLeveler,
+    float OutputLevel, float OutputTarget, bool OutputLeveler,
+    float Limit, float Width, bool Bypass, PersistentDetector Detector);
 
 internal sealed record PersistentSaturator(
     float Drive,
@@ -65,7 +66,7 @@ internal sealed record PersistentFilter(
     NumberHandling = JsonNumberHandling.Strict,
     RespectRequiredConstructorParameters = true,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
-[JsonSerializable(typeof(PersistentStateV4))]
+[JsonSerializable(typeof(PersistentState))]
 internal partial class PersistenceJsonContext : JsonSerializerContext
 {
 }

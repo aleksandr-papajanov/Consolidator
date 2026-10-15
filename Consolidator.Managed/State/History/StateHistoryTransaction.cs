@@ -4,9 +4,16 @@ public sealed class StateHistoryTransaction : IDisposable
 {
     private readonly List<IStateTransactionEntry> _entries = new();
     private readonly List<Action> _committedChanges = new();
+    private readonly HashSet<IHistoryValue> _changedValues = new();
     private bool _completed;
 
     internal bool IsCompleted => _completed;
+
+    internal int ChangedValueCount => _changedValues.Count;
+
+    internal void TrackChange(IHistoryValue value) => _changedValues.Add(value);
+
+    internal IEnumerable<IHistoryValue> ChangedValues => _changedValues;
 
     internal void Add(IStateTransactionEntry entry)
     {

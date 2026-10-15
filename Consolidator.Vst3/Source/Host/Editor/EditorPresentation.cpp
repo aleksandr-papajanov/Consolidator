@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <utility>
 
-#include "Features/ChannelStrip/Presentation/ProcessorCatalog.h"
 #include "Host/Editor/EditorLayout.h"
 #include "Shared/Clients/ParameterEntry.h"
 #include "Shared/Theme/UiColors.h"
@@ -20,7 +19,7 @@ EditorPresentation::EditorPresentation(EditorServices services)
           { return services_.request(selector, std::move(body)); }),
       targetState_(commands_), stateCommands_(commands_, targetState_),
       analyzerClient_(commands_, targetState_), history_(commands_),
-      historyActions_(commands_, nextTransaction_), trackActions_(commands_, registry_, historyActions_),
+      trackActions_(commands_, registry_),
       tracks_(registry_, trackLevels_, services_.instanceId),
       trackList_(tracks_, [this](const features::tracks::bindings::TrackIntent& intent) { HandleTrackIntent(intent); }),
       instanceButtons_(tracks_, [this](const features::tracks::bindings::TrackIntent& intent)
@@ -169,7 +168,6 @@ EditorPresentation::~EditorPresentation()
     closing_ = true;
 
     gesture_.Close();
-    historyActions_.Close();
 
     session_.Close();
     commands_.Clear();
@@ -270,8 +268,8 @@ void EditorPresentation::Observe()
     SetBusy(true);
     equalizer_.Graph().Clear();
     telemetry_.Reset();
-    channelStripBindings_.Input().ClearTelemetry();
-    channelStrip_.RefreshPath(std::string(channelStripBindings_.Input().OverlayPath()));
+    channelStripBindings_.GainStaging().ClearTelemetry();
+    channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
     analyzerClient_.Invalidate();
     resized();
     trackList_.RefreshPresentation();
@@ -309,7 +307,7 @@ void EditorPresentation::SetBusy(bool busy)
         registry_.Ready());
 
     channelStripBindings_.Parameters().SetEditing(editing);
-    channelStrip_.SetEditing(editing);
+    channelStrip_.SetEditing(editing, navigation);
     reset_.setEnabled(navigation);
     undo_.setEnabled(navigation && history_.CanUndo());
     redo_.setEnabled(navigation && history_.CanRedo());
@@ -368,7 +366,7 @@ void EditorPresentation::ApplyChangedValue(const shared::protocol::ProtocolFrame
     }
     if (update.runtimeOverlayChanged)
     {
-        channelStrip_.RefreshPath(std::string(channelStripBindings_.Input().OverlayPath()));
+        channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
     }
     equalizer_.Graph().Refresh();
     equalizer_.RefreshAcceptedState();
@@ -389,8 +387,8 @@ void EditorPresentation::ApplyTelemetry(const shared::protocol::ProtocolFrame& f
     {
         return;
     }
-    channelStripBindings_.Input().ApplyTelemetry(telemetry->slow, telemetry->fast);
-    channelStrip_.RefreshPath(std::string(channelStripBindings_.Input().OverlayPath()));
+    channelStripBindings_.GainStaging().ApplyTelemetry(telemetry->slow, telemetry->fast);
+    channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
 }
 
 void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& frame)
@@ -400,8 +398,8 @@ void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& fram
         equalizer_.Graph().SetSampleRate(shared::protocol::Number(frame.values.at(0)));
 
         telemetry_.Reset();
-        channelStripBindings_.Input().ClearTelemetry();
-        channelStrip_.RefreshPath(std::string(channelStripBindings_.Input().OverlayPath()));
+        channelStripBindings_.GainStaging().ClearTelemetry();
+        channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
         return;
     }
     if (frame.selector == "state_restored")
@@ -565,7 +563,7 @@ bool EditorPresentation::BeginGesture(const std::string& path, std::vector<share
     {
         return false;
     }
-    if (channelStripBindings_.Input().IsAutomatedValue(path))
+    if (channelStripBindings_.GainStaging().IsAutomatedValue(path))
     {
         return false;
     }
@@ -605,30 +603,13 @@ void EditorPresentation::CommitDiscreteValue(const std::string& path, std::int64
             Observe();
         }
     };
-    if (features::channelstrip::presentation::UsesDiscreteHistory(path))
-    {
-        historyActions_.Run([this, path, value, generation, scope](const std::string& transaction, Completion done)
-        {
-            if (busy_ || !session_.Active() || !targetState_.Ready() || generation != targetState_.Generation() ||
-                scope != tracks_.GroupScope())
-            {
-                services_.log("Canceled discrete edit after target/scope transition: " + path);
-                done(false);
-                return;
-            }
-            stateCommands_.WriteDiscrete(path, value, scope, transaction, std::move(done));
-        }, completion);
-    }
-    else
-    {
-        stateCommands_.WriteDiscrete(path, value, tracks_.GroupScope(), "0", completion);
-    }
+    stateCommands_.WriteDiscrete(path, value, scope, completion);
 }
 
 void EditorPresentation::ResetValue(const std::string& path)
 {
     if (busy_ || gesture_.Active() || !session_.Active() ||
-        channelStripBindings_.Input().IsAutomatedValue(path))
+        channelStripBindings_.GainStaging().IsAutomatedValue(path))
     {
         return;
     }
@@ -674,7 +655,7 @@ void EditorPresentation::HandleTrackIntent(const features::tracks::bindings::Tra
 
 void EditorPresentation::GroupSelectedBanks()
 {
-    if (!registry_.NextGroup() || tracks_.SelectedBanks().size() < 2)
+    if (!registry_.CanCreateGroup() || tracks_.SelectedBanks().size() < 2)
     {
         return;
     }

@@ -133,9 +133,9 @@ internal sealed class ManagedStateBuilder
         ActivityObserver activity)
     {
         var dspPath = new StatePath([StateNodeIds.Dsp]);
-        var inputGain = CreateInput(
+        var gainStaging = CreateGainStaging(
             context,
-            dspPath.Append(StateNodeIds.InputGain),
+            dspPath.Append(StateNodeIds.GainStaging),
             activity);
         var saturator = CreateSaturator(
             context,
@@ -147,41 +147,49 @@ internal sealed class ManagedStateBuilder
             activity);
         var polish = CreatePolish(context, dspPath.Append(StateNodeIds.Polish));
         var equalizer = CreateEqualizer(context, dspPath.Append(StateNodeIds.Equalizer));
-        var outputGain = CreateOutput(context, dspPath.Append(StateNodeIds.OutputGain));
         var dsp = new DspState(
-            inputGain,
+            gainStaging,
             saturator,
             compressor,
             polish,
             equalizer,
-            activity,
-            outputGain);
+            activity);
         activity.Initialize(dsp);
         return dsp;
     }
 
-    private InputState CreateInput(
+    private GainStagingState CreateGainStaging(
         StateModelContext context,
         StatePath path,
         ActivityObserver activity)
     {
         var runtime = context.Runtime;
-        return new InputState(
-            CreateInstanceValue(context, path.Append(StateNodeIds.Level), StateValueDefinitions.Input.Level,
+        var definitions = StateValueDefinitions.GainStaging;
+        return new GainStagingState(
+            CreateInstanceValue(context, path.Append(StateNodeIds.InputLevel), definitions.InputLevel,
                 new StateProjectionObserver<float>(value => runtime.InputLevel = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Target), StateValueDefinitions.Input.Target,
+            CreateInstanceValue(context, path.Append(StateNodeIds.InputTarget), definitions.InputTarget,
                 new StateProjectionObserver<float>(value => runtime.InputTarget = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Width), StateValueDefinitions.Input.Width,
-                new StateProjectionObserver<float>(value => runtime.InputWidth = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Leveler), StateValueDefinitions.Common.CopyValue,
+            CreateInstanceValue(context, path.Append(StateNodeIds.InputLeveler), StateValueDefinitions.Common.CopyValue,
                 new StateProjectionObserver<bool>(value => runtime.InputLeveler = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.OutputLevel), definitions.OutputLevel,
+                new StateProjectionObserver<float>(value => runtime.OutputLevel = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.OutputTarget), definitions.OutputTarget,
+                new StateProjectionObserver<float>(value => runtime.OutputTarget = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.OutputLeveler), StateValueDefinitions.Common.CopyValue,
+                new StateProjectionObserver<bool>(value => runtime.OutputLeveler = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Limit), definitions.Limit,
+                new StateProjectionObserver<float>(value => runtime.OutputLimit = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Width), definitions.Width,
+                new StateProjectionObserver<float>(value => runtime.InputWidth = value)),
             CreateInstanceValue(context, path.Append(StateNodeIds.Bypass), StateValueDefinitions.Common.CopyValueWithoutHistory,
-                new StateProjectionObserver<bool>(value => runtime.InputGainBypass = value)),
-            CreateDetector(
-                context,
-                path.Append(StateNodeIds.Detector),
-                runtime,
-                0,
+                new StateProjectionObserver<bool>(value =>
+                {
+                    runtime.InputGainBypass = value;
+                    runtime.OutputGainBypass = value;
+                    runtime.OutputLimiter = !value;
+                })),
+            CreateDetector(context, path.Append(StateNodeIds.Detector), runtime, 0,
                 index => activity.ObserveActive(active => runtime[index].Active = active ? 1U : 0U)));
     }
 
@@ -412,20 +420,6 @@ internal sealed class ManagedStateBuilder
                     runtime.EqualizerBypass = value;
                     runtime.EqualizerActive = !value;
                 })));
-    }
-
-    private OutputState CreateOutput(StateModelContext context, StatePath path)
-    {
-        var runtime = context.Runtime;
-        return new OutputState(
-            CreateInstanceValue(context, path.Append(StateNodeIds.Level), StateValueDefinitions.Output.Level,
-                new StateProjectionObserver<float>(value => runtime.OutputLevel = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Target), StateValueDefinitions.Output.Target,
-                new StateProjectionObserver<float>(value => runtime.OutputTarget = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Limiter), StateValueDefinitions.Common.CopyValue,
-                new StateProjectionObserver<bool>(value => runtime.OutputLimiter = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Bypass), StateValueDefinitions.Common.CopyValueWithoutHistory,
-                new StateProjectionObserver<bool>(value => runtime.OutputGainBypass = value)));
     }
 
     private static StateValue<TValue> CreateInstanceValue<TValue>(

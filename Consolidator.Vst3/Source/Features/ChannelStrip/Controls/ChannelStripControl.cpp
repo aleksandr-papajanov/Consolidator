@@ -11,10 +11,19 @@
 namespace consolidator::vst3::features::channelstrip::controls
 {
 
+ChannelStripControl::ChannelStripControl()
+{
+    gainStagingReset_.setTooltip("Reset Gain Staging");
+    gainStagingReset_.setConnectedEdges(juce::Button::ConnectedOnLeft);
+    addAndMakeVisible(gainStagingReset_);
+}
+
 void ChannelStripControl::Clear()
 {
     controls_.clear();
     positions_.clear();
+    gainStagingReset_.onClick = nullptr;
+    gainStagingReset_.setEnabled(false);
 }
 
 void ChannelStripControl::Rebuild(bindings::ChannelStripBindings& bindings)
@@ -24,9 +33,15 @@ void ChannelStripControl::Rebuild(bindings::ChannelStripBindings& bindings)
     controls.reserve(parameters.Models().size());
     for (const auto& model : parameters.Models())
     {
+        const auto& path = model->State().Path();
+        const auto label = path == "gain_staging.bypass" ? juce::String("B") :
+            (path == "gain_staging.input_leveler" || path == "gain_staging.output_leveler")
+                ? juce::String("Level") : juce::String(model->State().Label());
         controls.push_back(std::make_unique<shared::controls::parameter::ParameterControl>(
-            *model, parameters.Intents(model->State().Path())));
+            *model, parameters.Intents(path), label,
+            path == "gain_staging.bypass" ? juce::Button::ConnectedOnRight : 0));
     }
+    gainStagingReset_.onClick = [reset = parameters.Intents("gain_staging").reset] { reset("gain_staging"); };
     Replace(std::move(controls), presentation::kSections);
 }
 
@@ -65,16 +80,22 @@ void ChannelStripControl::paint(juce::Graphics& graphics)
     for (std::size_t column = 0; column < presentation::kSections.size(); ++column)
     {
         const auto title = presentation::kSections[column].context;
-        graphics.drawText(juce::String::fromUTF8(title.data(), static_cast<int>(title.size())).toUpperCase(),
-            static_cast<int>(column) * 220,
-            4, 220, 28, juce::Justification::centred);
+        const int left = column == 0 ? 0 : (static_cast<int>(column) + 1) * 220;
+        const int width = column == 0 ? 440 : 220;
+        auto label = juce::String::fromUTF8(title.data(), static_cast<int>(title.size())).toUpperCase();
+        label = label.replaceCharacter('_', ' ');
+        graphics.drawText(label, left, 4, width, 28, juce::Justification::centred);
         graphics.setColour(shared::ui::kLines);
         if (column > 0)
         {
-            graphics.drawVerticalLine(static_cast<int>(column) * 220, 4.0F, static_cast<float>(getHeight() - 8));
+            graphics.drawVerticalLine(left, 4.0F, static_cast<float>(getHeight() - 8));
         }
         graphics.setColour(shared::ui::kActiveText);
     }
+    graphics.setFont(shared::ui::ControlFont());
+    graphics.drawText("INPUT", 0, 70, 220, 24, juce::Justification::centred);
+    graphics.drawText("OUTPUT", 220, 70, 220, 24, juce::Justification::centred);
+    graphics.drawText("UTILITY", 0, 412, 440, 28, juce::Justification::centred);
 }
 
 void ChannelStripControl::RefreshPath(const std::string& path)
@@ -96,9 +117,10 @@ void ChannelStripControl::SetScopeColor(juce::Colour color)
     }
 }
 
-void ChannelStripControl::SetEditing(bool enabled)
+void ChannelStripControl::SetEditing(bool enabled, bool navigation)
 {
     setEnabled(enabled);
+    gainStagingReset_.setEnabled(navigation && static_cast<bool>(gainStagingReset_.onClick));
     for (const auto& control : controls_)
     {
         control->setEnabled(enabled && control->Model().State().Enabled());
@@ -115,6 +137,7 @@ void ChannelStripControl::FinishPreview(bool accepted)
 
 void ChannelStripControl::resized()
 {
+    gainStagingReset_.setBounds(220, 36, 28, shared::ui::kButtonHeight);
     for (std::size_t index = 0; index < controls_.size(); ++index)
     {
         const auto [column, row] = positions_.at(index);
@@ -123,6 +146,29 @@ void ChannelStripControl::resized()
         if (control.Model().Dial() == nullptr && !control.Model().HasChoices())
         {
             bounds = bounds.withSizeKeepingCentre(bounds.getWidth() - 16, shared::ui::kButtonHeight);
+        }
+        if (column == 0)
+        {
+            if (row == 8)
+            {
+                bounds = { 192, 36, 28, shared::ui::kButtonHeight };
+            }
+            else if (row == 7)
+            {
+                bounds = { 168, 448, 104, 84 };
+            }
+            else
+            {
+                const bool output = row >= 3;
+                const int slot = output ? row - 3 : row;
+                const int left = (output ? 220 : 0) + 58;
+                bounds = slot == 0 ? juce::Rectangle<int>{ left + 8, 98, 88, shared::ui::kButtonHeight }
+                    : juce::Rectangle<int>{ left, 138 + (slot - 1) * 88, 104, 84 };
+            }
+        }
+        else
+        {
+            bounds.translate(220, 0);
         }
         control.setBounds(bounds);
     }

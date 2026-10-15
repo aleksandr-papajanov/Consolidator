@@ -73,6 +73,9 @@ public unsafe struct DspSnapshot
     public EqualizerFilterSnapshotBuffer EqualizerFilters;
 
     public DetectorFilterSnapshotBuffer DetectorFilters;
+
+    public uint OutputLeveler;
+    public float OutputLimit;
 }
 
 

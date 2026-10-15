@@ -311,46 +311,6 @@ internal sealed class SetBankBypassInputCodec : IInputCodec
     }
 }
 
-internal sealed class DisableInputLevelerInputCodec : IInputCodec
-{
-    public string Selector => "disable_input_leveler";
-
-    public DecodedCommand Decode(ReadOnlySpan<Atom> atoms, CommandFrameHeader header)
-    {
-        if (atoms.Length < header.Position + 3)
-        {
-            throw new FormatException("Invalid disable_input_leveler frame.");
-        }
-
-        var targetInstanceId = new InstanceId(
-            CommandCodecSupport.ReadWireId(atoms[header.Position]));
-        var bankIndexPosition = header.Position + 1;
-        if (atoms[bankIndexPosition].Type != AtomType.Integer ||
-            atoms[bankIndexPosition].Integer is < 0 or >= 7)
-        {
-            throw new FormatException("Bank index is out of range.");
-        }
-        var scopePosition = bankIndexPosition + 1;
-        if (atoms.Length != scopePosition + 1 ||
-            atoms[scopePosition].Type != AtomType.Symbol)
-        {
-            throw new FormatException("Invalid disable_input_leveler frame.");
-        }
-        var targetScope = atoms[scopePosition].Symbol switch
-        {
-            "local" => InstanceControlScope.Instance,
-            "group" => InstanceControlScope.BankGroup,
-            _ => throw new FormatException(
-                "Invalid disable_input_leveler group target.")
-        };
-
-        return CommandCodecSupport.Success(header, new DisableInputLevelerCommand(
-            targetScope,
-            targetInstanceId,
-            (int)atoms[bankIndexPosition].Integer));
-    }
-}
-
 internal sealed class CommitBankInputCodec : IInputCodec
 {
     public string Selector => "commit_bank";

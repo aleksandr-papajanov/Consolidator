@@ -1,25 +1,29 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
+using Consolidator.Managed.Core.Commands.Editing;
 using Consolidator.Managed.State;
 using Consolidator.Managed.State.History;
 using Consolidator.Managed.State.Tree;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
-public sealed class WriteStateCommandHandler
+internal sealed class WriteStateCommandHandler
     : CommandHandler<WriteStateCommand, StateWriteStatus>
 {
     private readonly StateHistory _history;
     private readonly IReadOnlyList<IStateWritePolicy> _policies;
+    private readonly GainStagingEdits _gainStaging;
 
     public WriteStateCommandHandler(
         StateHistory history,
-        IEnumerable<IStateWritePolicy> policies)
+        IEnumerable<IStateWritePolicy> policies,
+        GainStagingEdits gainStaging)
     {
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(policies);
         _history = history;
         _policies = policies.ToArray();
+        _gainStaging = gainStaging;
     }
 
     public override ValueTask<StateWriteStatus> HandleAsync(
@@ -38,7 +42,8 @@ public sealed class WriteStateCommandHandler
             .Select(entry => entry with { Path = context.ResolvePath(entry.Path) })
             .ToArray();
         var resolvedCommand = command with { Entries = entries };
-        if (!AreWritesAllowed(resolvedCommand, context))
+        if (!AreWritesAllowed(resolvedCommand, context) ||
+            !_gainStaging.IsWriteAllowed(resolvedCommand, context))
         {
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }
@@ -69,6 +74,7 @@ public sealed class WriteStateCommandHandler
 
         var status = StateWriteStatus.Unchanged;
         using var transaction = _history.BeginTransaction();
+        _gainStaging.PrepareWrite(resolvedCommand, context, transaction);
         foreach (var write in writes)
         {
             var writer = new WriteValueVisitor(
@@ -85,6 +91,15 @@ public sealed class WriteStateCommandHandler
             {
                 status = StateWriteStatus.Applied;
             }
+        }
+        if (transaction.ChangedValueCount > 0)
+        {
+            status = StateWriteStatus.Applied;
+        }
+        if (command.TransactionId == 0 && command.WriteMode is not WriteScope.Topology &&
+            _history.HasHistoryChanges(transaction))
+        {
+            _history.AdvanceHistoryPoint();
         }
         transaction.Commit();
         return ValueTask.FromResult(status);

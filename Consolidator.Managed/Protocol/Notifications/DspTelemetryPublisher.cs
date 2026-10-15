@@ -38,9 +38,9 @@ internal sealed class DspTelemetryPublisher
                 new Atom(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
                 new Atom(AtomType.Integer, revision, 0, null),
                 new Atom(AtomType.Integer, 2, 0, null),
-                new Atom(AtomType.Symbol, 0, 0, "input_gain.level"),
+                new Atom(AtomType.Symbol, 0, 0, "gain_staging.input_level"),
                 new Atom(AtomType.Float, 0, levelDb, null),
-                new Atom(AtomType.Symbol, 0, 0, "input_gain.level_fast"),
+                new Atom(AtomType.Symbol, 0, 0, "gain_staging.input_level_fast"),
                 new Atom(AtomType.Float, 0, fastLevelDb, null)
             ],
             DeliverySemantics.LatestAnalysis));

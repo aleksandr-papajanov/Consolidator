@@ -3,6 +3,7 @@ using Consolidator.Managed.Approximation;
 using Consolidator.Managed.Core.Commands;
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
+using Consolidator.Managed.Core.Commands.Editing;
 using Consolidator.Managed.Core.Commands.Execution;
 using Consolidator.Managed.Core.Commands.Handlers;
 using Consolidator.Managed.Core.Commands.Policies;
@@ -151,6 +152,7 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, ReadStateCommandHandler>();
         services.AddSingleton<IStateWritePolicy, BankGroupWritePolicy>();
         services.AddSingleton<IStateWritePolicy, InstanceControlWritePolicy>();
+        services.AddSingleton<GainStagingEdits>();
         services.AddSingleton<ICommandHandler, WriteStateCommandHandler>();
         services.AddSingleton<ICommandHandler, ResetStateCommandHandler>();
         services.AddSingleton<ICommandHandler, BeginHistoryCommandHandler>();
@@ -162,12 +164,13 @@ public static class ManagedServices
         services.AddSingleton<ICommandHandler, ObserveBanksCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceActiveCommandHandler>();
         services.AddSingleton<ICommandHandler, ClearTopologyCommandHandler>();
+        services.AddSingleton<ICommandHandler, GroupBanksCommandHandler>();
+        services.AddSingleton<ICommandHandler, UngroupBanksCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceMuteCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceSoloCommandHandler>();
         services.AddSingleton<ICommandHandler, SetInstanceBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetProcessorBypassCommandHandler>();
         services.AddSingleton<ICommandHandler, SetBankBypassCommandHandler>();
-        services.AddSingleton<ICommandHandler, DisableInputLevelerCommandHandler>();
         services.AddSingleton<ICommandHandler, CommitBankCommandHandler>();
         services.AddSingleton<ICommandHandler, RefineBankCommandHandler>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
@@ -184,12 +187,13 @@ public static class ManagedServices
         services.AddSingleton<IInputCodec, ObserveBanksInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceActiveInputCodec>();
         services.AddSingleton<IInputCodec, ClearTopologyInputCodec>();
+        services.AddSingleton<IInputCodec, GroupBanksInputCodec>();
+        services.AddSingleton<IInputCodec, UngroupBanksInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceMuteInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceSoloInputCodec>();
         services.AddSingleton<IInputCodec, SetInstanceBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetProcessorBypassInputCodec>();
         services.AddSingleton<IInputCodec, SetBankBypassInputCodec>();
-        services.AddSingleton<IInputCodec, DisableInputLevelerInputCodec>();
         services.AddSingleton<IInputCodec, CommitBankInputCodec>();
         services.AddSingleton<IInputCodec, RefineBankInputCodec>();
         services.AddSingleton<CommandResponseEncoder>();
@@ -207,6 +211,8 @@ public static class ManagedServices
         services.AddCommandEndpoint<ClearTopologyCommand, StateWriteStatus>(
             "clear_topology",
             "action_done");
+        services.AddCommandEndpoint<GroupBanksCommand, StateWriteStatus>("group_banks", "action_done");
+        services.AddCommandEndpoint<UngroupBanksCommand, StateWriteStatus>("ungroup_banks", "action_done");
         services.AddCommandEndpoint<SetInstanceMuteCommand, StateWriteStatus>(
             "set_instance_mute",
             "action_done");
@@ -221,9 +227,6 @@ public static class ManagedServices
             "action_done");
         services.AddCommandEndpoint<SetBankBypassCommand, StateWriteStatus>(
             "set_bank_bypass",
-            "action_done");
-        services.AddCommandEndpoint<DisableInputLevelerCommand, StateWriteStatus>(
-            "disable_input_leveler",
             "action_done");
         services.AddCommandEndpoint<CommitBankCommand, StateWriteStatus>(
             "commit_bank",

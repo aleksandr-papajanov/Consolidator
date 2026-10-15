@@ -1,44 +1,112 @@
-# General Formatting
+# Общее форматирование
 
-Общие правила форматирования и именования для `InteropSandbox`. Языкоспецифичные правила находятся в отдельных документах:
+- 4 пробела, без tabs; Allman braces и braces для всех control-flow blocks.
+- Одна инструкция на строку. Пустые строки разделяют логические блоки.
+- Мягкая граница строки — около 120 символов; не выравнивать код пробелами.
+- Guard clauses предпочтительнее вложенности; методы имеют одну ответственность.
+- Комментарии объясняют ownership, lifetime, thread, ограничения и причины.
 
-- [`CppFormatting.md`](CppFormatting.md) — C++;
-- [`CSharpFormatting.md`](CSharpFormatting.md) — C#;
-- [`JavaScriptFormatting.md`](JavaScriptFormatting.md) — JavaScript в Max runtime.
+## Языковые и проектные conventions
 
-## Общие правила
+- [Managed C#](../Consolidator.Managed/Docs/Formatting.md).
+- [Общий C++](Formatting.md#c-conventions); дополнительные границы:
+  [Native](../Consolidator.Native/Docs/Formatting.md),
+  [VST3/JUCE](../Consolidator.Vst3/Docs/Formatting.md),
+  [EmulationLab](../EmulationLab/Docs/Formatting.md).
 
-- Использовать 4 пробела. Табуляция в исходном коде не используется.
-- Использовать Allman braces: открывающая скобка находится на новой строке.
-- Всегда использовать `{}` для управляющих конструкций.
-- Одна инструкция на строку.
-- Пустая строка отделяет логические блоки, но не отдельные инструкции.
-- Не выравнивать код большими последовательностями пробелов.
-- Мягкая граница длины строки — около 120 символов. Это не жёсткое ограничение.
-- Предпочитать небольшие методы с одной ответственностью.
-- Предпочитать guard clauses вместо глубокой вложенности.
-- Не создавать abstraction layer без конкретной необходимости.
-- Не хранить закомментированный старый код.
-- Не сохранять compatibility code для удалённой архитектуры без явной причины.
-- Комментарии объясняют причины, ownership, lifetime, threading и ограничения. Они не пересказывают очевидный код.
+Язык не определяет владельца поведения: см. Rules/Architecture проектов и
+[общие правила](Rules.md). Formatter не определяет архитектуру, ownership,
+ABI, threading и semantic naming. Конфликт formatter с проектным правилом
+устранять в конфигурации formatter, а не изменением контракта.
 
-## Выбор языка и слоя
 
-Правила форматирования не заменяют архитектурные правила. Для выбора места реализации использовать [`Rules.md`](Rules.md):
+## C++ conventions
 
-- C++ — Max/min-api integration, native interop, realtime boundary и native DSP;
-- C# — Managed Core, state, coordination, analysis и protocol behavior;
-- JavaScript — Max UI, bindings, presentation и пользовательские intents.
+### Naming
 
-Не переносить архитектурные, lifecycle, ABI или realtime-правила в style guide, если для них уже есть отдельная документация.
+| Сущность | Стиль | Пример |
+| --- | --- | --- |
+| Class / struct | `PascalCase` | `ManagedBridge` |
+| Enum / enum value | `PascalCase` | `NativeAtomType::Integer` |
+| Method / function | `PascalCase` | `RegisterInstance()` |
+| Local variable / parameter | `camelCase` | `frameCount` |
+| Private field | `camelCase_` | `instanceId_` |
+| Constant | `kPascalCase` | `kManagedLibraryName` |
+| Namespace | lowercase | `consolidator::vst3` |
+| Macro | `UPPER_SNAKE_CASE` | `PLUGIN_API` |
+| File | `PascalCase` | `ManagedBridge.cpp` |
+| Type alias | `PascalCase` | `ManagedOutputCallback` |
+| Template parameter | `PascalCase` | `ValueType` |
 
-## Tooling
+Не использовать Hungarian notation и бессмысленные сокращения. Общепринятые сокращения допустимы: `Dsp`, `Fft`, `Id`, `Abi`, `Api`, `Ui`.
 
-Механические правила по возможности поддерживать настройками:
+### Files and includes
 
-- C# — `.editorconfig`, Visual Studio, `dotnet format`;
-- C++ — `.clang-format`;
-- JavaScript — project-specific formatter rules.
+Одна основная сущность обычно получает пару `.h` / `.cpp`. Header содержит контракт, `.cpp` содержит реализацию. Большая реализация остаётся в header только для templates, `constexpr` и небольших inline-функций.
 
-Formatter не определяет architecture, ownership, threading, lifetime, ABI или naming semantics. Если formatter конфликтует с осмысленным project rule, сначала исправить конфигурацию formatter-а.
+Использовать `#pragma once`.
+
+Порядок include:
+
+1. собственный header;
+2. standard library;
+3. external libraries;
+4. project headers.
+
+```cpp
+#include "ManagedBridge.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
+#include "ManagedInterop.h"
+```
+
+Каждый файл непосредственно подключает headers для используемых типов. Не использовать глобальный `using namespace std;`.
+
+### Layout
+
+Использовать Allman braces и `{}` для всех control flow конструкций.
+
+```cpp
+void ManagedBridge::SendMessage(
+    InstanceId instanceId,
+    const char* selector,
+    const NativeAtom* atoms,
+    std::size_t atomCount) const
+{
+}
+```
+
+Длинные initializer lists и вызовы переносить по логическим блокам. Guard clauses предпочтительнее глубокой вложенности.
+
+В `switch` каждый `case` оформлять отдельным блоком. Если `case` объявляет локальные переменные, использовать дополнительные braces.
+
+### Types and ownership
+
+- Использовать `const` для неизменяемых значений и методов.
+- Использовать `auto`, когда тип очевиден или чрезмерно длинный; явный тип оставлять, если он несёт смысл.
+- Для owned resources использовать RAII и smart pointers.
+- Raw pointers допустимы для non-owning references, nullable values, audio buffers, C ABI и interop memory.
+- Не использовать raw pointer как неявный механизм владения.
+
+### Attributes and exceptions
+
+Использовать `[[nodiscard]]`, если игнорирование результата почти наверняка является ошибкой.
+
+Использовать `noexcept`, когда функция действительно не должна бросать, особенно для C ABI callback handlers. Исключения не должны пересекать ABI.
+
+Закрывать namespace явно:
+
+```cpp
+} // namespace consolidator::vst3
+```
+
+### ABI and runtime boundaries
+
+ABI, callback, lifetime и realtime contracts являются архитектурными правилами,
+а не правилами форматирования. Их источник находится в [InteropRules](Aspects/InteropRules.md),
+а текущая реализация обмена описана в
+[InteropAbi](Aspects/InteropAbi.md).
 

@@ -11,21 +11,8 @@ StateCommands::StateCommands(ProtocolClient& commands, const TargetStateClient& 
 {
 }
 
-std::string StateCommands::DevicePath(const std::string& context)
-{
-    if (context == "input")
-    {
-        return "input_gain";
-    }
-    if (context == "output")
-    {
-        return "output_gain";
-    }
-    return context;
-}
-
 void StateCommands::WriteDiscrete(const std::string& path, std::int64_t value, bool groupScope,
-    const std::string& transaction, ProtocolClient::Completion completion)
+    ProtocolClient::Completion completion)
 {
     const auto& selected = state_.Target();
     const auto target = std::to_string(selected.instance);
@@ -33,7 +20,7 @@ void StateCommands::WriteDiscrete(const std::string& path, std::int64_t value, b
     if (path.ends_with(".bypass") && path != "equalizer.bank.bypass" && path.find('.', path.find('.') + 1) == std::string::npos)
     {
         const auto device = path.substr(0, path.find('.'));
-        const auto context = device == "input_gain" ? "input" : device == "output_gain" ? "output" : device;
+        const auto& context = device;
         commands_.Send("set_processor_bypass", { target, context, scope, value }, std::move(completion));
     }
     else if (path == "equalizer.bank.bypass")
@@ -41,25 +28,15 @@ void StateCommands::WriteDiscrete(const std::string& path, std::int64_t value, b
         commands_.Send("set_bank_bypass", { target, static_cast<std::int64_t>(selected.bank), scope, value },
             std::move(completion));
     }
-    else if (path == "input_gain.leveler" && value == 0)
-    {
-        commands_.Send("disable_input_leveler", { target, static_cast<std::int64_t>(selected.bank), scope },
-            std::move(completion));
-    }
     else
     {
         commands_.Send("write", shared::protocol::EncodeStateWrite(
-            { { path, value, state_.WriteMode(path, groupScope) } }, scope, transaction), std::move(completion));
+            { { path, value, state_.WriteMode(path, groupScope) } }, scope, "0"), std::move(completion));
     }
 }
 
 void StateCommands::ResetValue(const std::string& path, bool groupScope, ProtocolClient::Completion completion)
 {
-    if (path == "input_gain.leveler")
-    {
-        WriteDiscrete(path, 0, groupScope, "0", std::move(completion));
-        return;
-    }
     const std::string scope = !groupScope ? "local" : path == "dsp" ? "group_instance" : "group";
     std::vector<shared::protocol::ProtocolValue> body{ std::string("0"), scope };
     const auto resetPath = path.starts_with("equalizer.filter.")

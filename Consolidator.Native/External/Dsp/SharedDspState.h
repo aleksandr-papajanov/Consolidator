@@ -53,6 +53,8 @@ struct DspSnapshot
     std::uint32_t equalizerBanksActive[7];
     FilterSnapshot equalizerFilters[49];
     FilterSnapshot detectorFilters[6];
+    std::uint32_t outputLeveler;
+    float outputLimit;
 };
 
 struct DspTelemetryExchange
@@ -81,12 +83,12 @@ struct DspStateExchange
 };
 
 static_assert(sizeof(FilterSnapshot) == 24);
-static_assert(sizeof(DspSnapshot) == 1476);
+static_assert(sizeof(DspSnapshot) == 1484);
 static_assert(sizeof(DspTelemetryExchange) == 20);
-static_assert(sizeof(DspStateExchange) == 4456);
+static_assert(sizeof(DspStateExchange) == 4480);
 static_assert(offsetof(DspStateExchange, snapshots) == 0);
-static_assert(offsetof(DspStateExchange, publishedIndex) == 4428);
-static_assert(offsetof(DspStateExchange, consumerIndex) == 4432);
-static_assert(offsetof(DspStateExchange, telemetry) == 4436);
+static_assert(offsetof(DspStateExchange, publishedIndex) == 4452);
+static_assert(offsetof(DspStateExchange, consumerIndex) == 4456);
+static_assert(offsetof(DspStateExchange, telemetry) == 4460);
 
 } // namespace consolidator::max::dsp

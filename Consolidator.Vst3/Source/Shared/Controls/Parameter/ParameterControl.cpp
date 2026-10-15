@@ -14,9 +14,12 @@
 namespace consolidator::vst3::shared::controls::parameter
 {
 
-ParameterControl::ParameterControl(shared::controls::parameter::viewmodels::ParameterViewModel& model, shared::editing::ParameterIntents intents)
-    : model_(model), intents_(std::move(intents))
+ParameterControl::ParameterControl(shared::controls::parameter::viewmodels::ParameterViewModel& model,
+    shared::editing::ParameterIntents intents, juce::String buttonLabel, int connectedEdges)
+    : model_(model), intents_(std::move(intents)), buttonLabel_(std::move(buttonLabel))
 {
+    button_.setConnectedEdges(connectedEdges);
+    button_.setTooltip(juce::String(model_.State().Label()));
     if (auto* dial = model_.Dial())
     {
         dial_ = std::make_unique<shared::controls::dial::DialControl>(*dial, intents_);
@@ -98,7 +101,7 @@ void ParameterControl::UpdateButton()
     }
     else
     {
-        button_.setButtonText(juce::String(model_.State().Label()));
+        button_.setButtonText(buttonLabel_);
         button_.setToggleState(model_.ButtonValue(), juce::dontSendNotification);
     }
     button_.setColour(juce::TextButton::textColourOffId, shared::ui::kActiveText);

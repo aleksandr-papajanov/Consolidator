@@ -26,7 +26,7 @@ void LimiterProcessor::Reset() noexcept
 void LimiterProcessor::SetParameters(
     const DspSnapshot& snapshot) noexcept
 {
-    targetDb_.SetTarget(snapshot.outputTarget);
+    targetDb_.SetTarget(snapshot.outputLimit);
     enabled_ = snapshot.outputLimiter != 0;
 }
 

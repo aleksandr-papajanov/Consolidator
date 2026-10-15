@@ -15,13 +15,13 @@ public static class StateValueDefinitions
             new StateValueDefinition<string>(
                 string.Empty,
                 RegisterInHistory: false));
-        Input = new InputDefinitions(
+        GainStaging = new GainStagingDefinitions(
             new(0.0F, new(-36.0F, 36.0F)),
             new(-18.0F, new(-36.0F, 0.0F)),
-            new(1.0F, new(0.0F, 1.0F)));
-        Output = new OutputDefinitions(
             new(0.0F, new(-36.0F, 36.0F)),
-            new(-1.0F, new(-36.0F, 0.0F)));
+            new(-1.0F, new(-36.0F, 0.0F)),
+            new(-1.0F, new(-36.0F, 0.0F)),
+            new(1.0F, new(0.0F, 1.0F)));
         Compressor = new CompressorDefinitions(
             new StateValueDefinition<float>(
                 0.0F,
@@ -92,8 +92,7 @@ public static class StateValueDefinitions
     }
 
     public static CommonDefinitions Common { get; }
-    public static InputDefinitions Input { get; }
-    public static OutputDefinitions Output { get; }
+    public static GainStagingDefinitions GainStaging { get; }
     public static CompressorDefinitions Compressor { get; }
     public static SaturatorDefinitions Saturator { get; }
     public static PolishDefinitions Polish { get; }
@@ -105,14 +104,13 @@ public static class StateValueDefinitions
         StateValueDefinition<bool> CopyValueWithoutHistory,
         StateValueDefinition<string> Label);
 
-    public sealed record InputDefinitions(
-        StateValueDefinition<float> Level,
-        StateValueDefinition<float> Target,
+    public sealed record GainStagingDefinitions(
+        StateValueDefinition<float> InputLevel,
+        StateValueDefinition<float> InputTarget,
+        StateValueDefinition<float> OutputLevel,
+        StateValueDefinition<float> OutputTarget,
+        StateValueDefinition<float> Limit,
         StateValueDefinition<float> Width);
-
-    public sealed record OutputDefinitions(
-        StateValueDefinition<float> Level,
-        StateValueDefinition<float> Target);
 
     public sealed record CompressorDefinitions(
         StateValueDefinition<float> Attack,

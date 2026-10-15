@@ -2,7 +2,7 @@
 
 Это наблюдения прошлых ручных исследований, а не универсальная схема компрессора
 или harmonic enhancer. За актуальными коэффициентами, интерфейсом и численными
-ограничениями обращаться к документам рядом с Native-кодом. Исторические scores
+ограничениями обращаться к Native Docs/Aspects. Исторические scores
 могут относиться к ручкам, которые позднее были заменены.
 
 ## CLA-2A: сначала ручки, затем память
@@ -26,7 +26,7 @@ holds после сильного сигнала всё ещё содержал�
 Применимость: неизвестный taper, plateau drift после истории, оптические хвосты.
 Не переносить эти времена и конкретную memory law в другой компрессор без опыта.
 
-[CLA-2A](../../../../Consolidator.Native/External/Dsp/Processors/Cla2a/README.md).
+[CLA-2A](../../../../Consolidator.Native/Docs/Aspects/Cla2a.md).
 
 ## CLA-76 ALL: время связано с уровнем
 
@@ -46,7 +46,7 @@ current относительно нового detector scale. Замена то�
 Применимость: ускоряющийся релиз, carrier settling, взаимодействия ручек.
 Не считать обычный режим и ALL двумя независимыми аудиопроцессорами по умолчанию.
 
-[CLA-76](../../../../Consolidator.Native/External/Dsp/Processors/Cla76/README.md).
+[CLA-76](../../../../Consolidator.Native/Docs/Aspects/Cla76.md).
 
 ## CLA-3A: точность отдельных частот не всегда стоит сложности
 
@@ -62,7 +62,7 @@ Peak error на низкой частоте был больше ошибки fun
 Применимость: упрощение принятой модели, спорный прирост от частотных коррекций.
 Не удалять поправку только потому, что её коэффициент выглядит небольшим.
 
-[CLA-3A](../../../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md).
+[CLA-3A](../../../../Consolidator.Native/Docs/Aspects/Cla3a.md).
 
 ## SSLChannel: Fast и Release меняли также плато
 
@@ -83,7 +83,7 @@ float32 samples совпали, но CPU-процент не измеряли.
 Применимость: автокомпенсация, смена steady curve вместе с timing mode,
 оптимизация кэша. Не навязывать rational onset каждому VCA-компрессору.
 
-[SSLChannel](../../../../Consolidator.Native/External/Dsp/Processors/SslChannel/README.md).
+[SSLChannel](../../../../Consolidator.Native/Docs/Aspects/SslChannel.md).
 
 ## Transient Shaper: слабые удары и порядок стадий
 
@@ -98,7 +98,7 @@ Signed gain требовал положительного усиления; от
 
 Применимость: enhancement/suppression, тихие хвосты, refactor signal order.
 
-[Transient Shaper](../../../../Consolidator.Native/External/Dsp/Processors/TransientShaper/README.md).
+[Transient Shaper](../../../../Consolidator.Native/Docs/Aspects/TransientShaper.md).
 
 ## Air и Thick: отделять fundamental от harmonic добавки
 
@@ -115,5 +115,5 @@ crest и nonlinear fundamental leakage; один 60 Hz тон не описыв�
 Применимость: harmonic enhancement, управление сложностью и сохранение характера.
 Не переносить cubic source или Chebyshev series в устройство по одному THD числу.
 
-[Air](../../../../Consolidator.Native/External/Dsp/Processors/Air/README.md),
-[Thick](../../../../Consolidator.Native/External/Dsp/Processors/Thick/README.md).
+[Air](../../../../Consolidator.Native/Docs/Aspects/Air.md),
+[Thick](../../../../Consolidator.Native/Docs/Aspects/Thick.md).

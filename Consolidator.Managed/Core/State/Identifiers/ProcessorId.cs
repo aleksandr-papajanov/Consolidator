@@ -2,39 +2,36 @@ namespace Consolidator.Managed.Core.State.Identifiers;
 
 public enum ProcessorId
 {
-    Input,
+    GainStaging,
     Saturator,
     Compressor,
     Equalizer,
     Polish,
-    Output
 }
 
 public static class ProcessorIds
 {
     public static ProcessorId Parse(string? value) => value switch
     {
-        "input" => ProcessorId.Input,
+        "gain_staging" => ProcessorId.GainStaging,
         "saturator" => ProcessorId.Saturator,
         "compressor" => ProcessorId.Compressor,
         "equalizer" => ProcessorId.Equalizer,
         "polish" => ProcessorId.Polish,
-        "output" => ProcessorId.Output,
         _ => throw new FormatException("Invalid processor ID.")
     };
 
     public static string Encode(ProcessorId processorId) => processorId switch
     {
-        ProcessorId.Input => "input",
+        ProcessorId.GainStaging => "gain_staging",
         ProcessorId.Saturator => "saturator",
         ProcessorId.Compressor => "compressor",
         ProcessorId.Equalizer => "equalizer",
         ProcessorId.Polish => "polish",
-        ProcessorId.Output => "output",
         _ => throw new ArgumentOutOfRangeException(nameof(processorId))
     };
 
     public static IReadOnlyList<ProcessorId> All { get; } =
-        [ProcessorId.Input, ProcessorId.Saturator, ProcessorId.Compressor,
-            ProcessorId.Equalizer, ProcessorId.Polish, ProcessorId.Output];
+        [ProcessorId.GainStaging, ProcessorId.Saturator, ProcessorId.Compressor,
+            ProcessorId.Equalizer, ProcessorId.Polish];
 }

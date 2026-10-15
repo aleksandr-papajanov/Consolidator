@@ -1,681 +1,153 @@
-# InteropSandbox — правила разработки
+# Общие правила Consolidator
 
-## 1. Назначение проекта
+Обзор проектов и порядок чтения — [корневой README](../README.md).
+Границы ответственности определены в Rules/Architecture каждого scope; подробный контракт
+хранится у его владельца. Разрешения на действия — только в [AGENTS.md](../AGENTS.md).
 
-`Consolidator.Native` — тонкий native-слой между Max и `Consolidator.Managed`.
+## Выбор владельца изменения
 
-Основной Windows VST3 frontend переносится в `Consolidator.Vst3` по
-[Vst3Migration.md](Vst3Migration.md). Он использует тот же Native DSP и C ABI,
-не изменяя Managed ownership. Общий `ManagedBridge` получает абсолютный путь
-Managed DLL и log callback от хоста; Max-specific поиск и логирование живут
-в `MaxManagedHost`. JUCE frontend владеет своим редактором и доставкой
-presentation на message thread, не application state или координацией.
+Не выбирать слой по тому, где расположен контрол, удобнее вызвать функцию или
+уже есть похожий код. Сначала читать README, затем Rules/Formatting/Architecture затрагиваемых scope и документ
+конкретного поведения, затем прослеживать существующий путь данных.
 
-Native отвечает только за:
+Конкретные требования:
+[Managed](../Consolidator.Managed/Docs/Rules.md), [Native](../Consolidator.Native/Docs/Rules.md),
+[VST3](../Consolidator.Vst3/Docs/Rules.md), [EmulationLab](../EmulationLab/Docs/Rules.md).
 
-- создание Max external;
-- приём Max messages и atoms;
-- преобразование Max atoms в простой interop-формат;
-- вызов exported API `Consolidator.Managed`;
-- приём callbacks из Managed;
-- безопасную передачу Managed output в Max thread;
-- приём аудио от Max;
-- native realtime DSP;
-- передачу аудиоданных в Managed для анализа;
-- чтение опубликованного Managed DSP state.
+## Сквозное изменение поведения
 
-В Native не размещаются:
+Для нового или изменённого параметра определить владельца, единицы, defaults/ranges,
+local/group scope, dependent edits, history/reset/restore и Native consumer.
+Прикладное значение проходит штатный Managed command/state/observers/peers/history
+и публикацию DSP snapshot; подтверждённое представление возвращается через
+snapshot/notification → client → ViewModel → binding → UI. Основной поток показан
+в [Architecture](Architecture.md); детали задают документы владельцев.
 
-- application state;
-- routing;
-- banks и groups;
-- command handling;
-- persistence;
-- analysis logic;
-- optimization;
-- registry/coordinator logic.
+Существующие typed commands и path/target conventions переиспользовать; protocol
+расширять, только если он не выражает требуемую операцию. Сохранять rejection без
+частичного commit и согласованность C#/C++ snapshot layout и единиц. Проверять
+путь local/group edits, reset, no-op/rejection, Undo/Redo, restore и target transitions
+по затронутому контракту, а не по наличию нового контрола.
 
-Эти ответственности принадлежат `Consolidator.Managed`.
+Отложенная реализация DSP не отменяет state/peer/history/persistence контракт
+или доставку snapshot в согласованном scope. Отсутствующий Native consumer явно
+указывать; не заменять его frontend-логикой, фиктивной telemetry или прямой записью
+DSP-параметров. Presentation preview и runtime telemetry не становятся вторым
+авторитетным состоянием. Чисто визуальные geometry/hover/zoom/видимость не требуют
+прикладного StateValue.
 
----
+## Реализация и изменения
 
-## 2. Статус проекта
+- Один владелец и одна production-реализация каждой ответственности.
+- Не добавлять fallback, compatibility aliases, migration adapters, legacy
+  branches, deprecated wrappers и duplicate APIs без явного запроса.
+- При замене архитектуры переводить callers, удалять старый API и неиспользуемый код.
+- Опровергнутую диагностическую правку удалять.
+- Во всех задачах подтверждённые ошибки в исследованном пути исправлять сразу
+  у владельца, включая существовавшие до текущего изменения; не оставлять
+  исправимый дефект только в отчёте. Неоднозначный контракт уточнять, продолжая
+  независимые исправления.
+- Сохранять только необходимое наблюдаемому контракту поведение; не добавлять
+  неподтверждённую защиту «на всякий случай».
+- Классы и модули имеют одну основную ответственность. Не скрывать orchestration
+  в UI widget, generic state infrastructure, transport или DSP processor.
 
-Проект находится в активной разработке.
+## Ошибки и границы
 
-Обратная совместимость, legacy API, compatibility aliases, fallback-пути и параллельные реализации запрещены, если они явно не запрошены.
+Исключения не пересекают C ABI. Каждый диагностически значимый exception,
+rejected/not-handled command, malformed input, overload, routing/queue/callback
+failure логировать в точке возникновения с instance/request/transaction ID,
+selector, фазой и причиной. Protocol error или пустой результат не заменяет log.
 
-При изменении архитектуры:
+В realtime-контексте немедленный log запрещён: записать bounded counter/marker
+и сообщить на control/message thread. Не добавлять allocations, locks или I/O
+ради диагностики. ABI, borrowed-pointer lifetime, unregister barrier и realtime
+инварианты — [InteropRules](Aspects/InteropRules.md); конкретный wire/layout —
+[InteropAbi](Aspects/InteropAbi.md).
 
-1. вызывающие стороны переводятся на новую модель;
-2. старый API удаляется;
-3. неиспользуемый код удаляется сразу.
+Комментарии объясняют ownership, lifetime, thread, ограничения и причины решения.
+Не пересказывают очевидный код. Форматирование — [Formatting](Formatting.md).
 
-Запрещено:
+## Документация scope
 
-- переносить старую архитектуру без необходимости;
-- сохранять старые компоненты только ради совместимости.
-
----
-
-## 3. Архитектурная граница
-
-Основная зависимость:
-
-```text
-Max
- ↓
-ConsolidatorExternal
- ↓
-AtomCodec / ManagedBridge
- ↓
-C ABI
- ↓
-Consolidator.Managed
-```
-
-Realtime path:
+Каждый scope (решение или проект) имеет единую структуру:
 
 ```text
-Max audio callback
- ↓
-Native DSP
- ↓
-audio output
+README.md                 краткая суть и ссылки на все документы scope
+Docs/
+  Rules.md                только специфичные правила scope
+  Formatting.md           правила оформления scope
+  Architecture.md         верхнеуровневая техническая архитектура
+  Aspects/
+    <Aspect>.md           один самостоятельный аспект на файл
 ```
 
-Analysis input:
-
-```text
-Max audio callback
- ↓
-короткий realtime-safe вызов Managed
- ↓
-preallocated audio buffer / ring buffer
- ↓
-Managed worker
- ↓
-analysis
-```
-
-Managed output:
-
-```text
-Managed worker
- ↓
-native callback
- ↓
-native-owned output queue
- ↓
-qelem
- ↓
-Max outlet
-```
-
-Native не должен знать смысл Managed commands, state paths, banks, parameters или protocol semantics.
-
----
-
-## 4. Interop API
-
-Текущие имена exported entry points, callback signatures и конкретный поток
-обмена описаны в [`ManagedNativeCommunication.md`](ManagedNativeCommunication.md).
-Этот документ задаёт архитектурные инварианты; communication-документ не должен
-дублировать общие правила ответственности и realtime.
-
-Граница C++ / C# должна быть максимально простой.
-
-Разрешены:
-
-- fixed-width integers;
-- `float` / `double`;
-- pointers;
-- `size_t` / `nuint`;
-- POD-like structs;
-- arrays через `pointer + count`;
-- opaque IDs;
-- unmanaged callbacks.
-
-Не передавать через ABI:
-
-- STL containers;
-- C++ classes;
-- Max/min-api types;
-- managed objects;
-- exceptions;
-- `std::string`;
-- C# `string`;
-- сложные domain objects.
-
-Calling convention должна быть явно одинаковой с обеих сторон.
-
-Для Windows использовать `cdecl`, если API не определяет иное.
-
----
-
-## 5. Atoms
-
-Max atoms преобразуются в простой interop-формат.
-
-Native поддерживает только необходимые типы:
-
-```cpp
-enum class NativeAtomType : std::uint8_t
-{
-    Integer = 1,
-    Float = 2,
-    Symbol = 3
-};
-```
-
-Interop atom содержит:
-
-- type;
-- integer value;
-- floating-point value;
-- UTF-8 symbol pointer.
-
-Native отвечает только за:
-
-```text
-Max atom → NativeAtom
-```
-
-Вся дальнейшая декодировка и интерпретация выполняется в Managed.
-
-Запрещено реализовывать domain/protocol dispatch в Native.
-
----
-
-## 6. Lifetime interop-данных
-
-Pointers, полученные через callback или вызов ABI, считаются временными, если контракт явно не говорит обратного.
-
-Если Managed вызывает Native callback:
-
-```text
-Managed memory
- ↓
-callback
- ↓
-Native немедленно копирует данные
- ↓
-callback returns
-```
-
-Native не хранит переданные Managed string/array pointers после возврата callback.
-
-Для долговременного обмена используется отдельно выделенная shared unmanaged memory.
-
----
-
-## 7. Instance lifetime
-
-Каждый Max external регистрируется в Managed при создании:
-
-```text
-RegisterInstance(...)
-→ InstanceId
-```
-
-`InstanceId` используется только как идентификатор источника/назначения между Native и Managed.
-
-При уничтожении external вызывается:
-
-```text
-UnregisterInstance(instanceId)
-```
-
-Контракт `UnregisterInstance`:
-
-> После возврата функции Managed больше не может вызвать callback, связанный с уничтоженным external.
-
-Native не должен получать callback через dangling `context` pointer.
-
----
-
-## 8. Managed callbacks
-
-Callback из Managed никогда напрямую не вызывает Max outlet.
-
-Callback выполняет только:
-
-1. проверку входных данных;
-2. копирование данных в native-owned representation;
-3. помещение frame в native queue;
-4. `qelem.set()`.
-
-Пример потока:
-
-```text
-Managed callback
- ↓
-OutputFrame copy
- ↓
-pendingOutput_
- ↓
-qelem
- ↓
-DrainManagedOutput()
- ↓
-Max outlet
-```
-
-Native C++ callback handlers, которые вызываются из Managed через C ABI, должны
-быть `noexcept` и поглощать исключения внутри native boundary.
-
-C++ exceptions не должны пересекать ABI. Managed exported entrypoints также не
-должны выпускать исключения в native caller; ошибки должны обрабатываться до
-возврата из exported function.
-
----
-
-## 9. Max thread boundary
-
-Max API вызывается только из подходящего Max thread context.
-
-Для Managed → Max используется один deferred queue/qelem на external.
-
-Не создавать отдельный `defer()` для каждого Managed сообщения без необходимости.
-
-`qelem` используется как сигнал:
-
-```text
-queue contains work
-```
-
-а сами сообщения хранятся в native-owned queue.
-
----
-
-## 10. Audio thread
-
-Audio callback является realtime-critical.
-
-В audio callback запрещены:
-
-- allocations;
-- `new`;
-- mutex;
-- blocking synchronization;
-- waits;
-- file/network I/O;
-- logging;
-- string operations;
-- Max message output;
-- FFT;
-- optimization;
-- general Managed application logic.
-
-Разрешены:
-
-- native DSP;
-- чтение заранее опубликованного DSP snapshot;
-- atomic operations;
-- копирование в заранее выделенный audio buffer;
-- короткий realtime-safe interop call.
-
----
-
-## 11. Managed audio input
-
-Если аудио передаётся Managed для анализа, exported Managed audio entrypoint должен быть realtime-safe.
-
-Он может:
-
-- скопировать samples в заранее выделенный buffer;
-- записать данные в bounded ring buffer;
-- обновить atomic metadata.
-
-Он не должен:
-
-- выполнять FFT;
-- выполнять analysis;
-- аллоцировать память;
-- использовать DI-driven application logic;
-- логировать;
-- блокироваться.
-
-Analysis выполняется позже на Managed worker thread.
-
----
-
-## 12. DSP state
-
-Managed application state не читается напрямую из audio thread.
-
-Managed публикует подготовленный DSP state через realtime-safe boundary.
-
-Предпочтительная модель:
-
-```text
-Managed state
- ↓
-compile DSP snapshot
- ↓
-double buffer / atomic publish
- ↓
-Native audio thread
- ↓
-copy latest snapshot
- ↓
-DSP
-```
-
-Через realtime boundary проходят только простые runtime-данные, необходимые DSP.
-
-Native DSP не должен знать о:
-
-- banks;
-- groups;
-- routing;
-- UI state;
-- command model;
-- persistence.
-
----
-
-## 13. Logging
-
-Native и Managed logging не должны смешиваться с realtime processing.
-
-Managed logging использует локальный logging abstraction проекта. Он может
-передавать сообщения в Max через native log callback, но не должен вызываться
-из audio callback или Managed realtime audio entrypoint.
-
-Для вывода Managed logs в Max допускается native callback:
-
-```text
-Managed logging abstraction
- ↓
-native log callback
- ↓
-Max console
-```
-
-Логирование запрещено из audio callback и Managed realtime audio entrypoint.
-
-Любая ошибка, исключение или отклоненный результат, который может помочь
-диагностировать поведение системы, должен логироваться без исключений в точке
-возникновения. Это включает ошибки декодирования protocol frames, rejected или
-not handled commands, переполнение очередей, ошибки routing, ошибки callback и
-ошибки ABI boundary. Лог должен содержать достаточный контекст: instance ID,
-selector, request ID или transaction ID, фазу обработки и текст ошибки; payload
-логируется только в объеме, необходимом для диагностики.
-
-Нельзя молча отбрасывать диагностически значимую ошибку, заменять ее только
-нулевым/пустым результатом или только отправлять protocol error без записи в
-log sink. Если realtime-контекст запрещает немедленное логирование, ошибка
-фиксируется realtime-safe счетчиком или marker и передается в control-thread
-log при первой безопасной возможности.
-
----
-
-## 14. Структура проекта
-
-```text
-InteropSandbox/
-├─ Consolidator.Native/
-│  └─ External/
-│     ├─ ConsolidatorExternal.*
-│     ├─ ManagedBridge.*
-│     ├─ ManagedInterop.h
-│     └─ AtomCodec.*
-│
-├─ Consolidator.Managed/
-│  ├─ State/
-│  ├─ Core/
-│  │  ├─ Commands/
-│  │  ├─ Services/
-│  │  ├─ State/
-│  │  └─ Topology/
-│  ├─ Native/
-│  ├─ Protocol/
-│  └─ Routing/
-│
-└─ Docs/
-```
-
-`Consolidator.Native/External/` содержит Max/min-api integration и native
-interop bridge для текущего sandbox.
-
-`Consolidator.Managed/State/` содержит независимый state mechanism: generic
-registry, tree, history, values, access contracts и observer interface. Этот
-scope не зависит от `Core`, topology, protocol или DSP.
-`Consolidator.Managed/Core/` содержит application orchestration.
-`Consolidator.Managed/Core/Commands/` содержит command contracts, handlers и
-execution. `Consolidator.Managed/Core/Services/Instances/` содержит lifecycle
-registry, а `Core/Services/PerInstance/` — per-external runtime ownership.
-`Consolidator.Managed/Core/State/` содержит concrete state models, application
-edit policies и business observers. `Consolidator.Managed/Core/Topology/`
-содержит общий derived topology index для state observers и Routing.
-`Consolidator.Managed/Native/` содержит C# ABI exports, NativeAOT boundary и
-marshaling из native representation в managed protocol types.
-`Consolidator.Managed/Protocol/` содержит wire decoding, typed dispatch, encoding
-и transport contracts. `Consolidator.Managed/Routing/` содержит только выбор
-command/notification targets; derived topology queries принадлежат
-`Core/Topology`.
-
-Будущие DSP-компоненты не должны зависеть от Max и Managed application logic.
-
----
-
-## 15. Зависимости
-
-Разрешено:
-
-```text
-ConsolidatorExternal → ManagedBridge / AtomCodec
-ConsolidatorExternal → Min API
-ManagedBridge → platform/native API
-```
-
-Запрещено:
-
-```text
-DSP → Max
-DSP → ManagedBridge
-Native external → Max protocol/domain logic
-```
-
-Max/min-api headers не должны попадать в DSP.
-
----
-
-## 16. Размер и ответственность
-
-Один класс — одна основная ответственность.
-
-Примеры:
-
-- `ConsolidatorExternal` — Max object lifecycle и wiring;
-- `ManagedBridge` — загрузка Managed library и вызов exported API;
-- `AtomCodec` — Max atoms ↔ interop atoms;
-- DSP processor — только соответствующий DSP algorithm.
-
-Не создавать god objects.
-
-Не переносить application orchestration в `ConsolidatorExternal`.
-
----
-
-## 17. Заголовки
-
-`.h` описывает контракт.
-
-Реализация размещается в `.cpp`, кроме коротких очевидных inline методов.
-
-Минимизировать includes.
-
-Не включать Max/min-api headers туда, где они не нужны.
-
----
-
-## 18. Современный C++
-
-Использовать C++20.
-
-Предпочитать:
-
-- RAII;
-- `std::unique_ptr`;
-- `std::array`;
-- `std::span`;
-- `std::vector` для owned dynamic storage;
-- `std::atomic`;
-- fixed-width integer types.
-
-Raw pointers допустимы для:
-
-- non-owning references;
-- interop;
-- audio buffers;
-- callback context.
-
-Raw pointers не используются для неявного владения.
-
----
-
-## 19. Именование
-
-| Элемент | Стиль | Пример |
-|---|---|---|
-| Классы / структуры | PascalCase | `ManagedBridge`, `OutputFrame` |
-| Методы | PascalCase | `SendMessage()`, `RegisterInstance()` |
-| Переменные | camelCase | `frameCount`, `instanceId` |
-| Поля | camelCase_ | `managed_`, `instanceId_` |
-| Параметры | camelCase | `atomCount`, `outputCallback` |
-| Константы | `kPascalCase` | `kManagedLibraryName` |
-| Макросы | UPPER_SNAKE_CASE | `MIN_EXTERNAL` |
-| Файлы | PascalCase | `ManagedBridge.cpp` |
-
-Имена должны отражать реальную ответственность.
-
----
-
-## 20. Форматирование
-
-Правила форматирования вынесены в отдельный документ: [`Formatting.md`](Formatting.md).
-
----
-
-## 20.1. Visual Studio Publish profile
-
-The Managed project's Publish page contains one profile: `Vst3Plugin`.
-Publishing it writes the Managed NativeAOT output and dependencies directly
-to `Consolidator.Vst3/build/managed-runtime`, then builds the VST3 and installs
-the bundle and runtime DLLs to the configured system VST3 directory. It does
-not build the transitional Max external or create a separate Managed publish
-folder.
-
-Use Visual Studio MSBuild for Publish because the VST3 project requires Visual
-Studio C++ targets. `SkipVst3Build=true` is reserved for publishing Managed
-alone before NativeAOT integration tests; its output still goes to the VST3
-runtime directory used by those tests.
-
----
-
-## 21. Комментарии
-
-Комментарии объясняют:
-
-- ответственность;
-- lifetime;
-- ownership;
-- threading;
-- ABI invariants;
-- причины нетривиальных решений.
-
-Не комментировать очевидный код.
-
-Особенно явно документировать:
-
-- кто владеет pointer;
-- сколько pointer действителен;
-- с какого thread вызывается callback;
-- можно ли callback вызывать после unregister;
-- realtime-safe ли функция.
-
----
-
-## 22. Ошибки
-
-Interop ошибки должны обнаруживаться как можно раньше.
-
-Проверять:
-
-- успешность загрузки Managed DLL;
-- наличие всех exports;
-- null callback;
-- null pointers;
-- неизвестные atom types;
-- invalid InstanceId.
-
-Ошибки ABI не должны скрываться.
-
-Exceptions не пересекают C ABI.
-
-Каждый перехваченный exception и каждый failure status, который может объяснить
-потерю команды, state change или callback, обязан быть записан в logging
-abstraction до возврата, отправки error response или подавления ошибки. Успешный
-возврат из ABI-функции не отменяет обязательность такого лога. Ожидаемые
-malformed input и overload также логируются с причиной и контекстом, даже если
-для них предусмотрен обычный protocol error response.
-
----
-
-## 23. Тесты
-
-Тестировать прежде всего границы и полные пользовательские
-сценарии. Детальная философия, матрица уровней и workflow описаны в
-[`Testing.md`](Testing.md).
-
-Тестовые проекты разделены по уровням:
-
-- `Tests/Managed/Consolidator.Managed.Tests.csproj` — component tests для C# protocol, atom decoding, state и managed lifecycle;
-- `Tests/Native/Consolidator.Native.Tests.vcxproj` — standalone component tests для C++ ABI structs и native realtime/ownership helpers;
-- `Tests/Integration/Consolidator.Integration.Tests.csproj` — integration tests для опубликованной Managed NativeAOT library, exports и Managed/Native contract.
-
-Не переносить component assertions в integration project. Integration tests
-требуют предварительной публикации Managed и вызывают реальные NativeAOT exports;
-проверка только наличия символа не считается проверкой boundary.
-
-Если тест выявил проблему, сначала установить её причину и исправить саму
-проблему в production-коде, тестовой инфраструктуре или fixture. Нельзя менять
-assertion, ослаблять проверку или удалять тест только ради успешного результата.
-Перед изменением теста необходимо проверить, не вызвана ли проблема текущими
-правками, нарушением контракта, гонкой, неверной изоляцией теста или ошибкой
-подготовки данных. Assertion меняется только если подтверждено намеренное
-изменение наблюдаемого контракта; в этом случае тест должен проверять новый
-контракт, а не скрывать регрессию.
-
-Минимальные integration tests:
-
-- Managed DLL загружается;
-- все exports находятся;
-- instance register/unregister работает;
-- Max atoms корректно преобразуются в `NativeAtom`;
-- Managed callback корректно копируется в native output frame;
-- callback после unregister невозможен;
-- shared DSP state читается корректно;
-- audio transfer не выполняет allocations/locks в realtime path.
-
-Автоматические тесты DSP-алгоритмов, DSP-примитивов и runtime graph запрещены
-политикой проекта. Ручные исследования EmulationLab/Plugin Doctor и прослушивание
-выполняются по явному запросу пользователя. Это не означает недетерминированность
-алгоритмов. Подробности: [правила DSP](Dsp/Rules.md).
-
----
-
-## Главное правило
-
-`Consolidator.Native` должен оставаться маленьким.
-
-Если новая логика не требует:
-
-- Max API;
-- native DSP;
-- realtime boundary;
-- C++/C# interop,
-
-то почти наверняка ей место в `Consolidator.Managed`, а не в Native.
+### Назначение файлов
+
+- README кратко объясняет назначение scope и напрямую ссылается на каждый файл
+  его Docs, включая Aspects. README решения также ссылается на README проектов.
+  Техническую реализацию и подробные правила в README не помещать.
+- Rules содержит обязательные ограничения и границы ответственности scope.
+- Formatting содержит правила оформления и именования, без прикладных контрактов.
+- Architecture описывает состав, зависимости, владение и основные потоки данных
+  на верхнем уровне; детали раскрываются по ссылкам на соответствующие Aspects.
+- Каждый Aspects-файл подробно описывает один самостоятельный механизм, контракт,
+  алгоритм или рабочий процесс. Название файла должно обозначать этот аспект.
+
+Дополнительные Docs/README и вложенные индексы не нужны: полный каталог находится
+в README scope. Не создавать обзорные wrappers без самостоятельного содержания.
+
+### Атомарность и источник истины
+
+Разделять документ, если его части отвечают на независимые вопросы, имеют разных
+владельцев или меняются по разным причинам. Связанные условия одного контракта
+оставлять вместе: размер файла сам по себе не требует разделения. Не создавать
+мелкие файлы, которые лишь повторяют ссылку или не объясняют аспект без постоянного
+перехода между фрагментами.
+
+У правила и технического контракта один источник у владельца ответственности.
+Общие межпроектные требования хранятся в scope решения; проекты добавляют только
+свои особенности и ссылаются на общие требования. Не копировать defaults, protocol,
+algorithm details или правила оформления в соседний scope. Верхнеуровневый обзор
+может кратко обозначать связь, но не воспроизводить подробный контракт.
+
+AGENTS.md и skills задают порядок работы и направляют к этим документам, а не
+содержат вторые копии архитектурных правил.
+
+Обязательные требования действуют без активации skill. Отдельный skill нужен
+для самостоятельной процедуры выбора и выполнения задачи, например исследования
+референса, ревью изменений или выбора тестовых сценариев. Не создавать skill,
+который лишь повторяет правила реализации соответствующего scope. В skill хранить
+порядок действий и критерии выбора, в Docs — нормативные требования и контракты;
+между ними использовать ссылки.
+
+### Содержание и сопровождение
+
+Опираться на существующую документацию и прослеженный кодовый путь. Сохранять
+значимые ограничения и причины решений; удалять дубли и самоочевидный пересказ
+кода. Документировать актуальный согласованный контракт. Если код ему противоречит,
+зафиксировать расхождение, не переписывать контракт ради оправдания реализации.
+Запланированное или ещё не реализованное поведение явно отделять от работающего.
+
+История переписки, разовые отчёты о сборках, списки выполненных правок и устаревшие
+migration notes не являются документацией текущей архитектуры. Полезные результаты
+исследований сохранять отдельно от нормативного контракта, с условиями и границами
+применимости.
+
+При изменении поведения обновлять документ его владельца в том же изменении.
+Новый аспект сразу включать в README и связывать с Architecture владельца.
+При переносе или разделении обновлять входящие ссылки, README, Architecture,
+AGENTS.md и skills, если они затронуты. Заменённые документы удалять без
+compatibility-страниц. Перед завершением прочитать изменённые документы и убедиться,
+что существенные требования сохранены, сведения не противоречат друг другу,
+а навигация соответствует новой структуре. Автоматические проверки требуют
+разрешения по AGENTS.md.
+
+## Проверка результата
+
+Границы тестов — [Testing](Aspects/Testing.md). DSP-автотесты запрещены
+[правилами Native](../Consolidator.Native/Docs/Rules.md).
+Не ослаблять assertions ради зелёного результата: сначала установить причину
+ошибки в production-коде, контракте, fixture, изоляции или гонке.
+Source review, компиляция и host validation — разные уровни доказательств;
+сообщать только реально выполненные действия и их ограничения.

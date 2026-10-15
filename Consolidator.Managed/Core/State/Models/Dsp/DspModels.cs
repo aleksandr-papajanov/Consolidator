@@ -20,38 +20,34 @@ public sealed record DetectorState(FilterState[] Filters);
 public sealed record DspState
 {
     internal DspState(
-        InputState inputGain,
+        GainStagingState gainStaging,
         SaturatorState saturator,
         CompressorState compressor,
         PolishState polish,
         EqualizerState equalizer,
-        ActivityObserver activity,
-        OutputState outputGain)
+        ActivityObserver activity)
     {
-        ArgumentNullException.ThrowIfNull(inputGain);
+        ArgumentNullException.ThrowIfNull(gainStaging);
         ArgumentNullException.ThrowIfNull(saturator);
         ArgumentNullException.ThrowIfNull(compressor);
         ArgumentNullException.ThrowIfNull(polish);
         ArgumentNullException.ThrowIfNull(equalizer);
         ArgumentNullException.ThrowIfNull(activity);
-        ArgumentNullException.ThrowIfNull(outputGain);
 
-        InputGain = inputGain;
+        GainStaging = gainStaging;
         Saturator = saturator;
         Compressor = compressor;
         Polish = polish;
         Equalizer = equalizer;
         Activity = activity;
-        OutputGain = outputGain;
     }
 
-    public InputState InputGain { get; }
+    public GainStagingState GainStaging { get; }
     public SaturatorState Saturator { get; }
     public CompressorState Compressor { get; }
     public PolishState Polish { get; }
     public EqualizerState Equalizer { get; }
     internal ActivityObserver Activity { get; }
-    public OutputState OutputGain { get; }
 }
 
 public sealed record EqualizerBankState(
@@ -59,15 +55,17 @@ public sealed record EqualizerBankState(
 
 public sealed record EqualizerState(StateValue<bool> Bypass);
 
-public sealed record InputState(
-    StateValue<float> Level,
-    StateValue<float> Target,
+public sealed record GainStagingState(
+    StateValue<float> InputLevel,
+    StateValue<float> InputTarget,
+    StateValue<bool> InputLeveler,
+    StateValue<float> OutputLevel,
+    StateValue<float> OutputTarget,
+    StateValue<bool> OutputLeveler,
+    StateValue<float> Limit,
     StateValue<float> Width,
-    StateValue<bool> Leveler,
     StateValue<bool> Bypass,
     DetectorState Detector);
-
-public sealed record LevelState(StateValue<float> Level);
 
 public sealed record ManagedState
 {
@@ -101,12 +99,6 @@ public sealed record ManagedState
     public DspRuntimeState Runtime { get; }
     internal StateNode Root { get; }
 }
-
-public sealed record OutputState(
-    StateValue<float> Level,
-    StateValue<float> Target,
-    StateValue<bool> Limiter,
-    StateValue<bool> Bypass);
 
 public sealed record PolishState(
     StateValue<float> Thick,

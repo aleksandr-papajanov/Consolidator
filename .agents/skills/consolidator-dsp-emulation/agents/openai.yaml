@@ -1,3 +1,3 @@
 interface:
   display_name: "Эмуляция DSP в Consolidator"
-  short_description: "Гибкий гайд по измерению и упрощению DSP-моделей"
+  short_description: "Исследование референса и подбор общей Native-модели"

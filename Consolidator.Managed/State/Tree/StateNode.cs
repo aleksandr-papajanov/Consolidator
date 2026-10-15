@@ -149,13 +149,11 @@ internal sealed class StateNode<TValue> : StateNode, IStateNode<TValue>
         {
             return StateWriteStatus.Rejected;
         }
-        if (EqualityComparer<TValue>.Default.Equals(Value, value))
-        {
-            return StateWriteStatus.Unchanged;
-        }
-
+        var previousCount = transaction.ChangedValueCount;
         _historyValue.PrepareMutation(value, editMode, transaction);
-        return StateWriteStatus.Applied;
+        return transaction.ChangedValueCount > previousCount
+            ? StateWriteStatus.Applied
+            : StateWriteStatus.Unchanged;
     }
 
     internal override int PrepareResetRecursive(

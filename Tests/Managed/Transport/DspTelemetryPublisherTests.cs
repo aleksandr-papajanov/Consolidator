@@ -37,9 +37,9 @@ public sealed class DspTelemetryPublisherTests
         Assert.Equal(7, message.Atoms[1].Integer);
         Assert.Equal(12, message.Atoms[2].Integer);
         Assert.Equal(2, message.Atoms[3].Integer);
-        Assert.Equal("input_gain.level", message.Atoms[4].Symbol);
+        Assert.Equal("gain_staging.input_level", message.Atoms[4].Symbol);
         Assert.Equal(-18.0, message.Atoms[5].Float);
-        Assert.Equal("input_gain.level_fast", message.Atoms[6].Symbol);
+        Assert.Equal("gain_staging.input_level_fast", message.Atoms[6].Symbol);
         Assert.Equal(-6.0, message.Atoms[7].Float);
     }
 

@@ -1,70 +1,63 @@
-# InteropSandbox Rules
-
-Работа внутри `InteropSandbox` должна следовать этим правилам.
+# Consolidator — инструкции агенту
 
 ## Перед работой
 
-1. Прочитать этот файл.
-2. Прочитать [`Docs/README.md`](Docs/README.md) и найти нужный scope.
-3. Всегда прочитать [`Docs/Rules.md`](Docs/Rules.md).
-4. Всегда прочитать [`Docs/Formatting.md`](Docs/Formatting.md) и соответствующий языковой документ: [`Docs/CppFormatting.md`](Docs/CppFormatting.md), [`Docs/CSharpFormatting.md`](Docs/CSharpFormatting.md) или [`Docs/JavaScriptFormatting.md`](Docs/JavaScriptFormatting.md).
-5. Если поведение или кодовый путь не понятен, сначала прочитать соответствующую документацию, затем исследовать код.
+1. Прочитать [корневой README](README.md) и README затрагиваемых проектов:
+   [Managed](Consolidator.Managed/README.md), [Native](Consolidator.Native/README.md),
+   [VST3](Consolidator.Vst3/README.md), [EmulationLab](EmulationLab/README.md).
+2. Для решения и каждого затрагиваемого проекта прочитать `Docs/Rules.md`,
+   `Docs/Formatting.md` и `Docs/Architecture.md`. README — оглавление и краткая
+   суть; нормативная ответственность находится в Rules, технические связи — в Architecture.
+3. Из Architecture перейти к нужным `Docs/Aspects/<Aspect>.md` и проследить
+   существующий путь данных. Если поведение не понятно, сначала читать его
+   контракт, затем исследовать код; не выбирать другой слой ради удобства.
 
-## Изменения
+Подход к документации, структура scope, атомарность и сопровождение определены
+в [общих правилах](Docs/Rules.md#документация-scope).
 
-- Не добавлять fallback-пути, compatibility aliases, migration adapters, legacy branches, deprecated wrappers или duplicate APIs.
-- Если встречен legacy-код, который больше не нужен текущей архитектуре, удалять его сразу, даже если он не относится напрямую к текущей задаче.
-- Любая правка, добавленная как проверка гипотезы, должна быть удалена, если проверка показала, что она не исправляет проблему или основана на неверном предположении. Не оставлять такие правки как fallback, дополнительную защиту или вариант «на всякий случай»: кодовая база не должна накапливать поведение, для которого нет подтверждённой причины.
-- Подтверждённую ошибку исправлять и сохранять независимо от того, была ли она найдена в ходе проверки гипотезы. Если причина не подтверждена, сохранять только минимальное изменение, которое действительно требуется наблюдаемым контрактом или воспроизводимым поведением.
-- Если результат тестов выявил проблему, исправлять саму проблему в production-коде или тестовой инфраструктуре после установления причины. Не изменять assertions и не ослаблять тест только для получения зелёного результата; сначала проверить, вызвана ли проблема текущими правками, нарушением контракта, гонкой, неверной изоляцией или ошибкой fixture.
-- При добавлении функциональности обновлять соответствующую документацию в том же изменении.
-- Документация не должна становиться огромным файлом: каждый самостоятельный scope хранить отдельно.
-- Новый файл документации создавать и сразу добавлять в [`Docs/README.md`](Docs/README.md).
-- Перед коммитом убедиться, что документация обновлена и соответствует коду.
-- Если пользователь явно просит создать коммит, включать в него все текущие изменения рабочего дерева, включая незатреканные файлы и артефакты, без самостоятельного отбора.
+## Проектные skills
+
+Правила реализации действуют всегда и находятся в Docs соответствующего scope.
+Skills используются для отдельных процедур по задаче пользователя:
+
+| Задача | Skill |
+| --- | --- |
+| Исследовать референс и подобрать модель | [consolidator-dsp-emulation](.agents/skills/consolidator-dsp-emulation/SKILL.md) |
+| Проверить и исправить уже написанные изменения | [consolidator-change-review](.agents/skills/consolidator-change-review/SKILL.md) |
+| По явному запросу написать полезные тесты | [test-changes](.agents/skills/test-changes/SKILL.md) |
+
+Обычная реализация или ревью не запускают workflow написания тестов.
+Разрешения на Git, сборку и запуск проверок определяются ниже, а не фактом
+наличия или применения skill.
 
 ## Запрещённые действия без разрешения
 
-Для DSP действуют [Docs/Dsp/Rules.md](Docs/Dsp/Rules.md): запрещены создание и
-запуск автоматических тестов аудиоалгоритмов, DSP-примитивов и runtime graph.
-Ручные исследования/прослушивание через EmulationLab или Plugin Doctor — только
-по явному запросу. Тесты ABI, protocol, persistence и транспорта имеют отдельный scope.
-
-- Не собирать проект.
+- Не собирать и не публиковать проект.
 - Не запускать тесты или другие проверки.
 - Не создавать коммиты.
-- Не выполнять любые команды или операции Git, включая просмотр статуса и diff.
+- Не выполнять любые команды или операции Git, включая status и diff.
 
 Эти действия разрешены только после явного запроса или разрешения пользователя.
+Уже данное разрешение действует в пределах своего scope; не спрашивать повторно.
+Обновление документации или применение skill само по себе разрешений не выдаёт.
 
-## Сборка для агента
+Для DSP действуют [Native DSP rules](Consolidator.Native/Docs/Rules.md):
+запрещены создание и запуск автоматических тестов аудиоалгоритмов, DSP-примитивов
+и runtime graph. Ручное исследование/прослушивание через EmulationLab или Plugin
+Doctor — только по явному запросу. ABI, protocol, persistence и transport tests
+имеют отдельный scope.
 
-Все команды ниже выполнять только после явного разрешения пользователя на
-сборку или публикацию. Команды запускаются из корня репозитория в Developer
-PowerShell for Visual Studio. Для MSBuild использовать:
+## Изменения
 
-```text
-C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe
-```
+Следовать [общим правилам](Docs/Rules.md): без compatibility/fallback/legacy
+веток и duplicate APIs; удалять заменённый код и опровергнутые гипотезы.
+Подтверждённые ошибки исправлять; assertions не ослаблять ради прохождения теста.
 
-### VST3 Publish profile
+Если пользователь явно просит коммит, включать все текущие изменения рабочего
+дерева, незатреканные файлы и артефакты, без самостоятельного отбора.
 
-The Managed project's Publish page has one profile: `Vst3Plugin`. Select it
-and choose **Publish** in Visual Studio. It publishes the Managed NativeAOT
-library and its dependencies directly to
-`Consolidator.Vst3\build\managed-runtime`, then builds and installs the plugin
-bundle and runtime DLLs to the configured system VST3 directory. It does not
-build the transitional Max external.
+## Разрешённая сборка и публикация
 
-Use Visual Studio MSBuild for Publish because the VST3 project uses Visual
-Studio C++ targets. Set `SkipVst3Build=true` only when publishing Managed for
-NativeAOT integration tests; it still publishes to the VST3 runtime directory,
-which is also where the integration tests load the Managed DLL.
-
-## Архитектура
-
-Архитектурные границы, ABI, lifecycle, realtime и ownership описаны в
-[`Docs/Rules.md`](Docs/Rules.md). Текущий Managed/Native/Max communication contract
-описан в [`Docs/ManagedNativeCommunication.md`](Docs/ManagedNativeCommunication.md).
-Не дублировать эти правила в `AGENTS.md`; при расхождении исправлять
-архитектурную документацию и код.
+Актуальные Visual Studio MSBuild path, `Vst3Plugin` profile, CMake и install
+workflow находятся в [VST3 Build](Consolidator.Vst3/Docs/Aspects/Build.md).
+Не восстанавливать старые publish profiles или отдельный Managed output.

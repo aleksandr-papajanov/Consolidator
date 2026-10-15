@@ -181,10 +181,14 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "label" => StateNodeIds.Label,
         "mute" => StateNodeIds.Mute,
         "solo" => StateNodeIds.Solo,
-        "level" => StateNodeIds.Level,
-        "target" => StateNodeIds.Target,
         "width" => StateNodeIds.Width,
-        "leveler" => StateNodeIds.Leveler,
+        "input_level" => StateNodeIds.InputLevel,
+        "input_target" => StateNodeIds.InputTarget,
+        "input_leveler" => StateNodeIds.InputLeveler,
+        "output_level" => StateNodeIds.OutputLevel,
+        "output_target" => StateNodeIds.OutputTarget,
+        "output_leveler" => StateNodeIds.OutputLeveler,
+        "limit" => StateNodeIds.Limit,
         "drive" => StateNodeIds.Drive,
         "curve" => StateNodeIds.Curve,
         "split" => StateNodeIds.Split,
@@ -197,7 +201,6 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "parallel" => StateNodeIds.Parallel,
         "thick" => StateNodeIds.Thick,
         "air" => StateNodeIds.Air,
-        "limiter" => StateNodeIds.Limiter,
         "frequency" => StateNodeIds.Frequency,
         "q" => StateNodeIds.Q,
         "bypass" => StateNodeIds.Bypass,
@@ -206,12 +209,11 @@ internal sealed class StatePathDecoder : IStatePathDecoder
 
     private static NodeId ToDeviceNode(string value) => value switch
     {
-        "input_gain" => StateNodeIds.InputGain,
+        "gain_staging" => StateNodeIds.GainStaging,
         "saturator" => StateNodeIds.Saturator,
         "compressor" => StateNodeIds.Compressor,
         "equalizer" => StateNodeIds.Equalizer,
         "polish" => StateNodeIds.Polish,
-        "output_gain" => StateNodeIds.OutputGain,
         _ => throw new FormatException($"Unknown DSP path segment: {value}.")
     };
 }

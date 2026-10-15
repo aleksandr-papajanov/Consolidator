@@ -14,6 +14,7 @@ using Consolidator.Managed.Core.Topology;
 using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol.Decoding;
 using Consolidator.Managed.State;
+using Consolidator.Managed.State.History;
 using Consolidator.Managed.Tests.Support;
 using Xunit;
 using Xunit.Abstractions;
@@ -58,7 +59,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
             Integer(0),
-            Symbol("input"));
+            Symbol("gain_staging"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
         var initialPublishCount = instance.Dsp.PublishCount;
@@ -70,8 +71,8 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
+            Symbol("gain_staging"),
+            Symbol("input_level"),
             Symbol("value"),
             Float(6.0));
 
@@ -81,8 +82,8 @@ public sealed class StateEditingUseCasesTests
         var change = Assert.Single(
             instance.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "input_gain.level");
-        Assert.Equal("input_gain.level", change.Atoms[1].Symbol);
+                message.Atoms[1].Symbol == "gain_staging.input_level");
+        Assert.Equal("gain_staging.input_level", change.Atoms[1].Symbol);
         Assert.Equal(6.0, change.Atoms[2].Float);
 
         instance.Output.Clear();
@@ -91,8 +92,8 @@ public sealed class StateEditingUseCasesTests
             "read",
             Integer(1),
             Symbol("query"),
-            Symbol("input_gain"),
-            Symbol("level"));
+            Symbol("gain_staging"),
+            Symbol("input_level"));
 
         Assert.Equal(6.0, instance.Output.Single("state_done").Atoms[^1].Float);
 
@@ -102,14 +103,14 @@ public sealed class StateEditingUseCasesTests
             "reset",
             Symbol("0"),
             Symbol("group"),
-            Symbol("input_gain"));
+            Symbol("gain_staging"));
 
         Assert.Equal(0.0F, instance.Dsp.Latest.InputLevel);
         Assert.Equal(1, instance.Output.Single("action_done").Atoms[^1].Integer);
         Assert.Contains(
             instance.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "input_gain.level" &&
+                message.Atoms[1].Symbol == "gain_staging.input_level" &&
                 message.Atoms[2].Float == 0.0);
 
         application.Send(
@@ -294,7 +295,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
             Integer(0),
-            Symbol("input"));
+            Symbol("gain_staging"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
         var initial = instance.Dsp.Latest.InputLevel;
@@ -307,8 +308,8 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"));
+            Symbol("gain_staging"),
+            Symbol("input_level"));
 
         Assert.Equal(initial, instance.Dsp.Latest.InputLevel);
         Assert.Equal(publishCount, instance.Dsp.PublishCount);
@@ -621,7 +622,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(1),
-            Symbol("input"));
+            Symbol("gain_staging"));
         application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
 
@@ -639,8 +640,8 @@ public sealed class StateEditingUseCasesTests
                 Symbol("0"),
                 Integer(1),
                 Symbol("entry"),
-                Symbol("input_gain"),
-                Symbol("leveler"),
+                Symbol("gain_staging"),
+                Symbol("input_leveler"),
                 Symbol("value"),
                 Integer(1));
             Assert.Equal(-3.0F, first.Dsp.Latest.InputLevel);
@@ -650,19 +651,35 @@ public sealed class StateEditingUseCasesTests
             Assert.Contains(
                 first.Output.Messages,
                 message => message.Selector == "state_changed" &&
-                    message.Atoms[1].Symbol == "input_gain.leveler" &&
+                    message.Atoms[1].Symbol == "gain_staging.input_leveler" &&
                     message.Atoms[2].Integer == 1);
             SetSlowLevelTelemetry(ref firstExchange, -12.0F);
             SetSlowLevelTelemetry(ref secondExchange, 4.0F);
+            var historyCursor = application.GetRequiredService<StateHistory>().Snapshot.Cursor;
             first.Output.Clear();
 
             application.Send(
                 first,
-                "disable_input_leveler",
-                Symbol(first.InstanceId.Value.ToString()),
+                "write",
+                Symbol("group"),
+                Symbol("0"),
                 Integer(1),
-                Symbol("group"));
+                Symbol("entry"),
+                Symbol("gain_staging"),
+                Symbol("input_leveler"),
+                Symbol("value"),
+                Integer(0));
 
+            Assert.Equal(-12.0F, first.Dsp.Latest.InputLevel);
+            Assert.Equal(4.0F, second.Dsp.Latest.InputLevel);
+            Assert.Equal(0U, first.Dsp.Latest.InputLeveler);
+            Assert.Equal(0U, second.Dsp.Latest.InputLeveler);
+            application.Send(first, "jump_history", Integer(historyCursor));
+            Assert.Equal(-3.0F, first.Dsp.Latest.InputLevel);
+            Assert.Equal(5.0F, second.Dsp.Latest.InputLevel);
+            Assert.Equal(1U, first.Dsp.Latest.InputLeveler);
+            Assert.Equal(1U, second.Dsp.Latest.InputLeveler);
+            application.Send(first, "jump_history", Integer(historyCursor + 1));
             Assert.Equal(-12.0F, first.Dsp.Latest.InputLevel);
             Assert.Equal(4.0F, second.Dsp.Latest.InputLevel);
             Assert.Equal(0U, first.Dsp.Latest.InputLeveler);
@@ -670,7 +687,7 @@ public sealed class StateEditingUseCasesTests
             Assert.Contains(
                 first.Output.Messages,
                 message => message.Selector == "state_changed" &&
-                    message.Atoms[1].Symbol == "input_gain.leveler" &&
+                    message.Atoms[1].Symbol == "gain_staging.input_leveler" &&
                     message.Atoms[2].Integer == 0);
         }
         finally
@@ -692,8 +709,8 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
+            Symbol("gain_staging"),
+            Symbol("input_level"),
             Symbol("value"),
             Float(levelDb));
     }
@@ -994,7 +1011,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("input"));
+            Symbol("gain_staging"));
         application.Send(
             editor,
             "write",
@@ -1002,8 +1019,8 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
+            Symbol("gain_staging"),
+            Symbol("input_level"),
             Symbol("value"),
             Float(2.0));
         foreach (var instance in instances)
@@ -1023,8 +1040,8 @@ public sealed class StateEditingUseCasesTests
                 Symbol("42"),
                 Integer(1),
                 Symbol("entry"),
-            Symbol("input_gain"),
-            Symbol("level"),
+            Symbol("gain_staging"),
+            Symbol("input_level"),
                 Symbol("value"),
                 Float(finalValue));
         }
@@ -1234,13 +1251,13 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
             Integer(0),
-            Symbol("input"));
+            Symbol("gain_staging"));
 
         var snapshot = instance.Output.Single("target_state_snapshot");
-        Assert.Equal("input", snapshot.Atoms[5].Symbol);
+        Assert.Equal("gain_staging", snapshot.Atoms[5].Symbol);
         Assert.All(
             snapshot.Atoms.Skip(7).Where((_, index) => index % 6 == 0),
-            atom => Assert.StartsWith("input_gain", atom.Symbol));
+            atom => Assert.StartsWith("gain_staging", atom.Symbol));
     }
 
 }

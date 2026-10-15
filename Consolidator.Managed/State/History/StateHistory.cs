@@ -92,6 +92,14 @@ public sealed class StateHistory
         return new StateHistoryTransaction();
     }
 
+    internal bool HasHistoryChanges(StateHistoryTransaction transaction)
+    {
+        lock (_lock)
+        {
+            return transaction.ChangedValues.Any(_valueNodes.ContainsKey);
+        }
+    }
+
     public void AdvanceHistoryPoint()
     {
         StateHistorySnapshot snapshot;

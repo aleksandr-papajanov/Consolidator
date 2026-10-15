@@ -87,12 +87,11 @@ internal sealed class TargetStateProjector
 
         var expectedDevice = snapshotContext switch
         {
-            ProcessorId.Input => StateNodeIds.InputGain,
+            ProcessorId.GainStaging => StateNodeIds.GainStaging,
             ProcessorId.Saturator => StateNodeIds.Saturator,
             ProcessorId.Compressor => StateNodeIds.Compressor,
             ProcessorId.Equalizer => StateNodeIds.Equalizer,
             ProcessorId.Polish => StateNodeIds.Polish,
-            ProcessorId.Output => StateNodeIds.OutputGain,
             _ => throw new ArgumentOutOfRangeException(nameof(snapshotContext))
         };
         if (path.Nodes[1] != expectedDevice)

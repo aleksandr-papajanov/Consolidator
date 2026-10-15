@@ -1,20 +1,24 @@
 using Consolidator.Managed.Core.Commands.Abstractions;
 using Consolidator.Managed.Core.Commands.Definitions;
+using Consolidator.Managed.Core.Commands.Editing;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.State.History;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
-public sealed class ResetStateCommandHandler
+internal sealed class ResetStateCommandHandler
     : CommandHandler<ResetStateCommand, CommandAcknowledgement>
 {
     private readonly StateHistory _history;
+    private readonly GainStagingEdits _gainStaging;
 
     public ResetStateCommandHandler(
-        StateHistory history)
+        StateHistory history,
+        GainStagingEdits gainStaging)
     {
         ArgumentNullException.ThrowIfNull(history);
         _history = history;
+        _gainStaging = gainStaging;
     }
 
     public override ValueTask<CommandAcknowledgement> HandleAsync(
@@ -29,6 +33,13 @@ public sealed class ResetStateCommandHandler
             ?? throw new InvalidOperationException(
                 $"Reset target was not found: {path}.");
         using var transaction = _history.BeginTransaction();
+        if (GainStagingEdits.IsInputLeveler(path))
+        {
+            _gainStaging.PrepareInputLevelFreeze(
+                context,
+                command.ResetMode is ResetScope.Group,
+                transaction);
+        }
         var resetCount = node.PrepareResetRecursive(transaction);
         if (resetCount == 0)
         {

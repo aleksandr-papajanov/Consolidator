@@ -24,7 +24,7 @@ constexpr int kLevelMarkerSize = 9;
 constexpr int kRowHeight = shared::ui::kBankCellSize;
 constexpr int kHorizontalPadding = 4;
 constexpr int kGap = 5;
-const std::array<std::string, 6> kProcessors{ "input", "saturator", "compressor", "equalizer", "polish", "output" };
+const std::array<std::string, 5> kProcessors{ "gain_staging", "saturator", "compressor", "equalizer", "polish" };
 
 }
 

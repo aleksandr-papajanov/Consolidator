@@ -43,6 +43,7 @@ internal sealed class ClearTopologyCommandHandler
         {
             group.Prepare(null, transaction);
         }
+        _history.AdvanceHistoryPoint();
         transaction.Commit();
         return ValueTask.FromResult(StateWriteStatus.Applied);
     }

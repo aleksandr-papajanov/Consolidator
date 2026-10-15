@@ -90,8 +90,8 @@ public sealed class PublishedLibraryContractTests
         Assert.Equal((long)instance.InstanceId, telemetry.Atoms[1].IntegerValue);
         Assert.Equal(2, telemetry.Atoms[2].IntegerValue);
         Assert.Equal(2, telemetry.Atoms[3].IntegerValue);
-        Assert.Equal("input_gain.level", telemetry.Atoms[4].SymbolValue);
+        Assert.Equal("gain_staging.input_level", telemetry.Atoms[4].SymbolValue);
         Assert.Equal(-12.5, telemetry.Atoms[5].FloatValue);
-        Assert.Equal("input_gain.level_fast", telemetry.Atoms[6].SymbolValue);
+        Assert.Equal("gain_staging.input_level_fast", telemetry.Atoms[6].SymbolValue);
     }
 }

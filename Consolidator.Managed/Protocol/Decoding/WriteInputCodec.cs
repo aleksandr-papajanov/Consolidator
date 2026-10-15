@@ -119,10 +119,10 @@ internal sealed class WriteInputCodec : IInputCodec
         if (node == StateNodeIds.Mute
             || node == StateNodeIds.Solo
             || node == StateNodeIds.Bypass
-            || node == StateNodeIds.Leveler
+            || node == StateNodeIds.InputLeveler
             || node == StateNodeIds.Split
             || node == StateNodeIds.Parallel
-            || node == StateNodeIds.Limiter)
+            || node == StateNodeIds.OutputLeveler)
         {
             return new DecodedValue(ReadBoolean(atom), typeof(bool));
         }

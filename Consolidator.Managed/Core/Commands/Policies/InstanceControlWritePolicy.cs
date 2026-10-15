@@ -21,11 +21,10 @@ internal sealed class InstanceControlWritePolicy : IStateWritePolicy
 
         return nodes.Count == 3 &&
             nodes[0] == StateNodeIds.Dsp &&
-            (nodes[1] == StateNodeIds.InputGain ||
+            (nodes[1] == StateNodeIds.GainStaging ||
                 nodes[1] == StateNodeIds.Saturator ||
                 nodes[1] == StateNodeIds.Compressor ||
-                nodes[1] == StateNodeIds.Equalizer ||
-                nodes[1] == StateNodeIds.OutputGain) &&
+                nodes[1] == StateNodeIds.Equalizer) &&
             (nodes[2] == StateNodeIds.Bypass ||
                 nodes[2] == StateNodeIds.Solo);
     }

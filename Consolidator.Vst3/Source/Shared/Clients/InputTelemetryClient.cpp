@@ -26,7 +26,7 @@ std::optional<InputTelemetry> InputTelemetryClient::Handle(const shared::protoco
         return {};
     }
     if (shared::protocol::Integer(values[3]) != 2 || values.size() != 8 ||
-        shared::protocol::Symbol(values[4]) != "input_gain.level" || shared::protocol::Symbol(values[6]) != "input_gain.level_fast")
+        shared::protocol::Symbol(values[4]) != "gain_staging.input_level" || shared::protocol::Symbol(values[6]) != "gain_staging.input_level_fast")
     {
         throw std::invalid_argument("Invalid DSP telemetry frame.");
     }

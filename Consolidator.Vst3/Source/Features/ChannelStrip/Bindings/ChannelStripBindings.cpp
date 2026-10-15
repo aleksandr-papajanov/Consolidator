@@ -9,24 +9,24 @@ namespace consolidator::vst3::features::channelstrip::bindings
 
 ChannelStripBindings::ChannelStripBindings(const shared::clients::TargetStateClient& state,
     shared::editing::DialGestureSession& gesture, shared::controls::parameter::bindings::ParameterBindingActions actions)
-    : input_(state, gesture), parameters_(state, gesture, std::move(actions))
+    : gainStaging_(state, gesture), parameters_(state, gesture, std::move(actions))
 {
 }
 
 void ChannelStripBindings::ApplySnapshot()
 {
-    input_.ApplySnapshot();
-    parameters_.ApplySnapshot(presentation::kSections, input_.RuntimeOverlay());
+    gainStaging_.ApplySnapshot();
+    parameters_.ApplySnapshot(presentation::kSections, gainStaging_.RuntimeOverlay());
 }
 
 ChannelStripUpdate ChannelStripBindings::ApplyChanged(const shared::clients::ParameterEntry& entry)
 {
-    const bool runtimeOverlayChanged = input_.ApplyChanged(entry);
+    const bool runtimeOverlayChanged = gainStaging_.ApplyChanged(entry);
     const bool parameterChanged = parameters_.ApplyChanged(entry);
     return { parameterChanged, runtimeOverlayChanged };
 }
 
-input::bindings::InputBindings& ChannelStripBindings::Input() { return input_; }
+gainstaging::bindings::GainStagingBindings& ChannelStripBindings::GainStaging() { return gainStaging_; }
 shared::controls::parameter::bindings::ParameterBindings& ChannelStripBindings::Parameters() { return parameters_; }
 
 } // namespace consolidator::vst3::features::channelstrip::bindings

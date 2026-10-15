@@ -2,16 +2,12 @@
 
 #include <utility>
 
-#include "Shared/Clients/StateCommands.h"
-
 namespace consolidator::vst3::features::tracks::controllers
 {
 
 TrackController::TrackController(shared::clients::ProtocolClient& commands,
-    const shared::clients::RegistryClient& registry, shared::editing::HistoryActionSession& history)
-    : commands_(commands), registry_(registry), history_(history),
-      topology_([this](const std::string& selector, std::vector<shared::protocol::ProtocolValue> body, Completion completion)
-          { commands_.Send(selector, std::move(body), std::move(completion)); })
+    const shared::clients::RegistryClient& registry)
+    : commands_(commands), registry_(registry)
 {
 }
 
@@ -48,7 +44,7 @@ void TrackController::Execute(const features::tracks::bindings::TrackIntent& int
         const auto bankReset = intent.kind == features::tracks::bindings::TrackIntentKind::ResetBank;
         const auto instanceReset = intent.kind == features::tracks::bindings::TrackIntentKind::ResetInstance;
         const auto parts = shared::protocol::EncodePath(bankReset ? "equalizer.bank" : instanceReset ? "dsp" :
-            shared::clients::StateCommands::DevicePath(intent.processor));
+            intent.processor);
         std::vector<shared::protocol::ProtocolValue> body;
         if (instanceReset)
         {
@@ -68,49 +64,24 @@ void TrackController::Execute(const features::tracks::bindings::TrackIntent& int
 
 void TrackController::Group(Banks banks, Completion completion)
 {
-    const auto group = registry_.NextGroup();
-    if (!group || banks.size() < 2)
+    std::vector<shared::protocol::ProtocolValue> body{ static_cast<std::int64_t>(banks.size()) };
+    for (const auto& bank : banks)
     {
-        completion(false);
-        return;
+        body.emplace_back(std::to_string(bank.first));
+        body.emplace_back(static_cast<std::int64_t>(bank.second));
     }
-    history_.Run([this, banks = std::move(banks), group](const std::string&, Completion done)
-    {
-        topology_.Write(banks, static_cast<std::int64_t>(*group), std::move(done));
-    }, std::move(completion));
+    commands_.Send("group_banks", std::move(body), std::move(completion));
 }
 
 void TrackController::Ungroup(const shared::clients::UiTarget& target, Completion completion)
 {
-    const auto bank = registry_.FindBank(target.instance, target.bank);
-    if (bank == nullptr || !bank->group || *bank->group == 0)
-    {
-        completion(false);
-        return;
-    }
-    Banks banks;
-    for (const auto& instance : registry_.Instances())
-    {
-        for (const auto& member : instance.banks)
-        {
-            if (member.group == bank->group)
-            {
-                banks.emplace_back(instance.id, member.index);
-            }
-        }
-    }
-    history_.Run([this, banks = std::move(banks)](const std::string&, Completion done)
-    {
-        topology_.Write(banks, std::string("none"), std::move(done));
-    }, std::move(completion));
+    commands_.Send("ungroup_banks", { std::to_string(target.instance), static_cast<std::int64_t>(target.bank) },
+        std::move(completion));
 }
 
 void TrackController::Clear(Completion completion)
 {
-    history_.Run([this](const std::string&, Completion done)
-    {
-        commands_.Send("clear_topology", {}, std::move(done));
-    }, std::move(completion));
+    commands_.Send("clear_topology", {}, std::move(completion));
 }
 
 void TrackController::Process(const std::string& selector, const shared::clients::UiTarget& target,

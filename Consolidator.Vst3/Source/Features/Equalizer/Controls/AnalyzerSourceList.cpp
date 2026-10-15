@@ -11,8 +11,8 @@ namespace consolidator::vst3::features::equalizer::controls
 
 namespace
 {
-const std::array<std::string, 4> kPaths{ "equalizer", "input_gain", "saturator", "compressor" };
-const std::array<const char*, 4> kLabels{ "Equalizer", "Input", "Saturator", "Compressor" };
+const std::array<std::string, 4> kPaths{ "equalizer", "gain_staging", "saturator", "compressor" };
+const std::array<const char*, 4> kLabels{ "Equalizer", "Gain Staging", "Saturator", "Compressor" };
 }
 
 AnalyzerSourceList::AnalyzerSourceList(std::function<void()> changed) : changed_(std::move(changed))

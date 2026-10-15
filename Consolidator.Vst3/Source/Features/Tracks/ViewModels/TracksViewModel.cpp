@@ -121,7 +121,7 @@ TrackActions TracksViewModel::Actions() const
         return std::any_of(instance.banks.begin(), instance.banks.end(),
             [](const auto& candidate) { return candidate.group && *candidate.group != 0; });
     });
-    return { registry_.Ready() && selected_.size() >= 2 && registry_.NextGroup().has_value(),
+    return { registry_.Ready() && selected_.size() >= 2 && registry_.CanCreateGroup(),
         bank != nullptr && bank->group && *bank->group != 0, clear,
         bank != nullptr && bank->active, bank != nullptr && bank->group.has_value() };
 }

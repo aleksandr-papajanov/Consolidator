@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Features/ChannelStrip/Input/Bindings/InputBindings.h"
+#include "Features/ChannelStrip/GainStaging/Bindings/GainStagingBindings.h"
 #include "Shared/Controls/Parameter/Bindings/ParameterBindings.h"
 
 namespace consolidator::vst3::features::channelstrip::bindings
@@ -19,11 +19,11 @@ public:
         shared::controls::parameter::bindings::ParameterBindingActions actions);
     void ApplySnapshot();
     [[nodiscard]] ChannelStripUpdate ApplyChanged(const shared::clients::ParameterEntry& entry);
-    [[nodiscard]] input::bindings::InputBindings& Input();
+    [[nodiscard]] gainstaging::bindings::GainStagingBindings& GainStaging();
     [[nodiscard]] shared::controls::parameter::bindings::ParameterBindings& Parameters();
 
 private:
-    input::bindings::InputBindings input_;
+    gainstaging::bindings::GainStagingBindings gainStaging_;
     shared::controls::parameter::bindings::ParameterBindings parameters_;
 };
 

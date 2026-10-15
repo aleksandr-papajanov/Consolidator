@@ -341,16 +341,6 @@ public:
         }
     };
 
-    c74::min::message<> disableInputLeveler{
-        this,
-        "disable_input_leveler",
-        MIN_FUNCTION
-        {
-            ForwardMessage("disable_input_leveler", args);
-            return {};
-        }
-    };
-
     c74::min::message<> commitBank{
         this,
         "commit_bank",

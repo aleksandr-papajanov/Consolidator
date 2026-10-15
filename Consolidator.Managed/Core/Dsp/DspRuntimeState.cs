@@ -174,6 +174,18 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.OutputTarget = value;
     }
 
+    public bool OutputLeveler
+    {
+        get => _snapshot.OutputLeveler != 0;
+        set => _snapshot.OutputLeveler = value ? 1U : 0U;
+    }
+
+    public float OutputLimit
+    {
+        get => _snapshot.OutputLimit;
+        set => _snapshot.OutputLimit = value;
+    }
+
     public bool OutputLimiter
     {
         get => _snapshot.OutputLimiter != 0;

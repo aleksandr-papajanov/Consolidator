@@ -159,7 +159,7 @@ const RegistryBank* RegistryClient::FindBank(std::uint64_t instance, int bank) c
     return found == row->banks.end() ? nullptr : &*found;
 }
 
-std::optional<std::uint32_t> RegistryClient::NextGroup() const
+bool RegistryClient::CanCreateGroup() const
 {
     std::set<std::uint32_t> used{ 0 };
     for (const auto& instance : instances_)
@@ -172,15 +172,15 @@ std::optional<std::uint32_t> RegistryClient::NextGroup() const
             }
         }
     }
-    // Same sixteen-group palette/creation limit as Max TrackActions.
+    // Presentation availability only; Managed allocates the actual group ID.
     for (std::uint32_t next = 1; next < 16; ++next)
     {
         if (!used.contains(next))
         {
-            return next;
+            return true;
         }
     }
-    return {};
+    return false;
 }
 
 RegistryUpdate RegistryClient::Handle(const shared::protocol::ProtocolFrame& frame)

@@ -65,12 +65,14 @@ public sealed class CommandExecutor
             cancellationToken);
         var stateChanged = command is ResetStateCommand ||
             (command is WriteStateCommand ||
+                command is GroupBanksCommand ||
+                command is UngroupBanksCommand ||
+                command is ClearTopologyCommand ||
                 command is SetInstanceMuteCommand ||
                 command is SetInstanceSoloCommand ||
                 command is SetInstanceBypassCommand ||
                 command is SetProcessorBypassCommand ||
                 command is SetBankBypassCommand ||
-                command is DisableInputLevelerCommand ||
                 command is CommitBankCommand ||
                 command is RefineBankCommand) &&
             result.Value is StateWriteStatus.Applied;
