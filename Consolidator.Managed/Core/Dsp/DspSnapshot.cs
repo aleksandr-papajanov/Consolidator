@@ -26,6 +26,12 @@ public struct DetectorFilterSnapshotBuffer
     private FilterSnapshot _element;
 }
 
+[InlineArray(2)]
+public struct OutputDetectorFilterSnapshotBuffer
+{
+    private FilterSnapshot _element;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct DspSnapshot
 {
@@ -83,6 +89,7 @@ public unsafe struct DspSnapshot
     public float DynamicsCompressionRatio;
     public uint DynamicsShaperBypass;
     public uint DynamicsCompressionBypass;
+    public OutputDetectorFilterSnapshotBuffer OutputDetectorFilters;
 }
 
 

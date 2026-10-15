@@ -1,6 +1,6 @@
-# EqualizerProcessor
+# EqualizerDevice
 
-[Исходник](../../External/Dsp/EqualizerProcessor.cpp).
+[Исходник](../../Audio/Devices/EqualizerDevice.cpp).
 
 Последовательный каскад 7 банков по 7 фильтров: Gain, Tilt, LowShelf, HighShelf и три Bell.
 

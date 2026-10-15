@@ -1,13 +1,14 @@
 # DeviceCompressorProcessor
 
-[Native implementation](../../External/Dsp/Processors/DeviceCompressor/DeviceCompressorProcessor.cpp), [controls](../../External/Dsp/Processors/DeviceCompressor/DeviceCompressorProcessor.h),
+[Native model composition](../../Audio/Devices/CompressorDevice.cpp),
 [VST3 adapter and editor](../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp).
 
 One Normal-mode compressor selects CLA-76, CLA-3A, CLA-2A or SSL. Algorithm is
 discrete, not a morph or audio blend. This composite calls the existing Native
 processors; it contains no copied detector, dynamics or colour algorithm.
-It is standalone and does not replace the runtime graph's existing
-CompressorProcessor/TransientShaper or change Managed ABI.
+It is a standalone research adapter over the same Native Audio algorithms. The
+main strip independently uses Audio/Devices/CompressorDevice with Shaper, detector
+EQ and Managed controls/profiles. This adapter does not own the main ABI.
 
 | Control | Domain | Default |
 | --- | --- | --- |
@@ -17,7 +18,6 @@ CompressorProcessor/TransientShaper or change Managed ABI.
 | Attack | 0…1, short to long | 2/3 |
 | Release | 0…1, short to long | 0.5 |
 | Ratio | 0…1, low to high | 0.4 (nominal 4:1) |
-| Auto Gain | bool, measured matching through Output | true |
 
 CLA-2A/3A ignore Attack/Release/Ratio; the editor disables these controls.
 CLA-76 uses all controls. SSL Attack snaps to 0 Fast or 1 Normal, both in Native
@@ -31,8 +31,8 @@ Prepare allocates/prepares all four models once, applies the active controls and
 resets histories. SetControls stores the shared controls and updates only the
 active model. Switching marks a reset pending; the next Process clears the new
 model's history and snaps its ramps to the current targets before processing.
-Reset clears histories and seeds Output from the current controls. Switching
-restarts the adaptive measurement while preserving the current Output.
+Reset clears histories and seeds Output from the current controls. Output is
+manual and retains its host value across algorithm switches.
 Calls belong to the same owner/audio thread as the
 underlying processors; the VST3 reads host atomics at each block boundary.
 
@@ -41,7 +41,7 @@ logging, I/O, reprepare, duplicate render or crossfade. Inactive histories are n
 advanced. A switch is abrupt; no click-free transition is claimed. The control
 positions are shared across algorithms, not separate per-device presets.
 
-## Normal automatic makeup
+## Normal formula-based makeup
 
 Normal uses a compact settings law fitted to eight unnormalised musical sources,
 with equal source weights. It balances average loudness across algorithms rather
@@ -50,24 +50,21 @@ Reduction; 76/SSL also include Attack, Release and Ratio. Individual models keep
 their original detector histories. Original Emulation gain is unchanged.
 [Method, results and limits](ProgramMakeup.md).
 
-Auto Gain defaults ON and drives the single Output gain over -24..+24 dB;
-the old separate ±3 dB correction is removed. Dry/pre-Output wet K-weighted power
-use a 3-second exponential history, 4-second adjustment and .3 dB deadband.
-Output freezes on silence/tails. Unchecking Auto Gain holds Output; editing Output
-disables Auto Gain. Individual processors and Emulation remain unchanged.
-[Adaptive stage and realtime contract](AdaptiveCompressorGain.md).
+Output is a manual control with the selected Native model's ordinary gain ramp.
+There is no signal-dependent output matching, host Output publication or Auto Gain parameter.
 
 ## VST3
 
 Consolidator Compressor replaces the four individual compressor VST3 targets.
-IDs: algorithm/reduction/output/attack/release/ratio/auto_gain/bypass. The editor uses a
+IDs: algorithm/reduction/output/attack/release/ratio/bypass. The editor uses a
 four-position Algorithm slider and shows normalized controls. State restoration
 requires every current control to be present and finite, with no old-plugin
 migration. Bypass passes raw audio and freezes DSP history. The adapter owns
-host state/UI, message-thread Output publication and preallocated conversion.
+host state/UI and preallocated conversion.
 
 Native Emulation remains available on each underlying processor for future use;
-this composite and current VST3 use Normal only. [Control modes](CompressorControlModes.md).
+this composite and current VST3 use Normal only, so the processors' Emulation-only
+audio colour filters are not active. [Control modes](CompressorControlModes.md).
 [Research and verification notes](DeviceCompressorFindings.md).
 
 ## Normal ratio extension

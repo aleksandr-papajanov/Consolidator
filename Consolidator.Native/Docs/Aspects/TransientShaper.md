@@ -1,10 +1,11 @@
 # TransientShaperProcessor — общий Native / VST3 DSP
 
-[Алгоритм](../../External/Dsp/Processors/TransientShaper/TransientShaperProcessor.cpp),
-[настройки](../../External/Dsp/Processors/TransientShaper/TransientShaperProcessor.h),
+[Алгоритм](../../Audio/Algorithms/TransientShaper/TransientShaperProcessor.cpp),
+[настройки](../../Audio/Algorithms/TransientShaper/TransientShaperProcessor.h),
 [адаптер](../../../ModelPlugins.Vst3/Source/TransientShaperPluginProcessor.cpp).
-Это единственная реализация транзиент-шейпера. Native Compressor и VST3 компилируют
-один TransientShaperProcessor.cpp и вызывают один Process. JUCE-адаптер хранит только
+Основной Native/VST3 host использует Audio/Algorithms/TransientShaper.
+Исследовательский adapter компилирует тот же Native processor.
+Текущий порядок основной цепочки: Saturation -> ShaperDevice -> CompressorDevice. JUCE-адаптер хранит только
 параметры хоста, state и заранее выделенные float/double буферы. Старый Native
 алгоритм и отдельный AttackSustainMaskModel удалены.
 Attack/Sustain: −1…+1, 0 нейтрально. Output Gain — ручной, default0 дБ. Limit постоянный.
@@ -70,10 +71,12 @@ Normalized Attack/Sustain в VST3=(amount+1)/2:0.5 означает нейтра
 
 ## Интеграция и lifecycle
 
-Native SetParameters читает compressorAttack, compressorSustain и compressorOutputDb.
+Runtime SnapshotBinding переводит transport fields compressorAttack, compressorSustain
+и compressorOutputDb в ShaperParameters. Алгоритм получает SetAmounts/SetOutputGainDb
+и не зависит от snapshot.
 Managed физический диапазон Attack/Sustain −1…+1; default 0. Compressor Output
 остаётся −36…+36 дБ; VST3 Output Gain −12…+12 дБ. Output Gain в обоих случаях
-попадает в общий процессор после HP10, перед финальным clamp. Общий DspParameterRamp
+попадает в общий процессор после HP10, перед финальным clamp. Общий ParameterRamp
 интерполирует его линейный коэффициент за 10 мс, продвигаясь перед текущим sample.
 Это заменяет JUCE SmoothedValue: длина рампы теперь round(fs*0.01), как в Native,
 вместо JUCE floor(fs*0.01); при стандартных 44.1/48/96 кГц длина одинаковая.
@@ -82,16 +85,14 @@ Prepare компилирует коэффициенты и сбрасывает 
 ручек и устанавливает их как текущие значения. Native и VST3 используют одни
 константы header, без host overrides. В VST3 остаются Attack, Sustain, Output Gain и Bypass.
 
-Process(DspProcessingFrame&) только выбирает audio/channel mode и вызывает общий
-Process(DspAudioBuffer, mode). Stereo связывает детектор по максимальному модулю;
+Основной алгоритм имеет Process(AudioBuffer, mode) без общего processing frame. Stereo связывает детектор по максимальному модулю;
 Left/Right учитывают и обрабатывают только выбранный ненулевой буфер. Другой канал
 остаётся нетронутым. Внешний detector EQ Compressor используется компрессией;
-transient detector получает свой вход после compression/makeup и собственный HP20.
+Shaper получает вход после Saturation и перед Compression, затем применяет собственный HP20.
 
-Внутри активного Compressor маски и фильтры работают также при Attack=Sustain=0;
+При обработке wet branch маски и фильтры работают также при Attack=Sustain=0;
 нулевые ручки дают unity gain law, но HP10 и постоянные clamp остаются.
-Графовый bypass/activity/parallel относится ко всему Compressor и управляется
-DspParallelStage; в отключённом VST3 bypass возвращает исходный сигнал. Полный
+Bypass/activity принадлежит ShaperDevice и управляется его WetTransition; в отключённом VST3 bypass возвращает исходный сигнал. Полный
 Native граф содержит другие устройства и потому не равен изолированному VST3.
 Для сопоставимого сигнала отключить Compression, Parallel и остальные устройства.
 

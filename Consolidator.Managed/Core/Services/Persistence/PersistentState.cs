@@ -23,7 +23,8 @@ internal sealed record PersistentDsp(
 internal sealed record PersistentGainStaging(
     float InputLevel, float InputTarget, bool InputLeveler,
     float OutputLevel, float OutputTarget, bool OutputLeveler,
-    float Limit, float Width, bool Bypass, PersistentDetector Detector);
+    float Limit, float Width, bool Bypass,
+    PersistentDetector InputDetector, PersistentDetector OutputDetector);
 
 internal sealed record PersistentSaturator(
     float Drive,

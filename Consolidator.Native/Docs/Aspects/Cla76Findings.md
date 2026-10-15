@@ -84,7 +84,8 @@ intermediate and ALL settings were compared with saved preceding-version renders
 maximum relative waveform RMS difference 7.01e-9; maximum sample difference
 2.98e-8. These are scoped manual observations, not a DSP automated test or proof
 for every signal/automation path. Source review found no new allocation, locking,
-I/O or DSP duplication. Colour remains active at 1:1.
+I/O or DSP duplication. This historical Normal comparison predates the filter change:
+the one-pole colour now runs only in Emulation, not at Normal 1:1.
 
 ## Corrected Normal knob taper
 

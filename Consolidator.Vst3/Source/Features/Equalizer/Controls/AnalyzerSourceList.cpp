@@ -3,7 +3,6 @@
 #include <array>
 #include <utility>
 
-#include "Shared/Presentation/ProcessorPresentation.h"
 #include "Shared/Theme/UiMetrics.h"
 
 namespace consolidator::vst3::features::equalizer::controls
@@ -11,15 +10,16 @@ namespace consolidator::vst3::features::equalizer::controls
 
 namespace
 {
-const std::array<std::string, 4> kPaths{ "equalizer", "gain_staging", "saturator", "compression" };
+const std::array<std::string, 5> kPaths{ "equalizer", "gain_staging.input_detector",
+    "saturator", "compression", "gain_staging.output_detector" };
+const std::array<const char*, 5> kLabels{ "Equalizer", "Input", "Saturator", "Compression", "Output" };
 }
 
 AnalyzerSourceList::AnalyzerSourceList(std::function<void()> changed) : changed_(std::move(changed))
 {
     for (std::size_t index = 0; index < rows_.size(); ++index)
     {
-        const auto& processor = shared::presentation::ProcessorFor(kPaths[index]);
-        const auto label = juce::String::fromUTF8(processor.listLabel.data(), static_cast<int>(processor.listLabel.size()));
+        const juce::String label(kLabels[index]);
         auto row = std::make_unique<shared::controls::MarkerRowControl>(label);
         row->setTooltip(label + (index == 0 ? "" : " Detector"));
         row->SetActive(index == 0);

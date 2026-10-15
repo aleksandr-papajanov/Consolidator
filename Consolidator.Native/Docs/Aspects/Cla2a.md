@@ -1,6 +1,6 @@
 # Cla2aProcessor
 
-[Native algorithm](../../External/Dsp/Processors/Cla2a/Cla2aProcessor.cpp), [configuration](../../External/Dsp/Processors/Cla2a/Cla2aProcessor.h),
+[Native algorithm](../../Audio/Algorithms/Cla2a/Cla2aProcessor.cpp), [configuration](../../Audio/Algorithms/Cla2a/Cla2aProcessor.h),
 [VST3 adapter](../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp).
 
 ## Текущее управление
@@ -21,10 +21,11 @@ compression while optical memories recover. Gain zero is finite attenuation,
 not a mute. Compressor mode and all other reference defaults remain fixed.
 The current host instead uses reduction/output/bypass; presets are not migrated.
 
-This is a separate Native algorithm in consolidator::max::dsp::processors.
+This is a Native algorithm in consolidator::audio::algorithms.
 VST3 compiles the same source and owns only two host controls, Bypass, state and
 preallocated float/double conversion. It does not override model coefficients.
-CLA-2A is included in the Native project but is not connected to the runtime graph/ABI.
+The main strip selects this Normal model through CompressorDevice/SnapshotBinding.
+The research adapter compiles this same Native implementation.
 
 ## Current algorithm
 
@@ -62,11 +63,12 @@ one per ten displayed units. These are regional function coefficients, not a
 lookup table. The result is converted to amplitude and cached until Gain changes.
 The extra +39 dB nominal-output calibration has been removed.
 
-Audio colour consists of a first-order 4.3 Hz high pass and a −0.6 dB high shelf
-at 6 kHz. State remains per channel; compression is linked. Preparation, curve
-evaluation, detector update, optical gain and colour are separate methods. Config
-is static constexpr; controls ramp over 10 ms. Process performs no allocation,
-locking, I/O or host messaging. No added harmonic branch is present at this stage.
+Emulation audio colour consists of a first-order 4.3 Hz high pass and a −0.6 dB
+high shelf at 6 kHz. These filters process the compressed audio after the optical
+gain; they do not feed the detector. Normal skips and does not prepare either
+filter stage. State remains per channel; compression is linked. The high-pass uses
+the shared `FirstOrderHighPass` primitive, while the high shelf uses the shared
+biquad cascade.
 
 ## Manual research
 
@@ -91,7 +93,8 @@ Gain taper and its rounded regional output law were recovered from this project'
 saved chat, together with the shared scale/inverse used by the previous adapter.
 Peak Reduction keeps the existing threshold law; its display conversion now uses
 the same Native helper. Reference text rounds to 0.04 units as in the prior adapter.
-Current detector, optical timing, deep-reduction curve and colour are retained.
+Current detector, optical timing and deep-reduction curve are retained. The colour
+filters remain in Emulation and are skipped in Normal.
 No extra harmonic processing or interpolation tables were introduced.
 
 ## Historical verification of Reduction/Output
@@ -104,7 +107,8 @@ and quiet recovery. Maximum relative waveform RMS difference was
 4.16424e-7 (0.0000416%); maximum sample difference
 relative to the preceding waveform peak was 4.70678e-7.
 These observations cover mapped static settings, not equivalence during automation
-or an accuracy bound against Waves. Optical/timing and colour constants are retained.
+or an accuracy bound against Waves. Optical/timing constants are retained; the
+Emulation-only colour filters do not affect current Normal processing.
 No DSP automated tests were created or run. Source review found no new allocation,
 locking, I/O, host-side algorithm, duplicate API or preset migration path.
 

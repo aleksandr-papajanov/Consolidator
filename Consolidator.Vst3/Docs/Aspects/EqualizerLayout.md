@@ -33,8 +33,9 @@ Each name is preceded by the same output-level dot as Bank Manager, drawn by
 TrackLevelRenderer from TracksViewModel.OutputAlphaFor. Accepted track-level
 telemetry repaints both views without rebuilding group membership or changing focus.
 
-The source marker rows select Equalizer or the Gain Staging/Saturator/Compression
-detector from the already accepted target cache. Shared MarkerRowControl supplies
+The five source marker rows select Equalizer, Input detector, Saturator detector,
+Compression detector or Output detector from the already accepted target cache.
+Input/Output use independent gain_staging.input_detector/output_detector paths. Shared MarkerRowControl supplies
 input and presentation for source and overlay rows. Source selection remains
 exclusive; overlays remain independent. Selected source uses an active square,
 others an outlined square. Switching does not change track/bank focus

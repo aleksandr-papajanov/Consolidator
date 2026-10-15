@@ -51,6 +51,8 @@ public static class StateNodeIds
     public static readonly NodeId Profile76 = new(61);
     public static readonly NodeId Profile3A = new(62);
     public static readonly NodeId Profile2A = new(63);
+    public static readonly NodeId InputDetector = new(64);
+    public static readonly NodeId OutputDetector = new(65);
     public static NodeId BankAt(int index) => new((uint)(100 + index));
 
     public static NodeId FilterAt(int index) => new((uint)(200 + index));

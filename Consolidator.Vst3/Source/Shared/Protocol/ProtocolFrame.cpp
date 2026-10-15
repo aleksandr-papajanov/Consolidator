@@ -9,29 +9,29 @@
 namespace consolidator::vst3::shared::protocol
 {
 
-std::vector<max::transport::NativeAtom> EncodeAtoms(const std::vector<ProtocolValue>& values)
+std::vector<::consolidator::transport::NativeAtom> EncodeAtoms(const std::vector<ProtocolValue>& values)
 {
-    std::vector<max::transport::NativeAtom> atoms;
+    std::vector<::consolidator::transport::NativeAtom> atoms;
     atoms.reserve(values.size());
     for (const auto& value : values)
     {
-        max::transport::NativeAtom atom{};
+        ::consolidator::transport::NativeAtom atom{};
         std::visit([&atom](const auto& item)
         {
             using Value = std::decay_t<decltype(item)>;
             if constexpr (std::is_same_v<Value, std::int64_t>)
             {
-                atom.type = max::transport::NativeAtomType::Integer;
+                atom.type = ::consolidator::transport::NativeAtomType::Integer;
                 atom.integer = item;
             }
             else if constexpr (std::is_same_v<Value, double>)
             {
-                atom.type = max::transport::NativeAtomType::Float;
+                atom.type = ::consolidator::transport::NativeAtomType::Float;
                 atom.floating = item;
             }
             else
             {
-                atom.type = max::transport::NativeAtomType::Symbol;
+                atom.type = ::consolidator::transport::NativeAtomType::Symbol;
                 atom.symbol = item.c_str();
             }
         }, value);
@@ -40,7 +40,10 @@ std::vector<max::transport::NativeAtom> EncodeAtoms(const std::vector<ProtocolVa
     return atoms;
 }
 
-ProtocolFrame CopyFrame(const char* selector, const max::transport::NativeAtom* atoms, std::size_t count)
+ProtocolFrame CopyFrame(
+    const char* selector,
+    const ::consolidator::transport::NativeAtom* atoms,
+    std::size_t count)
 {
     if (selector == nullptr || (count != 0 && atoms == nullptr))
     {
@@ -53,17 +56,17 @@ ProtocolFrame CopyFrame(const char* selector, const max::transport::NativeAtom* 
         const auto& atom = atoms[index];
         switch (atom.type)
         {
-        case max::transport::NativeAtomType::Integer:
+        case ::consolidator::transport::NativeAtomType::Integer:
         {
             frame.values.emplace_back(atom.integer);
             break;
         }
-        case max::transport::NativeAtomType::Float:
+        case ::consolidator::transport::NativeAtomType::Float:
         {
             frame.values.emplace_back(atom.floating);
             break;
         }
-        case max::transport::NativeAtomType::Symbol:
+        case ::consolidator::transport::NativeAtomType::Symbol:
         {
             if (atom.symbol == nullptr)
             {

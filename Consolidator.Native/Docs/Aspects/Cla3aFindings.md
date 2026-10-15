@@ -54,7 +54,9 @@ automated test was performed during this restoration.
 ## Normal makeup calibration
 
 Fixed -18 dBFS peak / 1 kHz reference compensation was added only to Normal.
-The existing detector/timing/colour laws remain; original Emulation gain is unchanged.
+The existing detector/timing laws remain; output colour filters are now Emulation-only.
+Original Emulation gain is unchanged. Earlier Normal measurements predate this filter
+removal and are not a recalibration of the updated signal path.
 [Manual measurement grid, fitted law and limits](CompressorControlModes.md#normal-automatic-makeup).
 
 ## Musical-source makeup supersedes the sine calibration

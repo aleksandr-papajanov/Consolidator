@@ -2,7 +2,7 @@
 
 ## ABI Types
 
-The shared ABI is declared in `Consolidator.Native/External/Transport/ManagedInterop.h` and mirrored by the C# unmanaged types.
+The shared ABI is declared in `Consolidator.Native/Transport/ManagedInterop.h` and mirrored by the C# unmanaged types.
 DSP runtime structs use natural platform alignment: C# uses
 `StructLayout(LayoutKind.Sequential)` without `Pack`, and C++ uses ordinary
 struct layout without packing pragmas. ABI size and offset tests document the

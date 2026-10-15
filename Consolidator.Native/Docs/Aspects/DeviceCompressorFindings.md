@@ -1,10 +1,15 @@
 # Universal compressor notes
 
+These notes include measurements and integration observations from earlier
+research-adapter versions. They do not validate later revisions of the former shared Native AutoGain
+integration or the updated Normal signal path, which now skips Emulation-only
+output colour filters. See [the current contract](DeviceCompressor.md#vst3).
+
 This is composition of four accepted Native models, not a new reference fit.
 Detector, timing and colour laws remain in each model's existing folder. Normal
-Reduction/Output controls are shared. Normal uses musical-source static makeup
-and a common adaptive correction; Emulation retains reference gain laws. SSL
-attack is restricted to its two identified endpoints.
+Reduction/Output controls are shared. Normal uses musical-source static makeup;
+Emulation retains reference gain laws. SSL attack is restricted to its two
+identified endpoints.
 
 Source review covers preparation, block-boundary selection, reset of the selected
 history, ignored optical timing/ratio controls, UI disable/step state and host

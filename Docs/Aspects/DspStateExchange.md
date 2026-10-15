@@ -39,9 +39,9 @@ compilation remains a later consumer of these slots.
 Snapshot structs have no domain defaults. Managed StateValueDefinitions/model construction creates initial parameter state before the first publish.
 `Prepare(sampleRate, maximumFrameCount)` updates the native DSP compilation
 context and the Managed analyzer context after audio configuration; it must not
-reset or republish parameter state. Native creates its per-instance DSP graph
+reset or republish parameter state. Native creates its per-instance ConsolidatorChain
 and its bounded parallel branch storage during this control/setup operation.
-The graph itself is audio-owned and is not swapped on parameter publications;
+The chain itself is audio-owned and is not swapped on parameter publications;
 processor history and smoothing state survive every accepted snapshot.
 Parameter publication and telemetry use opposite ownership directions and
 independent synchronization fields inside the fixed exchange. The complete

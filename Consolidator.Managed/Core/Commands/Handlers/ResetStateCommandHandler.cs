@@ -3,6 +3,7 @@ using Consolidator.Managed.Core.Commands.Definitions;
 using Consolidator.Managed.Core.Commands.Editing;
 using Consolidator.Managed.Core.Commands.Results;
 using Consolidator.Managed.State.History;
+using Consolidator.Managed.Core.State;
 
 namespace Consolidator.Managed.Core.Commands.Handlers;
 
@@ -36,11 +37,12 @@ internal sealed class ResetStateCommandHandler
             ?? throw new InvalidOperationException(
                 $"Reset target was not found: {path}.");
         using var transaction = _history.BeginTransaction();
-        if (GainStagingEdits.IsInputLeveler(path))
+        if (GainStagingEdits.IsLeveler(path))
         {
-            _gainStaging.PrepareInputLevelFreeze(
+            _gainStaging.PrepareLevelFreeze(
                 context,
                 command.ResetMode is ResetScope.Group,
+                path.Nodes[^1] == StateNodeIds.OutputLeveler,
                 transaction);
         }
         _compression.PrepareReset(context, path, command.ResetMode is ResetScope.Group, transaction);

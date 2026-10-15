@@ -83,11 +83,11 @@ There is no separate Utility row. This fixed geometry is uniformly scaled by
 the editor's existing zoom. Scalar controls
 retain numeric editing, Shift snapping, reset and group markers.
 
-GainStagingBindings owns the existing InputLevelerViewModel. Its runtime overlay,
-read-only input-level gesture behavior and slow/fast telemetry use the new paths
-`gain_staging.input_level` and `gain_staging.input_level_fast`. Bindings outlive
-parameter controls/models; rebuild destroys controls before borrowed models.
-There is no parallel frontend value store or simulated output leveler feedback.
+GainStagingBindings owns four RuntimeDialViewModel overlays for Input/Output Level/Target.
+Level is editable with Leveler off; Target is editable with Leveler on. The other
+dial displays telemetry. Slow gain and fast correction remain distinct. Bindings
+outlive parameter controls/models; rebuild destroys controls before borrowed models.
+See [RuntimeOverlay](RuntimeOverlay.md).
 
 Track-table processor markers use six IDs: Gain Staging, Saturator, Shaper,
 Compression, Equalizer and Polish. Shaper and Compression have independent

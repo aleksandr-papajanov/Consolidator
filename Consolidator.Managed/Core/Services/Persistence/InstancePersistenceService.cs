@@ -10,7 +10,7 @@ namespace Consolidator.Managed.Core.Services.Persistence;
 
 internal sealed class InstancePersistenceService
 {
-    private const int CurrentSchema = 8;
+    private const int CurrentSchema = 9;
     private readonly InstanceRegistry _instances;
     private readonly IOperationGate _operationGate;
     private readonly IPersistenceChangeSink _persistenceChanges;
@@ -79,7 +79,8 @@ internal sealed class InstancePersistenceService
     private static PersistentGainStaging CreateGainStaging(GainStagingState value) => new(
         value.InputLevel.Value, value.InputTarget.Value, value.InputLeveler.Value,
         value.OutputLevel.Value, value.OutputTarget.Value, value.OutputLeveler.Value,
-        value.Limit.Value, value.Width.Value, value.Bypass.Value, CreateDetector(value.Detector));
+        value.Limit.Value, value.Width.Value, value.Bypass.Value,
+        CreateDetector(value.InputDetector), CreateDetector(value.OutputDetector));
 
     private static PersistentSaturator CreateSaturator(SaturatorState value) => new(
         value.Drive.Value, value.Curve.Value, value.Split.Value,
@@ -192,7 +193,8 @@ internal sealed class InstancePersistenceService
         target.Limit.PrepareBaseline(source.Limit, transaction);
         target.Width.PrepareBaseline(source.Width, transaction);
         target.Bypass.PrepareBaseline(source.Bypass, transaction);
-        ApplyDetector(target.Detector, source.Detector, transaction);
+        ApplyDetector(target.InputDetector, source.InputDetector, transaction);
+        ApplyDetector(target.OutputDetector, source.OutputDetector, transaction);
     }
 
     private static void ApplySaturator(
@@ -305,7 +307,8 @@ internal sealed class InstancePersistenceService
         if (snapshot.Schema != CurrentSchema || snapshot.Instance is null ||
             snapshot.Banks is null ||
             snapshot.Banks.Length != DspConstants.BankCount ||
-            snapshot.Dsp is null || snapshot.Dsp.GainStaging is null || snapshot.Dsp.GainStaging.Detector is null ||
+            snapshot.Dsp is null || snapshot.Dsp.GainStaging is null || snapshot.Dsp.GainStaging.InputDetector is null ||
+            snapshot.Dsp.GainStaging.OutputDetector is null ||
             snapshot.Dsp.Saturator is null || snapshot.Dsp.Saturator.Detector is null ||
             snapshot.Dsp.Shaper is null ||
             snapshot.Dsp.Compression is null || snapshot.Dsp.Compression.Profiles is null ||
@@ -385,7 +388,8 @@ internal sealed class InstancePersistenceService
         ValidateRange(dsp.Polish.Thick, StateValueDefinitions.Polish.Thick);
         ValidateRange(dsp.Polish.Air, StateValueDefinitions.Polish.Air);
         if (equalizer.Banks.Any(bank => bank.Filters is null) ||
-            gainStaging.Detector.Filters is null ||
+            gainStaging.InputDetector.Filters is null ||
+            gainStaging.OutputDetector.Filters is null ||
             saturatorDetector.Filters is null ||
             compressionDetector.Filters is null)
         {
@@ -393,12 +397,14 @@ internal sealed class InstancePersistenceService
         }
 
         ValidateFilters(equalizer.Banks.SelectMany(bank => bank.Filters!));
-        ValidateFilters(gainStaging.Detector.Filters!);
+        ValidateFilters(gainStaging.InputDetector.Filters!);
+        ValidateFilters(gainStaging.OutputDetector.Filters!);
         ValidateFilters(saturatorDetector.Filters!);
         ValidateFilters(compressionDetector.Filters!);
         if (equalizer.Banks.Any(bank =>
                 bank.Filters!.Length != DspConstants.EqualizerFilterCount) ||
-            gainStaging.Detector.Filters!.Length != DspConstants.DetectorFilterCount ||
+            gainStaging.InputDetector.Filters!.Length != DspConstants.DetectorFilterCount ||
+            gainStaging.OutputDetector.Filters!.Length != DspConstants.DetectorFilterCount ||
             saturatorDetector.Filters!.Length !=
                 DspConstants.DetectorFilterCount ||
             compressionDetector.Filters!.Length !=

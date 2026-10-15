@@ -45,19 +45,12 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PreprocessorDefinitions>WIN32;_WINDOWS;MAXAPI_USE_MSCRT;WIN_VERSION;_USE_MATH_DEFINES;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)..\..\Consolidator.Native\External;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)..\..\Consolidator.Native;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="TestMain.cpp" />
     <ClCompile Include="Contracts\AbiContractTests.cpp" />
-    <ClCompile Include="Contracts\PersistenceBlobCodecTests.cpp" />
-    <ClCompile Include="Contracts\PersistenceRestoreGateTests.cpp" />
-    <ClCompile Include="..\..\Consolidator.Native\External\Transport\PersistenceBlobCodec.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\Consolidator.Native\External\Transport\PersistenceBlobCodec.h" />
-    <ClInclude Include="..\..\Consolidator.Native\External\Transport\PersistenceRestoreGate.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

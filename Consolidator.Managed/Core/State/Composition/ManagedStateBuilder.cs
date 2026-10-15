@@ -193,8 +193,10 @@ internal sealed class ManagedStateBuilder
                     runtime.OutputGainBypass = value;
                     runtime.OutputLimiter = !value;
                 })),
-            CreateDetector(context, path.Append(StateNodeIds.Detector), runtime, 0,
-                index => activity.ObserveActive(active => runtime[index].Active = active ? 1U : 0U)));
+            CreateDetector(context, path.Append(StateNodeIds.InputDetector), runtime, 0,
+                index => activity.ObserveActive(active => runtime[index].Active = active ? 1U : 0U)),
+            CreateDetector(context, path.Append(StateNodeIds.OutputDetector), runtime, 6,
+                index => activity.ObserveActive(active => runtime[6 + index].Active = active ? 1U : 0U)));
     }
 
     private FilterState CreateFilter(

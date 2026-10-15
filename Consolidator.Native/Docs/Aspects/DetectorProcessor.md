@@ -1,11 +1,11 @@
-# DetectorProcessor
+# DetectorEqualizer
 
-[Исходник](../../External/Dsp/DetectorProcessor.cpp).
+[Исходник](../../Audio/Devices/DetectorEqualizer.cpp).
 
-Копирует main audio в preallocated private buffers, применяет LowShelf/Bell каскады и публикует read-only detectorSignal.
+Копирует текущий main в подготовленные private buffers и применяет LowShelf/Bell.
+Возвращает read-only DetectorBuffer. Main audio не меняется. Заимствованные указатели
+валидны до следующего Capture того же экземпляра; число samples задаёт main buffer.
 
-EQ детектора не слышен в main audio.
-
-Input capture после Width; Saturator capture на входе; Compressor отдельно до Compression и после Compression/makeup перед Transient.
-
-У каждого capture собственная история фильтров.
+Независимые экземпляры принадлежат Input, Saturation, Compression и Output.
+Их точки capture и source/state contracts определены в [Runtime](Runtime.md).
+У Shaper собственный HP20 detector внутри алгоритма.

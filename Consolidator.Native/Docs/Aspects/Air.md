@@ -1,8 +1,9 @@
 # PolishAirProcessor
 
-[Native algorithm](../../External/Dsp/Processors/Air/PolishAirProcessor.cpp),
-[constants](../../External/Dsp/Processors/Air/PolishAirProcessor.h).
-The VST3 compiles the same Native model. Air is derived from Revival Shimmer;
+[Native algorithm](../../Audio/Algorithms/Air/PolishAirProcessor.cpp),
+[constants](../../Audio/Algorithms/Air/PolishAirProcessor.h).
+The main and research VST3 adapters compile this same Native model. Air is derived
+from Revival Shimmer;
 exact reference equivalence is not a goal. Amount is 0..1, default zero, with a
 10 ms ramp. Native configuration is immutable; VST3 exposes only Air and Bypass.
 
@@ -51,7 +52,8 @@ Prepare compiles fixed filters and timing/hold coefficients. Reset clears all
 channel histories, peak/hold and the cached unity level coefficient, preserving
 the amount target. Process is one sample loop with no allocation, lock, logging,
 I/O or fitting. Channel mode selects only non-null requested buffers.
-The VST3 no longer compiles the unused DspBiquad.cpp.
+The research adapter compiles this source with the Native Biquad and ParameterRamp
+primitives; it has no separate filter implementation.
 
 Manual comparison and limitations: [findings](AirFindings.md).
 [DSP rules](../Rules.md) prohibit automated audio tests.

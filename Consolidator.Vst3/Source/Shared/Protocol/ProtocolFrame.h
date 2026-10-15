@@ -27,9 +27,10 @@ struct StateWriteEntry
     std::string mode;
 };
 
-[[nodiscard]] std::vector<max::transport::NativeAtom> EncodeAtoms(const std::vector<ProtocolValue>& values);
+[[nodiscard]] std::vector<::consolidator::transport::NativeAtom> EncodeAtoms(
+    const std::vector<ProtocolValue>& values);
 [[nodiscard]] ProtocolFrame CopyFrame(
-    const char* selector, const max::transport::NativeAtom* atoms, std::size_t count);
+    const char* selector, const ::consolidator::transport::NativeAtom* atoms, std::size_t count);
 [[nodiscard]] double Number(const ProtocolValue& value);
 [[nodiscard]] const std::string& Symbol(const ProtocolValue& value);
 [[nodiscard]] std::uint64_t WireId(const ProtocolValue& value);

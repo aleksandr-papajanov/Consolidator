@@ -5,4 +5,10 @@ internal readonly record struct DspTelemetrySnapshot(
     uint ValuesPresent,
     float InputLevelDb,
     float InputLevelFastDb,
-    float OutputLevelDb);
+    float OutputLevelDb,
+    float InputRmsDb,
+    float OutputGainDb,
+    float OutputGainFastDb,
+    float OutputRmsDb,
+    float CompressorReductionDb,
+    float LimiterReductionDb);

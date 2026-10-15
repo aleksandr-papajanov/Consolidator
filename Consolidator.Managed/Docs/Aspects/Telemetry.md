@@ -1,104 +1,79 @@
 # DSP Telemetry
 
-## Scope
+## Владение
 
-DSP telemetry is a transient, latest-only presentation channel from the native
-audio runtime to the active VST3 editor. It reports slowly changing runtime values
-that controls may display while an algorithm owns their motion. It is not a
-second authoritative state tree and it is not used for lossless commands,
-history, persistence, or DSP parameter publication.
+Это transient latest-only канал Native -> Managed worker -> активный VST3 editor.
+Он не является state tree и не участвует в grouping/history/persistence. Только
+явное выключение Leveler может зафиксировать его slow gain обычной Managed transaction.
 
 ```text
-Native audio-owned processor state and final output
-    -> seqlock-style DspTelemetryExchange
-    -> Managed DspTelemetryService worker
-    -> dsp_telemetry / track_levels latest-only frames
-    -> independent native latest telemetry slots
-    -> message-thread delivery
-    -> TargetStateClient / TrackLevelClient presentation caches
+Native audio-owned measurements -> DspTelemetryExchange
+    -> DspTelemetryService -> dsp_telemetry / track_levels
+    -> независимые native latest slots -> message-thread presentation clients
 ```
 
-The fixed shared exchange contains the Leveler `InputLevel` and
-`InputLevelFast` values, final `OutputLevel`, and a presence mask. Additional
-telemetry values extend that bounded snapshot and one of the versioned telemetry
-frames; they do not create per-parameter callbacks or queues.
+AudioRuntime публикует bounded POD после блока через odd/even sequence. Аудиопоток
+не выделяет память, не вызывает Managed/UI и не форматирует protocol atoms.
+Managed читает presence mask и payload между двумя чтениями sequence, с memory
+barrier перед повторным чтением. Worker опрашивает источники каждые 33 мс.
+Unregister удаляет borrowed exchange pointer под reader lock до освобождения Native storage.
 
-## Realtime boundary
+## Измерения
 
-At the end of each processed block Native writes the telemetry snapshot with an
-odd/even sequence counter. The audio thread performs only bounded scalar and
-atomic operations. It does not allocate, lock, call Managed, schedule UI work,
-or format protocol atoms.
+| Shared value | Смысл |
+| --- | --- |
+| InputLevel / InputLevelFast | Slow input gain и fast correction, dB |
+| InputRms | 300 мс main RMS после input gain, dBFS |
+| OutputGain / OutputGainFast | Slow output gain и fast correction, dB |
+| OutputRms | 300 мс main RMS после output gain, до limiter, dBFS |
+| OutputLevel | 300 мс RMS финального выхода после limiter, dBFS |
+| CompressorReduction | Peak применённой compression reduction за последний блок, dB |
+| LimiterReduction | Peak применённого limiter attenuation за последний блок, dB |
 
-The Managed worker polls at 33 ms and validates the sequence before and after
-copying the snapshot. Focused Leveler telemetry follows the same focused-bank
-source selection as the spectrum analyzer. While a UI viewer is active, final
-output levels from every registered instance are batched into one `track_levels`
-frame. Inactive UI sessions create no Managed protocol frames and no UI scheduler work. Native retains only the newest pending frame for each telemetry
-kind, independently of the newest FFT frame.
+Input/Output automatic gain присутствуют только когда Leveler включён и секция
+не bypassed (при instance mute/bypass удерживаемый gain остаётся валидным).
+Это также условие допустимости freeze через IGainStageTelemetry.
+RMS секции присутствует в обоих режимах её обработки. Reduction положительна,
+не включает compressor makeup/output gain и dry/wet. При instance mute/bypass
+reduction публикуется нулевой. Это latest block peak, без накопления между UI polls.
 
-Registration associates each instance with its native-owned exchange pointer.
-Unregistration removes that pointer under the reader lock before the native
-external can release the exchange, so the worker cannot retain or read a
-borrowed pointer beyond the unregister barrier.
-
-The wire frame is:
+## Focused wire frame
 
 ```text
 dsp_telemetry version sourceInstanceId revision valueCount path value ...
 ```
 
-The Bank Manager meter frame is a complete latest snapshot:
+Версия 1, bounded variable list до восьми пар. При выключенном Leveler публикуется
+`gain_staging.input_target` / `gain_staging.output_target` с измеренным RMS. При
+включённом публикуются соответствующие `input_level` / `output_level` и
+`input_level_fast` / `output_level_fast`. Telemetry не создаёт state по этим путям.
+
+Reduction передаётся по `compression.reduction_db` и
+`gain_staging.limiter_reduction_db`. Это presentation-only paths без state writes.
+GainTelemetryClient валидирует source, revision, размер, известные уникальные paths
+и finite values; сохраняет последний frame, включая reduction. Индикаторы reduction
+пока не подключены. Ручки получают отдельные RuntimeDialViewModel overlays.
+
+Source следует focused bank, как analyzer. До готового snapshot/prepared audio
+presentation ничего не применяет. Target/audio configuration transitions очищают
+runtime overlay. При отсутствии активного viewer worker не создаёт protocol frames.
+
+## Track levels
 
 ```text
 track_levels version revision instanceCount instanceId outputLevelDb ...
 ```
 
-Each native instance measures linked mean-square energy after the complete DSP
-graph and converts its 300 ms exponential RMS average to dBFS. The value is
-published even when the Leveler is disabled. It is runtime telemetry only and
-never enters state, history, persistence, grouping, or DSP parameter snapshots.
-The Bank Manager maps `-60..0 dBFS` to `0..1` and raises the normalized value
-to `1.8`, using the result as the alpha of a six-pixel lime circle beside the
-track name. Level updates use a dedicated row patch and do not rebuild registry
-state.
+Активному viewer отправляется complete latest snapshot финальных уровней всех
+зарегистрированных инстанций независимо от Leveler flags. Native хранит только
+последний pending frame каждого telemetry kind отдельно от FFT. TrackLevelClient
+не меняет state tree. Bank Manager и graph track list обновляют level dot без
+перестроения registry: -60..0 dBFS -> 0..1, степень 1.8 -> alpha.
 
-`TargetStateClient` accepts only the current target source and monotonically
-newer revisions. Telemetry replaces the displayed value while preserving the
-state entry's range and status metadata.
+## Freeze и UI
 
-For the Leveler, one frame contains both values:
-
-- `gain_staging.input_level` is the slow long-term gain and drives the outer dial ring.
-  The fast controller never changes this displayed knob value.
-- `gain_staging.input_level_fast` is the fast correction relative to the slow operating
-  point. It is limited to `-6..6 dB` and rendered as a smaller lime inner arc
-  extending left or right from the zero center. The arc is hidden when Leveler
-  is disabled.
-
-The fast telemetry field is presentation-only even though the reported
-correction participates in native audio processing. It does not change the
-editability or authoritative Managed state of `gain_staging.input_level`.
-
-## Leveler control ownership
-
-While Leveler is enabled, `gain_staging.input_level` is read-only in the UI and its dial
-displays the native Leveler's slow long-term gain from telemetry. The separately
-rendered fast correction is applied only inside the native Leveler and does not
-move the knob. The Managed state value remains the last committed value while
-automation is running.
-
-Leveler enable and disable use the current UI edit scope. Enabling uses the
-ordinary grouped state write because only the boolean `leveler` flag is copied;
-the existing live `state_changed` path updates the button immediately. Every
-Leveler continues to measure and control its own audio independently.
-
-When an ordinary `gain_staging.input_leveler = false` write turns Leveler off,
-Managed's edit preparation resolves the selected bank group and reads the
-latest slow level from each target instance's native telemetry exchange and
-commits those distinct values with the flags in one history transaction. An
-instance without a valid telemetry value retains its existing Input Gain.
-Managed then publishes each retained value as ordinary static Input Gain, while
-Native removes that instance's fast overlay through its bounded input-gain
-ramp. The independently committed values participate in normal history and
-persistence.
+При обычной записи input_leveler/output_leveler=false Managed разрешает выбранную
+группу, читает slow gain каждого target и фиксирует его вместе с flag. Нет валидной
+telemetry — остаётся его committed gain. Native убирает fast overlay плавным ramp.
+Сохранённые gains участвуют в обычных Undo/Redo и persistence. UI не отправляет
+зависимых gain writes. Полный state contract: [GainStaging](GainStaging.md).

@@ -22,7 +22,8 @@ Managed state и Native runtime history различаются по ownership: �
 прикладные значения, второе — состояние исполнения алгоритма. VST3 preview не
 заменяет committed values. NativeAOT lifecycle не зависит от наличия editor.
 EmulationLab не входит в runtime основного устройства; исследовательские model
-adapters вызывают те же Native algorithms, но имеют собственный host-контракт.
+adapters имеют собственный host-контракт и используют те же Native Audio
+processors. Основной channel strip использует Native Audio; детали — в Native Runtime.
 
 ## Архитектуры проектов
 

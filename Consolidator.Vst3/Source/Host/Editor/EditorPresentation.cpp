@@ -255,7 +255,10 @@ void EditorPresentation::Observe()
     equalizer_.Graph().Clear();
     telemetry_.Reset();
     channelStripBindings_.GainStaging().ClearTelemetry();
-    channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
+    for (const auto& overlay : channelStripBindings_.GainStaging().RuntimeOverlays())
+    {
+        channelStrip_.RefreshPath(std::string(overlay.path));
+    }
     analyzerClient_.Invalidate();
     resized();
     bankManager_.RefreshPresentation();
@@ -353,7 +356,10 @@ void EditorPresentation::ApplyChangedValue(const shared::protocol::ProtocolFrame
     }
     if (update.runtimeOverlayChanged)
     {
-        channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
+        for (const auto& overlay : channelStripBindings_.GainStaging().RuntimeOverlays())
+        {
+            channelStrip_.RefreshPath(std::string(overlay.path));
+        }
     }
     equalizer_.Graph().Refresh();
     equalizer_.RefreshAcceptedState();
@@ -374,8 +380,11 @@ void EditorPresentation::ApplyTelemetry(const shared::protocol::ProtocolFrame& f
     {
         return;
     }
-    channelStripBindings_.GainStaging().ApplyTelemetry(telemetry->slow, telemetry->fast);
-    channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
+    channelStripBindings_.GainStaging().ApplyTelemetry(*telemetry);
+    for (const auto& overlay : channelStripBindings_.GainStaging().RuntimeOverlays())
+    {
+        channelStrip_.RefreshPath(std::string(overlay.path));
+    }
 }
 
 void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& frame)
@@ -386,7 +395,10 @@ void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& fram
 
         telemetry_.Reset();
         channelStripBindings_.GainStaging().ClearTelemetry();
-        channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
+        for (const auto& overlay : channelStripBindings_.GainStaging().RuntimeOverlays())
+        {
+            channelStrip_.RefreshPath(std::string(overlay.path));
+        }
         return;
     }
     if (frame.selector == "state_restored")

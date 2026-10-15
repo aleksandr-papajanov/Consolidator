@@ -14,6 +14,11 @@ namespace consolidator::vst3::features::equalizer::viewmodels
 
 namespace
 {
+std::string DetectorPath(const std::string& context)
+{
+    return context.starts_with("gain_staging.") ? context : context + ".detector";
+}
+
 constexpr double kQDragSensitivity = 0.02;
 constexpr std::array kEqualizerTypes{ features::equalizer::presentation::AnalyzerFilterType::Gain, features::equalizer::presentation::AnalyzerFilterType::Tilt,
     features::equalizer::presentation::AnalyzerFilterType::LowShelf, features::equalizer::presentation::AnalyzerFilterType::HighShelf, features::equalizer::presentation::AnalyzerFilterType::Bell,
@@ -27,7 +32,7 @@ std::vector<features::equalizer::presentation::AnalyzerFilter> ReadFilters(const
     const std::span<const features::equalizer::presentation::AnalyzerFilterType> types = equalizer
         ? std::span<const features::equalizer::presentation::AnalyzerFilterType>(kEqualizerTypes)
         : std::span<const features::equalizer::presentation::AnalyzerFilterType>(kDetectorTypes);
-    const auto prefix = equalizer ? "equalizer.filter." : context + ".detector.filter.";
+    const auto prefix = equalizer ? "equalizer.filter." : DetectorPath(context) + ".filter.";
     std::vector<features::equalizer::presentation::AnalyzerFilter> filters;
     filters.reserve(types.size());
     for (std::size_t index = 0; index < types.size(); ++index)
@@ -77,7 +82,7 @@ void AnalyzerViewModel::SetSnapshot(const std::string& context,
     spectrum_.SetSampleRate(sampleRate);
     context_ = context;
     focusedBank_ = bank;
-    const auto prefix = context == "equalizer" ? std::string("equalizer.filter.") : context + ".detector.filter.";
+    const auto prefix = context == "equalizer" ? std::string("equalizer.filter.") : DetectorPath(context) + ".filter.";
     std::erase_if(entries, [&prefix](const auto& entry)
         { return !entry.path.starts_with(prefix) && entry.path != "equalizer.bank.bypass"; });
     entries_ = std::move(entries);
@@ -118,7 +123,7 @@ std::pair<double, double> AnalyzerViewModel::Range(const std::string& path) cons
 
 std::string AnalyzerViewModel::FilterPath(std::size_t index) const
 {
-    const std::string device = context_ == "equalizer" ? "equalizer" : context_ + ".detector";
+    const std::string device = context_ == "equalizer" ? "equalizer" : DetectorPath(context_);
     return device + ".filter." + std::to_string(index + 1);
 }
 
@@ -191,7 +196,7 @@ void AnalyzerViewModel::Rebuild()
     const std::span<const features::equalizer::presentation::AnalyzerFilterType> types = equalizer
         ? std::span<const features::equalizer::presentation::AnalyzerFilterType>(kEqualizerTypes)
         : std::span<const features::equalizer::presentation::AnalyzerFilterType>(kDetectorTypes);
-    const auto prefix = equalizer ? "equalizer.filter." : context_ + ".detector.filter.";
+    const auto prefix = equalizer ? "equalizer.filter." : DetectorPath(context_) + ".filter.";
     bankActive_ = !equalizer || !shared::protocol::Boolean(Require("equalizer.bank.bypass").value);
     for (std::size_t index = 0; index < types.size(); ++index)
     {

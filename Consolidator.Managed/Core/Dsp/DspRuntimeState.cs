@@ -329,11 +329,15 @@ public unsafe sealed class DspRuntimeState
 
     private ref FilterSnapshot GetDetectorFilter(int index)
     {
-        if ((uint)index >= DspConstants.DetectorFilterCount * 3)
+        if ((uint)index >= DspConstants.DetectorFilterCount * 4)
         {
             throw new ArgumentOutOfRangeException(nameof(index));
         }
 
+        if (index >= 6)
+        {
+            return ref _snapshot.OutputDetectorFilters[index - 6];
+        }
         return ref _snapshot.DetectorFilters[index];
     }
 }

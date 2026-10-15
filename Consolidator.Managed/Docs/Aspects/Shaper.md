@@ -11,5 +11,6 @@ Bypass defaults to false, matching other devices. Processor reset restores the
 device to its enabled state.
 
 The Managed projection publishes the existing shaper transport fields in the
-fixed Native snapshot. Native audio behavior remains unchanged for this state
-split.
+fixed Native snapshot. SnapshotBinding maps them to an independent ShaperDevice
+after Saturation and before Compression. It owns bypass/activity transitions and
+calls the current TransientShaper algorithm with its own HP20 detector.

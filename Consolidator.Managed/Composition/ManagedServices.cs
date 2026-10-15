@@ -82,7 +82,7 @@ public static class ManagedServices
         services.AddSingleton<DspTelemetryService>();
         services.AddSingleton<IDspTelemetryLifecycle>(serviceProvider =>
             serviceProvider.GetRequiredService<DspTelemetryService>());
-        services.AddSingleton<IInputLevelerTelemetry>(serviceProvider =>
+        services.AddSingleton<IGainStageTelemetry>(serviceProvider =>
             serviceProvider.GetRequiredService<DspTelemetryService>());
         services.AddSingleton<ActiveInstanceCoordinator>();
         services.AddSingleton<IProtocolOutputRegistry>(serviceProvider =>

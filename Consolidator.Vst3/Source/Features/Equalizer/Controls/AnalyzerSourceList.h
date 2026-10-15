@@ -22,7 +22,7 @@ public:
 private:
     std::function<void()> changed_;
     int selected_{};
-    std::array<std::unique_ptr<shared::controls::MarkerRowControl>, 4> rows_;
+    std::array<std::unique_ptr<shared::controls::MarkerRowControl>, 5> rows_;
 };
 
 } // namespace consolidator::vst3::features::equalizer::controls

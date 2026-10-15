@@ -1,5 +1,6 @@
 #include "Features/ChannelStrip/GainStaging/Bindings/GainStagingBindings.h"
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -7,12 +8,6 @@
 
 namespace consolidator::vst3::features::channelstrip::gainstaging::bindings
 {
-
-namespace
-{
-constexpr std::string_view kLevelPath = "gain_staging.input_level";
-constexpr std::string_view kLevelerPath = "gain_staging.input_leveler";
-}
 
 GainStagingBindings::GainStagingBindings(const shared::clients::TargetStateClient& state,
     shared::editing::DialGestureSession& gesture)
@@ -22,47 +17,64 @@ GainStagingBindings::GainStagingBindings(const shared::clients::TargetStateClien
 
 void GainStagingBindings::ApplySnapshot()
 {
-    leveler_.SetEnabled(shared::protocol::Boolean(state_.Require(std::string(kLevelerPath)).value));
+    const auto input = shared::protocol::Boolean(state_.Require("gain_staging.input_leveler").value);
+    const auto output = shared::protocol::Boolean(state_.Require("gain_staging.output_leveler").value);
+    overlays_[0].SetEnabled(input);
+    overlays_[1].SetEnabled(!input);
+    overlays_[2].SetEnabled(output);
+    overlays_[3].SetEnabled(!output);
 }
 
 bool GainStagingBindings::ApplyChanged(const shared::clients::ParameterEntry& entry)
 {
-    if (std::string_view(entry.path) != kLevelerPath)
+    if (entry.path != "gain_staging.input_leveler" && entry.path != "gain_staging.output_leveler")
     {
         return false;
     }
-
-    leveler_.SetEnabled(shared::protocol::Boolean(entry.value));
-    if (leveler_.Enabled() && gesture_.Active() && std::string_view(gesture_.Path()) == kLevelPath)
+    ApplySnapshot();
+    if (gesture_.Active() && IsAutomatedValue(gesture_.Path()))
     {
         gesture_.Cancel();
     }
     return true;
 }
 
-shared::controls::dial::DialRuntimeOverlayBinding GainStagingBindings::RuntimeOverlay() const
+std::array<shared::controls::dial::DialRuntimeOverlayBinding, 4> GainStagingBindings::RuntimeOverlays() const
 {
-    return { kLevelPath, &leveler_ };
-}
-
-std::string_view GainStagingBindings::OverlayPath() const
-{
-    return kLevelPath;
+    std::array<shared::controls::dial::DialRuntimeOverlayBinding, 4> bindings{};
+    for (std::size_t index = 0; index < bindings.size(); ++index)
+    {
+        bindings[index] = { kRuntimePaths[index], &overlays_[index] };
+    }
+    return bindings;
 }
 
 bool GainStagingBindings::IsAutomatedValue(std::string_view path) const
 {
-    return path == kLevelPath && leveler_.Enabled();
+    for (std::size_t index = 0; index < kRuntimePaths.size(); ++index)
+    {
+        if (path == kRuntimePaths[index])
+        {
+            return overlays_[index].Enabled();
+        }
+    }
+    return false;
 }
 
-void GainStagingBindings::ApplyTelemetry(double slow, double fast)
+void GainStagingBindings::ApplyTelemetry(const clients::GainTelemetry& telemetry)
 {
-    leveler_.ApplyTelemetry(slow, fast);
+    overlays_[0].ApplyTelemetry(telemetry.inputLevel, telemetry.inputFast);
+    overlays_[1].ApplyTelemetry(telemetry.inputRms);
+    overlays_[2].ApplyTelemetry(telemetry.outputLevel, telemetry.outputFast);
+    overlays_[3].ApplyTelemetry(telemetry.outputRms);
 }
 
 void GainStagingBindings::ClearTelemetry()
 {
-    leveler_.ClearTelemetry();
+    for (auto& overlay : overlays_)
+    {
+        overlay.ClearTelemetry();
+    }
 }
 
 } // namespace consolidator::vst3::features::channelstrip::gainstaging::bindings

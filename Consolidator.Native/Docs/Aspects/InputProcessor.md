@@ -1,11 +1,13 @@
-# InputProcessor
+# InputDevice
 
-[Исходник](../../External/Dsp/InputProcessor.cpp).
+[Исходник](../../Audio/Devices/InputDevice.cpp).
 
-Width через mid=(L+R)/2, side=(L-R)/2*width, выход mid±side; нейтральная Width=1.
+Width -> GainStage. Width: mid=(L+R)/2, side=(L-R)/2*width, выход mid±side.
+Нейтральная Width=1, smoothing 10 мс, действие только в stereo.
 
-Затем detector EQ и Leveler перед Input Gain.
+GainStage содержит собственный DetectorEqualizer и [Leveler](LevelerProcessor.md).
+Capture идёт после Width, до gain. Детектор не измеряет собственную коррекцию.
+Отдельный RMS meter измеряет main после gain для ручного режима Target.
 
-Width сглаживается 10 мс и действует только в stereo.
-
-Детектор не измеряет собственную коррекцию.
+InputDevice владеет bypass transition и дочерними histories. Общая механика
+GainStage/телеметрии описана в [Runtime](Runtime.md).

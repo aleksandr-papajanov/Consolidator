@@ -37,7 +37,7 @@ public:
     [[nodiscard]] const std::vector<std::unique_ptr<shared::controls::parameter::viewmodels::ParameterViewModel>>& Models() const;
     [[nodiscard]] shared::editing::ParameterIntents Intents(const std::string& path);
     void ApplySnapshot(std::span<const shared::controls::parameter::presentation::ParameterPresentation> presentations,
-        shared::controls::dial::DialRuntimeOverlayBinding runtimeOverlay);
+        std::span<const shared::controls::dial::DialRuntimeOverlayBinding> runtimeOverlays);
     [[nodiscard]] bool ApplyChanged(const shared::clients::ParameterEntry& entry);
     void SetScope(bool groupScope);
     void SetEditing(bool enabled);

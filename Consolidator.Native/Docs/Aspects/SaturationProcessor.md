@@ -1,6 +1,6 @@
 # SaturationProcessor
 
-[Исходник](../../External/Dsp/SaturationProcessor.cpp).
+[Исходник](../../Audio/Algorithms/Saturation/SaturationProcessor.cpp).
 
 Связанный максимум sidechain создаёт нормализацию через 500 мс energy follower с компенсацией веса начального окна.
 
@@ -16,6 +16,7 @@ Split — комплементарные low/mid/high при 250/2500 Гц; од
 
 Истории фильтров и предыдущих samples продвигаются даже в неслышимой ветке.
 
-Частичная RMS autogain масштабируется Drive.
+Динамической RMS-компенсации выхода нет. Громкость регулируется ручным Output
+устройства; увеличение Drive может менять воспринимаемую громкость.
 
 Это не brick-wall limiter и не alias-free обработка.

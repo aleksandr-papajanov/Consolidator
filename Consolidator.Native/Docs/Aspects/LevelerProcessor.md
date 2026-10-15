@@ -1,8 +1,16 @@
 # LevelerProcessor
 
-[Исходник](../../External/Dsp/LevelerProcessor.cpp).
+[Исходник](../../Audio/Algorithms/Leveler/LevelerProcessor.cpp).
 
-Связанный RMS выбранных каналов снимается до Input Gain.
+Один алгоритм используется независимыми Input/Output GainStage. Управляющий путь:
+detector EQ -> KWeighting -> linked mean-square followers -> gain controller.
+KWeighting принадлежит Primitives/Filters и фильтрует только управляющий сигнал.
+
+Время усреднения/регулирования и gate остаются прежними. Уровень определяется как
+10*log10 среднего K-взвешенного квадрата выбранных каналов. Нет BS.1770 channel sum,
+смещения -0.691 или programme gate; это K-взвешенный детектор, не стандартный LUFS meter.
+Основа frequency weighting: [ITU-R BS.1770](https://www.itu.int/rec/R-REC-BS.1770).
+K-фильтры пересчитываются в Prepare и очищаются в Reset и при включении Leveler.
 
 Slow energy: 1.5 с; slow gain controller: 6 с.
 
@@ -10,7 +18,8 @@ Fast energy: 250 мс; fast correction поверх slow: ±6 дБ, 400 мс в�
 
 Коррекция равна разнице slow/fast уровней и возвращается к нулю на стационарном источнике.
 
-Detector gate: 50 мс energy, open −57 dBFS, close −60 dBFS, hold200 мс.
+Detector gate: 50 мс energy, open 1.9952623149688787e-6, close 1e-6, hold 200 мс.
+Это прежние численные пороги (-57/-60 dB), теперь применённые к K-взвешенной энергии.
 
 Он останавливает обучение, не обрезает аудио.
 

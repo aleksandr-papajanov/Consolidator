@@ -138,6 +138,8 @@ DSP automated tests were run; historical accuracy figures remain historical.
 Fixed -18 dBFS peak / 1 kHz reference compensation was added only to Normal.
 The existing detector/timing/colour laws remain; original Emulation gain is unchanged.
 [Manual measurement grid, fitted law and limits](CompressorControlModes.md#normal-automatic-makeup).
+The output colour filters now run only in Emulation; these earlier Normal makeup
+measurements predate their removal from the Normal signal path.
 
 ## Musical-source makeup supersedes the sine calibration
 

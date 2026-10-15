@@ -20,7 +20,5 @@ inline bool Expect(
 }
 
 bool RunAbiContractTests();
-bool RunPersistenceBlobCodecTests();
-bool RunPersistenceRestoreGateTests();
 
 } // namespace consolidator::tests

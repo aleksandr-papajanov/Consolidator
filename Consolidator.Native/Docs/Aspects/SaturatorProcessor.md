@@ -1,11 +1,8 @@
-# SaturatorProcessor
+# SaturatorDevice
 
-[Исходник](../../External/Dsp/SaturatorProcessor.cpp).
+[Исходник](../../Audio/Devices/SaturatorDevice.cpp).
 
-Private detector EQ → [Saturation](SaturationProcessor.md) → Output Gain.
-
-Activity/bypass crossfade принадлежит графу.
-
-Detector не смешивается с аудио.
-
-Reset сбрасывает дочерние истории и output ramp.
+Private DetectorEqualizer -> [Saturation](SaturationProcessor.md) -> output GainRamp.
+Detector не смешивается с main. Activity/bypass WetTransition принадлежит устройству.
+После завершения перехода в bypass сбрасываются дочерние histories и output ramp.
+Математика saturation и расположение выходного gain сохранены.

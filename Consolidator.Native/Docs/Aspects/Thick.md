@@ -1,8 +1,8 @@
 # PolishThickProcessor
 
-[Native algorithm](../../External/Dsp/Processors/Thick/PolishThickProcessor.cpp),
-[constants](../../External/Dsp/Processors/Thick/PolishThickProcessor.h).
-The VST3 adapter compiles this same source. Thick is a bass harmonic enhancer,
+[Native algorithm](../../Audio/Algorithms/Thick/PolishThickProcessor.cpp),
+[constants](../../Audio/Algorithms/Thick/PolishThickProcessor.h).
+The main and research VST3 adapters compile this same Native source. Thick is a bass harmonic enhancer,
 not an exact R-Bass copy. Amount is 0..1, default zero, with a 10 ms amplitude ramp.
 Native constants are immutable; the VST3 exposes only Thick and Bypass.
 

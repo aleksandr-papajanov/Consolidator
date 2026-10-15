@@ -1,6 +1,6 @@
 # LimiterProcessor
 
-[Исходник](../../External/Dsp/LimiterProcessor.cpp).
+[Исходник](../../Audio/Algorithms/Limiter/LimiterProcessor.cpp).
 
 Native Output sample-peak limiter без lookahead.
 

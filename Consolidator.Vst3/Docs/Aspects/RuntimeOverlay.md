@@ -1,24 +1,24 @@
-# Runtime Leveler overlay
+# Runtime Gain Staging overlays
 
-## Input Leveler
+GainStagingBindings владеет четырьмя RuntimeDialViewModel, привязанными к Input Level,
+Input Target, Output Level и Output Target. ParameterBindings получает набор overlays;
+каждая привязка заимствуется controls и живёт дольше них.
 
-The accepted `gain_staging.input_leveler` flag controls editability of the Level dial.
-While enabled, its outer ring displays `gain_staging.input_level` from the existing
-`dsp_telemetry` frame and is read-only. The separate fast correction
-`gain_staging.input_level_fast` draws a smaller relative arc centered at zero over
-the existing -6/+6 dB display range. It does not move the outer knob.
+Принятый input_leveler/output_leveler определяет пару: при false Level редактируется,
+а Target read-only и показывает RMS; при true Target редактируется, а Level read-only
+и показывает slow gain. В автоматическом режиме fast correction отображается
+отдельной внутренней дугой -6..6 dB. Она не двигает Level.
 
-ChannelStrip/GainStaging/Clients/InputTelemetryClient decodes and validates the
-wire telemetry; GainStaging bindings own its presentation. Telemetry is accepted
-only for the current Gain Staging target and a newer revision,
-after its snapshot is ready and audio is prepared. Both values are validated
-before updating the presentation. Target/audio-configuration transitions clear
-the runtime display; disabling Leveler hides the inner arc and restores the
-accepted static level. A Leveler enable notification cancels a manual level
-gesture. The displayed runtime pair is separate from `ParameterEntry` and is
-never submitted through `write`, history or persistence.
+GainTelemetryClient проверяет source/revision, bounded frame shape, известные
+уникальные paths и finite values. Измерения хранятся отдельно от accepted state.
+Compression/Limiter reduction принимаются и доступны в latest frame, без индикаторов.
+Wire contract: [Managed Telemetry](../../../Consolidator.Managed/Docs/Aspects/Telemetry.md).
 
-Disabling Leveler sends an ordinary `gain_staging.input_leveler = false` write.
-Managed prepares each grouped instance's own slow gain and flag in one transaction.
-The frontend submits no dependent gain writes and owns no history policy.
+Presentation применяет frame только при готовом target и prepared audio. Смена
+track/bank/audio configuration очищает overlay. Смена режима очищает прежнее
+измерение и отменяет gesture, если его параметр стал read-only. Показания не
+отправляются через write и не создают history/persistence.
 
+Отключение Leveler отправляет только обычный flag intent. Managed фиксирует slow
+gain каждого участника группы самостоятельно в одной transaction. State/edit policy:
+[GainStaging](../../../Consolidator.Managed/Docs/Aspects/GainStaging.md).

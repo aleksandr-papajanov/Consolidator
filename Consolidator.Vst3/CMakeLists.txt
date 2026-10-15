@@ -49,7 +49,7 @@ target_compile_definitions(Consolidator PRIVATE
     JUCE_USE_CURL=0
     NOMINMAX
     WIN32_LEAN_AND_MEAN)
-target_include_directories(Consolidator PRIVATE Source ../Consolidator.Native/External)
+target_include_directories(Consolidator PRIVATE Source ../Consolidator.Native)
 target_sources(Consolidator PRIVATE
     Source/Host/Plugin/PluginProcessor.cpp
     Source/Host/Plugin/PluginEditor.cpp
@@ -68,11 +68,11 @@ target_sources(Consolidator PRIVATE
     Source/Shared/Controls/Parameter/Bindings/ParameterBindings.cpp
     Source/Features/Equalizer/Bindings/AnalyzerBindings.cpp
     Source/Features/ChannelStrip/GainStaging/Bindings/GainStagingBindings.cpp
-    Source/Features/ChannelStrip/GainStaging/Clients/InputTelemetryClient.cpp
+    Source/Features/ChannelStrip/GainStaging/Clients/GainTelemetryClient.cpp
     Source/Shared/Presentation/StateValueViewModel.cpp
     Source/Shared/Controls/Parameter/ViewModels/ParameterViewModel.cpp
     Source/Shared/Controls/Dial/DialViewModel.cpp
-    Source/Features/ChannelStrip/GainStaging/ViewModels/InputLevelerViewModel.cpp
+    Source/Features/ChannelStrip/GainStaging/ViewModels/RuntimeDialViewModel.cpp
     Source/Features/Equalizer/ViewModels/AnalyzerViewModel.cpp
     Source/Features/Tracks/ViewModels/TracksViewModel.cpp
     Source/Features/Tracks/ViewModels/TrackFeedback.cpp
@@ -109,36 +109,38 @@ target_sources(Consolidator PRIVATE
     Source/Features/Tracks/Controllers/TrackController.cpp
     Source/Shared/Protocol/ProtocolFrame.cpp
     Source/Host/Plugin/WindowsPluginHost.cpp
-    ../Consolidator.Native/External/Transport/ManagedBridge.cpp
-    ../Consolidator.Native/External/Dsp/CompressionProcessor.cpp
-    ../Consolidator.Native/External/Dsp/CompressorProcessor.cpp
-    ../Consolidator.Native/External/Dsp/DetectorProcessor.cpp
-    ../Consolidator.Native/External/Dsp/DspAutoGain.cpp
-    ../Consolidator.Native/External/Dsp/DspBiquad.cpp
-    ../Consolidator.Native/External/Dsp/DspExecution.cpp
-    ../Consolidator.Native/External/Dsp/DspGainRamp.cpp
-    ../Consolidator.Native/External/Dsp/DspParameterRamp.cpp
-    ../Consolidator.Native/External/Dsp/DspParallelStage.cpp
-    ../Consolidator.Native/External/Dsp/DspRuntime.cpp
-    ../Consolidator.Native/External/Dsp/DspRuntimeGraph.cpp
-    ../Consolidator.Native/External/Dsp/DspStateConsumer.cpp
-    ../Consolidator.Native/External/Dsp/EqualizerProcessor.cpp
-    ../Consolidator.Native/External/Dsp/InputProcessor.cpp
-    ../Consolidator.Native/External/Dsp/LevelerProcessor.cpp
-    ../Consolidator.Native/External/Dsp/LimiterProcessor.cpp
-    ../Consolidator.Native/External/Dsp/OutputProcessor.cpp
-    ../Consolidator.Native/External/Dsp/PolishProcessor.cpp
-    ../Consolidator.Native/External/Dsp/SaturationProcessor.cpp
-    ../Consolidator.Native/External/Dsp/SaturatorProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/Air/PolishAirProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/Thick/PolishThickProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/TransientShaper/TransientShaperProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/DeviceCompressor/AdaptiveCompressorGain.cpp
-    ../Consolidator.Native/External/Dsp/Processors/DeviceCompressor/DeviceCompressorProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/Cla76/Cla76Processor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/Cla3a/Cla3aProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/Cla2a/Cla2aProcessor.cpp
-    ../Consolidator.Native/External/Dsp/Processors/SslChannel/SslChannelProcessor.cpp)
+    ../Consolidator.Native/Transport/ManagedBridge.cpp
+    ../Consolidator.Native/Transport/DspStateConsumer.cpp
+    ../Consolidator.Native/Audio/Algorithms/Air/PolishAirProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Cla2a/Cla2aProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Cla3a/Cla3aProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Cla76/Cla76Processor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Leveler/LevelerProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Limiter/LimiterProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Saturation/SaturationProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/SslChannel/SslChannelProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/Thick/PolishThickProcessor.cpp
+    ../Consolidator.Native/Audio/Algorithms/TransientShaper/TransientShaperProcessor.cpp
+    ../Consolidator.Native/Audio/Chain/ConsolidatorChain.cpp
+    ../Consolidator.Native/Audio/Devices/CompressorDevice.cpp
+    ../Consolidator.Native/Audio/Devices/DetectorEqualizer.cpp
+    ../Consolidator.Native/Audio/Devices/EqualizerDevice.cpp
+    ../Consolidator.Native/Audio/Devices/GainStage.cpp
+    ../Consolidator.Native/Audio/Devices/InputDevice.cpp
+    ../Consolidator.Native/Audio/Devices/OutputDevice.cpp
+    ../Consolidator.Native/Audio/Devices/PolishDevice.cpp
+    ../Consolidator.Native/Audio/Devices/SaturatorDevice.cpp
+    ../Consolidator.Native/Audio/Devices/ShaperDevice.cpp
+    ../Consolidator.Native/Audio/Primitives/Filters/KWeighting.cpp
+    ../Consolidator.Native/Audio/Primitives/Filters/Biquad.cpp
+    ../Consolidator.Native/Audio/Primitives/Filters/BiquadCascade.cpp
+    ../Consolidator.Native/Audio/Primitives/GainRamp.cpp
+    ../Consolidator.Native/Audio/Primitives/ParameterRamp.cpp
+    ../Consolidator.Native/Audio/Primitives/RmsMeter.cpp
+    ../Consolidator.Native/Audio/Primitives/Width.cpp
+    ../Consolidator.Native/Audio/Runtime/AudioRuntime.cpp
+    ../Consolidator.Native/Audio/Runtime/SnapshotBinding.cpp)
+
 target_link_libraries(Consolidator PRIVATE
     juce::juce_audio_utils
     juce::juce_recommended_config_flags

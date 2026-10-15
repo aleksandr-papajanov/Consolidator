@@ -1,14 +1,10 @@
-# PolishProcessor
+# PolishDevice
 
-[Исходник](../../External/Dsp/PolishProcessor.cpp).
+[Исходник](../../Audio/Devices/PolishDevice.cpp).
 
-Вход → [Thick](Thick.md) → [Air](Air.md).
+Вход -> [Thick](Thick.md) -> [Air](Air.md). Каждый добавляет enhancement к входящему
+сигналу; усреднения двух dry+wet веток нет. Controls 0..1 сглаживаются внутри algorithms.
+PolishDevice владеет activity/bypass WetTransition.
 
-Каждый добавляет enhancement к входящему сигналу; усреднения двух dry+wet веток нет.
-
-Controls0…1 с ramps10 мс.
-
-Activity/bypass stage принадлежит графу.
-
-Immutable configuration принадлежит Native headers; research overrides и
-API изменения коэффициентов удалены. Runtime histories принадлежат дочерним процессорам.
+Immutable configuration принадлежит Native algorithm headers. Histories принадлежат
+дочерним algorithms; research overrides и API изменения model constants отсутствуют.

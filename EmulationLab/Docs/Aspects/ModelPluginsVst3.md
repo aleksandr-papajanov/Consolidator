@@ -1,9 +1,10 @@
 # Consolidator model VST3 plugins
 
 ModelPlugins.Vst3 builds thin JUCE adapters over production Native DSP source.
-The four VST3 targets compile their corresponding .cpp files from
-`Consolidator.Native/External/Dsp/Processors/<model>`. Algorithm documents are in
-`Consolidator.Native/Docs/Aspects/<model>.md`; C++ namespace is `consolidator::max::dsp::processors`.
+The VST3 targets compile their corresponding `.cpp` files from
+`Consolidator.Native/Audio`. Algorithm documents are in
+`Consolidator.Native/Docs/Aspects/<model>.md`; algorithm and device namespaces
+are `consolidator::audio::algorithms` and `consolidator::audio::devices`.
 No adapter maintains an alternate algorithm.
 The adapters are hosted independently by Plugin Doctor and EmulationLab.
 Their host parameters/state are research-adapter responsibilities, not a model
@@ -27,7 +28,7 @@ processing boundaries. See [Thick](../../../Consolidator.Native/Docs/Aspects/Thi
 
 Consolidator Transient Shaper Model calls the shared Native
 [TransientShaperProcessor](../../../Consolidator.Native/Docs/Aspects/TransientShaper.md). CMake compiles exactly
-that .cpp and DspParameterRamp.cpp; the Native project already includes the same
+that `.cpp` and `ParameterRamp.cpp`; the Native project already includes the same
 processor. Detectors, masks, signed gain law, HP10, output gain smoothing and both
 permanent clamp stages belong to that processor. There is no model-only DSP file,
 Limit control or disabled-Limit path.
@@ -63,16 +64,16 @@ The four individual compressor adapters/targets are removed. Thick, Air and
 Transient Shaper remain separate targets.
 
 Controls in order: Algorithm (four-step slider), Reduction, Output, Attack, Release,
-Ratio, Auto Gain (default ON), Bypass. Reduction/timing/ratio use 0..1, Output -24..+24 dB.
+Ratio, Bypass. Reduction/timing/ratio use 0..1, Output -24..+24 dB.
 CLA-2A/3A disable Attack/Release/Ratio in the editor and ignore them in Native.
+Normal mode skips the compressor models' Emulation-only audio colour filters.
 SSL Attack snaps to two endpoints in both UI and Native; all four use musical-source makeup in Normal;
 SSL Emulation alone retains its reference makeup law. Only the active model processes audio. Switching resets
 that model before the next block, without allocation/reprepare/crossfade.
 
-State stores the eight current controls; old-plugin presets are not migrated.
-Auto Gain controls actual Output and publishes it to the host on the message thread.
-Manual Output changes disable Auto Gain; unchecking it holds the last audio snapshot.
-No second hidden adaptive gain is applied. [Lifecycle and measurement](../../../Consolidator.Native/Docs/Aspects/AdaptiveCompressorGain.md).
+State stores the seven current controls and rejects an unexpected control set.
+Output is manual and smoothed by the selected Native model. There is no dynamic
+output matching, Auto Gain parameter or host Output publication.
 Custom UI polls Algorithm on the message thread for host automation/preset changes.
 The shared [control-mode contract](../../../Consolidator.Native/Docs/Aspects/CompressorControlModes.md) describes Native
 reference modes retained for future use. The current adapter uses Normal only.

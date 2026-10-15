@@ -1,6 +1,6 @@
 # SslChannelProcessor
 
-[Native core](../../External/Dsp/Processors/SslChannel/SslChannelProcessor.cpp), [configuration](../../External/Dsp/Processors/SslChannel/SslChannelProcessor.h),
+[Native core](../../Audio/Algorithms/SslChannel/SslChannelProcessor.cpp), [configuration](../../Audio/Algorithms/SslChannel/SslChannelProcessor.h),
 [VST3 adapter](../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp),
 [research conclusions and limits](SslChannelFindings.md).
 
@@ -17,10 +17,11 @@ Emulation остаётся только в Native-коде и выбираетс
 
 The accepted simplified Waves SSLChannel Stereo compressor section: Ratio,
 Release, Attack mode and Threshold. Gate, EQ, filters and channel routing are
-outside the processor. One Native implementation is compiled by Native and VST3,
-in namespace consolidator::max::dsp::processors. It is not connected to the
-Managed runtime graph/ABI. VST3 owns only host parameters/state, bypass and
-preallocated float/double conversion; there is no host-side DSP implementation.
+outside the processor. The main Native/VST3 strip selects this Normal model through
+CompressorDevice/SnapshotBinding, namespace consolidator::audio::algorithms.
+The research adapter compiles this same Native implementation and owns only host
+parameters/state, bypass and preallocated conversion; there is no host-side DSP
+implementation.
 
 | Control | Native units / host display | Default |
 | --- | --- | --- |

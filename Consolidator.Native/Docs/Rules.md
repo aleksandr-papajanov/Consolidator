@@ -2,17 +2,18 @@
 
 ## Реализация
 
-У каждого процессора — один Native исходник, свой документ алгоритма и собственные runtime states.
-Законченные Cla76, Cla3a, Cla2a, SslChannel, TransientShaper, Air и Thick находятся в
-Consolidator.Native/External/Dsp/Processors: папка процессора содержит .h/.cpp.
-Документ каждой модели и отдельный файл наблюдений находятся в [Aspects](Aspects/ProcessorModels.md).
-Namespace — consolidator::max::dsp::processors;
-общие DSP-примитивы и runtime composites остаются в родительской Dsp.
-ModelPlugins.Vst3 компилирует и вызывает тот же Native процессор; его host
-parameters/state описаны в [исследовательском adapter contract](../../EmulationLab/Docs/Aspects/ModelPluginsVst3.md).
-Основной Consolidator.Vst3 имеет другую границу: только Managed presentation/
-intents и host adapter, см. [VST3 Rules](../../Consolidator.Vst3/Docs/Rules.md).
-Копии алгоритмов, model-only DSP и независимые DSP defaults запрещены.
+Основной DSP находится в Audio и разделён по слоям/namespace из [Runtime](Aspects/Runtime.md).
+Каждый алгоритм владеет собственными histories и имеет .h/.cpp; устройства компонуют
+алгоритмы, цепочка задаёт порядок, Runtime связывает параметры и transport.
+Ни algorithms, ни devices не зависят от полного Managed snapshot или host API.
+Defaults/ranges прикладных параметров принадлежат Managed; физические model constants — Native.
+Переиспользуемые filter designs и processing принадлежат `Audio/Primitives/Filters`;
+алгоритмы владеют histories и композицией этих filters, не дублируя общие filter laws.
+
+Исследовательские adapters используют processors из Audio. Не подключать код из
+External и не восстанавливать его как fallback или альтернативную реализацию.
+Локальная legacy-копия External исключена из проекта и Git; источником истины
+является только актуальный Native-код.
 Непонятный код сначала исследовать по документации. Память, коэффициенты и bounded
 storage подготавливаются до аудиопотока. В Process запрещены allocation, locks,
 файловый I/O, logging, offline analysis/optimization и Managed calls.

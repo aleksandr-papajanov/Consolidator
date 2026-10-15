@@ -1,7 +1,7 @@
 # Cla3aProcessor
 
-[Native implementation](../../External/Dsp/Processors/Cla3a/Cla3aProcessor.cpp),
-[constants](../../External/Dsp/Processors/Cla3a/Cla3aProcessor.h),
+[Native implementation](../../Audio/Algorithms/Cla3a/Cla3aProcessor.cpp),
+[constants](../../Audio/Algorithms/Cla3a/Cla3aProcessor.h),
 [VST3 adapter](../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp).
 
 ## Текущее управление
@@ -18,7 +18,8 @@ Emulation остаётся только в Native-коде и выбираетс
 A simplified optical compressor based on Waves CLA-3A Stereo in Compressor mode.
 One Native implementation is compiled by Native and VST3; the adapter owns only
 host parameters/state, Bypass and preallocated float/double conversion buffers.
-The processor is not connected to the Managed runtime graph/ABI.
+The main strip selects this Normal model through CompressorDevice/SnapshotBinding.
+The research adapter compiles this same Native implementation.
 
 | Control | Native domain | Default |
 | --- | --- | --- |
@@ -73,12 +74,16 @@ coupled-release path or additional detector.
 
 ## Audio path and runtime
 
-Compression -> second-order highpass -> high shelf -> Output.
+Emulation audio path: Compression -> second-order highpass -> high shelf -> Output.
 Highpass is 8.8 Hz/Q 0.62. High shelf is 14.5 kHz/Q 0.64/+2.2 dB, using the existing
-DspBiquadCascade. Gain uses the reference law above; the temporary +30 dB calibration and
+BiquadCascade. Gain uses the reference law above; the temporary +30 dB calibration and
 nominal amplitude Output control are removed.
+The high-pass coefficients use the shared `DesignHighPass` filter primitive with
+independent per-channel biquad histories. These output colour filters do not feed
+the detector; Normal skips and does not prepare them.
 
-Compression/highpass share a sample loop, followed by the shelf and Output loops.
+Compression runs first, followed in Emulation by the high-pass and shelf passes;
+Output gain runs last. Normal omits both colour filters and their preparation.
 The extra highpass pole, two LF corrective bells, nonlinear bass reinforcement,
 tiny colour offset and +0.063 dB detector HF correction were removed. No added
 saturation, noise/hum or oversampling. Filter/state storage is fixed. Prepare
@@ -112,12 +117,12 @@ Source review found no new ownership/realtime issues. Useful limitations:
 
 ## Code map
 
-- PrepareDetector and PrepareColourFilters compile fixed coefficients before processing.
+- PrepareDetector always compiles detector coefficients; PrepareColourFilters runs only in Emulation.
 - UpdateReductionCurve caches the variable threshold and knee start.
 - CalculateTargetReductionDb reads the preceding detector power at this threshold.
 - UpdateDetector applies detector weighting, then advances linked power.
 - UpdateOpticalGain advances fast/slow dB memories and returns their combined gain.
-- ProcessHighPassSample runs the audio HP; the shelf and Output retain their separate block passes.
+- Emulation applies the audio high-pass, shelf and Output in separate passes; Normal skips the colour passes.
 
 The restored interface retains the final simplified optical/filter coefficients and state update order.
 

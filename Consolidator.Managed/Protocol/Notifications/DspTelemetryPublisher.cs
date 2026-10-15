@@ -1,3 +1,4 @@
+using Consolidator.Managed.Native;
 using Consolidator.Managed.Protocol.Messages;
 using Consolidator.Managed.Protocol.Transport;
 
@@ -18,31 +19,54 @@ internal sealed class DspTelemetryPublisher
         _getRecipient = getRecipient;
     }
 
-    public void PublishInputLevel(
-        InstanceId sourceInstanceId,
-        uint revision,
-        float levelDb,
-        float fastLevelDb)
+    public void PublishRuntime(InstanceId sourceInstanceId, DspTelemetrySnapshot snapshot)
     {
         var recipient = _getRecipient(sourceInstanceId);
         if (recipient == 0)
         {
             return;
         }
-
-        _transport.Send(new ProtocolOutput(
-            [recipient],
-            "dsp_telemetry",
-            [
-                new Atom(AtomType.Integer, 1, 0, null),
-                new Atom(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
-                new Atom(AtomType.Integer, revision, 0, null),
-                new Atom(AtomType.Integer, 2, 0, null),
-                new Atom(AtomType.Symbol, 0, 0, "gain_staging.input_level"),
-                new Atom(AtomType.Float, 0, levelDb, null),
-                new Atom(AtomType.Symbol, 0, 0, "gain_staging.input_level_fast"),
-                new Atom(AtomType.Float, 0, fastLevelDb, null)
-            ],
+        var mask = (DspTelemetryValues)snapshot.ValuesPresent;
+        var values = new List<(string Path, float Value)>();
+        if ((mask & DspTelemetryValues.InputLevel) != 0)
+        {
+            values.Add(("gain_staging.input_level", snapshot.InputLevelDb));
+            values.Add(("gain_staging.input_level_fast", snapshot.InputLevelFastDb));
+        }
+        else if ((mask & DspTelemetryValues.InputRms) != 0)
+        {
+            values.Add(("gain_staging.input_target", snapshot.InputRmsDb));
+        }
+        if ((mask & DspTelemetryValues.OutputGain) != 0)
+        {
+            values.Add(("gain_staging.output_level", snapshot.OutputGainDb));
+            values.Add(("gain_staging.output_level_fast", snapshot.OutputGainFastDb));
+        }
+        else if ((mask & DspTelemetryValues.OutputRms) != 0)
+        {
+            values.Add(("gain_staging.output_target", snapshot.OutputRmsDb));
+        }
+        if ((mask & DspTelemetryValues.CompressorReduction) != 0)
+        {
+            values.Add(("compression.reduction_db", snapshot.CompressorReductionDb));
+        }
+        if ((mask & DspTelemetryValues.LimiterReduction) != 0)
+        {
+            values.Add(("gain_staging.limiter_reduction_db", snapshot.LimiterReductionDb));
+        }
+        var atoms = new List<Atom>(4 + values.Count * 2)
+        {
+            new(AtomType.Integer, 1, 0, null),
+            new(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
+            new(AtomType.Integer, snapshot.Sequence, 0, null),
+            new(AtomType.Integer, values.Count, 0, null)
+        };
+        foreach (var (path, value) in values)
+        {
+            atoms.Add(new Atom(AtomType.Symbol, 0, 0, path));
+            atoms.Add(new Atom(AtomType.Float, 0, value, null));
+        }
+        _transport.Send(new ProtocolOutput([recipient], "dsp_telemetry", atoms,
             DeliverySemantics.LatestAnalysis));
     }
 

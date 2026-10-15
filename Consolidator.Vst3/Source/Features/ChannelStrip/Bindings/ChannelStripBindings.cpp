@@ -17,7 +17,8 @@ ChannelStripBindings::ChannelStripBindings(const shared::clients::TargetStateCli
 void ChannelStripBindings::ApplySnapshot()
 {
     gainStaging_.ApplySnapshot();
-    parameters_.ApplySnapshot(presentation::kParameterSections, gainStaging_.RuntimeOverlay());
+    const auto overlays = gainStaging_.RuntimeOverlays();
+    parameters_.ApplySnapshot(presentation::kParameterSections, overlays);
     compression::bindings::RefreshAvailability(parameters_);
 }
 

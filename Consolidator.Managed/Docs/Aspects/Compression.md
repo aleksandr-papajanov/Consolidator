@@ -20,5 +20,9 @@ StateChangeRouter excludes internal profile paths from presentation routing;
 the protocol publisher retains its ordinary persistence and encoding responsibilities.
 
 The processor has its own target observation context, bypass/activity
-projection and persistence object. Its values continue to use the existing
-fixed Native snapshot transport while the audio consumer remains deferred.
+projection and persistence object. Its values use the fixed Native snapshot
+transport. SnapshotBinding maps them to
+Audio/Devices/CompressorDevice, which selects the matching Normal-mode model.
+The model reads its own detector EQ signal; Shaper is a separate preceding device.
+Applied reduction before makeup/output returns through [Telemetry](Telemetry.md).
+Model switching resets histories and is abrupt; no click-free morph is claimed.

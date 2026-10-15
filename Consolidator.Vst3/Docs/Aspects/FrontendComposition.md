@@ -107,7 +107,7 @@ bindings, views and controller actions. Managed remains the committed-state owne
   See [Vst3SidechainReference.md](SidechainReference.md).
 - JUCE owns window chrome, font rasterization and Component invalidation.
 
-Managed persistence schema 8 includes the retained Gain Staging detector; see
+Managed persistence schema 9 includes independent Input/Output Gain Staging detectors; see
 [GainStaging.md](../../../Consolidator.Managed/Docs/Aspects/GainStaging.md).
 
 ## Client and binding lifecycle
@@ -130,7 +130,7 @@ cannot replace the current target. The binding layer remains suspended during
 transition and resumes after the complete accepted snapshot. Notifications
 update accepted bindings without reconstructing all widgets.
 
-History and Input runtime telemetry have separate clients. InputTelemetryClient
+History and runtime telemetry have separate clients. GainTelemetryClient
 lives under ChannelStrip/GainStaging/Clients; the analyzer payload types live with
 Equalizer/Clients. Shared clients retain protocol, target-state, history and
 registry responsibilities. Runtime values do not enter committed bindings,

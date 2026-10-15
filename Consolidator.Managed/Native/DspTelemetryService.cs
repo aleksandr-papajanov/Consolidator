@@ -7,7 +7,7 @@ namespace Consolidator.Managed.Native;
 
 internal sealed class DspTelemetryService :
     IDspTelemetryLifecycle,
-    IInputLevelerTelemetry,
+    IGainStageTelemetry,
     IDisposable
 {
     private const int PublicationIntervalMilliseconds = 33;
@@ -89,6 +89,7 @@ internal sealed class DspTelemetryService :
 
     public unsafe bool TryReadSlowLevel(
         InstanceId instanceId,
+        bool output,
         out float levelDb)
     {
         lock (_lock)
@@ -99,13 +100,13 @@ internal sealed class DspTelemetryService :
                     (DspStateExchange*)source,
                     out var snapshot) ||
                 ((DspTelemetryValues)snapshot.ValuesPresent &
-                    DspTelemetryValues.InputLevel) == 0 ||
-                !float.IsFinite(snapshot.InputLevelDb))
+                    (output ? DspTelemetryValues.OutputGain : DspTelemetryValues.InputLevel)) == 0 ||
+                !float.IsFinite(output ? snapshot.OutputGainDb : snapshot.InputLevelDb))
             {
                 return false;
             }
 
-            levelDb = snapshot.InputLevelDb;
+            levelDb = output ? snapshot.OutputGainDb : snapshot.InputLevelDb;
             return true;
         }
     }
@@ -216,15 +217,9 @@ internal sealed class DspTelemetryService :
                 trackLevels);
         }
 
-        if (sourceInstanceId is { } inputSource &&
-            ((DspTelemetryValues)focusedSnapshot.ValuesPresent &
-                DspTelemetryValues.InputLevel) != 0)
+        if (sourceInstanceId is { } inputSource)
         {
-            _publisher.PublishInputLevel(
-                inputSource,
-                focusedSnapshot.Sequence,
-                focusedSnapshot.InputLevelDb,
-                focusedSnapshot.InputLevelFastDb);
+            _publisher.PublishRuntime(inputSource, focusedSnapshot);
         }
     }
 

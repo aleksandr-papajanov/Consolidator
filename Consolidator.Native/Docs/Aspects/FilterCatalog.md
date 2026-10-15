@@ -41,3 +41,12 @@ Native processes every stage as transposed direct form II with independent
 left and right state. Parameter, filter-activity, bank-activity and Equalizer
 bypass changes compile a new stable cascade and crossfade the old and new
 outputs over 10 ms; raw coefficients are never interpolated.
+
+## Native filter primitives
+
+Reusable filter designs and per-channel processing live in
+`Audio/Primitives/Filters`. `FirstOrderHighPass` owns one channel's prepared
+first-order state; `BiquadFilter` combines shared coefficients with independent
+left/right histories. `DesignHighPass`, `DesignBell` and `DesignShelf` provide
+coefficient designs. `BiquadCascade` composes these biquad filters for each
+parameterized filter path; algorithms may also compose the primitives directly.

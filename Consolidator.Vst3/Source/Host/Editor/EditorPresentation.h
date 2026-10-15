@@ -25,7 +25,7 @@
 #include "Shared/Clients/TargetStateClient.h"
 #include "Shared/Clients/StateCommands.h"
 #include "Shared/Clients/HistoryClient.h"
-#include "Features/ChannelStrip/GainStaging/Clients/InputTelemetryClient.h"
+#include "Features/ChannelStrip/GainStaging/Clients/GainTelemetryClient.h"
 #include "Features/ChannelStrip/Bindings/ChannelStripBindings.h"
 #include "Features/Equalizer/Clients/AnalyzerClient.h"
 #include "Features/Equalizer/Bindings/AnalyzerBindings.h"
@@ -84,7 +84,7 @@ private:
     shared::clients::StateCommands stateCommands_;
     features::equalizer::clients::AnalyzerClient analyzerClient_;
     shared::clients::HistoryClient history_;
-    features::channelstrip::gainstaging::clients::InputTelemetryClient telemetry_;
+    features::channelstrip::gainstaging::clients::GainTelemetryClient telemetry_;
     shared::clients::RegistryClient registry_;
     shared::clients::TrackLevelClient trackLevels_;
     std::uint64_t nextTransaction_{ 1 };

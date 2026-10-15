@@ -95,7 +95,7 @@ void EqualizerControl::resized()
     navigation_.setBounds(0, headerHeight, getWidth() - sourceWidth, bodyHeight - headerHeight);
     graph_.setBounds(navigation_.ContentWidth(), contentTop,
         getWidth() - navigation_.ContentWidth() - sourceWidth, contentHeight);
-    sources_.setBounds(getWidth() - sourceWidth, contentTop, sourceWidth, 4 * shared::ui::kBankCellSize);
+    sources_.setBounds(getWidth() - sourceWidth, contentTop, sourceWidth, 5 * shared::ui::kBankCellSize);
     overlays_.setBounds(getWidth() - sourceWidth, sources_.getBottom(), sourceWidth, 3 * shared::ui::kBankCellSize);
     const int center = graph_.getBounds().getCentreX();
     const int markerWidth = processorMarker_.PreferredWidth();

@@ -79,6 +79,8 @@ internal static class StatePathEncoder
         if (node == StateNodeIds.Frequency) return "frequency";
         if (node == StateNodeIds.Q) return "q";
         if (node == StateNodeIds.Bypass) return "bypass";
+        if (node == StateNodeIds.InputDetector) return "input_detector";
+        if (node == StateNodeIds.OutputDetector) return "output_detector";
         if (node == StateNodeIds.Detector) return "detector";
         throw new InvalidOperationException($"State node has no wire name: {node.Value}.");
     }

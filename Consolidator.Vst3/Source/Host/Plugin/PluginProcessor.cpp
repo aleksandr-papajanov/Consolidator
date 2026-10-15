@@ -252,7 +252,10 @@ std::uint64_t PluginProcessor::Request(const std::string& selector, std::vector<
 }
 
 void __cdecl PluginProcessor::ReceiveOutput(
-    void* context, const char* selector, const max::transport::NativeAtom* atoms, std::size_t count) noexcept
+    void* context,
+    const char* selector,
+    const ::consolidator::transport::NativeAtom* atoms,
+    std::size_t count) noexcept
 {
     if (context == nullptr)
     {
@@ -270,7 +273,9 @@ void __cdecl PluginProcessor::ReceiveOutput(
 }
 
 void PluginProcessor::QueueOutput(
-    const char* selector, const max::transport::NativeAtom* atoms, std::size_t count)
+    const char* selector,
+    const ::consolidator::transport::NativeAtom* atoms,
+    std::size_t count)
 {
     if (selector != nullptr && std::strcmp(selector, "persistence_dirty") == 0)
     {

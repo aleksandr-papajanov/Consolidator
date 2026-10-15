@@ -7,14 +7,6 @@
   <Project
     Path="Consolidator.Vst3/Consolidator.Vst3.vcxproj"
     Id="7b4cc52c-1831-4f3d-b6c6-9e42ca4bf2a8" />
-  <Project
-    Path="Consolidator.Native/Consolidator.Native.vcxproj"
-    Id="53d621fb-190c-4b00-9fcb-fdc25b6084c4">
-    <Build Solution="Debug|*" Project="false" />
-    <Build Solution="Release|*" Project="false" />
-    <Build Solution="MinSizeRel|*" Project="false" />
-    <Build Solution="RelWithDebInfo|*" Project="false" />
-  </Project>
   <Project Path="Tests/Managed/Consolidator.Managed.Tests.csproj" />
   <Project
     Path="Tests/Native/Consolidator.Native.Tests.vcxproj"

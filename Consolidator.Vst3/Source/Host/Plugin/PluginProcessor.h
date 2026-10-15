@@ -11,7 +11,7 @@
 
 #include <JuceHeader.h>
 
-#include "Dsp/DspRuntime.h"
+#include "Audio/Runtime/AudioRuntime.h"
 #include "Transport/ManagedBridge.h"
 #include "Shared/Protocol/ProtocolFrame.h"
 
@@ -57,17 +57,23 @@ public:
 
 private:
     static void __cdecl ReceiveOutput(
-        void* context, const char* selector, const max::transport::NativeAtom* atoms, std::size_t count) noexcept;
-    void QueueOutput(const char* selector, const max::transport::NativeAtom* atoms, std::size_t count);
+        void* context,
+        const char* selector,
+        const ::consolidator::transport::NativeAtom* atoms,
+        std::size_t count) noexcept;
+    void QueueOutput(
+        const char* selector,
+        const ::consolidator::transport::NativeAtom* atoms,
+        std::size_t count);
     void timerCallback() override;
     void Process(double* left, double* right, const double* referenceLeft,
         const double* referenceRight, std::size_t count) noexcept;
 
-    max::transport::ManagedBridge managed_;
-    max::dsp::DspStateExchange exchange_{};
-    max::dsp::DspRuntime runtime_;
+    ::consolidator::transport::ManagedBridge managed_;
+    ::consolidator::transport::DspStateExchange exchange_{};
+    audio::runtime::AudioRuntime runtime_;
     std::uint64_t instanceId_{};
-    max::transport::AudioInputHandle audioHandle_{};
+    ::consolidator::transport::AudioInputHandle audioHandle_{};
     std::vector<double> left_;
     std::vector<double> right_;
     std::vector<double> referenceLeft_;

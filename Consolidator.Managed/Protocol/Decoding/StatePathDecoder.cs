@@ -70,15 +70,22 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         while (position < atoms.Length)
         {
             var segment = ReadSymbol(atoms, ref position);
-            if (segment == "detector")
+            if (segment is "detector" or "input_detector" or "output_detector")
             {
-                path = path.Append(StateNodeIds.Detector);
+                path = path.Append(segment switch
+                {
+                    "input_detector" => StateNodeIds.InputDetector,
+                    "output_detector" => StateNodeIds.OutputDetector,
+                    _ => StateNodeIds.Detector
+                });
                 continue;
             }
 
             if (segment == "filter")
             {
-                var filterCount = path.Nodes.Contains(StateNodeIds.Detector)
+                var filterCount = (path.Nodes.Contains(StateNodeIds.Detector) ||
+                    path.Nodes.Contains(StateNodeIds.InputDetector) ||
+                    path.Nodes.Contains(StateNodeIds.OutputDetector))
                     ? DspConstants.DetectorFilterCount
                     : DspConstants.EqualizerFilterCount;
                 var filter = ReadIndex(

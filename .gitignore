@@ -19,6 +19,7 @@
 # Native generated artifacts
 /Consolidator.Native/Consolid.*
 /Consolidator.Native/externals/
+/Consolidator.Native/External/
 
 # Transitional Max project
 /Consolidator.Max/

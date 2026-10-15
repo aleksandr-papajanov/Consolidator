@@ -1,16 +1,12 @@
 # Gain Staging state and DSP projection
 
-Gain Staging replaces the separate Input/Output application domains. Its processor
-ID and state-path prefix are both `gain_staging`. There are no old ID/path aliases
-or persistence adapters. Physical input/output processing stays at the existing
-positions before/after the other processors; UI consolidation does not reorder audio.
+Gain Staging — единый Managed domain `gain_staging`. Его физические Input и Output
+находятся до и после остальных устройств: [Native Runtime](../../../Consolidator.Native/Docs/Aspects/Runtime.md).
 
-## Authoritative state
+## Состояние
 
-`DspState.GainStaging` owns one `GainStagingState`. ManagedStateBuilder constructs
-every leaf through the existing StateValueFactory with instance ownership and
-connected edit scope. The ordinary peer, state-change, activity and deferred DSP
-publication observers remain in use.
+ManagedStateBuilder создаёт GainStagingState через обычный StateValueFactory с
+instance ownership, connected edit scope, peers, history, reset и DSP publication.
 
 | Relative leaf | Type | Default | Physical range |
 | --- | --- | --- | --- |
@@ -24,49 +20,51 @@ publication observers remain in use.
 | width | float | 1 | 0..1 |
 | bypass | bool | false | boolean |
 
-The former input detector remains `gain_staging.detector.filter.*`, using the
-same filter definitions and first detector slots. It is still editable through
-the shared graphical analyzer. New numeric controls and both Level flags are
-history-backed; Bypass retains the standard non-history processor-control policy.
-Scalar gestures retain begin/coalesced writes/final acknowledgment and copy/delta
-scope selection. Managed determines discrete history from the changed state values.
-Both Level directions use ordinary state writes. On `input_leveler = false`,
-Managed `GainStagingEdits` prepares each enabled target's own latest slow level
-alongside the flags in the same transaction. Without valid telemetry its manual
-level stays unchanged. An explicit input-level value in the same batch takes
-precedence over the derived freeze. Resetting the individual Level flag has the
-same freeze behavior; resetting the device subtree restores its defaults.
-Manual input-level writes while a targeted Leveler is active require disabling
-it in the same batch; this constraint is enforced in Managed as well as the UI.
-Output Level has no fabricated freeze/telemetry operation while its DSP is absent.
+Независимые detectors: `gain_staging.input_detector.filter.*` и
+`gain_staging.output_detector.filter.*`. Оба используют общий LowShelf/Bell catalog,
+но имеют отдельные StateValues, peer/history/reset/persistence и snapshot slots.
+Путь `gain_staging.detector` отсутствует. Числовые controls и Leveler flags участвуют
+в history; Bypass использует обычную processor-control policy без history.
 
-Presentation geometry and bindings: [VST3 ChannelStrip](../../../Consolidator.Vst3/Docs/Aspects/ChannelStrip.md).
+## Level / Target
 
-## Runtime snapshot and current sound support
+Механика одинакова для input и output:
 
-StateProjectionObserver projects all new values into DspRuntimeState and its
-published DspSnapshot through the existing change tracker/triple-buffer exchange.
-Both physical bypass bits derive from one Gain Staging Bypass value. The output
-limiter enable bit is derived from that bypass: Limit is always active when the
-combined device is enabled, since there is no separate limiter toggle in this UI.
-The existing limiter reads OutputLimit instead of OutputTarget. Its audio
-algorithm is unchanged. OutputTarget is reserved for output automatic leveling.
+- Leveler выключен: Level редактируется, Target read-only и показывает измеренный
+  сглаженный main RMS после gain. В Output измерение находится до limiter.
+- Leveler включён: Target редактируется, Level read-only и показывает slow gain.
+  Fast correction передаётся отдельно и не меняет положение Level.
 
-Input Level/Target/Leveler, Width and manual Output Level retain their existing
-DSP consumers. OutputLeveler and OutputTarget reach the Native snapshot, but
-output automatic leveling is intentionally unimplemented at this UX stage.
-There is no placeholder audio algorithm or alternative runtime path.
+GainStagingEdits проверяет режим каждого участника группы. Запись заблокированного
+параметра отклоняется без частичного commit. В одной batch можно переключить режим
+и записать ставший доступным параметр. Telemetry overlays не меняют committed state.
 
-Managed/Native DspSnapshot append uint OutputLeveler and float OutputLimit at
-offsets 1476 and 1480. Size is 1508 bytes including the appended Dynamics transport
-fields. DspStateExchange size is 4552, with
-publishedIndex/consumerIndex/telemetry at 4524/4528/4532. Existing physical-stage
-field offsets remain unchanged. Native static assertions and existing ABI fixture
-expectations describe the same layout; this is not a sound-algorithm test.
+При выключении Leveler GainStagingEdits подготавливает slow gain каждого включённого
+участника из его собственной telemetry в той же history transaction, что и flag.
+Без валидного измерения остаётся прежний manual gain. Явная запись Level в batch
+имеет приоритет. Reset отдельного Leveler flag делает такой же freeze; reset всей
+секции возвращает defaults. Native плавно снимает fast overlay после отключения.
 
-## Persistence
+Width действует первым, только в Input. Оба bypass markers происходят от общего
+Gain Staging Bypass. Limiter всегда включён в активной Output секции, его потолок
+задаёт Limit. Output Target принадлежит выходному Leveler и не заменяет Limit.
 
-Strict persistence schema 8 stores one gainStaging object with every leaf and its
-detector filters. Restore validates ranges/shape before applying one baseline
-history transaction and publishing affected snapshots. This also fixes the old
-Input detector omission. Schema 5 and old Input/Output objects are not decoded.
+Управляющий сигнал проходит detector EQ и KWeighting перед существующими slow/fast
+followers Leveler. Telemetry main RMS остаётся невзвешенной. Автоматический Target
+описывает K-взвешенный detector level и не обязан совпадать с main RMS meter.
+Это не стандартный LUFS meter: времена, gate и усреднение каналов принадлежат
+контроллеру Leveler. Native-контракт: [Leveler](../../../Consolidator.Native/Docs/Aspects/LevelerProcessor.md).
+
+## Snapshot и persistence
+
+Output detector добавлен в DspSnapshot двумя FilterSnapshot в offset 1508.
+Размер DspSnapshot — 1556 bytes, DspTelemetryExchange — 44, DspStateExchange — 4720.
+Exchange publishedIndex/consumerIndex/telemetry: 4668/4672/4676. Layout C# и C++
+совпадает; snapshot не содержит defaults или pointers.
+
+Persistence schema 9 хранит оба detectors как inputDetector/outputDetector вместе
+со всеми controls. Restore требует все поля, проверяет ranges/shape и применяет
+один baseline transaction. Предыдущие schemas не декодируются.
+
+UI: [ChannelStrip](../../../Consolidator.Vst3/Docs/Aspects/ChannelStrip.md).
+Telemetry: [Telemetry](Telemetry.md). Общий transport: [DspStateExchange](../../../Docs/Aspects/DspStateExchange.md).

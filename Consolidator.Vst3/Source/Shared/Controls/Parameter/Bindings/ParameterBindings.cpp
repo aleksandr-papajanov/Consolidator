@@ -1,5 +1,6 @@
 #include "Shared/Controls/Parameter/Bindings/ParameterBindings.h"
 
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <string_view>
@@ -52,11 +53,14 @@ shared::editing::ParameterIntents ParameterBindings::Intents(const std::string& 
 
 void ParameterBindings::ApplySnapshot(
     std::span<const shared::controls::parameter::presentation::ParameterPresentation> presentations,
-    shared::controls::dial::DialRuntimeOverlayBinding runtimeOverlay)
+    std::span<const shared::controls::dial::DialRuntimeOverlayBinding> runtimeOverlays)
 {
-    if (runtimeOverlay.path.empty() != (runtimeOverlay.model == nullptr))
+    for (const auto& overlay : runtimeOverlays)
     {
-        throw std::invalid_argument("Incomplete dial runtime overlay binding.");
+        if (overlay.path.empty() || overlay.model == nullptr)
+        {
+            throw std::invalid_argument("Incomplete dial runtime overlay binding.");
+        }
     }
     std::vector<std::unique_ptr<shared::controls::parameter::viewmodels::ParameterViewModel>> models;
     for (const auto& presentation : presentations)
@@ -64,8 +68,9 @@ void ParameterBindings::ApplySnapshot(
         for (const auto path : presentation.orderedPaths)
         {
             const auto& entry = state_.Require(std::string(path));
-            const auto* overlay = std::string_view(entry.path) == runtimeOverlay.path
-                ? runtimeOverlay.model : nullptr;
+            const auto binding = std::find_if(runtimeOverlays.begin(), runtimeOverlays.end(),
+                [&](const auto& item) { return item.path == entry.path; });
+            const auto* overlay = binding != runtimeOverlays.end() ? binding->model : nullptr;
             auto model = std::make_unique<shared::controls::parameter::viewmodels::ParameterViewModel>(entry,
                 overlay, presentation.ChoicesFor(entry.path));
             model->SetScope(groupScope_);

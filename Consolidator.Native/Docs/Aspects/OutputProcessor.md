@@ -1,9 +1,15 @@
-# OutputProcessor
+# OutputDevice
 
-[Исходник](../../External/Dsp/OutputProcessor.cpp).
+[Исходник](../../Audio/Devices/OutputDevice.cpp).
 
-Ручной Output Level через DspGainRamp → [Limiter](LimiterProcessor.md), пока он включён или восстанавливает GR.
+GainStage -> [Limiter](LimiterProcessor.md). Это последний device цепочки.
+GainStage использует тот же [Leveler](LevelerProcessor.md), что и Input,
+но со своими controls, detector EQ, histories и meter.
 
-Level/Target сглаживаются10 мс; RequiresProcessing учитывает обе стадии.
+При Leveler=false применяется manual Level; при true Target управляет
+автоматическим gain. Detector capture идёт до gain, main RMS meter — после gain,
+до limiter. Final output meter в AudioRuntime измеряет выход после limiter.
 
-После Output общий граф измеряет linked RMS; meter не корректирует gain.
+Limiter всегда включён в активной Output секции и использует Limit как потолок.
+OutputDevice владеет bypass transition. Reduction передаётся отдельно от RMS.
+Полная механика: [Runtime](Runtime.md), [GainStaging](../../../Consolidator.Managed/Docs/Aspects/GainStaging.md).

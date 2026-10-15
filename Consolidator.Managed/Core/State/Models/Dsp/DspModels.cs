@@ -84,7 +84,8 @@ public sealed record GainStagingState(
     StateValue<float> Limit,
     StateValue<float> Width,
     StateValue<bool> Bypass,
-    DetectorState Detector);
+    DetectorState InputDetector,
+    DetectorState OutputDetector);
 
 public sealed record ManagedState
 {
