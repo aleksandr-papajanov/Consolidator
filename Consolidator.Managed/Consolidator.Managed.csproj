@@ -23,6 +23,15 @@
 
   <Target Name="BuildVst3AfterPublish" AfterTargets="Publish"
           Condition="'$(PublishProfile)' == 'Vst3Plugin' and '$(SkipVst3Build)' != 'true'">
+    <PropertyGroup>
+      <Vst3ManagedRuntimeDir>$(MSBuildProjectDirectory)\..\Consolidator.Vst3\build\managed-runtime\</Vst3ManagedRuntimeDir>
+      <NativeAotPublishOutputDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)PubTmp\Out\</NativeAotPublishOutputDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(Vst3ManagedRuntimeDir)" />
+    <Copy
+      SourceFiles="$(NativeAotPublishOutputDir)Consolidator.Managed.dll;$(NativeAotPublishOutputDir)nlopt.dll"
+      DestinationFolder="$(Vst3ManagedRuntimeDir)"
+      SkipUnchangedFiles="true" />
     <MSBuild
       Projects="$(MSBuildProjectDirectory)\..\Consolidator.Vst3\Consolidator.Vst3.vcxproj"
       Targets="Build"

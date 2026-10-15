@@ -134,12 +134,12 @@ target_link_libraries(Consolidator PRIVATE
     juce::juce_recommended_warning_flags
     juce::juce_recommended_lto_flags)
 
-# Install after copying runtime dependencies into the bundle.
-add_custom_command(TARGET Consolidator_VST3 POST_BUILD
+add_custom_target(ConsolidatorVST3RuntimeCopy
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CONSOLIDATOR_MANAGED_RUNTIME_DIR}/Consolidator.Managed.dll"
         "${CONSOLIDATOR_MANAGED_RUNTIME_DIR}/nlopt.dll"
         "$<TARGET_FILE_DIR:Consolidator_VST3>"
+    DEPENDS Consolidator_VST3
     VERBATIM)
 
 add_custom_target(ConsolidatorVST3Install ALL
@@ -147,6 +147,6 @@ add_custom_target(ConsolidatorVST3Install ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "$<TARGET_FILE_DIR:Consolidator_VST3>/../.."
         "${CONSOLIDATOR_VST3_INSTALL_DIR}/Consolidator.vst3"
-    DEPENDS Consolidator_VST3
+    DEPENDS ConsolidatorVST3RuntimeCopy
     COMMENT "Installing Consolidator.vst3 to ${CONSOLIDATOR_VST3_INSTALL_DIR}"
     VERBATIM)

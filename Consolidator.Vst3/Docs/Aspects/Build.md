@@ -12,10 +12,12 @@ C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuil
 
 У Managed в Visual Studio Publish один профиль — `Vst3Plugin`. Publish:
 
-1. Публикует Managed NativeAOT и зависимости непосредственно в
-   `Consolidator.Vst3/build/managed-runtime`.
-2. Вызывает VST3 makefile project через Visual Studio MSBuild/CMake.
-3. Устанавливает готовый bundle и runtime DLLs в настроенную системную VST3-папку.
+1. Публикует Managed NativeAOT и зависимости.
+2. Копирует `Consolidator.Managed.dll` и `nlopt.dll` из NativeAOT publish output
+   в `Consolidator.Vst3/build/managed-runtime`.
+3. Вызывает VST3 makefile project через Visual Studio MSBuild/CMake.
+4. Копирует staged runtime в bundle и устанавливает его в настроенную системную
+   VST3-папку, даже если VST3 binary уже up-to-date.
 
 Не создавать отдельный publish-output
 и не подменять combined workflow обычным `dotnet publish`: нужны Visual Studio
@@ -24,7 +26,9 @@ integration tests; output остаётся в том же `managed-runtime`.
 
 `Consolidator.Vst3.vcxproj` делегирует сборку preset в CMake. Preset требует
 `Consolidator.Managed.dll` и `nlopt.dll` в `CONSOLIDATOR_MANAGED_RUNTIME_DIR`.
-`ConsolidatorVST3Install` копирует bundle/runtime в
+CMake обновляет runtime внутри bundle перед каждой установкой; копирование не
+зависит от post-build шага линкера, который пропускается при up-to-date VST3
+binary. `ConsolidatorVST3Install` копирует bundle в
 `CONSOLIDATOR_VST3_INSTALL_DIR`, по умолчанию стандартную Windows x64 VST3-папку
 под `CommonProgramW6432`. Ошибка установки должна завершать publish с ошибкой.
 
