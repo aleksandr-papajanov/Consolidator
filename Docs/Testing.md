@@ -146,7 +146,7 @@ dotnet test Tests/Managed/Consolidator.Managed.Tests.csproj --configuration Rele
 & "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Tests/Native/Consolidator.Native.Tests.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
 & "Tests/Native/build/Release/Consolidator.Native.Tests.exe"
 
-& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Consolidator.Managed/Consolidator.Managed.csproj /t:Publish /p:PublishProfile=NativeAndManaged /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:PublishAot=true /p:NativeLib=Shared /p:PublishSingleFile=false /p:BuildNativeBeforePublish=true
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Consolidator.Managed/Consolidator.Managed.csproj /t:Publish /p:PublishProfile=Vst3Plugin /p:SkipVst3Build=true
 dotnet test Tests/Integration/Consolidator.Integration.Tests.csproj --configuration Release
 
 node Consolidator.Max/tests/ClientTests.js
@@ -155,5 +155,8 @@ node Consolidator.Max/tests/ClientTests.js
 
 EmulationLab self-test и CTest регистрации удалены; ручной workflow описан в [DSP/EmulationLab](Dsp/EmulationLab.md).
 
-Нельзя запускать Integration на старой DLL. Каждый full verification сначала выполняет
-combined Native + Managed publish.
+Нельзя запускать Integration на старой DLL. Параметр `SkipVst3Build=true`
+публикует актуальный Managed NativeAOT runtime в
+`Consolidator.Vst3/build/managed-runtime`, откуда integration fixture загружает
+DLL. Этот режим не собирает и не устанавливает VST3; обычный Publish через
+профиль `Vst3Plugin` также собирает и устанавливает плагин.

@@ -104,8 +104,11 @@
   <!-- Sources -->
   <ItemGroup>
     <ClCompile Include="External\ConsolidatorExternal.cpp" />
+    <ClCompile Include="External\MaxManagedHost.cpp" />
     <ClCompile Include="External\Transport\AtomCodec.cpp" />
     <ClCompile Include="External\Dsp\CompressionProcessor.cpp" />
+    <ClCompile Include="External\Dsp\Processors\DeviceCompressor\DeviceCompressorProcessor.cpp" />
+    <ClCompile Include="External\Dsp\Processors\DeviceCompressor\AdaptiveCompressorGain.cpp" />
     <ClCompile Include="External\Dsp\Processors\Cla76\Cla76Processor.cpp" />
     <ClCompile Include="External\Dsp\Processors\Cla3a\Cla3aProcessor.cpp" />
     <ClCompile Include="External\Dsp\Processors\Cla2a\Cla2aProcessor.cpp" />
@@ -139,6 +142,7 @@
   <!-- Headers -->
   <ItemGroup>
     <ClInclude Include="External\ConsolidatorExternal.h" />
+    <ClInclude Include="External\MaxManagedHost.h" />
     <ClInclude Include="External\Transport\AtomCodec.h" />
     <ClInclude Include="External\Dsp\DspExecution.h" />
     <ClInclude Include="External\Dsp\DspBiquad.h" />
@@ -159,6 +163,10 @@
     <ClInclude Include="External\Dsp\SaturatorProcessor.h" />
     <ClInclude Include="External\Dsp\Processors\TransientShaper\TransientShaperProcessor.h" />
     <ClInclude Include="External\Dsp\CompressionProcessor.h" />
+    <ClInclude Include="External\Dsp\Processors\DeviceCompressor\DeviceCompressorProcessor.h" />
+    <ClInclude Include="External\Dsp\Processors\DeviceCompressor\AdaptiveCompressorGain.h" />
+    <ClInclude Include="External\Dsp\Processors\CompressorControlMode.h" />
+    <ClInclude Include="External\Dsp\Processors\CompressorMakeup.h" />
     <ClInclude Include="External\Dsp\Processors\Cla76\Cla76Processor.h" />
     <ClInclude Include="External\Dsp\Processors\Cla3a\Cla3aProcessor.h" />
     <ClInclude Include="External\Dsp\Processors\Cla2a\Cla2aProcessor.h" />

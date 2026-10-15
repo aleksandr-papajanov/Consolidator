@@ -1078,6 +1078,8 @@ public sealed class StateEditingUseCasesTests
                 source.InstanceId,
                 samplePointer,
                 samplePointer,
+                null,
+                null,
                 (nuint)samples.Length);
         }
 
@@ -1091,7 +1093,9 @@ public sealed class StateEditingUseCasesTests
             (long)source.InstanceId.Value,
             fft.Atoms[1].Integer);
         Assert.Equal(0, fft.Atoms[3].Integer);
-        Assert.Equal(4 + 513, fft.Atoms.Count);
+        Assert.Equal(2, fft.Atoms[0].Integer);
+        Assert.Equal(0, fft.Atoms[4].Integer);
+        Assert.Equal(5 + 513, fft.Atoms.Count);
         Assert.DoesNotContain(
             source.Output.Messages,
             message => message.Selector == "fft");
@@ -1130,28 +1134,35 @@ public sealed class StateEditingUseCasesTests
                 source.InstanceId,
                 sourcePointer,
                 sourcePointer,
+                null,
+                null,
                 (nuint)sourceSamples.Length);
             audio.ReceiveAudio(
                 firstPeer.InstanceId,
                 firstPeerPointer,
                 firstPeerPointer,
+                null,
+                null,
                 (nuint)firstPeerSamples.Length);
             audio.ReceiveAudio(
                 secondPeer.InstanceId,
                 secondPeerPointer,
                 secondPeerPointer,
+                null,
+                null,
                 (nuint)secondPeerSamples.Length);
         }
 
         Assert.True(SpinWait.SpinUntil(
             () => viewer.Output.Messages.Any(message =>
                 message.Selector == "fft" &&
-                message.Atoms.Count == 4 + 513 * 2 &&
+                message.Atoms.Count == 5 + 513 * 2 &&
                 message.Atoms[3].Integer == 1 &&
-                message.Atoms[4].Float > 0 &&
+                message.Atoms[4].Integer == 0 &&
+                message.Atoms[5].Float > 0 &&
                 Math.Abs(
-                    message.Atoms[4].Float -
-                    message.Atoms[4 + 513].Float -
+                    message.Atoms[5].Float -
+                    message.Atoms[5 + 513].Float -
                     (20.0 * Math.Log10(2.0) / 90.0)) < 0.001),
             TimeSpan.FromSeconds(1)));
     }

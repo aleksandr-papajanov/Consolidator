@@ -1,13 +1,10 @@
 #include "ManagedBridge.h"
 
-#include <Windows.h>
-#undef SendMessage
-
-#include <cstring>
 #include <memory>
 #include <mutex>
 
-#include "c74_min_api.h"
+#include <Windows.h>
+#undef SendMessage
 
 namespace consolidator::max::transport
 {
@@ -15,62 +12,37 @@ namespace consolidator::max::transport
 namespace
 {
 
-constexpr auto kManagedLibraryName = "Consolidator.Managed.dll";
-
-void __cdecl ManagedLogCallbackHandler(
-    void*,
-    const char* message) noexcept
+HMODULE LoadManagedLibrary(const std::wstring& libraryPath, ManagedLogCallback logCallback)
 {
-    if (message == nullptr)
+    const auto report = [logCallback](const char* message)
     {
-        return;
-    }
-
-    c74::max::post(
-        "[Consolidator.Managed] %s",
-        message);
-}
-
-HMODULE LoadManagedLibrary()
-{
-    char filename[c74::max::MAX_FILENAME_CHARS]{};
-    std::strncpy(filename, kManagedLibraryName, sizeof(filename) - 1);
-
-    short path = 0;
-    c74::max::t_fourcc type = 0;
-    if (c74::max::locatefile_extended(
-            filename,
-            &path,
-            &type,
-            nullptr,
-            0) != 0)
-    {
-        return nullptr;
-    }
-
-    char absolutePath[c74::max::MAX_PATH_CHARS]{};
-    if (c74::max::path_toabsolutesystempath(
-            path,
-            filename,
-            absolutePath) != c74::max::MAX_ERR_NONE)
-    {
-        return nullptr;
-    }
-
-    std::string managedPath{ absolutePath };
-    const auto separator = managedPath.find_last_of("\\/");
-    if (separator != std::string::npos)
-    {
-        const auto nloptPath = managedPath.substr(0, separator + 1) + "nlopt.dll";
-        if (LoadLibraryA(nloptPath.c_str()) == nullptr)
+        if (logCallback != nullptr)
         {
-            c74::max::post(
-                "Consolidator: failed to load NLopt dependency from %s",
-                nloptPath.c_str());
+            logCallback(nullptr, message);
         }
+    };
+    const auto separator = libraryPath.find_last_of(L"\\/");
+    if (libraryPath.empty() || separator == std::wstring::npos)
+    {
+        report("Managed library requires an absolute host-resolved path.");
+        return nullptr;
     }
 
-    return LoadLibraryA(absolutePath);
+    const auto nloptPath = libraryPath.substr(0, separator + 1) + L"nlopt.dll";
+    if (LoadLibraryExW(nloptPath.c_str(), nullptr,
+            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS) == nullptr)
+    {
+        report("Failed to load NLopt beside the Managed library.");
+        return nullptr;
+    }
+
+    const auto library = LoadLibraryExW(libraryPath.c_str(), nullptr,
+        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    if (library == nullptr)
+    {
+        report("Failed to load the Managed library.");
+    }
+    return library;
 }
 
 class ManagedRuntime
@@ -82,8 +54,8 @@ public:
     ManagedRuntime& operator=(const ManagedRuntime&) = delete;
 
     [[nodiscard]] bool IsLoaded() const noexcept;
-    bool Load() noexcept;
-    void Activate() const noexcept;
+    bool Load(const std::wstring& libraryPath, ManagedLogCallback logCallback);
+    void Activate(ManagedLogCallback logCallback) const noexcept;
     void Deactivate() const noexcept;
 
 private:
@@ -140,7 +112,7 @@ private:
     ShutdownFn shutdown{};
 };
 
-bool ManagedRuntime::Load() noexcept
+bool ManagedRuntime::Load(const std::wstring& libraryPath, ManagedLogCallback logCallback)
 {
     if (IsLoaded())
     {
@@ -152,7 +124,7 @@ bool ManagedRuntime::Load() noexcept
         return false;
     }
 
-    library = LoadManagedLibrary();
+    library = LoadManagedLibrary(libraryPath, logCallback);
 
     if (!library)
     {
@@ -180,14 +152,18 @@ bool ManagedRuntime::Load() noexcept
     restorePersistence = reinterpret_cast<ManagedRestorePersistence>(
         GetProcAddress(library, "ConsolidatorRestorePersistence"));
 
+    if (!IsLoaded() && logCallback != nullptr)
+    {
+        logCallback(nullptr, "Managed library is missing required Consolidator C ABI exports.");
+    }
     return IsLoaded();
 }
 
-void ManagedRuntime::Activate() const noexcept
+void ManagedRuntime::Activate(ManagedLogCallback logCallback) const noexcept
 {
     if (IsLoaded())
     {
-        setLogCallback(nullptr, ManagedLogCallbackHandler);
+        setLogCallback(nullptr, logCallback);
     }
 }
 
@@ -231,25 +207,34 @@ std::uint32_t activeExternalCount{};
 struct ManagedBridge::Implementation
 {
     ManagedRuntime* runtime{};
+    bool active{};
 };
 
-ManagedBridge::ManagedBridge()
+ManagedBridge::ManagedBridge(const std::wstring& libraryPath, ManagedLogCallback logCallback)
     : implementation_(new Implementation{})
 {
     const std::lock_guard lock(runtimeMutex);
     implementation_->runtime = &GetManagedRuntime();
-    implementation_->runtime->Load();
+    if (!implementation_->runtime->Load(libraryPath, logCallback))
+    {
+        return;
+    }
     if (activeExternalCount == 0)
     {
-        implementation_->runtime->Activate();
+        implementation_->runtime->Activate(logCallback);
     }
 
     ++activeExternalCount;
+    implementation_->active = true;
 }
 
 ManagedBridge::~ManagedBridge()
 {
     const std::lock_guard lock(runtimeMutex);
+    if (!implementation_->active)
+    {
+        return;
+    }
     --activeExternalCount;
     if (activeExternalCount == 0)
     {
@@ -259,7 +244,7 @@ ManagedBridge::~ManagedBridge()
 
 bool ManagedBridge::IsLoaded() const noexcept
 {
-    return implementation_->runtime->IsLoaded();
+    return implementation_->active && implementation_->runtime->IsLoaded();
 }
 
 InstanceId ManagedBridge::RegisterInstance(
@@ -405,3 +390,4 @@ bool ManagedBridge::RestorePersistence(
 }
 
 } // namespace consolidator::max::transport
+

@@ -1,20 +1,17 @@
 # Consolidator model VST3 plugins
 
 ModelPlugins.Vst3 builds thin JUCE adapters over production Native DSP source.
-The five finished models compile their corresponding .cpp files from
+The four VST3 targets compile their corresponding .cpp files from
 `Consolidator.Native/External/Dsp/Processors/<model>`. Code and algorithm documents
 share the model folder; C++ namespace is `consolidator::max::dsp::processors`.
 No adapter maintains an alternate algorithm.
 The adapters are hosted independently by Plugin Doctor and EmulationLab.
 
-CLA-2A is a standalone simplified model: [algorithm and scope](../../Consolidator.Native/External/Dsp/Processors/Cla2a/README.md).
-Its adapter exposes Reduction 0..1, nominal amplitude Output displayed
--infinity..0 dB, and Bypass. Native defaults are Reduction 0.598 and Output
-0.02985085 (-30.50 dB displayed), with +39 dB output calibration. Reduction restores
-the identified Peak Reduction threshold law; the former Gain taper is removed.
-Optical memories and colour are retained. Use fresh instances: IDs are
-reduction/output/bypass, without preset migration. See the model README for
-historical reference control mapping and measured limits.
+The universal compressor uses Normal mode by default: Reduction 0..1, nominal Output
+-24..+24 dB, Bypass, and Attack/Release/Ratio 0..1 where available. Defaults are
+Reduction 0.5, Output 0 dB. All time/ratio directions run from smaller to larger.
+Emulation is retained only in shared Native source; no current adapter activates
+it or exposes a mode switch. [Control modes and mappings](CompressorControlModes.md).
 
 ## Thick and Air
 
@@ -55,49 +52,29 @@ See [EmulationLab](EmulationLab.md) for commands and interpretation.
 A new emulation target adds a plugin target and thin adapter here, compiling its
 production Native processor. Algorithms must not be copied into adapter source.
 
-## CLA-76 Bluey
+## Universal compressor
 
-Consolidator CLA-76 Bluey Model compiles the shared [Cla76Processor](../../Consolidator.Native/External/Dsp/Processors/Cla76/README.md).
-It contains Input, Output, Attack, Release and Ratio, plus Bypass. Input/Output
-restore the fitted reference attenuator functions in Native, with -inf..0 dB UI
-text. Defaults are -30/-18 dB. Attack/Release use reference 1..7, slow to fast,
-defaults 3/4. Ratio retains 0..1 morphing from 4:1 to ALL. Old nominal-gain and
-Reduction interfaces are removed. Timing functions and simplified colour remain.
+[DeviceCompressor](../../Consolidator.Native/External/Dsp/Processors/DeviceCompressor/README.md)
+selects the shared CLA-76, CLA-3A, CLA-2A or SSL Native algorithm. The only compressor
+target is ConsolidatorCompressor_VST3, installed as Consolidator Compressor.vst3.
+The four individual compressor adapters/targets are removed. Thick, Air and
+Transient Shaper remain separate targets.
 
-There are no research controls or coefficient overrides. Immutable Native configuration
-owns all detector, compression, timing, memory and filter coefficients. The adapter
-owns host state, generic UI, Bypass and preallocated stereo float/double conversion;
-its dB text conversion is UI formatting, not another audio algorithm.
+Controls in order: Algorithm (four-step slider), Reduction, Output, Attack, Release,
+Ratio, Auto Gain (default ON), Bypass. Reduction/timing/ratio use 0..1, Output -24..+24 dB.
+CLA-2A/3A disable Attack/Release/Ratio in the editor and ignore them in Native.
+SSL Attack snaps to two endpoints in both UI and Native; all four use musical-source makeup in Normal;
+SSL Emulation alone retains its reference makeup law. Only the active model processes audio. Switching resets
+that model before the next block, without allocation/reprepare/crossfade.
 
-Presets contain the six host controls. All current controls must be valid before
-restoration; no aliases or migration exist. Processor Reset preserves control
-targets and clears histories. The Native graph has not been extended for CLA-76.
-Research is complete; useful observations are in [findings](../../Consolidator.Native/External/Dsp/Processors/Cla76/Findings.md).
+State stores the eight current controls; old-plugin presets are not migrated.
+Auto Gain controls actual Output and publishes it to the host on the message thread.
+Manual Output changes disable Auto Gain; unchecking it holds the last audio snapshot.
+No second hidden adaptive gain is applied. [Lifecycle and measurement](AdaptiveCompressorGain.md).
+Custom UI polls Algorithm on the message thread for host automation/preset changes.
+The shared [control-mode contract](CompressorControlModes.md) describes Native
+reference modes retained for future use. The current adapter uses Normal only.
 
-## CLA-3A
-
-Consolidator CLA-3A Model compiles the shared [Cla3aProcessor](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md).
-Gain/Peak Reduction restore their reference-normalized 0..1 control laws in Native;
-the host displays/accepts reference 0..10 units. Defaults are 5.50/4.00,
-normalized 0.55/0.4. The final
-simplified cubic threshold and linear-in-dB Gain law are recovered from the saved
-chat. Current detector/optical/filter optimizations remain. Host IDs are
-gain/peakReduction/bypass; use fresh instances, with no preset migration.
-Reference Compressor mode and all remaining default settings are fixed.
-The adapter contains no DSP algorithm, configuration overrides or independent constants.
-The optical model has manually fitted stationary gain and target-dependent release.
-Timing, simplified fixed colour and current figures are in [Cla3aProcessor](../../Consolidator.Native/External/Dsp/Processors/Cla3a/README.md).
-Research conclusions are in [Cla3aFindings](../../Consolidator.Native/External/Dsp/Processors/Cla3a/Findings.md).
-The fixed detector weighting also lives in Native. Harmonic matching and broader
-dynamic coverage remain open; the adapter has no filter code.
-
-## SSLChannel compressor
-
-[Shared Native model](../../Consolidator.Native/External/Dsp/Processors/SslChannel/README.md),
-[findings](../../Consolidator.Native/External/Dsp/Processors/SslChannel/Findings.md).
-ConsolidatorSslChannelModel_VST3 compiles SslChannelProcessor directly from Native.
-Controls are Ratio 1..Inf, Release 0.1..4 seconds, Fast Attack switch and Threshold
--20..+10 dBu, plus raw Bypass. Default reference settings are used outside this
-section. The adapter owns only parameter mapping/state, UI and conversion buffers;
-Native owns all coefficients, ramps, detector/memories and automatic makeup.
-The simplified model is accepted; documented reference deviations are retained.
+Normal Ratio starts at 1:1 in both selectable 76 and SSL; their shared default is
+0.4 (4:1), using a shared rational taper. The 76 upper section retains the existing 4:1-to-ALL morph, relocated
+to this shared coordinate. Reference Emulation defaults are unchanged.

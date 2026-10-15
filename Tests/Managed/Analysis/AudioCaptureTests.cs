@@ -31,6 +31,8 @@ public sealed class AudioCaptureTests
             var dropped = capture.Enqueue(
                 left,
                 right,
+                null,
+                null,
                 (nuint)sampleCount);
 
             Assert.Equal(0, dropped);

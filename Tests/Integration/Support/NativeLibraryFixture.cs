@@ -18,8 +18,9 @@ public sealed class NativeLibraryFixture : IDisposable
             "..",
             "..",
             "..",
-            "Consolidator.Max",
-            "externals",
+            "Consolidator.Vst3",
+            "build",
+            "managed-runtime",
             "Consolidator.Managed.dll"));
 
     private readonly nint _library;

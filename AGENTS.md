@@ -47,35 +47,19 @@ PowerShell for Visual Studio. Для MSBuild использовать:
 C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe
 ```
 
-### Отдельная сборка Native
+### VST3 Publish profile
 
-```powershell
-& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Consolidator.Native\Consolidator.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
-```
+The Managed project's Publish page has one profile: `Vst3Plugin`. Select it
+and choose **Publish** in Visual Studio. It publishes the Managed NativeAOT
+library and its dependencies directly to
+`Consolidator.Vst3\build\managed-runtime`, then builds and installs the plugin
+bundle and runtime DLLs to the configured system VST3 directory. It does not
+build the transitional Max external.
 
-Для отладочной сборки заменить `Release` на `Debug`.
-Native target `CopyBinaryToExternals` после успешной сборки копирует
-`ConsolidatorExternal.mxe64` в `Consolidator.Max\externals`.
-
-### Отдельная публикация Managed
-
-```powershell
-dotnet publish Consolidator.Managed\Consolidator.Managed.csproj /p:PublishProfile=FolderProfile
-```
-
-Эта команда использует существующий Managed profile и не собирает Native.
-
-### Сборка Native и публикация Managed
-
-```powershell
-& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" Consolidator.Managed\Consolidator.Managed.csproj /t:Publish /p:PublishProfile=NativeAndManaged /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:PublishAot=true /p:NativeLib=Shared /p:PublishSingleFile=false /p:BuildNativeBeforePublish=true
-```
-
-Профиль `NativeAndManaged` нужно запускать через Visual Studio `MSBuild.exe`,
-потому что обычный `dotnet publish` не предоставляет C++ targets. Профиль
-сначала собирает Native в `Release|x64`, затем публикует Managed напрямую в
-`Consolidator.Max\externals`. Профиль `FolderProfile` публикует только Managed
-в отдельную папку `publish` и Native не собирает.
+Use Visual Studio MSBuild for Publish because the VST3 project uses Visual
+Studio C++ targets. Set `SkipVst3Build=true` only when publishing Managed for
+NativeAOT integration tests; it still publishes to the VST3 runtime directory,
+which is also where the integration tests load the Managed DLL.
 
 ## Архитектура
 

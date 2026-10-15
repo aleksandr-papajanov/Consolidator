@@ -7,6 +7,7 @@
 
 #include "../../DspMath.h"
 #include "../../DspProcessingPrimitives.h"
+#include "../CompressorMakeup.h"
 
 namespace consolidator::max::dsp::processors
 {
@@ -16,11 +17,33 @@ namespace
 
 constexpr double kDbToLogGain = std::numbers::ln10 / 20.0;
 
+// Measured affine regions follow the reference scale, including its fine low range.
+double ReferenceReleaseSeconds(double control) noexcept
+{
+    return 0.1 + control * 0.25 +
+        std::max(control - 0.2, 0.0) * (1.0 / 3.0 - 0.25) +
+        std::max(control - 0.35, 0.0) +
+        std::max(control - 0.5, 0.0) * (4.0 - 4.0 / 3.0) +
+        std::max(control - 0.65, 0.0) * (20.0 / 3.0 - 4.0) +
+        std::max(control - 0.8, 0.0) * (10.0 - 20.0 / 3.0);
+}
+
 } // namespace
+
+SslChannelProcessor::SslChannelProcessor(CompressorControlMode controlMode) noexcept
+    : controlMode_(controlMode),
+      ratio_(controlMode == CompressorControlMode::Emulation
+          ? SslChannelEmulationControls{}.ratio : 1.0 + 99.0 * NormalRatioPosition(SslChannelControls{}.ratio)),
+      threshold_(controlMode == CompressorControlMode::Emulation
+          ? SslChannelEmulationControls{}.thresholdDb
+          : kNormalThresholdMaximumDb - kNormalThresholdSpanDb * SslChannelControls{}.reduction)
+{
+}
 
 void SslChannelProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
     sampleRate_ = context.sampleRate;
+    output_.Prepare(context);
     ratio_.Prepare(context);
     release_.Prepare(context);
     threshold_.Prepare(context);
@@ -32,6 +55,7 @@ void SslChannelProcessor::Prepare(const DspProcessingContext& context) noexcept
 
 void SslChannelProcessor::Reset() noexcept
 {
+    output_.Reset();
     ratio_.Reset();
     release_.Reset();
     threshold_.Reset();
@@ -44,13 +68,24 @@ void SslChannelProcessor::Reset() noexcept
     slowReductionDb_ = 0.0;
 }
 
-void SslChannelProcessor::SetControls(
-    double ratio, double releaseSeconds, bool fastAttack, double thresholdDb) noexcept
+void SslChannelProcessor::SetControls(const SslChannelControls& controls) noexcept
 {
-    ratio_.SetTarget(ratio);
-    release_.SetTarget(releaseSeconds);
-    threshold_.SetTarget(thresholdDb);
-    fastAttack_ = fastAttack;
+    if (controlMode_ == CompressorControlMode::Emulation)
+    {
+        const auto& reference = controls.emulation;
+        ratio_.SetTarget(reference.ratio);
+        release_.SetTarget(reference.releaseSeconds);
+        threshold_.SetTarget(reference.thresholdDb);
+        fastAttack_ = reference.fastAttack;
+    }
+    else
+    {
+        ratio_.SetTarget(1.0 + 99.0 * NormalRatioPosition(controls.ratio));
+        release_.SetTarget(ReferenceReleaseSeconds(controls.release));
+        threshold_.SetTarget(kNormalThresholdMaximumDb - kNormalThresholdSpanDb * controls.reduction);
+        output_.SetTarget(controls.outputGain);
+        fastAttack_ = controls.attack < 0.5;
+    }
 }
 
 void SslChannelProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
@@ -58,16 +93,18 @@ void SslChannelProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noe
     const auto selected = SelectChannels(audio, mode);
     for (std::size_t index = 0; index < audio.frameCount; ++index)
     {
-        UpdateControlCoefficients(ratio_.NextValue(), release_.NextValue(), fastAttack_, threshold_.NextValue());
+        const auto threshold = threshold_.NextValue();
+        UpdateControlCoefficients(ratio_.NextValue(), release_.NextValue(), fastAttack_, threshold);
         // The preceding detector state controls gain; there is no audio lookahead.
-        const auto targetDb = CalculateTargetReductionDb();
+        const auto targetDb = controlMode_ == CompressorControlMode::Normal && threshold == kNormalThresholdMaximumDb
+            ? 0.0 : CalculateTargetReductionDb();
         const auto amplitude = selected.Peak(index);
         detectorPower_ += detectorCoefficient_ * (amplitude * amplitude - detectorPower_);
         fastReductionDb_ = UpdateReductionMemory(fastReductionDb_, targetDb, fastReleaseRetention_);
         slowReductionDb_ = UpdateReductionMemory(slowReductionDb_, targetDb, slowReleaseRetention_);
         const auto reductionDb = std::lerp(fastReductionDb_, slowReductionDb_, kConfig.slowFraction);
         const auto gain = reductionDb == 0.0 ? makeupGain_ : makeupGain_ * std::exp(-reductionDb * kDbToLogGain);
-        selected.ApplyGain(index, gain);
+        selected.ApplyGain(index, gain * output_.NextValue());
     }
 }
 
@@ -79,31 +116,48 @@ void SslChannelProcessor::UpdateControlCoefficients(
     {
         return;
     }
-    const auto makeupChanged = ratio != cachedRatio_ || thresholdDb != cachedThresholdDb_;
+    const auto fastAmount = fastAttack ? 1.0 : 0.0;
+    const auto thresholdChanged = thresholdDb != cachedThresholdDb_;
+    const auto ratioChanged = ratio != cachedRatio_;
     const auto timingChanged = releaseSeconds != cachedReleaseSeconds_ || fastAttack != cachedFastAttack_;
-    // The endpoint is limiting; blend smoothly above the highest measured finite ratio.
-    const auto limiting = std::clamp((ratio - 20.0) / 80.0, 0.0, 1.0);
-    const auto inverseRatio = (1.0 - limiting) / ratio;
-    const auto strength = 1.0 - inverseRatio;
-    const auto threshold = thresholdDb / 10.0;
-    const auto fast = fastAttack ? 1.0 : 0.0;
-    const auto logRelease = std::log(releaseSeconds / 0.4);
-    const auto& slope = kConfig.slopeLaw;
-    compressionSlope_ = strength * (slope[0] + inverseRatio * (slope[1] + inverseRatio * slope[2]) +
-        threshold * slope[3] + logRelease * slope[4] + limiting * slope[5]);
-    const auto& onset = kConfig.onsetLaw;
-    detectorOnsetDb_ = onset[0] + inverseRatio * onset[1] + threshold * onset[2] +
-        fast * onset[3] + logRelease * onset[4] - kConfig.rmsToPeakDb;
-    const auto& bend = kConfig.bendLaw;
-    bendDb_ = bend[0] + inverseRatio * (bend[1] + inverseRatio * (bend[2] + inverseRatio * bend[3])) +
-        threshold * bend[4] + fast * bend[5] + logRelease * bend[6] +
-        fast * logRelease * bend[7] + limiting * bend[8];
+    const auto emulation = controlMode_ == CompressorControlMode::Emulation;
+    if (ratioChanged || timingChanged || (emulation && thresholdChanged))
+    {
+        // The endpoint is limiting; blend smoothly above the highest measured finite ratio.
+        const auto limiting = std::clamp((ratio - 20.0) / 80.0, 0.0, 1.0);
+        const auto inverseRatio = (1.0 - limiting) / ratio;
+        const auto strength = 1.0 - inverseRatio;
+        const auto threshold = emulation ? thresholdDb / 10.0 : 0.0;
+        const auto logRelease = std::log(releaseSeconds / 0.4);
+        const auto& slope = kConfig.slopeLaw;
+        compressionSlope_ = strength * (slope[0] + inverseRatio * (slope[1] + inverseRatio * slope[2]) +
+            threshold * slope[3] + logRelease * slope[4] + limiting * slope[5]);
+        const auto& bend = kConfig.bendLaw;
+        bendDb_ = bend[0] + inverseRatio * (bend[1] + inverseRatio * (bend[2] + inverseRatio * bend[3])) +
+            threshold * bend[4] + fastAmount * bend[5] + logRelease * bend[6] +
+            fastAmount * logRelease * bend[7] + limiting * bend[8];
+        if (emulation)
+        {
+            const auto& onset = kConfig.onsetLaw;
+            detectorOnsetDb_ = onset[0] + inverseRatio * onset[1] + threshold * onset[2] +
+                fastAmount * onset[3] + logRelease * onset[4] - kConfig.rmsToPeakDb;
+        }
+    }
+    if (emulation && (ratioChanged || thresholdChanged))
+    {
+        const auto limiting = std::clamp((ratio - 20.0) / 80.0, 0.0, 1.0);
+        const auto inverseRatio = (1.0 - limiting) / ratio;
+        UpdateMakeup(inverseRatio, 1.0 - inverseRatio, limiting, thresholdDb / 10.0);
+    }
+    if (!emulation)
+    {
+        detectorOnsetDb_ = thresholdDb - kConfig.rmsToPeakDb;
+        makeupGain_ = SslProgramMakeupGain(
+            (kNormalThresholdMaximumDb - thresholdDb) / kNormalThresholdSpanDb,
+            fastAttack, releaseSeconds, ratio);
+    }
     const auto start = DbToGain(detectorOnsetDb_);
     compressionStartPower_ = start * start;
-    if (makeupChanged)
-    {
-        UpdateMakeup(inverseRatio, strength, limiting, threshold);
-    }
     if (timingChanged)
     {
         UpdateTiming(releaseSeconds, fastAttack);

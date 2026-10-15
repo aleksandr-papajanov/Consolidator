@@ -13,7 +13,7 @@ namespace consolidator::max::transport
 class ManagedBridge
 {
 public:
-    ManagedBridge();
+    ManagedBridge(const std::wstring& libraryPath, ManagedLogCallback logCallback);
     ~ManagedBridge();
 
     ManagedBridge(const ManagedBridge&) = delete;

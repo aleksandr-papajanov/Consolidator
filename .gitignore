@@ -20,9 +20,12 @@
 /Consolidator.Native/Consolid.*
 /Consolidator.Native/externals/
 
-# Published Max externals
-/Consolidator.Max/externals/*
-!/Consolidator.Max/externals/.gitkeep
+# Transitional Max project
+/Consolidator.Max/
+
+# Local SDK and model-plugin projects
+/MinApi/
+/ModelPlugins.Vst3/
 
 # Archived legacy code
 /Legacy/
@@ -75,7 +78,7 @@
 
 # Compiled plugin bundles and offline datasets
 *.vst3
-!/ModelPlugins.Vst3/
+!/Consolidator.Vst3/
 *.clap
 *.eldataset
 

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 
+#include "../CompressorControlMode.h"
 #include "../../DspBiquad.h"
 #include "../../DspParameterRamp.h"
 #include "../../DspProcessingContext.h"
@@ -11,10 +12,15 @@ namespace consolidator::max::dsp::processors
 {
 
 // Reference-normalized Gain/Peak Reduction; current optical DSP and colour remain unchanged.
-struct Cla3aControls
+struct Cla3aEmulationControls
 {
     double gain{ 0.55 };
     double peakReduction{ 0.4 };
+};
+
+struct Cla3aControls : CompressorControls
+{
+    Cla3aEmulationControls emulation;
 };
 
 // Fixed optical model configuration, compiled once and shared by processor instances.
@@ -48,9 +54,10 @@ struct Cla3aConfig
 class Cla3aProcessor final
 {
 public:
+    explicit Cla3aProcessor(CompressorControlMode controlMode = CompressorControlMode::Normal) noexcept;
     void Prepare(const DspProcessingContext& context) noexcept;
     void Reset() noexcept;
-    void SetControls(double gain, double peakReduction) noexcept;
+    void SetControls(const Cla3aControls& controls) noexcept;
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
@@ -64,8 +71,9 @@ private:
     [[nodiscard]] double ProcessHighPassSample(double input, std::size_t channel) noexcept;
 
     inline static constexpr Cla3aConfig kConfig{};
-    DspParameterRamp peakReduction_{ Cla3aControls{}.peakReduction };
-    DspParameterRamp gain_{ Cla3aControls{}.gain };
+    const CompressorControlMode controlMode_;
+    DspParameterRamp peakReduction_;
+    DspParameterRamp gain_;
     double detectorAttackCoefficient_{};
     double detectorReleaseCoefficient_{};
     double fastAttackCoefficient_{};
@@ -85,6 +93,7 @@ private:
     double cachedGain_{ -1.0 };
     double thresholdDb_{};
     double outputGain_{};
+    double makeupGain_{ 1.0 };
     double compressionStartPower_{};
     std::array<double, 5> highPassCoefficients_{};
     std::array<std::array<double, 2>, 2> highPassStates_{};

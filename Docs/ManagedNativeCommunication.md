@@ -1,5 +1,10 @@
 # Managed and Native Communication
 
+The Windows JUCE host reuses this C ABI without Managed changes. Its module
+packaging, callback queues, audio ownership and direct VST3 persistence path are
+described in [Vst3Migration.md](Vst3Migration.md). `ManagedBridge` is shared by
+both frontend targets; the host supplies the Managed library path and log sink.
+
 This document describes the current communication contract inside `InteropSandbox` between the C# managed core, the C++ native bridge, and the Max external.
 
 ## Components
@@ -512,14 +517,15 @@ shared operation lock. The adapter forwards to the singleton
 `FftAnalyzer`. Unregistration releases the audio handle after removing the
 instance ID. Audio handlers must remain real-time safe: no Max outlet calls,
 blocking locks, or unbounded allocation on the audio thread.
-The ABI retains all four Max input pointers, while the exported entrypoint
-forwards only the first stereo pair to `NativeAudioInput` and Managed analysis.
-Native DSP likewise processes only that main pair. The reference pair is not an
-analyzer source or an external DSP sidechain. Device detectors derive private
-sidechain signals from the current main audio.
+The ABI forwards all four input pointers through NativeAudioInput and
+IInstanceAudioInputService. AudioCapture stores main and optional reference pairs
+in one four-channel ring with shared positions. Reference absence is expressed
+by null pointers; those channels are stored as zeros and their connection flag
+is cleared. Native DSP processes only the main pair. Device detectors derive
+private sidechain signals from the main audio, independently of this reference.
 
 The singleton `FftAnalyzer` is the audio input implementation. It writes the
-main stereo pair into a preallocated bounded SPSC sample ring on the callback
+main and reference stereo pairs into a preallocated bounded SPSC sample ring on the callback
 and performs FFT on a managed worker. The ring accepts arbitrary audio
 vector sizes, drops newest samples on overflow, and counts dropped samples
 atomically. The worker reads the latest complete 1024-sample window at its
@@ -530,14 +536,16 @@ publishes `fft` output only to the active viewer of the selected source
 instance. The frame is:
 
 ```text
-fft 1 sourceInstanceId fftSize hasGroupSpectrum sourceSpectrum...
-    [completeGroupSpectrum...]
+fft 2 sourceInstanceId fftSize hasGroupSpectrum hasReferenceSpectrum sourceSpectrum...
+    [completeGroupSpectrum...] [referenceSpectrum...]
 ```
 
 The source spectrum contains the focused track. If the focused bank is grouped,
 the optional second spectrum is the FFT of the time-domain sum of the focused
-track and every other instance represented in that group. Reference input
-channels do not participate in analyzer presentation.
+track and every other instance represented in that group. The optional reference spectrum contains the focused source's Sidechain pair,
+transformed by the same Managed worker and SpectrumProcessor. Each spectrum has
+513 bins. FFT notification version 2 adds the reference flag/payload; other
+protocol headers are unchanged. See [Vst3SidechainReference.md](Vst3SidechainReference.md).
 
 `FftAnalyzer` owns its capture rings directly; there is no separate analyzer
 registry or Managed curve cache. Instance activity gates spectrum capture.

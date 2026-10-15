@@ -1,0 +1,48 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 2,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "vs2026-x64",
+      "displayName": "Visual Studio 2026 x64",
+      "generator": "Visual Studio 18 2026",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CONSOLIDATOR_MANAGED_RUNTIME_DIR": {
+          "type": "PATH",
+          "value": "${sourceDir}/build/managed-runtime"
+        }
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vs2026-debug-install",
+      "displayName": "Debug x64 - build and install VST3",
+      "configurePreset": "vs2026-x64",
+      "configuration": "Debug",
+      "targets": [
+        "ConsolidatorVST3Install"
+      ],
+      "jobs": 4
+    },
+    {
+      "name": "vs2026-release-install",
+      "displayName": "Release x64 - build and install VST3",
+      "configurePreset": "vs2026-x64",
+      "configuration": "Release",
+      "targets": [
+        "ConsolidatorVST3Install"
+      ],
+      "jobs": 4
+    }
+  ]
+}

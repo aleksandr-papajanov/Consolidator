@@ -1,5 +1,8 @@
 # CLA-3A findings
 
+Current VST3 uses Normal Reduction/Output controls. Reference observations below
+belong to the retained Emulation mode. See [control modes](../../../../../Docs/Dsp/CompressorControlModes.md).
+
 Current algorithm and final manual figures: [Cla3aProcessor](README.md).
 Removed proposals are not runtime options.
 
@@ -47,3 +50,15 @@ Peak Reduction 4.00. Host IDs and displayed ranges are restored, with no preset
 migration. Native and Release VST3 were built/installed. Current simplified
 optical, release, filter and caching math is retained; no new audio fit or DSP
 automated test was performed during this restoration.
+
+## Normal makeup calibration
+
+Fixed -18 dBFS peak / 1 kHz reference compensation was added only to Normal.
+The existing detector/timing/colour laws remain; original Emulation gain is unchanged.
+[Manual measurement grid, fitted law and limits](../../../../../Docs/Dsp/CompressorControlModes.md#normal-automatic-makeup).
+
+## Musical-source makeup supersedes the sine calibration
+
+The earlier -18 dBFS Normal makeup is historical and has been removed. Current
+[program calibration](../../../../../Docs/Dsp/ProgramMakeup.md) uses eight original
+recordings equally weighted. Emulation keeps its reference gain laws.

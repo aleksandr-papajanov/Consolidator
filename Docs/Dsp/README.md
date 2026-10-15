@@ -7,10 +7,14 @@
 [Processors](../../Consolidator.Native/External/Dsp/Processors/README.md).
 
 Упрощённая модель: [CLA-2A](../../Consolidator.Native/External/Dsp/Processors/Cla2a/README.md),
-Текущий интерфейс модели — Reduction/Output; прочие настройки референса фиксированы.
+Текущий интерфейс всех четырёх компрессоров — Normal Reduction/Output;
+референсное управление сохранено в Native Emulation. [Режимы](CompressorControlModes.md).
 
 | Документ | Scope |
 | --- | --- |
+| [DeviceCompressor](../../Consolidator.Native/External/Dsp/Processors/DeviceCompressor/README.md) | Four compressor algorithms in one Native/VST3 processor |
+| [DeviceCompressor findings](../../Consolidator.Native/External/Dsp/Processors/DeviceCompressor/Findings.md) | Composition and verification limits |
+| [CompressorControlModes.md](CompressorControlModes.md) | Normal/Emulation control laws for four compressors |
 | [Approximation.md](Approximation.md) | Approximation |
 | [CLA-76](../../Consolidator.Native/External/Dsp/Processors/Cla76/README.md) | CLA-76 Bluey / 4:1 to ALL shared core and emulation |
 | [CLA-76 findings](../../Consolidator.Native/External/Dsp/Processors/Cla76/Findings.md) | Useful findings from completed research |
@@ -43,6 +47,6 @@
 | [Transient Shaper findings](../../Consolidator.Native/External/Dsp/Processors/TransientShaper/Findings.md) | TransientShaperFindings |
 | [Transient Shaper](../../Consolidator.Native/External/Dsp/Processors/TransientShaper/README.md) | TransientShaperProcessor |
 
-Finished simplified model: [SSLChannel compressor](../../Consolidator.Native/External/Dsp/Processors/SslChannel/README.md), Ratio/Release/Attack/Threshold.
+Shared Native model: [SSLChannel compressor](../../Consolidator.Native/External/Dsp/Processors/SslChannel/README.md), reference controls retained in Emulation, selected through the universal compressor in Normal.
 
 [SSLChannel findings](../../Consolidator.Native/External/Dsp/Processors/SslChannel/Findings.md): initial measurements and remaining limits.

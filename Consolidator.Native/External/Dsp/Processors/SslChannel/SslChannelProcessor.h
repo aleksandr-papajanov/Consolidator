@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 
+#include "../CompressorControlMode.h"
 #include "../../DspParameterRamp.h"
 #include "../../DspProcessingContext.h"
 
@@ -10,12 +11,20 @@ namespace consolidator::max::dsp::processors
 {
 
 // Physical reference units: ratio, release seconds, attack mode, threshold dBu.
-struct SslChannelControls
+struct SslChannelEmulationControls
 {
     double ratio{ 1.0 };
     double releaseSeconds{ 0.4 };
     bool fastAttack{};
     double thresholdDb{};
+};
+
+struct SslChannelControls : CompressorControls
+{
+    double ratio{ kNormalRatioDefault };
+    double release{ 0.5 };
+    double attack{ 1.0 };
+    SslChannelEmulationControls emulation;
 };
 
 // Function coefficients fitted to the requested manual grid, not interpolation anchors.
@@ -49,9 +58,10 @@ struct SslChannelConfig
 class SslChannelProcessor final
 {
 public:
+    explicit SslChannelProcessor(CompressorControlMode controlMode = CompressorControlMode::Normal) noexcept;
     void Prepare(const DspProcessingContext& context) noexcept;
     void Reset() noexcept;
-    void SetControls(double ratio, double releaseSeconds, bool fastAttack, double thresholdDb) noexcept;
+    void SetControls(const SslChannelControls& controls) noexcept;
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
@@ -62,10 +72,12 @@ private:
     [[nodiscard]] double CalculateTargetReductionDb() const noexcept;
 
     inline static constexpr SslChannelConfig kConfig{};
-    DspParameterRamp ratio_{ SslChannelControls{}.ratio };
-    DspParameterRamp release_{ SslChannelControls{}.releaseSeconds };
-    DspParameterRamp threshold_{ SslChannelControls{}.thresholdDb };
-    bool fastAttack_{ SslChannelControls{}.fastAttack };
+    const CompressorControlMode controlMode_;
+    DspParameterRamp output_{ 1.0 };
+    DspParameterRamp ratio_;
+    DspParameterRamp release_{ SslChannelEmulationControls{}.releaseSeconds };
+    DspParameterRamp threshold_;
+    bool fastAttack_{};
     double sampleRate_{};
     double detectorCoefficient_{};
     double fastAttackCoefficient_{};

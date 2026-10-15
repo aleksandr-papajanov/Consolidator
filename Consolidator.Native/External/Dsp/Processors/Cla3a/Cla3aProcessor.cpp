@@ -9,9 +9,19 @@
 #include "../../DspMath.h"
 #include "../../DspOnePole.h"
 #include "../../DspProcessingPrimitives.h"
+#include "../CompressorMakeup.h"
 
 namespace consolidator::max::dsp::processors
 {
+
+Cla3aProcessor::Cla3aProcessor(CompressorControlMode controlMode) noexcept
+    : controlMode_(controlMode),
+      peakReduction_(controlMode == CompressorControlMode::Emulation
+          ? Cla3aEmulationControls{}.peakReduction : Cla3aControls{}.reduction),
+      gain_(controlMode == CompressorControlMode::Emulation
+          ? Cla3aEmulationControls{}.gain : Cla3aControls{}.outputGain)
+{
+}
 
 void Cla3aProcessor::Prepare(const DspProcessingContext& context) noexcept
 {
@@ -38,10 +48,11 @@ void Cla3aProcessor::Reset() noexcept
     highShelfFilter_.Reset();
 }
 
-void Cla3aProcessor::SetControls(double gain, double peakReduction) noexcept
+void Cla3aProcessor::SetControls(const Cla3aControls& controls) noexcept
 {
-    peakReduction_.SetTarget(peakReduction);
-    gain_.SetTarget(gain);
+    const auto emulation = controlMode_ == CompressorControlMode::Emulation;
+    peakReduction_.SetTarget(emulation ? controls.emulation.peakReduction : controls.reduction);
+    gain_.SetTarget(emulation ? controls.emulation.gain : controls.outputGain);
 }
 
 void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
@@ -55,7 +66,7 @@ void Cla3aProcessor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
         // The curve reads the preceding power state; this sample then charges the detector.
         const auto targetDb = peakReduction > 0.0 ? CalculateTargetReductionDb() : 0.0;
         UpdateDetector(channels, index);
-        const auto compressionGain = UpdateOpticalGain(targetDb);
+        const auto compressionGain = UpdateOpticalGain(targetDb) * makeupGain_;
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
         {
             if (channels[channel] != nullptr)
@@ -94,11 +105,20 @@ void Cla3aProcessor::UpdateReductionCurve(double peakReduction) noexcept
     {
         return;
     }
-    const auto position = (peakReduction - 0.6) / 0.4;
-    const auto& law = kConfig.thresholdLaw;
-    thresholdDb_ = law[0] + position * (law[1] + position * (law[2] + position * law[3]));
+    if (controlMode_ == CompressorControlMode::Normal)
+    {
+        thresholdDb_ = kNormalThresholdMaximumDb - kNormalThresholdSpanDb * peakReduction;
+    }
+    else
+    {
+        const auto position = (peakReduction - 0.6) / 0.4;
+        const auto& law = kConfig.thresholdLaw;
+        thresholdDb_ = law[0] + position * (law[1] + position * (law[2] + position * law[3]));
+    }
     const auto start = DbToGain(thresholdDb_ - kConfig.kneeDb * 0.5);
     compressionStartPower_ = start * start;
+    makeupGain_ = controlMode_ == CompressorControlMode::Normal
+        ? Cla3aProgramMakeupGain(peakReduction) : 1.0;
     cachedPeakReduction_ = peakReduction;
 }
 
@@ -108,7 +128,14 @@ void Cla3aProcessor::UpdateOutputGain(double gain) noexcept
     {
         return;
     }
-    outputGain_ = DbToGain((gain - kConfig.gainUnityPosition) * kConfig.gainSpanDb);
+    if (controlMode_ == CompressorControlMode::Normal)
+    {
+        outputGain_ = gain;
+    }
+    else
+    {
+        outputGain_ = DbToGain((gain - kConfig.gainUnityPosition) * kConfig.gainSpanDb);
+    }
     cachedGain_ = gain;
 }
 

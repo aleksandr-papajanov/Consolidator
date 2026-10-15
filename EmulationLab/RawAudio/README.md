@@ -1,6 +1,6 @@
 # Raw Audio
 
-Recordings содержит5 оригинальных пользовательских записей; Probes — набор уникальных
+Recordings содержит оригинальные пользовательские записи; Probes — набор уникальных
 необработанных входных сигнала: isolated/paired hits, level-scaled copies, impulses
 и tone steps. Они пригодны для будущих ручных исследований других устройств.
 Processed reference/candidate audio сюда не входит. Дубликаты удалены по SHA256.
@@ -10,6 +10,15 @@ Original — provenance: старые experiment paths могли быть уд�
 Оригинальные Desktop recordings оставлены на месте.
 Raw не нормализовать и не перезаписывать: результаты опыта писать отдельно.
 [Как пользоваться EmulationLab](../../Docs/Dsp/EmulationLab.md).
+
+## Источники для компенсации компрессоров
+
+`Recordings/compressor-sources/`: acoustic, bass, electric-hard, electric-soft,
+kick, overheads, snare и vocal. Получены от пользователя из Desktop/New folder;
+скопированы без обработки и нормализации. Каждый файл — stereo PCM24, 44.1 kHz,
+12.738 секунды. Исходная громкость различается: это намеренно сохранённые реальные
+входы, а не набор сигналов с одинаковым RMS. При подборе каждый источник имеет
+одинаковый вес; измеряется разность громкости на одном и том же входе.
 
 CLA-76 ALL: Probes/cla76-all-9986-level-dependencies.wav содержит56 секунд
 переходов -20/0, -32/-12, -8/0 и -40/-20 dBFS; каждый участок5/4/5 секунд.
@@ -47,3 +56,18 @@ Probes/cla2a-short-repeated-9986.wav — 36 секунд stereo float32, 44.1 kH
 
 SSLChannel raw probe: `Probes/ssl-channel-level-timing.wav`, 86 seconds at 44.1 kHz,
 stationary 998.6 Hz levels, three long step histories, and frequency pairs.
+
+Probes/compressor-makeup-minus18-1000.wav — 20 секунд постоянного синуса 1 кГц,
+stereo float32 / 44.1 kHz, peak −18 dBFS. Создан для ручной калибровки Normal
+makeup CLA-76/3A/2A; не содержит обработки.
+
+Probes/compressor-random-history-44100.wav и compressor-random-history-96000.wav —
+64.4 секунды stereo float32 с одинаковой историей: шесть частот 20 Hz…18 kHz,
+переходы −48/−3/−48 dBFS, 24 случайных участка, импульсы, два синуса и тишина.
+Seed 0x76a32a; фаза непрерывная, уровни и частоты переключаются резко намеренно.
+Сигналы не нормализованы и не обработаны компрессорами.
+[Условия и наблюдения](../../Docs/Dsp/CompressorSignalInvestigation.md).
+
+Probes/compressor-auto-gain-quiet-60s.wav — 60 секунд синуса 1 kHz,
+peak −48 dBFS, затем 5 секунд тишины. Stereo float32 / 44.1 kHz, правый канал .8
+от левого. Сырой сигнал для длительной адаптации видимого Output за пределами ±3 дБ.

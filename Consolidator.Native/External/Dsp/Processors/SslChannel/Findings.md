@@ -1,5 +1,8 @@
 # SSLChannel findings
 
+Current VST3 uses Normal Reduction/Output controls. Reference observations below
+belong to the retained Emulation mode. See [control modes](../../../../../Docs/Dsp/CompressorControlModes.md).
+
 The simplified model was accepted by the user. [Current algorithm](README.md).
 Removed hypotheses are not runtime options.
 
@@ -49,3 +52,27 @@ Optimization separates curve, makeup and timing dependencies; removes the zero
 slope feature; folds the fixed RMS offset into onset; prepares release retention;
 and uses exp rather than general pow for audio attenuation. CPU speedup was not
 benchmarked. Source review found no ownership/realtime or duplicated-DSP issues.
+
+## Shared Normal nominal makeup
+
+Normal now estimates expected reduction at -18 dBFS peak through the current
+rational curve, matching the operating point chosen for the other three models.
+The former makeup polynomial is used only in Emulation. No detector or timing
+coefficients changed. Makeup is cached with slope/bend/onset and uses no new
+measurement state or per-sample fitting.
+
+Manual EmulationLab render-grid: 120 combinations of five Reduction values,
+four physical ratios (1, 4, 20, limiting), three Release positions and both Attack
+endpoints. Stereo 44.1 kHz / block 128; 20-second 1 kHz sine at -18 dBFS peak,
+fundamental measured over the last second. Relative to each matching Reduction=0
+baseline, residual gain error is 0.113 dB RMS / 0.347 dB maximum. These observations
+include zero-compression conditions; other frequencies, sample rates and musical
+loudness were not evaluated. Native and Release universal VST3 built and installed.
+Source review found no added allocations, locks, detector feedback or duplicate DSP.
+No DSP automated tests were created or run.
+
+## Musical-source makeup supersedes the sine calibration
+
+The earlier -18 dBFS Normal makeup is historical and has been removed. Current
+[program calibration](../../../../../Docs/Dsp/ProgramMakeup.md) uses eight original
+recordings equally weighted. Emulation keeps its reference gain laws.

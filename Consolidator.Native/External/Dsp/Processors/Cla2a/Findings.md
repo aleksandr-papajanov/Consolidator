@@ -1,12 +1,16 @@
 # CLA-2A identification notes
 
-## Current controls
+Current VST3 uses Normal Reduction/Output controls. Reference observations below
+belong to the retained Emulation mode. See [control modes](../../../../../Docs/Dsp/CompressorControlModes.md).
 
-Reduction/Output replace the temporary Input/Output interface. Reduction restores
-the identified variable-threshold curve in the old reference-normalized domain;
-Output is nominal amplitude with +39 dB calibration. See [README](README.md).
-Historical Gain/Peak Reduction measurements remain useful for the compression
-algorithm, with nominal Output mapped to the former Gain level.
+## Emulation controls
+
+Reference Gain/Peak Reduction are restored. Both use normalized 0..1 values in
+Native and nonlinear 0..100 host readouts; defaults display 40.00/46.00.
+The rounded regional Gain law and its taper were recovered from the saved chat.
+Peak Reduction threshold, optical dynamics and colour retain the current simplified
+implementation. See [README](README.md). The conversion observations below are
+historical and do not claim new waveform verification of the restored interface.
 
 ## Observations
 
@@ -20,7 +24,7 @@ algorithm, with nominal Output mapped to the former Gain level.
   from about −51.35 dB at zero to +38.8 dB at 100. In displayed units its response
   consists of successive affine regions. A smooth two-tanh fit and a global
   polynomial left meaningful level errors; explicit regional slopes match the
-  measured control law. The gain regions are historical; the threshold regions are restored for Reduction.
+  measured control law. Both regional laws are restored for the reference controls.
 - Peak Reduction up to about 0.3 causes little compression for the measured inputs
   through 0 dBFS. Higher settings chiefly lower the threshold. Gain cross-checks
   support keeping the output knob outside the detector.
@@ -114,3 +118,29 @@ includes repeated attack/release cycles and quiet recovery. This verifies the
 control conversion on these inputs, not accuracy against Waves or automation.
 No DSP automated tests were created or run. Musical listening and other sample
 rates were not evaluated during this conversion.
+
+## Verification of restored reference controls
+
+Native Release|x64 and ConsolidatorCla2aModel_VST3 Release built successfully;
+the Native external and installed VST3 were updated. EmulationLab `plugin describe`
+on the installed candidate reports Gain 40.00 [0.535], Peak Reduction 46.00 [0.598]
+and Bypass Off. The scale/inverse and rounded regional Gain coefficients were
+recovered from the saved project chat, without a new audio fit.
+
+Source review traced both controls through the adapter into the shared Native
+processor, including preparation, reset, ramps and coefficient caches. No duplicate
+DSP, allocation, locking, I/O or migration API was added. Detector, optical memory,
+deep-reduction and colour coefficients are retained. No new audio comparison or
+DSP automated tests were run; historical accuracy figures remain historical.
+
+## Normal makeup calibration
+
+Fixed -18 dBFS peak / 1 kHz reference compensation was added only to Normal.
+The existing detector/timing/colour laws remain; original Emulation gain is unchanged.
+[Manual measurement grid, fitted law and limits](../../../../../Docs/Dsp/CompressorControlModes.md#normal-automatic-makeup).
+
+## Musical-source makeup supersedes the sine calibration
+
+The earlier -18 dBFS Normal makeup is historical and has been removed. Current
+[program calibration](../../../../../Docs/Dsp/ProgramMakeup.md) uses eight original
+recordings equally weighted. Emulation keeps its reference gain laws.

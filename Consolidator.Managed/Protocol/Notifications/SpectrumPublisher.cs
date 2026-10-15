@@ -20,21 +20,23 @@ internal sealed class SpectrumPublisher
         ulong targetId,
         InstanceId sourceInstanceId,
         float[] sourceSpectrum,
-        float[]? groupSpectrum)
+        float[]? groupSpectrum,
+        float[]? referenceSpectrum)
     {
         if (targetId == 0)
         {
             return;
         }
 
-        var atomCount = 4 + sourceSpectrum.Length +
-            (groupSpectrum?.Length ?? 0);
+        var atomCount = 5 + sourceSpectrum.Length +
+            (groupSpectrum?.Length ?? 0) + (referenceSpectrum?.Length ?? 0);
         var atoms = new List<Atom>(atomCount)
         {
-            new(AtomType.Integer, 1, 0, null),
+            new(AtomType.Integer, 2, 0, null),
             new(AtomType.Integer, (long)sourceInstanceId.Value, 0, null),
             new(AtomType.Integer, FftSize, 0, null),
-            new(AtomType.Integer, groupSpectrum is null ? 0 : 1, 0, null)
+            new(AtomType.Integer, groupSpectrum is null ? 0 : 1, 0, null),
+            new(AtomType.Integer, referenceSpectrum is null ? 0 : 1, 0, null)
         };
         foreach (var value in sourceSpectrum)
         {
@@ -44,6 +46,14 @@ internal sealed class SpectrumPublisher
         if (groupSpectrum is not null)
         {
             foreach (var value in groupSpectrum)
+            {
+                atoms.Add(new Atom(AtomType.Float, 0, value, null));
+            }
+        }
+
+        if (referenceSpectrum is not null)
+        {
+            foreach (var value in referenceSpectrum)
             {
                 atoms.Add(new Atom(AtomType.Float, 0, value, null));
             }

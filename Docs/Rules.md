@@ -4,6 +4,13 @@
 
 `Consolidator.Native` — тонкий native-слой между Max и `Consolidator.Managed`.
 
+Основной Windows VST3 frontend переносится в `Consolidator.Vst3` по
+[Vst3Migration.md](Vst3Migration.md). Он использует тот же Native DSP и C ABI,
+не изменяя Managed ownership. Общий `ManagedBridge` получает абсолютный путь
+Managed DLL и log callback от хоста; Max-specific поиск и логирование живут
+в `MaxManagedHost`. JUCE frontend владеет своим редактором и доставкой
+presentation на message thread, не application state или координацией.
+
 Native отвечает только за:
 
 - создание Max external;
@@ -552,12 +559,19 @@ Raw pointers не используются для неявного владен�
 
 ---
 
-## 20.1. Visual Studio publish workflow
+## 20.1. Visual Studio Publish profile
 
-В `Consolidator.Managed/Properties/PublishProfiles/` доступны два профиля:
+The Managed project's Publish page contains one profile: `Vst3Plugin`.
+Publishing it writes the Managed NativeAOT output and dependencies directly
+to `Consolidator.Vst3/build/managed-runtime`, then builds the VST3 and installs
+the bundle and runtime DLLs to the configured system VST3 directory. It does
+not build the transitional Max external or create a separate Managed publish
+folder.
 
-- `FolderProfile` — публикует только Managed NativeAOT library;
-- `NativeAndManaged` — запускается из Visual Studio или через Visual Studio `MSBuild.exe`, сначала собирает `Consolidator.Native.vcxproj` в конфигурации `Release|x64`, затем публикует Managed и копирует `ConsolidatorExternal.mxe64` и `Consolidator.Managed.dll` в `Consolidator.Max/externals`. Проект подключает `Microsoft.NET.Sdk.Publish`, потому что Visual Studio запускает профиль через `Build` с `DeployOnBuild=true`. Native build выполняется перед SDK target `PrepareForPublish` и явно использует `Release|x64`, независимо от Managed platform, которую Visual Studio передаёт как `AnyCPU`. Обычный `dotnet publish` не может выполнить этот профиль, потому что не предоставляет C++ targets.
+Use Visual Studio MSBuild for Publish because the VST3 project requires Visual
+Studio C++ targets. `SkipVst3Build=true` is reserved for publishing Managed
+alone before NativeAOT integration tests; its output still goes to the VST3
+runtime directory used by those tests.
 
 ---
 

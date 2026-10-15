@@ -2,10 +2,19 @@
 
 [Native core](Cla76Processor.cpp),
 [coefficients and defaults](Cla76Processor.h),
-[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/Cla76PluginProcessor.cpp),
+[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp),
 [useful research findings](Findings.md).
 
-## Ownership and controls
+## Текущее управление
+
+По умолчанию используется Normal: Reduction 0…1 (default 0.5), номинальный
+Output −24…+24 дБ (default 0 дБ). Reduction линейно меняет порог; Output
+напрямую масштабирует выход; Normal-компенсация подобрана отдельно по музыкальным источникам.
+[Полный контракт режимов](../../../../../Docs/Dsp/CompressorControlModes.md).
+Emulation остаётся только в Native-коде и выбирается конструктором.
+Ниже референсные шкалы и измерения описывают этот режим, не единый VST3 UI.
+
+## Emulation: ownership and controls
 
 One Native implementation is compiled by Native and the VST3 target.
 CLA-76 is not connected to the existing Compressor graph or Managed ABI.
@@ -20,8 +29,8 @@ Mix 100%. Input/Output restore the measured reference attenuator functions. Exac
 | Release | reference 1..7, slow to fast | 4 |
 | Ratio | 0..1, 4:1 to ALL | 0 |
 
-Cla76Controls owns these defaults. All controls have 10 ms ramps. Native uses the reference Attack/Release coordinate directly before smoothing.
-Reference coordinate 1 is slow and 7 fast, matching the restored public controls.
+Cla76EmulationControls owns these defaults. All controls have 10 ms ramps. Emulation uses the reference Attack/Release coordinate directly before smoothing.
+Reference coordinate 1 is slow and 7 fast, matching emulation controls.
 Ratio morphs endpoint parameters using one detector/history, with no audio crossfade.
 
 VST3 contains five user controls, Bypass, host state/UI and preallocated float/double
@@ -31,7 +40,7 @@ belongs to the host UI. Cla76Config is immutable Native configuration.
 Presets store only the six host controls; restoration requires every current
 control to be valid before any is applied. No aliases or migration exist.
 
-## Signal order
+## Emulation signal order
 
 Input attenuator -> +30 dB calibration -> compression -> mode output offset ->
 one-pole colour -> Output attenuator and +27.2 dB calibration. Input drives both
@@ -54,8 +63,7 @@ For input amplitude x and attack coefficient cA:
 
 I=1.5*sqrt(DbToGain(baseThresholdDb)) is cached. The base threshold contains
 the original Attack span; extra Release curve offsets do not alter I.
-The temporary Reduction threshold shift is removed; detector amplitude again
-includes the reference Input gain.
+In Emulation the detector amplitude includes the reference Input gain.
 Normal base threshold is -25.7 dB, knee 6 dB, slope 0.75.
 ALL base threshold before sensitivity is -25.84 dB, knee 6 dB, slope 0.9,
 output offset +0.65 dB and Attack threshold span 0.46*u.
@@ -149,7 +157,7 @@ VST3 was built and installed after removing the unused target dependency. Source
 review found no new ownership/realtime issues. CPU speedup was not benchmarked.
 
 Process performs no allocation, locking, logging, I/O, offline fitting or Managed
-calls. VST3 target is ConsolidatorCla76Model_VST3. Restart the host after installation.
+calls. The current VST3 target is ConsolidatorCompressor_VST3. Restart the host after installation.
 [DSP rules](../../../../../Docs/Dsp/Rules.md) prohibit automated audio tests; manual research requires
 an explicit request. Source review and an authorized build do not establish
 perceptual equivalence or exact reference matching.
@@ -190,3 +198,26 @@ anchor tables are not restored. Host IDs are input/output/attack/release/ratio/b
 use a fresh instance after the range/ID change. Ratio 0 remains the fitted 4:1
 endpoint and 1 ALL; intermediate morph positions are not the unmodelled reference
 8/12/20 buttons. Restoring controls is not a claim of exact full-band emulation.
+
+## Universal VST3
+
+The individual adapter/target is removed. This Native model is now selected by
+[DeviceCompressor](../DeviceCompressor/README.md) in Consolidator Compressor.
+Its UI owns the shared Algorithm/Reduction/Output/Attack/Release/Ratio controls.
+
+## Normal automatic makeup
+
+Normal uses a compact settings law fitted to eight unnormalised musical sources,
+with equal source weights. It balances average loudness across algorithms rather
+than preserving a particular sine operating point. Optical models depend only on
+Reduction; 76/SSL also include Attack, Release and Ratio. No running loudness
+matcher or new detector history is added. Original Emulation gain is unchanged.
+[Method, results and limits](../../../../../Docs/Dsp/ProgramMakeup.md).
+
+## Normal ratio below 4:1
+
+Normal Ratio now starts at 1:1 with the same nominal position as SSL:
+p=3*value/(64-61*value), R=1+99*p; default value=0.4 (4:1). Below 4:1 the compression slope is
+1-1/R, using existing 4:1 knee/timing and zero ALL contribution. Above 4:1 the
+previous morph amount is (R-4)/96. Makeup uses the resulting active slope.
+Emulation controls, default Ratio=0 (4:1), timing and old morph are unchanged.

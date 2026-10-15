@@ -358,3 +358,20 @@ Where a `bankId` is part of an observation, topology, registry, or notification
 contract, it is zero-based and uses the range `0..6`. The protocol,
 JavaScript clients, codecs, registry messages, state paths, and internal
 `BankId` all use this same value without index conversion.
+
+## FFT reference payload
+
+SpectrumPublisher emits one latest-analysis notification for the focused source:
+
+```text
+fft 2 sourceInstanceId 1024 hasGroupSpectrum hasReferenceSpectrum
+    source[513] [group[513]] [reference[513]]
+```
+
+The new header version is specific to fft; command headers retain their current
+version. Reference is the focused source's optional Sidechain pair captured and
+transformed in Managed, alongside main audio. Group includes only main peer
+signals. Flags determine exact optional payload order/length. Absence of the
+reference pair clears its payload, preventing stale reference presentation.
+VST3 validates version, source context, FFT size, exact shape and finite bins.
+There are no compatibility decoders or separate reference events.

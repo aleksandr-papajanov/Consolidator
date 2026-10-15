@@ -120,6 +120,8 @@ public sealed class FftAnalyzer :
         InstanceId instanceId,
         double* mainLeft,
         double* mainRight,
+        double* referenceLeft,
+        double* referenceRight,
         nuint frameCount)
     {
         if (mainLeft is null || mainRight is null || frameCount == 0 ||
@@ -132,6 +134,8 @@ public sealed class FftAnalyzer :
         var droppedSamples = capture.Enqueue(
             mainLeft,
             mainRight,
+            referenceLeft,
+            referenceRight,
             frameCount);
         if (droppedSamples > 0)
         {
@@ -278,11 +282,19 @@ public sealed class FftAnalyzer :
             groupSpectrum = _groupSpectrum;
         }
 
+        float[]? referenceSpectrum = null;
+        if (capture.ReferenceConnected)
+        {
+            SpectrumProcessor.Process(capture.ReferenceFft, capture.ReferenceSpectrum, FftSize);
+            referenceSpectrum = capture.ReferenceSpectrum;
+        }
+
         _spectrumPublisher.Publish(
             GetSpectrumRecipient(demand),
             demand.SourceInstanceId,
             capture.Spectrum,
-            groupSpectrum);
+            groupSpectrum,
+            referenceSpectrum);
     }
 
     private readonly record struct Preparation(

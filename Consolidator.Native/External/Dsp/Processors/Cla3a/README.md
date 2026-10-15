@@ -2,9 +2,18 @@
 
 [Native implementation](Cla3aProcessor.cpp),
 [constants](Cla3aProcessor.h),
-[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/Cla3aPluginProcessor.cpp).
+[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp).
 
-## Scope and ownership
+## Текущее управление
+
+По умолчанию используется Normal: Reduction 0…1 (default 0.5), номинальный
+Output −24…+24 дБ (default 0 дБ). Reduction линейно меняет порог; Output
+напрямую масштабирует выход; Normal-компенсация подобрана отдельно по музыкальным источникам.
+[Полный контракт режимов](../../../../../Docs/Dsp/CompressorControlModes.md).
+Emulation остаётся только в Native-коде и выбирается конструктором.
+Ниже референсные шкалы и измерения описывают этот режим, не единый VST3 UI.
+
+## Emulation: scope and ownership
 
 A simplified optical compressor based on Waves CLA-3A Stereo in Compressor mode.
 One Native implementation is compiled by Native and VST3; the adapter owns only
@@ -21,8 +30,8 @@ simplified model, before Input/Output and Reduction/Output conversions. Gain is
 not nominal dB: outputGainDb=50*(Gain-0.408). Gain zero is finite attenuation,
 not mute. Peak Reduction zero stops new compression while optical memories
 recover. Both controls ramp 10 ms and are cached. Native owns defaults and
-control laws; VST3 supplies the same two reference controls plus Bypass.
-Host IDs are gain/peakReduction/bypass. Use a fresh instance; obsolete presets
+control laws; Emulation uses these reference controls; current VST3 exposes Reduction/Output plus Bypass.
+Current host IDs are reduction/output/bypass. Use a fresh instance; obsolete presets
 are not migrated. Current optical/filter coefficients and optimized methods
 remain unchanged.
 
@@ -41,8 +50,7 @@ T = -27.37 + u*(-22.94 + u*(14.42 - 5.13*u))
 ~~~
 
 Slope is 0.735 and knee 12.5 dB. The lower-knee power and output gain are cached
-until their respective controls change. No input sensitivity multiplier or new
-linear Reduction taper remains. The polynomial was missing from committed
+until their respective controls change. Emulation has no input sensitivity multiplier; Normal uses a separate linear Reduction taper. The polynomial was missing from committed
 history but has now been recovered from the saved chat's final simplified snapshot.
 
 ## Optical histories
@@ -123,3 +131,18 @@ is not a new claim of exact matching to Waves on all inputs. Native/VST3 compile
 the same processor. Live reference metadata (1001 positions per knob) confirms both readouts are
 linear 0..10. The VST3 formats/accepts that same scale, Native retains normalized
 0..1. The display conversion contains no audio algorithm.
+
+## Universal VST3
+
+The individual adapter/target is removed. This Native model is now selected by
+[DeviceCompressor](../DeviceCompressor/README.md) in Consolidator Compressor.
+Its UI owns the shared Algorithm/Reduction/Output/Attack/Release/Ratio controls.
+
+## Normal automatic makeup
+
+Normal uses a compact settings law fitted to eight unnormalised musical sources,
+with equal source weights. It balances average loudness across algorithms rather
+than preserving a particular sine operating point. Optical models depend only on
+Reduction; 76/SSL also include Attack, Release and Ratio. No running loudness
+matcher or new detector history is added. Original Emulation gain is unchanged.
+[Method, results and limits](../../../../../Docs/Dsp/ProgramMakeup.md).

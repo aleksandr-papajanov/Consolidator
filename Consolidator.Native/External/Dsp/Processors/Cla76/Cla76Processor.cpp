@@ -7,6 +7,7 @@
 
 #include "../../DspMath.h"
 #include "../../DspProcessingPrimitives.h"
+#include "../CompressorMakeup.h"
 
 namespace consolidator::max::dsp::processors
 {
@@ -85,17 +86,25 @@ AllControlValues EvaluateAllControls(double attack, double release, const Cla76C
 
 } // namespace
 
-Cla76Processor::Cla76Processor() noexcept
-    : inputGain_(AttenuatorGain(Cla76Controls{}.inputGain, kInputGainNumerator, kInputGainDenominator)),
-      outputGain_(AttenuatorGain(Cla76Controls{}.outputGain, kOutputGainNumerator, kOutputGainDenominator))
+Cla76Processor::Cla76Processor(CompressorControlMode controlMode) noexcept
+    : controlMode_(controlMode),
+      inputGain_(controlMode == CompressorControlMode::Emulation
+          ? AttenuatorGain(Cla76EmulationControls{}.inputGain, kInputGainNumerator, kInputGainDenominator) : 1.0),
+      outputGain_(controlMode == CompressorControlMode::Emulation
+          ? AttenuatorGain(Cla76EmulationControls{}.outputGain, kOutputGainNumerator, kOutputGainDenominator) : 1.0),
+      ratio_(controlMode == CompressorControlMode::Emulation
+          ? Cla76EmulationControls{}.ratio : NormalRatioPosition(Cla76Controls{}.ratio))
 {
 }
 
 void Cla76Processor::Prepare(const DspProcessingContext& context) noexcept
 {
     sampleRate_ = context.sampleRate;
-    inputCalibration_ = DbToGain(kConfig.inputCalibrationDb);
-    outputCalibration_ = DbToGain(kConfig.outputCalibrationDb);
+    inputCalibration_ = controlMode_ == CompressorControlMode::Emulation
+        ? DbToGain(kConfig.inputCalibrationDb) : 1.0;
+    outputCalibration_ = controlMode_ == CompressorControlMode::Emulation
+        ? DbToGain(kConfig.outputCalibrationDb) : 1.0;
+    reduction_.Prepare(context);
     inputGain_.Prepare(context);
     outputGain_.Prepare(context);
     attack_.Prepare(context);
@@ -111,6 +120,8 @@ void Cla76Processor::Prepare(const DspProcessingContext& context) noexcept
 
 void Cla76Processor::Reset() noexcept
 {
+    reduction_.Reset();
+    cachedReduction_ = -1.0;
     inputGain_.Reset();
     outputGain_.Reset();
     attack_.Reset();
@@ -124,24 +135,36 @@ void Cla76Processor::Reset() noexcept
     cachedAttack_ = -1.0;
     cachedRelease_ = -1.0;
     cachedRatio_ = -1.0;
+    cachedRatioControl_ = -1.0;
 }
 
-void Cla76Processor::SetControls(
-    double inputGain, double outputGain, double attack, double release, double ratio) noexcept
+void Cla76Processor::SetControls(const Cla76Controls& controls) noexcept
 {
-    if (inputGain != cachedNominalInput_)
+    if (controlMode_ == CompressorControlMode::Emulation)
     {
-        inputGain_.SetTarget(AttenuatorGain(inputGain, kInputGainNumerator, kInputGainDenominator));
-        cachedNominalInput_ = inputGain;
+        const auto& reference = controls.emulation;
+        if (reference.inputGain != cachedNominalInput_)
+        {
+            inputGain_.SetTarget(AttenuatorGain(reference.inputGain, kInputGainNumerator, kInputGainDenominator));
+            cachedNominalInput_ = reference.inputGain;
+        }
+        if (reference.outputGain != cachedNominalOutput_)
+        {
+            outputGain_.SetTarget(AttenuatorGain(reference.outputGain, kOutputGainNumerator, kOutputGainDenominator));
+            cachedNominalOutput_ = reference.outputGain;
+        }
+        attack_.SetTarget(reference.attack);
+        release_.SetTarget(reference.release);
+        ratio_.SetTarget(reference.ratio);
     }
-    if (outputGain != cachedNominalOutput_)
+    else
     {
-        outputGain_.SetTarget(AttenuatorGain(outputGain, kOutputGainNumerator, kOutputGainDenominator));
-        cachedNominalOutput_ = outputGain;
+        reduction_.SetTarget(controls.reduction);
+        outputGain_.SetTarget(controls.outputGain);
+        attack_.SetTarget(7.0 - 6.0 * controls.attack);
+        release_.SetTarget(7.0 - 6.0 * controls.release);
+        ratio_.SetTarget(NormalRatioPosition(controls.ratio));
     }
-    attack_.SetTarget(attack);
-    release_.SetTarget(release);
-    ratio_.SetTarget(ratio);
 }
 
 void Cla76Processor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
@@ -153,16 +176,22 @@ void Cla76Processor::Process(DspAudioBuffer audio, DspChannelMode mode) noexcept
         const auto inputGain = inputGain_.NextValue() * inputCalibration_;
         const auto attack = attack_.NextValue();
         const auto release = release_.NextValue();
-        const auto ratio = ratio_.NextValue();
+        const auto ratioControl = ratio_.NextValue();
+        // Preserve the old 4:1-to-ALL coordinate above 4:1; the lower section has no ALL contribution.
+        const auto ratio = controlMode_ == CompressorControlMode::Emulation
+            ? ratioControl : std::max((99.0 * ratioControl - 3.0) / 96.0, 0.0);
         UpdateMode(ratio);
-        UpdateControlCoefficients(attack, release, ratio);
+        const auto reduction = reduction_.NextValue();
+        UpdateControlCoefficients(attack, release, ratio, reduction, ratioControl);
         // Apply the envelope established by preceding samples, before charging it with this sample.
-        const auto targetDb = CalculateTargetReductionDb();
+        const auto targetDb = controlMode_ == CompressorControlMode::Normal && reduction == 0.0
+            ? 0.0 : CalculateTargetReductionDb();
         const auto detectorAmplitude = selected.Peak(index) * inputGain;
         UpdateDetector(detectorAmplitude, ratio);
         const auto reductionDb = UpdateMemoryReductionDb(targetDb, ratio);
         const auto compressionGain = reductionDb == 0.0 ? 1.0 : DbToGain(-reductionDb);
-        const auto processedGain = inputGain * compressionGain * modeOutputGain_;
+        const auto processedGain = controlMode_ == CompressorControlMode::Emulation
+            ? inputGain * compressionGain * modeOutputGain_ : compressionGain * makeupGain_;
         const auto outputGain = outputGain_.NextValue() * outputCalibration_;
         for (std::size_t channel = 0; channel < channels.size(); ++channel)
         {
@@ -206,7 +235,7 @@ void Cla76Processor::UpdateMode(double ratio) noexcept
 }
 
 void Cla76Processor::UpdateControlCoefficients(
-    double attack, double release, double ratio) noexcept
+    double attack, double release, double ratio, double reduction, double ratioControl) noexcept
 {
     const auto timingChanged = attack != cachedAttack_ || release != cachedRelease_;
     if (timingChanged)
@@ -227,11 +256,14 @@ void Cla76Processor::UpdateControlCoefficients(
         releaseCoefficient_ = TimeCoefficient(seconds, sampleRate_);
         cachedRelease_ = release;
     }
-    if (timingChanged)
+    if (timingChanged || reduction != cachedReduction_ || ratioControl != cachedRatioControl_)
     {
         const auto attackPosition = (attack - 4.0) / 3.0;
-        const auto baseThresholdDb = activeMode_.thresholdDb +
-            activeMode_.thresholdAttackSpanDb * attackPosition;
+        const auto threshold = controlMode_ == CompressorControlMode::Emulation
+            ? activeMode_.thresholdDb
+            : kNormalThresholdMaximumDb - kNormalThresholdSpanDb * reduction +
+                activeMode_.thresholdDb - kConfig.normal.thresholdDb;
+        const auto baseThresholdDb = threshold + activeMode_.thresholdAttackSpanDb * attackPosition;
         const auto releasePosition = (release - 4.0) / 3.0;
         const auto controls = EvaluateAllControls(attackPosition, releasePosition, kConfig);
         const auto fastCurveAmount = ratio * attackPosition * std::clamp((release - 5.0) / 2.0, 0.0, 1.0);
@@ -239,12 +271,23 @@ void Cla76Processor::UpdateControlCoefficients(
             fastCurveAmount * kConfig.allFastReleaseThresholdAttackSpanDb;
         activeCompressionSlope_ = activeMode_.compressionSlope + ratio * controls.slopeOffset +
             fastCurveAmount * kConfig.allFastReleaseSlopeAttackSpan;
+        if (controlMode_ == CompressorControlMode::Normal && ratioControl < kNormalRatioFourToOnePosition)
+        {
+            activeCompressionSlope_ = 1.0 - 1.0 / (1.0 + 99.0 * ratioControl);
+        }
         allMemoryLimitDb_ = controls.memoryLimitDb;
         allMemoryCoefficient_ = TimeCoefficient(
             controls.memorySeconds, sampleRate_);
         allReleaseCurrent_ = kConfig.allReleaseCurrentRatio * std::sqrt(DbToGain(baseThresholdDb));
         const auto compressionStart = DbToGain(activeThresholdDb_ - activeMode_.kneeDb * 0.5);
         compressionStartPower_ = compressionStart * compressionStart;
+        if (controlMode_ == CompressorControlMode::Normal)
+        {
+            makeupGain_ = Cla76ProgramMakeupGain(
+                reduction, (7.0 - attack) / 6.0, (7.0 - release) / 6.0, ratioControl);
+        }
+        cachedReduction_ = reduction;
+        cachedRatioControl_ = ratioControl;
     }
 }
 

@@ -1,0 +1,42 @@
+#pragma once
+
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "Shared/Clients/ProtocolClient.h"
+#include "Shared/Clients/RegistryClient.h"
+#include "Shared/Clients/TargetStateClient.h"
+#include "Shared/Editing/HistoryActionSession.h"
+#include "Features/Tracks/Bindings/TrackIntent.h"
+#include "Features/Tracks/Controllers/GroupEditor.h"
+
+namespace consolidator::vst3::features::tracks::controllers
+{
+
+class TrackController final
+{
+public:
+    using Completion = shared::clients::ProtocolClient::Completion;
+    using Banks = std::vector<std::pair<std::uint64_t, int>>;
+    TrackController(shared::clients::ProtocolClient& commands, const shared::clients::RegistryClient& registry,
+        shared::editing::HistoryActionSession& history);
+    void Execute(const features::tracks::bindings::TrackIntent& intent,
+        const shared::clients::UiTarget& target, bool groupScope,
+        Completion completion);
+    void Group(Banks banks, Completion completion);
+    void Ungroup(const shared::clients::UiTarget& target, Completion completion);
+    void Clear(Completion completion);
+    void Process(const std::string& selector, const shared::clients::UiTarget& target, bool groupScope,
+        Completion completion);
+
+private:
+    shared::clients::ProtocolClient& commands_;
+    const shared::clients::RegistryClient& registry_;
+    shared::editing::HistoryActionSession& history_;
+    GroupEditor topology_;
+};
+
+} // namespace consolidator::vst3::features::tracks::controllers

@@ -1,10 +1,19 @@
 # SslChannelProcessor
 
 [Native core](SslChannelProcessor.cpp), [configuration](SslChannelProcessor.h),
-[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/SslChannelPluginProcessor.cpp),
+[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp),
 [research conclusions and limits](Findings.md).
 
-## Scope and ownership
+## Текущее управление
+
+По умолчанию используется Normal: Reduction 0…1 (default 0.5), номинальный
+Output −24…+24 дБ (default 0 дБ). Reduction линейно меняет порог; Output
+напрямую масштабирует выход; SSL makeup действует отдельно в обоих режимах.
+[Полный контракт режимов](../../../../../Docs/Dsp/CompressorControlModes.md).
+Emulation остаётся только в Native-коде и выбирается конструктором.
+Ниже референсные шкалы и измерения описывают этот режим, не единый VST3 UI.
+
+## Emulation: scope and ownership
 
 The accepted simplified Waves SSLChannel Stereo compressor section: Ratio,
 Release, Attack mode and Threshold. Gate, EQ, filters and channel routing are
@@ -24,8 +33,8 @@ Defaults come from the reference Full Reset instance: Analog Off, expander range
 zero, EQ gains zero, filters Out, input/output gain zero, dynamics active. Only
 these four compressor controls were changed during identification. Waves prints
 CompRelease with an ms suffix; the model follows the documented seconds range.
-Host IDs are ratio/release/fastAttack/threshold/bypass. Numeric parameters ramp
-for 10 ms; Fast Attack is a switch. Configuration is immutable Native constexpr.
+Emulation controls retain these units; current host IDs are reduction/output/attack/release/ratio/bypass. Numeric parameters ramp
+for 10 ms; Fast Attack is an immediate switch in Emulation; Normal Attack also selects only its two endpoints. Configuration is immutable Native constexpr.
 
 ## Effective algorithm
 
@@ -76,3 +85,26 @@ suites are prohibited by [rules](../../../../../Docs/Dsp/Rules.md). Raw probes
 remain in EmulationLab/RawAudio; temporary experiment outputs are removed after
 research. The accepted model retains documented reference deviations; this is
 not a claim of exact waveform emulation.
+
+## Universal VST3
+
+The individual adapter/target is removed. This Native model is now selected by
+[DeviceCompressor](../DeviceCompressor/README.md) in Consolidator Compressor.
+Its UI owns the shared Algorithm/Reduction/Output/Attack/Release/Ratio controls.
+
+Normal uses the musical-source settings law shared by the four algorithms,
+including Ratio, Attack and Release. Reduction zero and Ratio 1:1 have unity makeup.
+Emulation alone retains the identified Ratio/Threshold compensation. Nominal
+Output stays independent. [Method and limits](../../../../../Docs/Dsp/ProgramMakeup.md).
+
+Normal Release uses the measured reference taper: normalized positions
+0/.2/.35/.5/.65/.8/1 map to .1/.15/.2/.4/1/2/4 seconds. Default .5 gives .4 s.
+A 1001-position reference readback agrees within .005 s, its display rounding.
+Emulation accepts seconds directly; both modes feed the same timing laws.
+
+Normal Ratio defaults to 0.4, corresponding to 4:1, shared with the universal
+processor and CLA-76 Normal. Reference Emulation still defaults to 1:1.
+
+Normal ratio taper: p=3*control/(64-61*control), physical R=1+99*p.
+This rational function puts useful travel into low ratios and uses no table or pow.
+Emulation still accepts its original physical ratio directly.

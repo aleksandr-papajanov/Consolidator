@@ -1,5 +1,8 @@
 # CLA-76 useful research findings
 
+Current VST3 uses Normal Reduction/Output controls. Reference observations below
+belong to the retained Emulation mode. See [control modes](../../../../../Docs/Dsp/CompressorControlModes.md).
+
 Research is complete. [Cla76Processor](README.md) describes the current
 algorithm; old datasets, manifests, scores and intermediate revisions are not
 the production specification. Raw inputs remain in EmulationLab/RawAudio.
@@ -51,3 +54,52 @@ corrective filter branches were restored. Attack/Release are again reference
 3/4, Ratio 0 (the fitted 4:1 endpoint). Native and Release VST3 were built and
 installed; timing/memory/one-pole colour coefficients remain the current simplified
 values. No new reference-audio accuracy claim follows from this control restore.
+
+## Normal makeup calibration
+
+Fixed -18 dBFS peak / 1 kHz reference compensation was added only to Normal.
+The existing detector/timing/colour laws remain; original Emulation gain is unchanged.
+[Manual measurement grid, fitted law and limits](../../../../../Docs/Dsp/CompressorControlModes.md#normal-automatic-makeup).
+
+## Historical Normal ratio extension to 1:1
+
+Normal now shares SSL's nominal coordinate R=1+99*control and default R=4,
+control=3/99. Below 4:1 the slope is 1-1/R, while timing/knee remain at the existing
+4:1 endpoint and ALL contribution is zero. Above 4:1 the old morph amount is
+(R-4)/96. Curve/makeup caches also track the original normalized control so changes
+within 1:1..4:1 update the slope even though ALL amount stays zero.
+Emulation keeps its original 4:1-to-ALL coordinate and default zero.
+
+Native Release|x64 and the universal Release VST3 built successfully. Installation
+initially hit Permission denied, then succeeded after the user closed the host.
+Installed parameter readback confirms Ratio=0.0303030. Both SSL's standalone
+Normal defaults and the shared controls now use this 4:1 position; SSL Emulation
+retains its original 1:1 default. Native constructors initialise ramps in the
+selected mode's units, including callers that Prepare without SetControls.
+
+Manual EmulationLab investigation rendered 17 settings on the existing 20-second
+-18 dBFS / 1 kHz stereo probe at 44.1 kHz / block 128. For 1:1 the complete
+Reduction=0/1 output samples were identical on this probe. Nine remapped 4:1,
+intermediate and ALL settings were compared with saved preceding-version renders:
+maximum relative waveform RMS difference 7.01e-9; maximum sample difference
+2.98e-8. These are scoped manual observations, not a DSP automated test or proof
+for every signal/automation path. Source review found no new allocation, locking,
+I/O or DSP duplication. Colour remains active at 1:1.
+
+## Corrected Normal knob taper
+
+The first linear 1..100 mapping put 4:1 at 0.0303, leaving too little travel for
+ordinary ratios. It is replaced by p=3*u/(64-61*u), R=1+99*p, shared by 76/SSL.
+The default is now u=0.4; endpoints remain 1:1 and the previous maximum/ALL.
+The taper is applied to targets before the existing internal ramps; compression,
+makeup and ALL laws retain their physical/internal coordinates. Emulation is unchanged.
+Native Release|x64 and universal Release VST3 built and installed successfully;
+installed parameter readback confirms Ratio=0.4000000. This correction was reviewed
+by following defaults/constructor/SetControls through the internal coordinate and
+the 4:1 pivot; no new audio measurements or DSP automated tests were run for the taper.
+
+## Musical-source makeup supersedes the sine calibration
+
+The earlier -18 dBFS Normal makeup is historical and has been removed. Current
+[program calibration](../../../../../Docs/Dsp/ProgramMakeup.md) uses eight original
+recordings equally weighted. Emulation keeps its reference gain laws.

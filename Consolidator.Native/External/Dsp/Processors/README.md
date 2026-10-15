@@ -1,14 +1,17 @@
 # Finished DSP processors
 
-These seven simplified models are complete. Production code and its algorithm documentation
+These seven simplified models are complete, with a universal compressor composite. Four compressors default to Normal
+Reduction/Output; reference control laws are retained in explicit Native Emulation.
+[Control modes](../../../../Docs/Dsp/CompressorControlModes.md). Production code and its algorithm documentation
 live together in one folder per processor. C++ namespace:
 `consolidator::max::dsp::processors`.
 
 | Folder | Algorithm | Research notes |
 | --- | --- | --- |
+| [DeviceCompressor](DeviceCompressor/README.md) | Shared selection of four Normal compressors | [Findings](DeviceCompressor/Findings.md) |
 | [Cla76](Cla76/README.md) | FET compressor, continuous 4:1 to ALL | [Findings](Cla76/Findings.md) |
-| [Cla2a](Cla2a/README.md) | Optical compressor, Reduction and Output | [Findings](Cla2a/Findings.md) |
-| [SslChannel](SslChannel/README.md) | Channel compressor, automatic makeup and normal/Fast attack | [Findings](SslChannel/Findings.md) |
+| [Cla2a](Cla2a/README.md) | Optical compressor, Reduction/Output with retained reference mode | [Findings](Cla2a/Findings.md) |
+| [SslChannel](SslChannel/README.md) | Channel compressor, Reduction/Output, automatic makeup and normalized timing/ratio | [Findings](SslChannel/Findings.md) |
 | [Cla3a](Cla3a/README.md) | Optical compressor, reference Gain and Peak Reduction | [Findings](Cla3a/Findings.md) |
 | [TransientShaper](TransientShaper/README.md) | Signed Attack/Sustain masks and permanent limiting | [Findings](TransientShaper/Findings.md) |
 | [Air](Air/README.md) | High-frequency contour and cubic harmonic enhancement | [Findings](Air/Findings.md) |

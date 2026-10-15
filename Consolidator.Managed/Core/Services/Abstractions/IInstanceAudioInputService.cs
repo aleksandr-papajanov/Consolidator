@@ -6,6 +6,8 @@ public unsafe interface IInstanceAudioInputService
         InstanceId instanceId,
         double* mainLeft,
         double* mainRight,
+        double* referenceLeft,
+        double* referenceRight,
         nuint frameCount);
 }
 

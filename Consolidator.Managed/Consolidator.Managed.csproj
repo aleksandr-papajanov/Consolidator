@@ -21,8 +21,11 @@
     <InternalsVisibleTo Include="Consolidator.Managed.Tests" />
   </ItemGroup>
 
-  <Target Name="BuildNativeBeforePublish" BeforeTargets="PrepareForPublish" Condition="'$(BuildNativeBeforePublish)' == 'true'">
-    <MSBuild Projects="$(MSBuildThisFileDirectory)..\Consolidator.Native\Consolidator.Native.vcxproj" Targets="Build" Properties="Configuration=Release;Platform=x64" />
+  <Target Name="BuildVst3AfterPublish" AfterTargets="Publish"
+          Condition="'$(PublishProfile)' == 'Vst3Plugin' and '$(SkipVst3Build)' != 'true'">
+    <MSBuild
+      Projects="$(MSBuildProjectDirectory)\..\Consolidator.Vst3\Consolidator.Vst3.vcxproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration);Platform=x64" />
   </Target>
-
 </Project>

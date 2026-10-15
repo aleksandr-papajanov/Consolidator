@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 
+#include "../CompressorControlMode.h"
 #include "../../DspParameterRamp.h"
 #include "../../DspProcessingContext.h"
 
@@ -10,13 +11,21 @@ namespace consolidator::max::dsp::processors
 {
 
 // Reference Input/Output attenuators, Attack/Release 1..7 (slow to fast), Ratio 4:1 to ALL.
-struct Cla76Controls
+struct Cla76EmulationControls
 {
     double inputGain{ 0.03162277660168379 };
     double outputGain{ 0.12589254117941673 };
     double attack{ 3.0 };
     double release{ 4.0 };
     double ratio{};
+};
+
+struct Cla76Controls : CompressorControls
+{
+    double attack{ 2.0 / 3.0 };
+    double release{ 0.5 };
+    double ratio{ kNormalRatioDefault };
+    Cla76EmulationControls emulation;
 };
 
 struct Cla76CompressionConfig
@@ -59,38 +68,42 @@ struct Cla76Config
     double outputCalibrationDb{ 27.2 };
 };
 
-// Shared Bluey core with continuous 4:1-to-ALL controls.
+// Bluey core: Normal 1:1-to-ALL, retained reference 4:1-to-ALL in Emulation.
 class Cla76Processor final
 {
 public:
-    Cla76Processor() noexcept;
+    explicit Cla76Processor(CompressorControlMode controlMode = CompressorControlMode::Normal) noexcept;
     void Prepare(const DspProcessingContext& context) noexcept;
     void Reset() noexcept;
-    void SetControls(
-        double inputGain, double outputGain, double attack, double release, double ratio) noexcept;
+    void SetControls(const Cla76Controls& controls) noexcept;
     void Process(DspAudioBuffer audio, DspChannelMode mode = DspChannelMode::Stereo) noexcept;
 
 private:
     void UpdateMode(double ratio) noexcept;
-    void UpdateControlCoefficients(double attack, double release, double ratio) noexcept;
+    void UpdateControlCoefficients(
+        double attack, double release, double ratio, double reduction, double ratioControl) noexcept;
     [[nodiscard]] double CalculateTargetReductionDb() const noexcept;
     void UpdateDetector(double detectorAmplitude, double ratio) noexcept;
     [[nodiscard]] double UpdateMemoryReductionDb(double targetDb, double ratio) noexcept;
     [[nodiscard]] double ProcessColourSample(double input, std::size_t channel) noexcept;
 
     inline static constexpr Cla76Config kConfig{};
+    const CompressorControlMode controlMode_;
     Cla76CompressionConfig activeMode_;
+    DspParameterRamp reduction_{ Cla76Controls{}.reduction };
+    double cachedReduction_{ -1.0 };
     DspParameterRamp inputGain_;
     DspParameterRamp outputGain_;
-    DspParameterRamp attack_{ Cla76Controls{}.attack };
-    DspParameterRamp release_{ Cla76Controls{}.release };
-    DspParameterRamp ratio_{ Cla76Controls{}.ratio };
+    DspParameterRamp attack_{ Cla76EmulationControls{}.attack };
+    DspParameterRamp release_{ Cla76EmulationControls{}.release };
+    DspParameterRamp ratio_;
 
     // Curve and time coefficients are cached until their live controls change.
     double sampleRate_{};
     double inputCalibration_{};
     double outputCalibration_{};
     double modeOutputGain_{ 1.0 };
+    double makeupGain_{ 1.0 };
     double attackCoefficient_{};
     double releaseCoefficient_{};
     double cachedNominalInput_{ -1.0 };
@@ -98,6 +111,7 @@ private:
     double cachedAttack_{ -1.0 };
     double cachedRelease_{ -1.0 };
     double cachedRatio_{ -1.0 };
+    double cachedRatioControl_{ -1.0 };
 
     // One linked detector and a warm ALL memory serve every Ratio setting.
     double detectorPower_{};

@@ -1,4 +1,5 @@
 #include "ConsolidatorExternal.h"
+#include "MaxManagedHost.h"
 
 #include <algorithm>
 #include <chrono>
@@ -24,7 +25,7 @@ constexpr std::size_t kMaxControlAtomsPerDrain = 4096;
 }
 
 ConsolidatorExternal::ConsolidatorExternal()
-    : managed_()
+    : managed_(ResolveManagedLibraryPath(), &WriteManagedLog)
 {
     value.set_visibility(c74::min::visibility::hide);
 

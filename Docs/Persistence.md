@@ -38,13 +38,20 @@ unbounded Native allocation. Decode rejects the wrong marker, non-integral
 atoms, inconsistent lengths, extra/truncated chunks, hidden trailing bytes and
 out-of-range packed values before calling Managed restore.
 
-The current payload is schema `4`. It stores instance mute and solo, bank group
+The current payload is schema `5`. It stores instance mute, solo and bypass, bank group
 membership, input `level`, `target`, `width`, and `leveler`; saturation
 `drive`, `curve`, `split`, and `output`; compressor `attack`, `sustain`,
 `compression`, enum `character`, `parallel`, and `output`; Polish `thick` and
 `air`; output `level`, `target`, and `limiter`; and the DSP bypass values.
 The previous threshold/ratio/release/mix model is not decoded as a
 compatibility format.
+
+Input detector filter values are a known omission in the current Managed
+snapshot: `CreateInput` and `ApplyInput` do not capture or restore them, while
+Saturator and Compressor detector filters are persisted. Consequently, edits to
+the Input detector are lost on project reload in both Max and VST3. Fixing this
+requires a Managed persistence-schema change; the VST3 frontend must not add a
+separate state copy.
 
 The numeric Blob marker is the only supported Max-side representation. Saved
 development devices created with the former JSON-symbol representation must be
@@ -76,15 +83,14 @@ restored instance while the baseline transaction runs.
 
 ## Serialized state
 
-Schema version 1 contains:
+The current schema contains:
 
-- instance mute and solo;
+- instance mute, solo and bypass;
 - group membership for all seven banks;
 - input and output gain;
-- saturator and detector state;
-- compressor and detector state;
-- input and detector state;
-- equalizer bypass/solo and all filters in all seven banks.
+- saturator and Saturator detector state;
+- compressor and Compressor detector state;
+- equalizer and bank bypass and all filters in all seven banks.
 
 Instance IDs, labels, UI selection, analyzer state, runtime handles, DSP exchange
 buffers and history cursor metadata are not serialized.
@@ -105,6 +111,11 @@ buffers and history cursor metadata are not serialized.
 
 Persistence capture and restore are control-path operations and never run from
 the audio callback.
+
+The VST3 host uses the same Managed capture/restore exports with UTF-8 bytes in
+JUCE state callbacks. View models and bindings do not serialize state. The
+host boundary and wrapper format are described in
+[Vst3Migration.md](Vst3Migration.md); UI refactoring does not change the schema.
 
 ## Verification
 

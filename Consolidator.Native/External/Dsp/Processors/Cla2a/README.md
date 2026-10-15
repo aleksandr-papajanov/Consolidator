@@ -1,20 +1,25 @@
 # Cla2aProcessor
 
 [Native algorithm](Cla2aProcessor.cpp), [configuration](Cla2aProcessor.h),
-[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/Cla2aPluginProcessor.cpp).
+[VST3 adapter](../../../../../ModelPlugins.Vst3/Source/DeviceCompressorPluginProcessor.cpp).
 
-The interface exposes Reduction, Output and Bypass. Reduction is normalized 0..1;
-Output is linear amplitude 0..1, displayed -infinity..0 dB, with prepared +39 dB
-calibration. Reduction changes threshold, not the audio input level. It specifies
-sensitivity rather than guaranteed attenuation for every signal. Zero Reduction
-stops new compression while optical memories recover; zero Output mutes.
+## Текущее управление
 
-Defaults: Reduction 0.598 and Output 0.02985085 (display -30.50 dB). These retain
-the identified startup near reference Gain 40 / Peak Reduction 46. Reduction uses
-the former reference-normalized Peak Reduction domain; its UI now shows 0..1.
-The old Gain taper is replaced by nominal Output gain. Compressor mode and all
-other reference settings remain as used during identification. Parameter IDs are
-reduction/output/bypass. Use a fresh instance; old presets are not migrated.
+По умолчанию используется Normal: Reduction 0…1 (default 0.5), номинальный
+Output −24…+24 дБ (default 0 дБ). Reduction линейно меняет порог; Output
+напрямую масштабирует выход; Normal-компенсация подобрана отдельно по музыкальным источникам.
+[Полный контракт режимов](../../../../../Docs/Dsp/CompressorControlModes.md).
+Emulation остаётся только в Native-коде и выбирается конструктором.
+Ниже референсные шкалы и измерения описывают этот режим, не единый VST3 UI.
+
+The emulation contract exposes reference Gain, Peak Reduction and Bypass. Native controls
+are normalized 0..1; the stored reference scale converts to and from 0..100 units through
+the identified nonlinear tapers. Defaults are normalized Gain 0.535 / Peak Reduction
+0.598, displayed 40.00 / 46.00. Gain controls the audio output outside the detector;
+Peak Reduction moves the compression threshold. Zero Peak Reduction stops new
+compression while optical memories recover. Gain zero is finite attenuation,
+not a mute. Compressor mode and all other reference defaults remain fixed.
+The current host instead uses reduction/output/bypass; presets are not migrated.
 
 This is a separate Native algorithm in consolidator::max::dsp::processors.
 VST3 compiles the same source and owns only two host controls, Bypass, state and
@@ -24,10 +29,10 @@ CLA-2A is included in the Native project but is not connected to the runtime gra
 ## Current algorithm
 
 CLA-2A retains its identified optical response and variable threshold law.
-Reduction passes through the measured two-region reference taper (pivot 0.4,
+Peak Reduction passes through the measured two-region reference taper (pivot 0.4,
 exponents 5.994/4.6213) to displayed reference units. Threshold is -2.70 dB at
 reference position 40, with the measured six regional slopes above 40 and 1.69 dB
-per unit below 40. The curve is cached until Reduction changes. This restores the
+per unit below 40. The curve is cached until Peak Reduction changes. This restores the
 previous Peak Reduction sensitivity exactly; no fixed-threshold input calibration
 or detector input multiplier remains.
 
@@ -51,8 +56,11 @@ value and target. Slow fraction is 0.1903; their dB blend becomes audio gain.
 Memory coefficients use one square root and rational arithmetic; the final
 dB-to-gain conversion remains exponential.
 
-Output applies its amplitude ramp times the prepared +39 dB calibration.
-Displayed -39 dB gives unity output gain; -infinity mutes.
+Gain uses the shared two-region display taper (pivot 0.35, exponents 6.507/4.3812).
+Its output law starts at -51.35 dB and integrates ten measured regional dB slopes,
+one per ten displayed units. These are regional function coefficients, not a
+lookup table. The result is converted to amplitude and cached until Gain changes.
+The extra +39 dB nominal-output calibration has been removed.
 
 Audio colour consists of a first-order 4.3 Hz high pass and a −0.6 dB high shelf
 at 6 kHz. State remains per channel; compression is linked. Preparation, curve
@@ -77,15 +85,16 @@ Mix 1 and Trim 0.5. [Findings and remaining limits](Findings.md).
 [Research workflow](../../../../../Docs/Dsp/EmulationLab.md).
 [DSP rules](../../../../../Docs/Dsp/Rules.md) prohibit automated audio tests.
 
-## Interface change
+## Restored reference controls
 
-Output = 10^((formerGainDb-39)/20). Reduction retains the former reference
-normalized Peak Reduction value. The two optical memories, detector, knee, deep
-curve and colour are unchanged. Automation of Reduction again moves the threshold
-instead of scaling detector input. Earlier Input/Output conversion measurements
-are historical; they do not describe the current control API.
+Gain taper and its rounded regional output law were recovered from this project's
+saved chat, together with the shared scale/inverse used by the previous adapter.
+Peak Reduction keeps the existing threshold law; its display conversion now uses
+the same Native helper. Reference text rounds to 0.04 units as in the prior adapter.
+Current detector, optical timing, deep-reduction curve and colour are retained.
+No extra harmonic processing or interpolation tables were introduced.
 
-## Manual verification of Reduction/Output
+## Historical verification of Reduction/Output
 
 Native Release|x64 and this model's Release VST3 were built and installed.
 A requested EmulationLab comparison used 46 static mapped settings on the
@@ -98,3 +107,18 @@ These observations cover mapped static settings, not equivalence during automati
 or an accuracy bound against Waves. Optical/timing and colour constants are retained.
 No DSP automated tests were created or run. Source review found no new allocation,
 locking, I/O, host-side algorithm, duplicate API or preset migration path.
+
+## Universal VST3
+
+The individual adapter/target is removed. This Native model is now selected by
+[DeviceCompressor](../DeviceCompressor/README.md) in Consolidator Compressor.
+Its UI owns the shared Algorithm/Reduction/Output/Attack/Release/Ratio controls.
+
+## Normal automatic makeup
+
+Normal uses a compact settings law fitted to eight unnormalised musical sources,
+with equal source weights. It balances average loudness across algorithms rather
+than preserving a particular sine operating point. Optical models depend only on
+Reduction; 76/SSL also include Attack, Release and Ratio. No running loudness
+matcher or new detector history is added. Original Emulation gain is unchanged.
+[Method, results and limits](../../../../../Docs/Dsp/ProgramMakeup.md).
