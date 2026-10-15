@@ -17,11 +17,14 @@ public:
     [[nodiscard]] const std::string& Label() const;
     void SetEnabled(bool enabled);
     [[nodiscard]] bool Enabled() const;
+    void SetAvailable(bool available);
+    [[nodiscard]] bool Available() const;
 
 private:
     shared::clients::ParameterEntry entry_;
     std::string label_;
     bool enabled_{};
+    bool available_{ true };
 };
 
 } // namespace consolidator::vst3::shared::presentation

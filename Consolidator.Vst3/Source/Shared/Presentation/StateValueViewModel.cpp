@@ -41,6 +41,8 @@ const shared::clients::ParameterEntry& StateValueViewModel::Entry() const { retu
 const std::string& StateValueViewModel::Path() const { return entry_.path; }
 const std::string& StateValueViewModel::Label() const { return label_; }
 void StateValueViewModel::SetEnabled(bool enabled) { enabled_ = enabled; }
-bool StateValueViewModel::Enabled() const { return enabled_; }
+bool StateValueViewModel::Enabled() const { return enabled_ && available_; }
+void StateValueViewModel::SetAvailable(bool available) { available_ = available; }
+bool StateValueViewModel::Available() const { return available_; }
 
 } // namespace consolidator::vst3::shared::presentation

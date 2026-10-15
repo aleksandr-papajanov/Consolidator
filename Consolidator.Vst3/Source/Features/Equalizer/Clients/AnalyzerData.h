@@ -6,7 +6,7 @@
 
 #include "Shared/Clients/ParameterEntry.h"
 
-namespace consolidator::vst3::shared::clients
+namespace consolidator::vst3::features::equalizer::clients
 {
 
 using BankSnapshots = std::array<std::vector<shared::clients::ParameterEntry>, 7>;
@@ -19,4 +19,4 @@ struct AnalyzerSpectrum
     std::vector<double> reference;
 };
 
-} // namespace consolidator::vst3::shared::clients
+} // namespace consolidator::vst3::features::equalizer::clients

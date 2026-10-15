@@ -11,7 +11,8 @@
 #include "Host/Editor/EditorServices.h"
 #include "Shared/Theme/UiLookAndFeel.h"
 #include "Features/Equalizer/Controls/EqualizerControl.h"
-#include "Features/Tracks/Controls/TrackListControl.h"
+#include "Features/Tracks/Controls/BankManagerControl.h"
+#include "Features/Equalizer/Controllers/EqualizerController.h"
 #include "Features/Tracks/Controls/InstanceButtonsControl.h"
 #include "Features/Tracks/Controllers/TrackController.h"
 #include "Shared/Editing/DialGestureSession.h"
@@ -24,9 +25,9 @@
 #include "Shared/Clients/TargetStateClient.h"
 #include "Shared/Clients/StateCommands.h"
 #include "Shared/Clients/HistoryClient.h"
-#include "Shared/Clients/InputTelemetryClient.h"
+#include "Features/ChannelStrip/GainStaging/Clients/InputTelemetryClient.h"
 #include "Features/ChannelStrip/Bindings/ChannelStripBindings.h"
-#include "Shared/Clients/AnalyzerClient.h"
+#include "Features/Equalizer/Clients/AnalyzerClient.h"
 #include "Features/Equalizer/Bindings/AnalyzerBindings.h"
 #include "Host/Editor/EditorSession.h"
 #include "Features/Tracks/ViewModels/TracksViewModel.h"
@@ -56,6 +57,7 @@ private:
     void FetchRegistry();
     void FetchBankSnapshots();
     void RegistryChanged();
+    void RefreshProcessorMarkers();
     void HandleTrackIntent(const features::tracks::bindings::TrackIntent& intent);
     void SelectTarget(std::uint64_t instance, int bank);
     void GroupSelectedBanks();
@@ -80,15 +82,16 @@ private:
     shared::clients::ProtocolClient commands_;
     shared::clients::TargetStateClient targetState_;
     shared::clients::StateCommands stateCommands_;
-    shared::clients::AnalyzerClient analyzerClient_;
+    features::equalizer::clients::AnalyzerClient analyzerClient_;
     shared::clients::HistoryClient history_;
-    shared::clients::InputTelemetryClient telemetry_;
+    features::channelstrip::gainstaging::clients::InputTelemetryClient telemetry_;
     shared::clients::RegistryClient registry_;
     shared::clients::TrackLevelClient trackLevels_;
     std::uint64_t nextTransaction_{ 1 };
     features::tracks::controllers::TrackController trackActions_;
+    features::equalizer::controllers::EqualizerController equalizerActions_;
     features::tracks::viewmodels::TracksViewModel tracks_;
-    features::tracks::controls::TrackListControl trackList_;
+    features::tracks::controls::BankManagerControl bankManager_;
     features::tracks::controls::InstanceButtonsControl instanceButtons_;
     shared::editing::DialGestureSession gesture_;
     features::equalizer::bindings::AnalyzerBindings analyzerBindings_;
@@ -96,15 +99,10 @@ private:
     features::channelstrip::bindings::ChannelStripBindings channelStripBindings_;
     features::channelstrip::controls::ChannelStripControl channelStrip_;
     EditorSession session_;
-    juce::Label title_;
     juce::Label trackTitle_;
     juce::Label status_;
-    juce::TextButton reset_{ "Reset All" };
     shared::controls::ActionButton undo_{ "Undo" };
     shared::controls::ActionButton redo_{ "Redo" };
-    shared::controls::ActionButton group_{ "Group" };
-    shared::controls::ActionButton ungroup_{ "Ungroup" };
-    shared::controls::ActionButton clear_{ "Clear" };
     juce::TextButton scope_{ "Local" };
     juce::TextButton scale_{ "100%" };
     juce::TextButton trackListToggle_{ "Hide Tracks" };

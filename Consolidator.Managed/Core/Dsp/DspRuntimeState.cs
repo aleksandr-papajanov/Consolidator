@@ -96,37 +96,37 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.SaturatorBypass = value ? 1U : 0U;
     }
 
-    public float CompressorAttack
+    public float DynamicsShaperAttack
     {
         get => _snapshot.CompressorAttack;
         set => _snapshot.CompressorAttack = value;
     }
 
-    public float CompressorSustain
+    public float DynamicsShaperSustain
     {
         get => _snapshot.CompressorSustain;
         set => _snapshot.CompressorSustain = value;
     }
 
-    public float CompressorCompression
+    public float DynamicsCompressionReduction
     {
         get => _snapshot.CompressorCompression;
         set => _snapshot.CompressorCompression = value;
     }
 
-    public int CompressorCharacter
+    public int DynamicsCompressionType
     {
         get => (int)_snapshot.CompressorCharacter;
         set => _snapshot.CompressorCharacter = (uint)value;
     }
 
-    public bool CompressorParallel
+    public bool DynamicsParallel
     {
         get => _snapshot.CompressorParallel != 0;
         set => _snapshot.CompressorParallel = value ? 1U : 0U;
     }
 
-    public float CompressorOutputDb
+    public float DynamicsShaperOutputDb
     {
         get => _snapshot.CompressorOutputDb;
         set => _snapshot.CompressorOutputDb = value;
@@ -150,10 +150,48 @@ public unsafe sealed class DspRuntimeState
         set => _snapshot.PolishBypass = value ? 1U : 0U;
     }
 
-    public bool CompressorBypass
+    public bool DynamicsShaperBypass
     {
-        get => _snapshot.CompressorBypass != 0;
-        set => _snapshot.CompressorBypass = value ? 1U : 0U;
+        get => _snapshot.DynamicsShaperBypass != 0;
+        set
+        {
+            _snapshot.DynamicsShaperBypass = value ? 1U : 0U;
+            RefreshDynamicsBypass();
+        }
+    }
+
+    public float DynamicsCompressionOutputDb
+    {
+        get => _snapshot.DynamicsCompressionOutputDb;
+        set => _snapshot.DynamicsCompressionOutputDb = value;
+    }
+
+    public float DynamicsCompressionAttack
+    {
+        get => _snapshot.DynamicsCompressionAttack;
+        set => _snapshot.DynamicsCompressionAttack = value;
+    }
+
+    public float DynamicsCompressionRelease
+    {
+        get => _snapshot.DynamicsCompressionRelease;
+        set => _snapshot.DynamicsCompressionRelease = value;
+    }
+
+    public float DynamicsCompressionRatio
+    {
+        get => _snapshot.DynamicsCompressionRatio;
+        set => _snapshot.DynamicsCompressionRatio = value;
+    }
+
+    public bool DynamicsCompressionBypass
+    {
+        get => _snapshot.DynamicsCompressionBypass != 0;
+        set
+        {
+            _snapshot.DynamicsCompressionBypass = value ? 1U : 0U;
+            RefreshDynamicsBypass();
+        }
     }
 
     public bool EqualizerBypass
@@ -283,6 +321,12 @@ public unsafe sealed class DspRuntimeState
                 : 0U;
     }
 
+    private void RefreshDynamicsBypass()
+    {
+        _snapshot.CompressorBypass = 1U;
+        _snapshot.CompressorActive = 0U;
+    }
+
     private ref FilterSnapshot GetDetectorFilter(int index)
     {
         if ((uint)index >= DspConstants.DetectorFilterCount * 3)
@@ -293,7 +337,5 @@ public unsafe sealed class DspRuntimeState
         return ref _snapshot.DetectorFilters[index];
     }
 }
-
-
 
 

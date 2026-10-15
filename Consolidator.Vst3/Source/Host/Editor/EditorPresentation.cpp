@@ -19,9 +19,11 @@ EditorPresentation::EditorPresentation(EditorServices services)
           { return services_.request(selector, std::move(body)); }),
       targetState_(commands_), stateCommands_(commands_, targetState_),
       analyzerClient_(commands_, targetState_), history_(commands_),
-      trackActions_(commands_, registry_),
+      trackActions_(commands_, registry_), equalizerActions_(commands_),
       tracks_(registry_, trackLevels_, services_.instanceId),
-      trackList_(tracks_, [this](const features::tracks::bindings::TrackIntent& intent) { HandleTrackIntent(intent); }),
+      bankManager_(tracks_, [this](const features::tracks::bindings::TrackIntent& intent) { HandleTrackIntent(intent); },
+          { [this] { GroupSelectedBanks(); }, [this] { UngroupFocusedBank(); },
+            [this] { ClearGroups(); }, [this] { ResetAll(); } }),
       instanceButtons_(tracks_, [this](const features::tracks::bindings::TrackIntent& intent)
           { HandleTrackIntent(intent); }, services_.instanceId),
       gesture_([this](const std::string& selector, std::vector<shared::protocol::ProtocolValue> body, Completion completion)
@@ -36,6 +38,7 @@ EditorPresentation::EditorPresentation(EditorServices services)
       equalizer_(analyzerBindings_, targetState_, tracks_, {
           [this](const features::tracks::bindings::TrackIntent& intent) { HandleTrackIntent(intent); },
           [this](const std::string& path, std::int64_t value) { CommitDiscreteValue(path, value); },
+          [this](const std::string& path) { ResetValue(path); },
           [this](const std::string& selector) { ProcessBank(selector); },
           [this] { return services_.sampleRate(); } }),
       channelStripBindings_(targetState_, gesture_, {
@@ -80,15 +83,10 @@ EditorPresentation::EditorPresentation(EditorServices services)
           [this] { UpdateInactiveOverlay(); } })
 {
     setLookAndFeel(&lookAndFeel_);
-    title_.setText("Consolidator", juce::dontSendNotification);
-    for (auto* title : { &title_, &trackTitle_ })
-    {
-        title->setFont(juce::Font(juce::FontOptions("Arial", shared::ui::kTitleFontHeight, juce::Font::plain)));
-        title->setColour(juce::Label::textColourId, shared::ui::kActiveText);
-        addAndMakeVisible(title);
-    }
+    trackTitle_.setFont(juce::Font(juce::FontOptions("Arial", shared::ui::kTitleFontHeight, juce::Font::plain)));
+    trackTitle_.setColour(juce::Label::textColourId, shared::ui::kActiveText);
+    addAndMakeVisible(trackTitle_);
     addAndMakeVisible(status_);
-    reset_.onClick = [this] { ResetAll(); };
     undo_.onClick = [this]
     {
         SetBusy(true);
@@ -99,9 +97,6 @@ EditorPresentation::EditorPresentation(EditorServices services)
         SetBusy(true);
         history_.Redo(CommandCompletion());
     };
-    group_.onClick = [this] { GroupSelectedBanks(); };
-    ungroup_.onClick = [this] { UngroupFocusedBank(); };
-    clear_.onClick = [this] { ClearGroups(); };
     scope_.onClick = [this] { SetGroupScope(!tracks_.GroupScope()); };
     scale_.onClick = [this]
     {
@@ -116,8 +111,7 @@ EditorPresentation::EditorPresentation(EditorServices services)
         services_.resizeEditor();
         repaint();
     };
-    for (auto* component : std::array<juce::Component*, 10>{ &reset_, &undo_, &redo_,
-            &group_, &ungroup_, &clear_, &scope_, &trackList_, &scale_, &trackListToggle_ })
+    for (auto* component : std::array<juce::Component*, 6>{ &undo_, &redo_, &scope_, &bankManager_, &scale_, &trackListToggle_ })
     {
         addAndMakeVisible(component);
     }
@@ -202,18 +196,10 @@ void EditorPresentation::resized()
     {
         sidebarActions[index]->setBounds(bounds.sidebarActions[index]);
     }
-    title_.setBounds(bounds.brandingTitle);
-    title_.setVisible(trackListExpanded_);
     trackTitle_.setBounds(bounds.trackTitle);
     instanceButtons_.setBounds(bounds.trackButtons);
-    trackList_.setBounds(bounds.trackList);
-    trackList_.setVisible(trackListExpanded_);
-    const std::array<juce::Button*, 4> actions{ &group_, &ungroup_, &clear_, &reset_ };
-    for (std::size_t index = 0; index < actions.size(); ++index)
-    {
-        actions[index]->setBounds(bounds.trackActions[index]);
-        actions[index]->setVisible(trackListExpanded_);
-    }
+    bankManager_.setBounds(bounds.bankManager);
+    bankManager_.setVisible(trackListExpanded_);
     equalizer_.setBounds(bounds.equalizer);
     channelStrip_.setBounds(bounds.channelStrip);
     status_.setBounds(bounds.status);
@@ -272,7 +258,7 @@ void EditorPresentation::Observe()
     channelStrip_.RefreshPath(std::string(channelStripBindings_.GainStaging().OverlayPath()));
     analyzerClient_.Invalidate();
     resized();
-    trackList_.RefreshPresentation();
+    bankManager_.RefreshPresentation();
     RefreshTrackTitle();
     targetState_.Observe({ tracks_.FocusedInstance(), tracks_.FocusedBank() });
     FetchBankSnapshots();
@@ -308,22 +294,18 @@ void EditorPresentation::SetBusy(bool busy)
 
     channelStripBindings_.Parameters().SetEditing(editing);
     channelStrip_.SetEditing(editing, navigation);
-    reset_.setEnabled(navigation);
     undo_.setEnabled(navigation && history_.CanUndo());
     redo_.setEnabled(navigation && history_.CanRedo());
-    trackList_.setEnabled(navigation && registry_.Ready());
+    bankManager_.SetEditing(navigation, registry_.Ready());
     instanceButtons_.setEnabled(navigation && registry_.Ready() && registry_.Find(tracks_.FocusedInstance()) != nullptr);
     instanceButtons_.SetInstance(tracks_.FocusedInstance());
     const auto actions = tracks_.Actions();
-    group_.setEnabled(navigation && actions.group);
     const auto bank = registry_.FindBank(tracks_.FocusedInstance(), tracks_.FocusedBank());
     const auto groupColor = bank != nullptr && bank->group ? shared::ui::GroupColor(*bank->group) : shared::ui::kLines;
 
     channelStripBindings_.Parameters().SetScope(tracks_.GroupScope());
     channelStrip_.SetScopeColor(groupColor);
-    ungroup_.setEnabled(navigation && actions.ungroup);
     scope_.setEnabled(navigation && actions.scope);
-    clear_.setEnabled(navigation && actions.clear);
 }
 
 void EditorPresentation::UpdateInactiveOverlay()
@@ -343,6 +325,7 @@ void EditorPresentation::ApplySnapshot(const shared::protocol::ProtocolFrame& fr
     equalizer_.ApplySnapshot();
 
     channelStrip_.Rebuild(channelStripBindings_);
+    RefreshProcessorMarkers();
     resized();
     SetBusy(false);
     status_.setText("", juce::dontSendNotification);
@@ -363,6 +346,10 @@ void EditorPresentation::ApplyChangedValue(const shared::protocol::ProtocolFrame
     if (update.parameterChanged)
     {
         channelStrip_.RefreshPath(entry->path);
+    }
+    if (update.availabilityChanged)
+    {
+        SetBusy(busy_);
     }
     if (update.runtimeOverlayChanged)
     {
@@ -479,7 +466,8 @@ void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& fram
     }
     else if (trackLevels_.Handle(frame))
     {
-        trackList_.repaint();
+        bankManager_.RefreshLevels();
+        equalizer_.RefreshTrackLevels();
     }
     else
     {
@@ -495,7 +483,8 @@ void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& fram
         else if (update == shared::clients::RegistryUpdate::PresentationChanged)
         {
             tracks_.ConfirmFeedback();
-            trackList_.RefreshPresentation();
+            bankManager_.RefreshPresentation();
+            RefreshProcessorMarkers();
             equalizer_.RefreshAcceptedState();
             instanceButtons_.RefreshPresentation();
         }
@@ -504,8 +493,9 @@ void EditorPresentation::RouteOutput(const shared::protocol::ProtocolFrame& fram
 
 void EditorPresentation::RegistryChanged()
 {
+    RefreshProcessorMarkers();
     tracks_.Refresh();
-    trackList_.Refresh();
+    bankManager_.Refresh();
     if (session_.Active() && registry_.Find(tracks_.FocusedInstance()) == nullptr)
     {
         gesture_.Cancel();
@@ -541,6 +531,30 @@ void EditorPresentation::SelectTarget(std::uint64_t instance, int bank)
     Observe();
 }
 
+void EditorPresentation::RefreshProcessorMarkers()
+{
+    if (!registry_.Ready() || !targetState_.Ready())
+    {
+        return;
+    }
+    const auto* instance = registry_.Find(targetState_.Target().instance);
+    if (instance == nullptr)
+    {
+        return;
+    }
+    for (const auto& processor : instance->processors)
+    {
+        if (processor.id == "equalizer")
+        {
+            equalizer_.ApplyProcessorStatus(processor);
+        }
+        else
+        {
+            channelStrip_.ApplyProcessorStatus(processor);
+        }
+    }
+}
+
 void EditorPresentation::SetGroupScope(bool groupScope)
 {
     tracks_.SetFocus(tracks_.FocusedInstance(), tracks_.FocusedBank(), groupScope);
@@ -552,7 +566,7 @@ void EditorPresentation::SetGroupScope(bool groupScope)
         bank != nullptr && bank->group ? shared::ui::GroupColor(*bank->group) : shared::ui::kActive);
     channelStripBindings_.Parameters().SetScope(groupScope);
     channelStrip_.SetScopeColor(bank != nullptr && bank->group ? shared::ui::GroupColor(*bank->group) : shared::ui::kLines);
-    trackList_.RefreshPresentation();
+    bankManager_.RefreshPresentation();
     equalizer_.RefreshAcceptedState();
     instanceButtons_.RefreshPresentation();
 }
@@ -625,7 +639,7 @@ void EditorPresentation::ResetAll()
 
 void EditorPresentation::HandleTrackIntent(const features::tracks::bindings::TrackIntent& intent)
 {
-    trackList_.repaint();
+    bankManager_.RefreshPresentation();
     equalizer_.RefreshAcceptedState();
     if (busy_ || gesture_.Active() || !session_.Active())
     {
@@ -636,7 +650,7 @@ void EditorPresentation::HandleTrackIntent(const features::tracks::bindings::Tra
         SetBusy(false);
         return;
     }
-    if (intent.kind == features::tracks::bindings::TrackIntentKind::SelectBank || intent.kind == features::tracks::bindings::TrackIntentKind::SelectProcessor)
+    if (intent.kind == features::tracks::bindings::TrackIntentKind::SelectBank)
     {
         SelectTarget(intent.instance, intent.bank);
         return;
@@ -647,7 +661,7 @@ void EditorPresentation::HandleTrackIntent(const features::tracks::bindings::Tra
         if (!accepted)
         {
             tracks_.Feedback().Clear();
-            trackList_.repaint();
+            bankManager_.RefreshPresentation();
         }
         completion(accepted);
     });
@@ -707,6 +721,6 @@ void EditorPresentation::ProcessBank(const std::string& selector)
 {
     // Commit/Refine handlers advance history only after successful optimization.
     SetBusy(true);
-    trackActions_.Process(selector, targetState_.Target(), tracks_.GroupScope(), CommandCompletion());
+    equalizerActions_.Process(selector, targetState_.Target(), tracks_.GroupScope(), CommandCompletion());
 }
 } // namespace consolidator::vst3::host::editor

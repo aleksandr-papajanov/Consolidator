@@ -129,13 +129,17 @@ internal sealed class ActivityObserver
             MathF.Abs(_dsp.Saturator.Drive.Value) > ActivityEpsilon ||
                 MathF.Abs(_dsp.Saturator.OutputDb.Value) > ActivityEpsilon,
             _dsp.Saturator.Bypass.Value),
-        ProcessorId.Compressor => new(
+        ProcessorId.Shaper => new(
             processorId,
-            MathF.Abs(_dsp.Compressor.Attack.Value) > ActivityEpsilon ||
-                MathF.Abs(_dsp.Compressor.Sustain.Value) > ActivityEpsilon ||
-                MathF.Abs(_dsp.Compressor.Compression.Value) > ActivityEpsilon ||
-                MathF.Abs(_dsp.Compressor.OutputDb.Value) > ActivityEpsilon,
-            _dsp.Compressor.Bypass.Value),
+            MathF.Abs(_dsp.Shaper.Attack.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Shaper.Sustain.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Shaper.OutputDb.Value) > ActivityEpsilon,
+            _dsp.Shaper.Bypass.Value),
+        ProcessorId.Compression => new(
+            processorId,
+            MathF.Abs(_dsp.Compression.Reduction.Value) > ActivityEpsilon ||
+                MathF.Abs(_dsp.Compression.OutputDb.Value) > ActivityEpsilon,
+            _dsp.Compression.Bypass.Value),
         ProcessorId.Equalizer => new(
             processorId,
             _bankActivities.Any(active => active),

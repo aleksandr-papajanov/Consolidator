@@ -22,7 +22,7 @@ public static class StateValueDefinitions
             new(-1.0F, new(-36.0F, 0.0F)),
             new(-1.0F, new(-36.0F, 0.0F)),
             new(1.0F, new(0.0F, 1.0F)));
-        Compressor = new CompressorDefinitions(
+        Shaper = new ShaperDefinitions(
             new StateValueDefinition<float>(
                 0.0F,
                 new FloatRange(-1.0F, 1.0F)),
@@ -31,10 +31,16 @@ public static class StateValueDefinitions
                 new FloatRange(-1.0F, 1.0F)),
             new StateValueDefinition<float>(
                 0.0F,
-                new FloatRange(0.0F, 1.0F)),
+                new FloatRange(-36.0F, 36.0F)),
+            Common.CopyValueWithoutHistory);
+        Compression = new CompressionDefinitions(
+            new StateValueDefinition<float>(0.0F, new(0.0F, 1.0F)),
             new StateValueDefinition<int>(0),
-            new StateValueDefinition<bool>(false),
-            new(0.0F, new(-36.0F, 36.0F)));
+            new(0.0F, new(-36.0F, 36.0F)),
+            new StateValueDefinition<float>(0.0F, new(0.0F, 1.0F)),
+            new StateValueDefinition<float>(0.0F, new(0.0F, 1.0F)),
+            new StateValueDefinition<float>(0.5F, new(0.0F, 1.0F)),
+            Common.CopyValueWithoutHistory);
         Saturator = new SaturatorDefinitions(
             new StateValueDefinition<float>(
                 0.0F,
@@ -93,7 +99,8 @@ public static class StateValueDefinitions
 
     public static CommonDefinitions Common { get; }
     public static GainStagingDefinitions GainStaging { get; }
-    public static CompressorDefinitions Compressor { get; }
+    public static ShaperDefinitions Shaper { get; }
+    public static CompressionDefinitions Compression { get; }
     public static SaturatorDefinitions Saturator { get; }
     public static PolishDefinitions Polish { get; }
     public static IReadOnlyList<FilterDefinition> EqualizerDefinitions { get; }
@@ -112,13 +119,20 @@ public static class StateValueDefinitions
         StateValueDefinition<float> Limit,
         StateValueDefinition<float> Width);
 
-    public sealed record CompressorDefinitions(
+    public sealed record ShaperDefinitions(
         StateValueDefinition<float> Attack,
         StateValueDefinition<float> Sustain,
-        StateValueDefinition<float> Compression,
-        StateValueDefinition<int> Character,
-        StateValueDefinition<bool> Parallel,
-        StateValueDefinition<float> OutputDb);
+        StateValueDefinition<float> OutputDb,
+        StateValueDefinition<bool> Bypass);
+
+    public sealed record CompressionDefinitions(
+        StateValueDefinition<float> Reduction,
+        StateValueDefinition<int> Type,
+        StateValueDefinition<float> OutputDb,
+        StateValueDefinition<float> Attack,
+        StateValueDefinition<float> Release,
+        StateValueDefinition<float> Ratio,
+        StateValueDefinition<bool> Bypass);
 
     public sealed record SaturatorDefinitions(
         StateValueDefinition<float> Drive,

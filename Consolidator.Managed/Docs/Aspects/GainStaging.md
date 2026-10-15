@@ -58,14 +58,15 @@ output automatic leveling is intentionally unimplemented at this UX stage.
 There is no placeholder audio algorithm or alternative runtime path.
 
 Managed/Native DspSnapshot append uint OutputLeveler and float OutputLimit at
-offsets 1476 and 1480. Size is 1484 bytes. DspStateExchange size is 4480, with
-publishedIndex/consumerIndex/telemetry at 4452/4456/4460. Existing physical-stage
+offsets 1476 and 1480. Size is 1508 bytes including the appended Dynamics transport
+fields. DspStateExchange size is 4552, with
+publishedIndex/consumerIndex/telemetry at 4524/4528/4532. Existing physical-stage
 field offsets remain unchanged. Native static assertions and existing ABI fixture
 expectations describe the same layout; this is not a sound-algorithm test.
 
 ## Persistence
 
-Strict persistence schema 6 stores one gainStaging object with every leaf and its
+Strict persistence schema 8 stores one gainStaging object with every leaf and its
 detector filters. Restore validates ranges/shape before applying one baseline
 history transaction and publishing affected snapshots. This also fixes the old
 Input detector omission. Schema 5 and old Input/Output objects are not decoded.

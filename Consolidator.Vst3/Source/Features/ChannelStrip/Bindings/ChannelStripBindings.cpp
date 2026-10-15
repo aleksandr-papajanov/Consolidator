@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "Features/ChannelStrip/Presentation/ProcessorCatalog.h"
+#include "Features/ChannelStrip/Compression/Bindings/CompressionBindings.h"
 
 namespace consolidator::vst3::features::channelstrip::bindings
 {
@@ -16,14 +17,20 @@ ChannelStripBindings::ChannelStripBindings(const shared::clients::TargetStateCli
 void ChannelStripBindings::ApplySnapshot()
 {
     gainStaging_.ApplySnapshot();
-    parameters_.ApplySnapshot(presentation::kSections, gainStaging_.RuntimeOverlay());
+    parameters_.ApplySnapshot(presentation::kParameterSections, gainStaging_.RuntimeOverlay());
+    compression::bindings::RefreshAvailability(parameters_);
 }
 
 ChannelStripUpdate ChannelStripBindings::ApplyChanged(const shared::clients::ParameterEntry& entry)
 {
     const bool runtimeOverlayChanged = gainStaging_.ApplyChanged(entry);
     const bool parameterChanged = parameters_.ApplyChanged(entry);
-    return { parameterChanged, runtimeOverlayChanged };
+    const bool availabilityChanged = entry.path == "compression.type" && parameterChanged;
+    if (availabilityChanged)
+    {
+        compression::bindings::RefreshAvailability(parameters_);
+    }
+    return { parameterChanged, runtimeOverlayChanged, availabilityChanged };
 }
 
 gainstaging::bindings::GainStagingBindings& ChannelStripBindings::GainStaging() { return gainStaging_; }

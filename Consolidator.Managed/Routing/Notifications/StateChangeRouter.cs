@@ -1,3 +1,4 @@
+using Consolidator.Managed.Core.State;
 using Consolidator.Managed.Core.Topology;
 
 namespace Consolidator.Managed.Routing.Notifications;
@@ -15,6 +16,11 @@ internal sealed class StateChangeRouter
     public IReadOnlyList<ulong> ResolveTargets(StateValueChanged change)
     {
         ArgumentNullException.ThrowIfNull(change);
+
+        if (change.Path.Nodes.Contains(StateNodeIds.Profile))
+        {
+            return Array.Empty<ulong>();
+        }
 
         if (change.Ownership is StateValueOwnership.InstanceOwned)
         {

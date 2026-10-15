@@ -132,6 +132,47 @@ std::optional<std::uint32_t> TracksViewModel::FocusedGroup() const
     return bank != nullptr ? bank->group : std::optional<std::uint32_t>{};
 }
 
+std::vector<GroupTrack> TracksViewModel::GroupTracks(std::optional<std::uint32_t> group) const
+{
+    std::vector<GroupTrack> members;
+    for (const auto& instance : Rows())
+    {
+        if (!group)
+        {
+            if (instance.id == focusedInstance_)
+            {
+                members.push_back({ instance.id, focusedBank_, Label(instance) });
+            }
+            continue;
+        }
+        const auto bank = std::find_if(instance.banks.begin(), instance.banks.end(), [group](const auto& candidate)
+        {
+            return candidate.group == group;
+        });
+        if (bank != instance.banks.end())
+        {
+            members.push_back({ instance.id, bank->index, Label(instance) });
+        }
+    }
+    return members;
+}
+
+std::map<std::uint32_t, std::size_t> TracksViewModel::GroupSizes() const
+{
+    std::map<std::uint32_t, std::size_t> sizes;
+    for (const auto& instance : Rows())
+    {
+        for (const auto& bank : instance.banks)
+        {
+            if (bank.group)
+            {
+                ++sizes[*bank.group];
+            }
+        }
+    }
+    return sizes;
+}
+
 double TracksViewModel::OutputAlpha(double outputLevelDb)
 {
     return std::pow(std::clamp((outputLevelDb + 60.0) / 60.0, 0.0, 1.0), 1.8);

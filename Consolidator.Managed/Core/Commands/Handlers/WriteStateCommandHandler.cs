@@ -13,17 +13,20 @@ internal sealed class WriteStateCommandHandler
     private readonly StateHistory _history;
     private readonly IReadOnlyList<IStateWritePolicy> _policies;
     private readonly GainStagingEdits _gainStaging;
+    private readonly CompressionEdits _compression;
 
     public WriteStateCommandHandler(
         StateHistory history,
         IEnumerable<IStateWritePolicy> policies,
-        GainStagingEdits gainStaging)
+        GainStagingEdits gainStaging,
+        CompressionEdits compression)
     {
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(policies);
         _history = history;
         _policies = policies.ToArray();
         _gainStaging = gainStaging;
+        _compression = compression;
     }
 
     public override ValueTask<StateWriteStatus> HandleAsync(
@@ -43,7 +46,8 @@ internal sealed class WriteStateCommandHandler
             .ToArray();
         var resolvedCommand = command with { Entries = entries };
         if (!AreWritesAllowed(resolvedCommand, context) ||
-            !_gainStaging.IsWriteAllowed(resolvedCommand, context))
+            !_gainStaging.IsWriteAllowed(resolvedCommand, context) ||
+            !CompressionEdits.IsWriteAllowed(resolvedCommand))
         {
             return ValueTask.FromResult(StateWriteStatus.Rejected);
         }
@@ -75,6 +79,7 @@ internal sealed class WriteStateCommandHandler
         var status = StateWriteStatus.Unchanged;
         using var transaction = _history.BeginTransaction();
         _gainStaging.PrepareWrite(resolvedCommand, context, transaction);
+        _compression.PrepareWrite(resolvedCommand, context, transaction);
         foreach (var write in writes)
         {
             var writer = new WriteValueVisitor(
@@ -163,7 +168,5 @@ internal sealed class WriteStateCommandHandler
         }
     }
 }
-
-
 
 

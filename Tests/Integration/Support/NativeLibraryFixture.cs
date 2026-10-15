@@ -63,8 +63,8 @@ public sealed class NativeLibraryFixture : IDisposable
     {
         var instance = new NativeInstance(this);
         var context = GCHandle.Alloc(instance);
-        var exchange = Marshal.AllocHGlobal(4480);
-        Span<byte> zero = stackalloc byte[4480];
+        var exchange = Marshal.AllocHGlobal(4552);
+        Span<byte> zero = stackalloc byte[4552];
         zero.Clear();
         Marshal.Copy(zero.ToArray(), 0, exchange, zero.Length);
         var instanceId = _registerInstance(
@@ -308,20 +308,20 @@ public sealed class NativeInstance : IDisposable
         }
     }
 
-    public int PublishedSnapshotIndex => Marshal.ReadInt32(_exchange, 4452);
+    public int PublishedSnapshotIndex => Marshal.ReadInt32(_exchange, 4524);
 
     public float PublishedGain => Marshal.PtrToStructure<float>(
-        _exchange + PublishedSnapshotIndex * 1484);
+        _exchange + PublishedSnapshotIndex * 1508);
 
     public void PublishInputLevelTelemetry(uint sequence, float levelDb)
     {
-        Marshal.WriteInt32(_exchange + 4460, (int)(sequence | 1U));
-        Marshal.WriteInt32(_exchange + 4464, 1);
+        Marshal.WriteInt32(_exchange + 4532, (int)(sequence | 1U));
+        Marshal.WriteInt32(_exchange + 4536, 1);
         Marshal.WriteInt32(
-            _exchange + 4468,
+            _exchange + 4540,
             BitConverter.SingleToInt32Bits(levelDb));
         Thread.MemoryBarrier();
-        Marshal.WriteInt32(_exchange + 4460, (int)(sequence & ~1U));
+        Marshal.WriteInt32(_exchange + 4532, (int)(sequence & ~1U));
     }
 
     internal void Initialize(

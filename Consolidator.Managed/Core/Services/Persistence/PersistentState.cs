@@ -15,7 +15,8 @@ internal sealed record PersistentBank(uint? Group);
 internal sealed record PersistentDsp(
     PersistentGainStaging GainStaging,
     PersistentSaturator Saturator,
-    PersistentCompressor Compressor,
+    PersistentShaper Shaper,
+    PersistentCompression Compression,
     PersistentEqualizer Equalizer,
     PersistentPolish Polish);
 
@@ -32,15 +33,30 @@ internal sealed record PersistentSaturator(
     bool Bypass,
     PersistentDetector Detector);
 
-internal sealed record PersistentCompressor(
+internal sealed record PersistentShaper(
     float Attack,
     float Sustain,
-    float Compression,
-    int Character,
-    bool Parallel,
     float Output,
+    bool Bypass);
+
+internal sealed record PersistentCompression(
+    int Type,
+    float Reduction,
+    float Output,
+    float Attack,
+    float Release,
+    float Ratio,
     bool Bypass,
+    bool Parallel,
+    PersistentCompressionProfile[] Profiles,
     PersistentDetector Detector);
+
+internal sealed record PersistentCompressionProfile(
+    float Reduction,
+    float Output,
+    float Attack,
+    float Release,
+    float Ratio);
 
 internal sealed record PersistentPolish(float Thick, float Air, bool Bypass);
 

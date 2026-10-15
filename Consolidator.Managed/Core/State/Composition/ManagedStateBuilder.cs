@@ -141,16 +141,20 @@ internal sealed class ManagedStateBuilder
             context,
             dspPath.Append(StateNodeIds.Saturator),
             activity);
-        var compressor = CreateCompressor(
+        var shaper = CreateShaper(
             context,
-            dspPath.Append(StateNodeIds.Compressor),
+            dspPath.Append(StateNodeIds.Shaper));
+        var compression = CreateCompression(
+            context,
+            dspPath.Append(StateNodeIds.Compression),
             activity);
         var polish = CreatePolish(context, dspPath.Append(StateNodeIds.Polish));
         var equalizer = CreateEqualizer(context, dspPath.Append(StateNodeIds.Equalizer));
         var dsp = new DspState(
             gainStaging,
             saturator,
-            compressor,
+            shaper,
+            compression,
             polish,
             equalizer,
             activity);
@@ -374,31 +378,50 @@ internal sealed class ManagedStateBuilder
                 })));
     }
 
-    private CompressorState CreateCompressor(
+    private ShaperState CreateShaper(
+        StateModelContext context,
+        StatePath path)
+    {
+        var runtime = context.Runtime;
+        var definitions = StateValueDefinitions.Shaper;
+        return new ShaperState(
+            CreateInstanceValue(context, path.Append(StateNodeIds.Attack), definitions.Attack,
+                new StateProjectionObserver<float>(value => runtime.DynamicsShaperAttack = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Sustain), definitions.Sustain,
+                new StateProjectionObserver<float>(value => runtime.DynamicsShaperSustain = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Output), definitions.OutputDb,
+                new StateProjectionObserver<float>(value => runtime.DynamicsShaperOutputDb = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Bypass),
+                definitions.Bypass,
+                new StateProjectionObserver<bool>(value => runtime.DynamicsShaperBypass = value)));
+    }
+
+    private CompressionState CreateCompression(
         StateModelContext context,
         StatePath path,
         ActivityObserver activity)
     {
         var runtime = context.Runtime;
-        return new CompressorState(
-            CreateInstanceValue(context, path.Append(StateNodeIds.Attack), StateValueDefinitions.Compressor.Attack,
-                new StateProjectionObserver<float>(value => runtime.CompressorAttack = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Sustain), StateValueDefinitions.Compressor.Sustain,
-                new StateProjectionObserver<float>(value => runtime.CompressorSustain = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Compression), StateValueDefinitions.Compressor.Compression,
-                new StateProjectionObserver<float>(value => runtime.CompressorCompression = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Character), StateValueDefinitions.Compressor.Character,
-                new StateProjectionObserver<int>(value => runtime.CompressorCharacter = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Parallel), StateValueDefinitions.Compressor.Parallel,
-                new StateProjectionObserver<bool>(value => runtime.CompressorParallel = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Output), StateValueDefinitions.Compressor.OutputDb,
-                new StateProjectionObserver<float>(value => runtime.CompressorOutputDb = value)),
-            CreateInstanceValue(context, path.Append(StateNodeIds.Bypass), StateValueDefinitions.Common.CopyValueWithoutHistory,
-                new StateProjectionObserver<bool>(value =>
-                {
-                    runtime.CompressorBypass = value;
-                    runtime.CompressorActive = !value;
-                })),
+        var definitions = StateValueDefinitions.Compression;
+        return new CompressionState(
+            CreateInstanceValue(context, path.Append(StateNodeIds.Type), definitions.Type,
+                new StateProjectionObserver<int>(value => runtime.DynamicsCompressionType = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Reduction), definitions.Reduction,
+                new StateProjectionObserver<float>(value => runtime.DynamicsCompressionReduction = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Output), definitions.OutputDb,
+                new StateProjectionObserver<float>(value => runtime.DynamicsCompressionOutputDb = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Attack), definitions.Attack,
+                new StateProjectionObserver<float>(value => runtime.DynamicsCompressionAttack = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Release), definitions.Release,
+                new StateProjectionObserver<float>(value => runtime.DynamicsCompressionRelease = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Ratio), definitions.Ratio,
+                new StateProjectionObserver<float>(value => runtime.DynamicsCompressionRatio = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Bypass),
+                definitions.Bypass,
+                new StateProjectionObserver<bool>(value => runtime.DynamicsCompressionBypass = value)),
+            CreateInstanceValue(context, path.Append(StateNodeIds.Parallel), StateValueDefinitions.Common.CopyValue,
+                new StateProjectionObserver<bool>(value => runtime.DynamicsParallel = value)),
+            CreateCompressionProfiles(context, path, definitions),
             CreateDetector(
                 context,
                 path.Append(StateNodeIds.Detector),
@@ -408,6 +431,32 @@ internal sealed class ManagedStateBuilder
                 {
                     runtime[DspConstants.DetectorFilterCount * 2 + index].Active = active ? 1U : 0U;
                 })));
+    }
+
+    private static CompressionProfile[] CreateCompressionProfiles(
+        StateModelContext context,
+        StatePath compressionPath,
+        StateValueDefinitions.CompressionDefinitions definitions)
+    {
+        var profileIds = new[]
+        {
+            StateNodeIds.ProfileSsl,
+            StateNodeIds.Profile76,
+            StateNodeIds.Profile3A,
+            StateNodeIds.Profile2A
+        };
+        return profileIds
+            .Select(profileId =>
+            {
+                var path = compressionPath.Append(StateNodeIds.Profile).Append(profileId);
+                return new CompressionProfile(
+                    CreateInstanceValue(context, path.Append(StateNodeIds.Reduction), definitions.Reduction),
+                    CreateInstanceValue(context, path.Append(StateNodeIds.Output), definitions.OutputDb),
+                    CreateInstanceValue(context, path.Append(StateNodeIds.Attack), definitions.Attack),
+                    CreateInstanceValue(context, path.Append(StateNodeIds.Release), definitions.Release),
+                    CreateInstanceValue(context, path.Append(StateNodeIds.Ratio), definitions.Ratio));
+            })
+            .ToArray();
     }
 
     private EqualizerState CreateEqualizer(StateModelContext context, StatePath path)

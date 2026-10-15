@@ -2,7 +2,7 @@
 
 #include <utility>
 
-#include "Features/Equalizer/Presentation/MarkerListRow.h"
+#include "Shared/Theme/UiMetrics.h"
 
 namespace consolidator::vst3::features::equalizer::controls
 {
@@ -15,36 +15,28 @@ constexpr std::array<const char*, 3> kLabels{ "Reference", "Group", "All Banks" 
 AnalyzerOverlayList::AnalyzerOverlayList(std::function<void(bool, bool, bool)> changed)
     : changed_(std::move(changed))
 {
-    list_.setRowHeight(shared::ui::kBankCellSize);
-    list_.setColour(juce::ListBox::backgroundColourId, shared::ui::kAnalyzerBackground);
-    list_.setOutlineThickness(0);
-    addAndMakeVisible(list_);
-}
-
-int AnalyzerOverlayList::getNumRows() { return static_cast<int>(visible_.size()); }
-
-void AnalyzerOverlayList::paintListBoxItem(int row, juce::Graphics& graphics, int width, int height, bool)
-{
-    if (row >= 0 && row < getNumRows())
+    for (std::size_t index = 0; index < rows_.size(); ++index)
     {
-        presentation::DrawMarkerListRow(graphics, width, height, kLabels[static_cast<std::size_t>(row)],
-            visible_[static_cast<std::size_t>(row)], isEnabled());
+        auto row = std::make_unique<shared::controls::MarkerRowControl>(kLabels[index]);
+        row->SetActive(visible_[index]);
+        row->onClick = [this, index]
+        {
+            visible_[index] = !visible_[index];
+            rows_[index]->SetActive(visible_[index]);
+            changed_(visible_[0], visible_[1], visible_[2]);
+        };
+        addAndMakeVisible(*row);
+        rows_[index] = std::move(row);
     }
 }
 
-void AnalyzerOverlayList::listBoxItemClicked(int row, const juce::MouseEvent& event)
+void AnalyzerOverlayList::resized()
 {
-    if (!isEnabled() || !event.mods.isLeftButtonDown() || row < 0 || row >= getNumRows())
+    for (std::size_t index = 0; index < rows_.size(); ++index)
     {
-        return;
+        rows_[index]->setBounds(0, static_cast<int>(index) * shared::ui::kBankCellSize,
+            getWidth(), shared::ui::kBankCellSize);
     }
-    auto& visible = visible_[static_cast<std::size_t>(row)];
-    visible = !visible;
-    list_.repaint();
-    changed_(visible_[0], visible_[1], visible_[2]);
 }
-
-void AnalyzerOverlayList::resized() { list_.setBounds(getLocalBounds()); }
-void AnalyzerOverlayList::enablementChanged() { list_.repaint(); }
 
 } // namespace consolidator::vst3::features::equalizer::controls

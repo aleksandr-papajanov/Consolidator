@@ -13,7 +13,8 @@ public static class StateNodeIds
     public static readonly NodeId Dsp = new(9);
     public static readonly NodeId GainStaging = new(10);
     public static readonly NodeId Saturator = new(11);
-    public static readonly NodeId Compressor = new(12);
+    public static readonly NodeId Shaper = new(12);
+    public static readonly NodeId Compression = new(14);
     public static readonly NodeId Equalizer = new(13);
     public static readonly NodeId Drive = new(16);
     public static readonly NodeId Output = new(17);
@@ -29,8 +30,8 @@ public static class StateNodeIds
     public static readonly NodeId Curve = new(35);
     public static readonly NodeId Split = new(36);
     public static readonly NodeId Sustain = new(37);
-    public static readonly NodeId Compression = new(38);
-    public static readonly NodeId Character = new(39);
+    public static readonly NodeId Reduction = new(38);
+    public static readonly NodeId Type = new(39);
     public static readonly NodeId Parallel = new(40);
     public static readonly NodeId Thick = new(41);
     public static readonly NodeId Air = new(42);
@@ -43,11 +44,15 @@ public static class StateNodeIds
     public static readonly NodeId OutputTarget = new(50);
     public static readonly NodeId OutputLeveler = new(51);
     public static readonly NodeId Limit = new(52);
+    public static readonly NodeId Release = new(55);
+    public static readonly NodeId Ratio = new(56);
+    public static readonly NodeId Profile = new(57);
+    public static readonly NodeId ProfileSsl = new(60);
+    public static readonly NodeId Profile76 = new(61);
+    public static readonly NodeId Profile3A = new(62);
+    public static readonly NodeId Profile2A = new(63);
     public static NodeId BankAt(int index) => new((uint)(100 + index));
 
     public static NodeId FilterAt(int index) => new((uint)(200 + index));
 }
-
-
-
 

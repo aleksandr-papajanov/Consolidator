@@ -55,15 +55,20 @@ target_sources(Consolidator PRIVATE
     Source/Host/Plugin/PluginEditor.cpp
     Source/Shared/Controls/InactiveOverlay.cpp
     Source/Shared/Controls/ActionButton.cpp
+    Source/Shared/Controls/MarkerControl.cpp
+    Source/Shared/Controls/MarkerRowControl.cpp
+    Source/Shared/Controls/Dial/DialGeometry.cpp
+    Source/Shared/Controls/Parameter/ChoiceDialControl.cpp
     Source/Shared/Theme/UiLookAndFeel.cpp
     Source/Shared/Controls/Parameter/ParameterControl.cpp
     Source/Shared/Controls/Parameter/ParameterButton.cpp
     Source/Features/ChannelStrip/Controls/ChannelStripControl.cpp
     Source/Features/ChannelStrip/Bindings/ChannelStripBindings.cpp
+    Source/Features/ChannelStrip/Compression/Bindings/CompressionBindings.cpp
     Source/Shared/Controls/Parameter/Bindings/ParameterBindings.cpp
     Source/Features/Equalizer/Bindings/AnalyzerBindings.cpp
     Source/Features/ChannelStrip/GainStaging/Bindings/GainStagingBindings.cpp
-    Source/Shared/Clients/InputTelemetryClient.cpp
+    Source/Features/ChannelStrip/GainStaging/Clients/InputTelemetryClient.cpp
     Source/Shared/Presentation/StateValueViewModel.cpp
     Source/Shared/Controls/Parameter/ViewModels/ParameterViewModel.cpp
     Source/Shared/Controls/Dial/DialViewModel.cpp
@@ -76,10 +81,12 @@ target_sources(Consolidator PRIVATE
     Source/Host/Editor/EditorLayout.cpp
     Source/Shared/Controls/Dial/DialControl.cpp
     Source/Features/Equalizer/Presentation/AnalyzerCurveCalculator.cpp
+    Source/Features/Equalizer/Presentation/SpectrumPresentation.cpp
     Source/Features/Equalizer/Controls/EqualizerControl.cpp
     Source/Features/Equalizer/Controls/AnalyzerSourceList.cpp
     Source/Features/Equalizer/Controls/AnalyzerOverlayList.cpp
-    Source/Features/Equalizer/Controls/GroupTrackList.cpp
+    Source/Features/Tracks/Navigation/Controls/GroupTrackList.cpp
+    Source/Features/Tracks/Navigation/Controls/GroupSelectorControl.cpp
     Source/Features/Equalizer/Controls/AnalyzerControl.cpp
     Source/Features/Equalizer/Controls/AnalyzerRenderer.cpp
     Source/Shared/Editing/DialGestureSession.cpp
@@ -87,13 +94,17 @@ target_sources(Consolidator PRIVATE
     Source/Shared/Clients/ProtocolClient.cpp
     Source/Shared/Clients/TargetStateClient.cpp
     Source/Shared/Clients/StateCommands.cpp
-    Source/Shared/Clients/AnalyzerClient.cpp
+    Source/Features/Equalizer/Clients/AnalyzerClient.cpp
     Source/Shared/Clients/HistoryClient.cpp
     Source/Shared/Clients/TrackLevelClient.cpp
+    Source/Features/Tracks/Controls/BankManagerControl.cpp
+    Source/Features/Tracks/Navigation/Controls/TrackNavigationControl.cpp
+    Source/Features/Equalizer/Controllers/EqualizerController.cpp
     Source/Features/Tracks/Controls/TrackListControl.cpp
-    Source/Features/Equalizer/Controls/BankColumnControl.cpp
+    Source/Features/Tracks/Navigation/Controls/BankColumnControl.cpp
     Source/Features/Tracks/Controls/InstanceButtonsControl.cpp
     Source/Features/Tracks/Controls/BankCellRenderer.cpp
+    Source/Features/Tracks/Controls/TrackLevelRenderer.cpp
     Source/Features/Tracks/Controllers/BankCellInteraction.cpp
     Source/Features/Tracks/Controllers/TrackController.cpp
     Source/Shared/Protocol/ProtocolFrame.cpp

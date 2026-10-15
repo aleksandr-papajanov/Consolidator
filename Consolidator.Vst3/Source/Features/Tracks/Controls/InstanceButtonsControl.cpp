@@ -81,7 +81,7 @@ void InstanceButtonsControl::Click(std::size_t index)
         bindings::TrackIntentKind::SetSolo, bindings::TrackIntentKind::SetMute,
         bindings::TrackIntentKind::ResetInstance, bindings::TrackIntentKind::SetInstanceBypass };
     const bool value = index == 0 ? !row->solo : index == 1 ? !row->mute : !row->bypass;
-    emit_({ kinds[index], instance_, model_.FocusedBank(), {}, value,
+    emit_({ kinds[index], instance_, model_.FocusedBank(), value,
         index != 0 || juce::ModifierKeys::getCurrentModifiersRealtime().isShiftDown() });
 }
 

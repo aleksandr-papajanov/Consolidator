@@ -5,7 +5,7 @@
 
 #include "Shared/Protocol/ProtocolFrame.h"
 
-namespace consolidator::vst3::shared::clients
+namespace consolidator::vst3::features::channelstrip::gainstaging::clients
 {
 
 struct InputTelemetry
@@ -25,4 +25,4 @@ private:
     std::int64_t revision_{};
 };
 
-} // namespace consolidator::vst3::shared::clients
+} // namespace consolidator::vst3::features::channelstrip::gainstaging::clients

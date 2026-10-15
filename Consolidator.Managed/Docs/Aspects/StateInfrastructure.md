@@ -44,7 +44,8 @@ of a value:
 default value, physical range and history participation. The write protocol
 selects copy versus delta for each write operation. The
 `Core/Settings/StateValueDefinitions` exposes these definitions in
-typed device groups such as `Compressor`, `Saturator` and `GainStaging`.
+typed device groups such as `Shaper`, `Compression`, `Saturator` and
+`GainStaging`.
 The state value factory consumes a definition while `ManagedStateBuilder`
 composes runtime-specific observers and fixed state-tree nodes. This keeps reusable `StateValue<TValue>`
 free of Core policy and avoids repeating the same defaults and ranges at each

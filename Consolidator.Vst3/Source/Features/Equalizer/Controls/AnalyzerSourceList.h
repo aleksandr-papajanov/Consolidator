@@ -1,29 +1,28 @@
 #pragma once
 
+#include <array>
 #include <functional>
+#include <memory>
 #include <string>
 
 #include <JuceHeader.h>
 
+#include "Shared/Controls/MarkerRowControl.h"
+
 namespace consolidator::vst3::features::equalizer::controls
 {
 
-class AnalyzerSourceList final : public juce::Component, private juce::ListBoxModel
+class AnalyzerSourceList final : public juce::Component
 {
 public:
     explicit AnalyzerSourceList(std::function<void()> changed);
     [[nodiscard]] const std::string& ContextPath() const;
     void resized() override;
-    void enablementChanged() override;
 
 private:
-    int getNumRows() override;
-    void paintListBoxItem(int row, juce::Graphics& graphics, int width, int height, bool selected) override;
-    void selectedRowsChanged(int row) override;
-    juce::String getTooltipForRow(int row) override;
     std::function<void()> changed_;
     int selected_{};
-    juce::ListBox list_{ "Analyzer sources", this };
+    std::array<std::unique_ptr<shared::controls::MarkerRowControl>, 4> rows_;
 };
 
 } // namespace consolidator::vst3::features::equalizer::controls

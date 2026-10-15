@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "Features/Equalizer/Presentation/AnalyzerScale.h"
 #include "Shared/Theme/UiColors.h"
 
 namespace consolidator::vst3::features::equalizer::controls
@@ -11,9 +12,9 @@ juce::Point<float> AnalyzerRenderer::HandlePosition(const features::equalizer::p
     const juce::Rectangle<float>& plot)
 {
     const double x = filter.type == features::equalizer::presentation::AnalyzerFilterType::Gain
-        ? 0 : std::log(filter.frequency / 20) / std::log(1000.0);
+        ? 0 : presentation::AnalyzerScale::FrequencyPosition(filter.frequency);
     return { plot.getX() + plot.getWidth() * static_cast<float>(x),
-        plot.getY() + plot.getHeight() * static_cast<float>(0.5 - filter.gain / 48) };
+        plot.getY() + plot.getHeight() * static_cast<float>(presentation::AnalyzerScale::GainPosition(filter.gain)) };
 }
 
 void AnalyzerRenderer::BuildPath(juce::Path& path, std::span<const double> values) const
@@ -70,7 +71,7 @@ void AnalyzerRenderer::SetPlot(juce::Rectangle<float> plot)
     gainHandle_.closeSubPath();
     for (const double frequency : { 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0 })
     {
-        const float x = std::round(plot.getX() + plot.getWidth() * static_cast<float>(std::log(frequency / 20) / std::log(1000.0))) + 0.5F;
+        const float x = std::round(plot.getX() + plot.getWidth() * static_cast<float>(presentation::AnalyzerScale::FrequencyPosition(frequency))) + 0.5F;
         gridLines_.startNewSubPath(x, plot.getY());
         gridLines_.lineTo(x, plot.getBottom());
     }
@@ -136,7 +137,7 @@ void AnalyzerRenderer::Draw(juce::Graphics& graphics, const AnalyzerRenderState&
         }
         if (state.showReference)
         {
-            graphics.setColour(shared::ui::kProcessors[0]);
+            graphics.setColour(shared::ui::kGainStaging);
             graphics.strokePath(referencePath_, juce::PathStrokeType(1));
         }
         for (std::size_t index = 0; index < state.filters.size(); ++index)

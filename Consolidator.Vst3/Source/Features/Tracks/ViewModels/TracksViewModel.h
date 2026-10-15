@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <map>
 #include <optional>
 #include <string>
@@ -29,6 +30,14 @@ struct TrackActions
     bool scope;
 };
 
+struct GroupTrack
+{
+    std::uint64_t instance;
+    int bank;
+    std::string name;
+    bool operator==(const GroupTrack&) const = default;
+};
+
 class TracksViewModel final
 {
 public:
@@ -51,6 +60,8 @@ public:
     [[nodiscard]] int FocusedBank() const;
     [[nodiscard]] std::uint64_t FocusedInstance() const;
     [[nodiscard]] std::optional<std::uint32_t> FocusedGroup() const;
+    [[nodiscard]] std::vector<GroupTrack> GroupTracks(std::optional<std::uint32_t> group) const;
+    [[nodiscard]] std::map<std::uint32_t, std::size_t> GroupSizes() const;
     [[nodiscard]] bool GroupScope() const;
     [[nodiscard]] TrackActions Actions() const;
     [[nodiscard]] static double OutputAlpha(double outputLevelDb);

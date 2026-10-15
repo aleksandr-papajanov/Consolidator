@@ -1,9 +1,9 @@
-#include "Shared/Clients/InputTelemetryClient.h"
+#include "Features/ChannelStrip/GainStaging/Clients/InputTelemetryClient.h"
 
 #include <cmath>
 #include <stdexcept>
 
-namespace consolidator::vst3::shared::clients
+namespace consolidator::vst3::features::channelstrip::gainstaging::clients
 {
 
 void InputTelemetryClient::Reset() { revision_ = 0; }
@@ -39,4 +39,4 @@ std::optional<InputTelemetry> InputTelemetryClient::Handle(const shared::protoco
     return result;
 }
 
-} // namespace consolidator::vst3::shared::clients
+} // namespace consolidator::vst3::features::channelstrip::gainstaging::clients

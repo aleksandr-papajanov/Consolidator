@@ -197,8 +197,11 @@ internal sealed class StatePathDecoder : IStatePathDecoder
         "attack" => StateNodeIds.Attack,
         "sustain" => StateNodeIds.Sustain,
         "compression" => StateNodeIds.Compression,
-        "character" => StateNodeIds.Character,
+        "reduction" => StateNodeIds.Reduction,
+        "type" => StateNodeIds.Type,
         "parallel" => StateNodeIds.Parallel,
+        "release" => StateNodeIds.Release,
+        "ratio" => StateNodeIds.Ratio,
         "thick" => StateNodeIds.Thick,
         "air" => StateNodeIds.Air,
         "frequency" => StateNodeIds.Frequency,
@@ -211,7 +214,8 @@ internal sealed class StatePathDecoder : IStatePathDecoder
     {
         "gain_staging" => StateNodeIds.GainStaging,
         "saturator" => StateNodeIds.Saturator,
-        "compressor" => StateNodeIds.Compressor,
+        "shaper" => StateNodeIds.Shaper,
+        "compression" => StateNodeIds.Compression,
         "equalizer" => StateNodeIds.Equalizer,
         "polish" => StateNodeIds.Polish,
         _ => throw new FormatException($"Unknown DSP path segment: {value}.")

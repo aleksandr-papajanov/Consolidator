@@ -2,9 +2,9 @@
 
 ## Accepted state and lifetime
 
-TargetStateClient stages five observe_target contexts for the same instance/bank:
-Gain Staging, Saturator, Compressor, Polish, Equalizer last. Every reply must match
-request/context/instance/bank; the parameter union is presented after all five
+TargetStateClient stages six observe_target contexts for the same instance/bank:
+Gain Staging, Saturator, Shaper, Compression, Polish, Equalizer last. Every reply must match
+request/context/instance/bank; the parameter union is presented after all six
 arrive. Notifications update staged values. Activation/target transitions
 invalidate outstanding identities. This is frontend snapshot assembly, not a
 new Managed atomic snapshot API.
@@ -21,5 +21,5 @@ activation and rejection request a full snapshot. Temporary input locks do not
 dim rings/toggles; accepted values, scope and runtime overlay drive presentation.
 
 Earlier builds apply only to their source revision. Current source/host acceptance
-must cover sizing/hit testing, all five contexts, source switching, group edits,
+must cover sizing/hit testing, all six contexts, source switching, group edits,
 bypass/reset, history, Leveler and project reload; see [Build](Build.md).

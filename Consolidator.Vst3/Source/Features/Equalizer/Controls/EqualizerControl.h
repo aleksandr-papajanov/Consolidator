@@ -8,11 +8,12 @@
 
 #include "Features/Equalizer/Bindings/AnalyzerBindings.h"
 #include "Features/Equalizer/Controls/AnalyzerControl.h"
-#include "Features/Equalizer/Controls/BankColumnControl.h"
 #include "Features/Equalizer/Controls/AnalyzerSourceList.h"
 #include "Features/Equalizer/Controls/AnalyzerOverlayList.h"
-#include "Features/Equalizer/Controls/GroupTrackList.h"
+#include "Features/Tracks/Navigation/Controls/TrackNavigationControl.h"
 #include "Shared/Controls/ActionButton.h"
+#include "Shared/Controls/MarkerControl.h"
+#include "Shared/Clients/RegistryClient.h"
 
 namespace consolidator::vst3::features::equalizer::controls
 {
@@ -21,6 +22,7 @@ struct EqualizerActions
 {
     std::function<void(const tracks::bindings::TrackIntent&)> trackIntent;
     std::function<void(const std::string&, std::int64_t)> discreteValue;
+    std::function<void(const std::string&)> resetValue;
     std::function<void(const std::string&)> processBank;
     std::function<double()> sampleRate;
 };
@@ -35,6 +37,8 @@ public:
     [[nodiscard]] const std::string& ContextPath() const;
     void ApplySnapshot();
     void RefreshAcceptedState();
+    void RefreshTrackLevels();
+    void ApplyProcessorStatus(const shared::clients::RegistryProcessor& processor);
     void SetEditingState(bool navigation, bool graphEditing, bool banksReady);
     void paint(juce::Graphics& graphics) override;
     void resized() override;
@@ -45,11 +49,10 @@ private:
     tracks::viewmodels::TracksViewModel& tracks_;
     EqualizerActions actions_;
     AnalyzerControl graph_;
-    BankColumnControl banks_;
-    GroupTrackList groupTracks_;
+    tracks::navigation::controls::TrackNavigationControl navigation_;
     AnalyzerSourceList sources_;
     AnalyzerOverlayList overlays_;
-    juce::TextButton bypass_{ "B" };
+    shared::controls::MarkerControl processorMarker_;
     shared::controls::ActionButton commit_{ "Commit" };
     shared::controls::ActionButton refine_{ "Refine" };
 };

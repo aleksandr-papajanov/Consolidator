@@ -5,6 +5,8 @@
 #include <cmath>
 #include <numbers>
 
+#include "Features/Equalizer/Presentation/AnalyzerScale.h"
+
 namespace consolidator::vst3::features::equalizer::presentation
 {
 namespace
@@ -77,7 +79,7 @@ double AnalyzerCurveCalculator::FrequencyAt(std::size_t point)
         std::array<double, AnalyzerCurves::kPointCount> result{};
         for (std::size_t index = 0; index < result.size(); ++index)
         {
-            result[index] = 20 * std::pow(1000.0,
+            result[index] = AnalyzerScale::Frequency(
                 static_cast<double>(index) / static_cast<double>(result.size() - 1));
         }
         return result;
@@ -127,10 +129,10 @@ AnalyzerCurves AnalyzerCurveCalculator::Calculate(
             {
                 decibels += DecibelsAt(second, basis[point]);
             }
-            result.filters[index][point] = 0.5 - decibels / 48;
+            result.filters[index][point] = AnalyzerScale::GainPosition(decibels);
             if (bankActive && filter.active)
             {
-                result.combined[point] -= decibels / 48;
+                result.combined[point] += AnalyzerScale::GainPosition(decibels) - AnalyzerScale::GainPosition(0);
             }
         }
     }

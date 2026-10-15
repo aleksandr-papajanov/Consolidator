@@ -2,10 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numbers>
 #include <stdexcept>
 #include <utility>
 
+#include "Shared/Controls/Dial/DialGeometry.h"
 #include "Shared/Theme/UiColors.h"
 #include "Shared/Theme/UiMetrics.h"
 
@@ -51,10 +51,8 @@ void DialControl::DrawArc(juce::Graphics& graphics, juce::Point<float> center, f
     {
         return;
     }
-    const auto angle = [](double position)
-        { return static_cast<float>(std::numbers::pi * (4.0 / 3 + 4.0 / 3 * position)); };
     juce::Path arc;
-    arc.addCentredArc(center.x, center.y, radius, radius, 0, angle(start), angle(end), true);
+    arc.addCentredArc(center.x, center.y, radius, radius, 0, DialGeometry::Angle(start), DialGeometry::Angle(end), true);
     graphics.setColour(color);
     graphics.strokePath(arc, juce::PathStrokeType(thickness));
 }
@@ -62,12 +60,12 @@ void DialControl::DrawArc(juce::Graphics& graphics, juce::Point<float> center, f
 void DialControl::paint(juce::Graphics& graphics)
 {
     graphics.fillAll(shared::ui::kBackground);
-    const float width = static_cast<float>(getWidth());
-    const float height = static_cast<float>(getHeight());
-    const juce::Point<float> center{ width * 0.5F, height * 0.55F };
-    const float radius = std::max(1.0F, std::min(width, height) * 0.38F);
+    const auto geometry = DialGeometry::FromBounds(getLocalBounds());
+    const auto center = geometry.center;
+    const auto radius = geometry.radius;
     const auto [minimum, maximum] = model_.RingRange();
-    const auto color = model_.GroupScope() ? scopeColor_ :
+    const auto color = !model_.State().Available() ? shared::ui::kDisabled :
+        model_.GroupScope() ? scopeColor_ :
         model_.Automated() ? shared::ui::kDisabled : shared::ui::kActiveText;
     DrawArc(graphics, center, radius, minimum, maximum, shared::ui::kLines, 3);
     DrawArc(graphics, center, radius, minimum, model_.RingValue(), color, 3);
@@ -76,10 +74,10 @@ void DialControl::paint(juce::Graphics& graphics)
         DrawArc(graphics, center, radius - 6, std::min(0.5, *fast), std::max(0.5, *fast),
             model_.GroupScope() ? scopeColor_ : shared::ui::kActive, 3);
     }
-    graphics.setColour(shared::ui::kText);
+    graphics.setColour(model_.State().Available() ? shared::ui::kText : shared::ui::kDisabled);
     graphics.setFont(shared::ui::ControlFont());
     const juce::String text(showValue_ ? model_.ValueText() : model_.State().Label());
-    graphics.drawText(text, 0, getHeight() - 17, getWidth(), 14, juce::Justification::centred, true);
+    graphics.drawText(text, geometry.label, juce::Justification::centred, true);
 }
 
 void DialControl::mouseDown(const juce::MouseEvent& event)

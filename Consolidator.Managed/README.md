@@ -17,6 +17,8 @@
 - [Bank Index Contract](Docs/Aspects/BankIndexContract.md)
 - [Managed Coordination](Docs/Aspects/Coordinator.md)
 - [Gain Staging state and DSP projection](Docs/Aspects/GainStaging.md)
+- [Shaper state and DSP projection](Docs/Aspects/Shaper.md)
+- [Compression state and DSP projection](Docs/Aspects/Compression.md)
 - [Instance controls and registry status](Docs/Aspects/InstanceControls.md)
 - [Managed Protocol](Docs/Aspects/ManagedProtocol.md)
 - [Peer propagation and constraints](Docs/Aspects/PeerPropagation.md)

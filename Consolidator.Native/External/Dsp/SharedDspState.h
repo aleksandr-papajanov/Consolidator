@@ -55,6 +55,12 @@ struct DspSnapshot
     FilterSnapshot detectorFilters[6];
     std::uint32_t outputLeveler;
     float outputLimit;
+    float dynamicsCompressionOutputDb;
+    float dynamicsCompressionAttack;
+    float dynamicsCompressionRelease;
+    float dynamicsCompressionRatio;
+    std::uint32_t dynamicsShaperBypass;
+    std::uint32_t dynamicsCompressionBypass;
 };
 
 struct DspTelemetryExchange
@@ -83,12 +89,12 @@ struct DspStateExchange
 };
 
 static_assert(sizeof(FilterSnapshot) == 24);
-static_assert(sizeof(DspSnapshot) == 1484);
+static_assert(sizeof(DspSnapshot) == 1508);
 static_assert(sizeof(DspTelemetryExchange) == 20);
-static_assert(sizeof(DspStateExchange) == 4480);
+static_assert(sizeof(DspStateExchange) == 4552);
 static_assert(offsetof(DspStateExchange, snapshots) == 0);
-static_assert(offsetof(DspStateExchange, publishedIndex) == 4452);
-static_assert(offsetof(DspStateExchange, consumerIndex) == 4456);
-static_assert(offsetof(DspStateExchange, telemetry) == 4460);
+static_assert(offsetof(DspStateExchange, publishedIndex) == 4524);
+static_assert(offsetof(DspStateExchange, consumerIndex) == 4528);
+static_assert(offsetof(DspStateExchange, telemetry) == 4532);
 
 } // namespace consolidator::max::dsp

@@ -33,14 +33,12 @@ inline const std::array<juce::Colour, 7> kAnalyzerFilters
     juce::Colour::fromFloatRGBA(0.28F, 0.62F, 0.79F, 0.90F),
     juce::Colour::fromFloatRGBA(0.65F, 0.44F, 0.79F, 0.90F)
 };
-inline const std::array<juce::Colour, 5> kProcessors
-{
-    juce::Colour::fromFloatRGBA(0.30F, 0.66F, 0.72F, 1.0F),
-    juce::Colour::fromFloatRGBA(0.90F, 0.48F, 0.27F, 1.0F),
-    juce::Colour::fromFloatRGBA(0.64F, 0.44F, 0.77F, 1.0F),
-    juce::Colour::fromFloatRGBA(0.64F, 0.80F, 0.31F, 1.0F),
-    juce::Colour::fromFloatRGBA(0.78F, 0.40F, 0.58F, 1.0F)
-};
+inline const auto kGainStaging = juce::Colour::fromFloatRGBA(0.30F, 0.66F, 0.72F, 1.0F);
+inline const auto kSaturator = juce::Colour::fromFloatRGBA(0.90F, 0.48F, 0.27F, 1.0F);
+inline const auto kShaper = juce::Colour::fromFloatRGBA(0.64F, 0.44F, 0.77F, 1.0F);
+inline const auto kCompression = juce::Colour::fromFloatRGBA(0.52F, 0.70F, 0.36F, 1.0F);
+inline const auto kEqualizer = juce::Colour::fromFloatRGBA(0.64F, 0.80F, 0.31F, 1.0F);
+inline const auto kPolish = juce::Colour::fromFloatRGBA(0.78F, 0.40F, 0.58F, 1.0F);
 inline const std::array<juce::Colour, 16> kGroups
 {
     juce::Colour::fromFloatRGBA(0.48F, 0.79F, 0.36F, 1.0F),
@@ -64,4 +62,3 @@ inline const std::array<juce::Colour, 16> kGroups
 inline juce::Colour GroupColor(std::uint32_t group) { return kGroups[group % kGroups.size()]; }
 
 } // namespace consolidator::vst3::shared::ui
-

@@ -8,10 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include "Shared/Clients/AnalyzerData.h"
+#include "Features/Equalizer/Clients/AnalyzerData.h"
 #include "Shared/Clients/ParameterEntry.h"
 #include "Features/Equalizer/Bindings/ParameterEdit.h"
 #include "Features/Equalizer/Presentation/AnalyzerCurveCalculator.h"
+#include "Features/Equalizer/Presentation/SpectrumPresentation.h"
 
 namespace consolidator::vst3::features::equalizer::viewmodels
 {
@@ -31,8 +32,8 @@ public:
     void BeginPreview(std::size_t index);
     void Move(std::size_t index, double x, double y);
     void ChangeQ(std::size_t index, double delta);
-    void ApplySpectrum(shared::clients::AnalyzerSpectrum spectrum);
-    void ApplyBankSnapshots(shared::clients::BankSnapshots banks);
+    void ApplySpectrum(features::equalizer::clients::AnalyzerSpectrum spectrum);
+    void ApplyBankSnapshots(features::equalizer::clients::BankSnapshots banks);
     void SetSpectrumResolution(std::size_t pointCount);
     [[nodiscard]] std::uint64_t CurvesRevision() const;
     [[nodiscard]] double Value(const std::string& path) const;
@@ -52,39 +53,24 @@ public:
     [[nodiscard]] bool HasGroupSpectrum() const;
 
 private:
-    struct SpectrumInterval
-    {
-        double center;
-        double left;
-        double right;
-    };
-
     void Rebuild();
     void RebuildAllBanks();
     void ComposeAllBanks();
     [[nodiscard]] const shared::clients::ParameterEntry& Require(const std::string& path) const;
-    void Resample(const std::vector<double>& bins, std::vector<double>& result) const;
 
     std::vector<features::equalizer::bindings::ParameterEdit> preview_;
     std::string context_;
     std::vector<shared::clients::ParameterEntry> entries_;
     std::vector<features::equalizer::presentation::AnalyzerFilter> filters_;
     features::equalizer::presentation::AnalyzerCurves curves_;
-    shared::clients::BankSnapshots bankEntries_;
+    features::equalizer::clients::BankSnapshots bankEntries_;
     std::optional<features::equalizer::presentation::AnalyzerCurves::Curve> otherBanksCurve_;
     std::optional<features::equalizer::presentation::AnalyzerCurves::Curve> allBanksCurve_;
     int focusedBank_{};
     bool otherBanksActive_{};
-    std::vector<double> sourceBins_;
-    std::vector<double> groupBins_;
-    std::vector<double> referenceBins_;
-    std::vector<double> referenceSpectrum_;
-    std::vector<double> sourceSpectrum_;
-    std::vector<double> groupSpectrum_;
-    std::vector<SpectrumInterval> spectrumIntervals_;
+    presentation::SpectrumPresentation spectrum_;
     std::uint64_t curvesRevision_{};
     double sampleRate_{};
-    std::size_t fftSize_{};
     bool ready_{};
     bool bankActive_{};
     bool groupScope_{};

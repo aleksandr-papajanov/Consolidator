@@ -43,13 +43,18 @@ internal sealed class SetProcessorBypassCommandHandler
         var values = ids.Select(_instances.FindInstance)
             .Where(instance => instance is not null)
             .Select(instance => ProcessorStateAccess.Bypass(instance!.State, command.ProcessorId))
-            .Where(value => value is not null && value.Value != command.Bypassed)
-            .Select(value => value!)
+            .Where(value => value.Value != command.Bypassed)
             .ToArray();
-        if (values.Length == 0) return ValueTask.FromResult(StateWriteStatus.Unchanged);
+        if (values.Length == 0)
+        {
+            return ValueTask.FromResult(StateWriteStatus.Unchanged);
+        }
 
         using var transaction = _history.BeginTransaction();
-        foreach (var value in values) value.Prepare(command.Bypassed, transaction);
+        foreach (var value in values)
+        {
+            value.Prepare(command.Bypassed, transaction);
+        }
         transaction.Commit();
         return ValueTask.FromResult(StateWriteStatus.Applied);
     }

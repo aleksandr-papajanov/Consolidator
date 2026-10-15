@@ -4,7 +4,7 @@
 
 #include <JuceHeader.h>
 
-#include "Shared/Clients/AnalyzerData.h"
+#include "Features/Equalizer/Clients/AnalyzerData.h"
 #include "Features/Equalizer/Bindings/AnalyzerIntents.h"
 #include "Features/Equalizer/ViewModels/AnalyzerViewModel.h"
 #include "Features/Equalizer/Controls/AnalyzerRenderer.h"
@@ -24,9 +24,9 @@ public:
     void SetGroupColor(juce::Colour color);
     void SetGroupScope(bool groupScope);
     void FinishPreview();
-    void ApplySpectrum(shared::clients::AnalyzerSpectrum spectrum);
+    void ApplySpectrum(features::equalizer::clients::AnalyzerSpectrum spectrum);
     void SetOverlays(bool reference, bool group, bool allBanks);
-    void ApplyBankSnapshots(shared::clients::BankSnapshots banks);
+    void ApplyBankSnapshots(features::equalizer::clients::BankSnapshots banks);
     void paint(juce::Graphics& graphics) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& event) override;

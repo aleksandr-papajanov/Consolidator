@@ -26,8 +26,6 @@ public:
     void Group(Banks banks, Completion completion);
     void Ungroup(const shared::clients::UiTarget& target, Completion completion);
     void Clear(Completion completion);
-    void Process(const std::string& selector, const shared::clients::UiTarget& target, bool groupScope,
-        Completion completion);
 
 private:
     shared::clients::ProtocolClient& commands_;

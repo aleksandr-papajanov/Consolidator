@@ -33,6 +33,9 @@ external and uses it during propagation.
 The reset selector uses the same relative path grammar as state writes. A leaf
 resets one value; `equalizer.filter.N` resets a complete filter;
 `equalizer.bank` resets the focused equalizer bank; a processor path such as
-`compressor` resets the complete processor, and `dsp` resets all DSP settings.
+`shaper` and `compression` reset their corresponding processor, and `dsp`
+resets all DSP settings.
 The VST3 UI emits one `reset` intent for a double-click and never supplies the
 default value itself.
+Resetting an already neutral subtree succeeds without creating a history point.
+Resets that affect only non-history values also leave the history cursor unchanged.

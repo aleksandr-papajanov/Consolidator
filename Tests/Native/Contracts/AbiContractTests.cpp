@@ -30,19 +30,19 @@ bool RunAbiContractTests()
         alignof(NativeAtom) == alignof(std::uint64_t),
         "NativeAtom alignment does not match the Managed ABI.");
     succeeded &= Expect(
-        sizeof(DspSnapshot) == 1484,
+        sizeof(DspSnapshot) == 1508,
         "DspSnapshot size does not match the Managed ABI.");
     succeeded &= Expect(
-        sizeof(DspStateExchange) == 4480,
+        sizeof(DspStateExchange) == 4552,
         "DspStateExchange size does not match the Managed ABI.");
     succeeded &= Expect(
-        offsetof(DspStateExchange, publishedIndex) == 4452,
+        offsetof(DspStateExchange, publishedIndex) == 4524,
         "DspStateExchange published index offset is incorrect.");
     succeeded &= Expect(
-        offsetof(DspStateExchange, consumerIndex) == 4456,
+        offsetof(DspStateExchange, consumerIndex) == 4528,
         "DspStateExchange consumer index offset is incorrect.");
     succeeded &= Expect(
-        offsetof(DspStateExchange, telemetry) == 4460,
+        offsetof(DspStateExchange, telemetry) == 4532,
         "DspStateExchange telemetry offset is incorrect.");
     succeeded &= Expect(
         static_cast<std::uint8_t>(NativeAtomType::Integer) == 1

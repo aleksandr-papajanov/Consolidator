@@ -1,11 +1,11 @@
-#include "Shared/Clients/AnalyzerClient.h"
+#include "Features/Equalizer/Clients/AnalyzerClient.h"
 
 #include <array>
 #include <cmath>
 #include <stdexcept>
 #include <utility>
 
-namespace consolidator::vst3::shared::clients
+namespace consolidator::vst3::features::equalizer::clients
 {
 
 AnalyzerClient::AnalyzerClient(shared::clients::ProtocolClient& commands,
@@ -32,7 +32,7 @@ void AnalyzerClient::FetchBanks()
         { std::to_string(state_.Target().instance), std::string("equalizer") });
 }
 
-std::optional<shared::clients::BankSnapshots> AnalyzerClient::HandleBanks(const shared::protocol::ProtocolFrame& frame)
+std::optional<features::equalizer::clients::BankSnapshots> AnalyzerClient::HandleBanks(const shared::protocol::ProtocolFrame& frame)
 {
     const auto& values = frame.values;
     if (banksRequest_ == 0 || values.size() < 6 || shared::protocol::WireId(values[2]) != banksRequest_)
@@ -44,7 +44,7 @@ std::optional<shared::clients::BankSnapshots> AnalyzerClient::HandleBanks(const 
     {
         throw std::invalid_argument("Invalid analyzer bank snapshots header.");
     }
-    shared::clients::BankSnapshots banks;
+    features::equalizer::clients::BankSnapshots banks;
     std::array<bool, 7> seen{};
     std::size_t offset = 6;
     for (int index = 0; index < 7; ++index)
@@ -80,7 +80,7 @@ std::optional<shared::clients::BankSnapshots> AnalyzerClient::HandleBanks(const 
     return banks;
 }
 
-std::optional<shared::clients::AnalyzerSpectrum> AnalyzerClient::HandleSpectrum(const shared::protocol::ProtocolFrame& frame) const
+std::optional<features::equalizer::clients::AnalyzerSpectrum> AnalyzerClient::HandleSpectrum(const shared::protocol::ProtocolFrame& frame) const
 {
     if (!state_.Ready())
     {
@@ -103,7 +103,7 @@ std::optional<shared::clients::AnalyzerSpectrum> AnalyzerClient::HandleSpectrum(
     {
         throw std::invalid_argument("Invalid FFT frame shape.");
     }
-    shared::clients::AnalyzerSpectrum spectrum{ static_cast<std::size_t>(size), {}, {}, {} };
+    features::equalizer::clients::AnalyzerSpectrum spectrum{ static_cast<std::size_t>(size), {}, {}, {} };
     spectrum.source.reserve(513);
     spectrum.group.reserve(hasGroup ? 513 : 0);
     spectrum.reference.reserve(hasReference ? 513 : 0);
@@ -132,4 +132,4 @@ std::optional<shared::clients::AnalyzerSpectrum> AnalyzerClient::HandleSpectrum(
     return spectrum;
 }
 
-} // namespace consolidator::vst3::shared::clients
+} // namespace consolidator::vst3::features::equalizer::clients

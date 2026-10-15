@@ -45,7 +45,8 @@ internal static class StatePathEncoder
         if (node == StateNodeIds.Group) return "group";
         if (node == StateNodeIds.GainStaging) return "gain_staging";
         if (node == StateNodeIds.Saturator) return "saturator";
-        if (node == StateNodeIds.Compressor) return "compressor";
+        if (node == StateNodeIds.Shaper) return "shaper";
+        if (node == StateNodeIds.Compression) return "compression";
         if (node == StateNodeIds.Equalizer) return "equalizer";
         if (node == StateNodeIds.Polish) return "polish";
         if (node == StateNodeIds.Gain) return "gain";
@@ -63,9 +64,16 @@ internal static class StatePathEncoder
         if (node == StateNodeIds.Split) return "split";
         if (node == StateNodeIds.Attack) return "attack";
         if (node == StateNodeIds.Sustain) return "sustain";
-        if (node == StateNodeIds.Compression) return "compression";
-        if (node == StateNodeIds.Character) return "character";
+        if (node == StateNodeIds.Reduction) return "reduction";
+        if (node == StateNodeIds.Type) return "type";
         if (node == StateNodeIds.Parallel) return "parallel";
+        if (node == StateNodeIds.Release) return "release";
+        if (node == StateNodeIds.Ratio) return "ratio";
+        if (node == StateNodeIds.Profile) return "profile";
+        if (node == StateNodeIds.ProfileSsl) return "ssl";
+        if (node == StateNodeIds.Profile76) return "76";
+        if (node == StateNodeIds.Profile3A) return "3a";
+        if (node == StateNodeIds.Profile2A) return "2a";
         if (node == StateNodeIds.Thick) return "thick";
         if (node == StateNodeIds.Air) return "air";
         if (node == StateNodeIds.Frequency) return "frequency";

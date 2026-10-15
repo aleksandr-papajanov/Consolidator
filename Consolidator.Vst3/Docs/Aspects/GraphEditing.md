@@ -15,7 +15,7 @@ bindings, including positive frequency and Q. It contains no state defaults,
 protocol requests or audio-thread work.
 
 `AnalyzerControl` is connected to accepted target snapshots and state changes
-for Equalizer and the Gain Staging, Saturator and Compressor detectors. It retains
+for Equalizer and the Gain Staging, Saturator and Compression detectors. It retains
 only relevant presentation bindings. The shared Native filter catalog provides
 filter definitions; fixed Q is presentation metadata, while editable values
 and physical/effective ranges come from Managed. The view is cleared during
@@ -79,4 +79,3 @@ bank snapshot is excluded. Its
 summed coordinates remain unclamped, with strokes clipped by the plot rectangle
 instead of flattening out-of-range peaks. The overlay is absent when every bank
 is bypassed.
-

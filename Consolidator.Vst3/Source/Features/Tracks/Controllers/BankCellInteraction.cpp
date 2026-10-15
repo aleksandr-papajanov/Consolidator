@@ -31,7 +31,7 @@ void BankCellInteraction::Handle(std::uint64_t instance, int index, const juce::
             model_.Feedback().SetBypass(instance, item, bypass);
         }
         emit_({ event.getNumberOfClicks() > 1 ? bindings::TrackIntentKind::ResetBank
-            : bindings::TrackIntentKind::SetBankBypass, instance, index, {}, bypass });
+            : bindings::TrackIntentKind::SetBankBypass, instance, index, bypass });
     }
     else if (event.mods.isShiftDown())
     {

@@ -76,7 +76,13 @@ public unsafe struct DspSnapshot
 
     public uint OutputLeveler;
     public float OutputLimit;
-}
 
+    public float DynamicsCompressionOutputDb;
+    public float DynamicsCompressionAttack;
+    public float DynamicsCompressionRelease;
+    public float DynamicsCompressionRatio;
+    public uint DynamicsShaperBypass;
+    public uint DynamicsCompressionBypass;
+}
 
 

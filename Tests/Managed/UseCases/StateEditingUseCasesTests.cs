@@ -120,10 +120,10 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
-            Float(-18.0));
+            Float(0.5));
         instance.Output.Clear();
 
         application.Send(
@@ -134,7 +134,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("dsp"));
 
         Assert.Equal(0.0F, instance.Dsp.Latest.InputLevel);
-        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, instance.Dsp.Latest.DynamicsCompressionAttack);
     }
 
     [Fact]
@@ -518,7 +518,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("42"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -540,7 +540,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(instance.InstanceId.Value.ToString()),
             Integer(0),
-            Symbol("compressor"));
+            Symbol("compression"));
         application.Send(instance, "set_instance_active", Integer(1));
         instance.Output.Clear();
 
@@ -551,7 +551,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -565,7 +565,7 @@ public sealed class StateEditingUseCasesTests
         var messages = instance.Output.Messages.ToArray();
         Assert.Contains(messages, message => message.Selector == "action_done");
         var change = messages.Last(message => message.Selector == "state_changed");
-        Assert.Equal("compressor.detector.filter.1.gain", change.Atoms[1].Symbol);
+        Assert.Equal("compression.detector.filter.1.gain", change.Atoms[1].Symbol);
         Assert.Equal(6.0, change.Atoms[2].Float);
     }
 
@@ -580,7 +580,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("compressor"));
+            Symbol("compression"));
         application.Send(first, "set_instance_active", Integer(1));
         first.Output.Clear();
         second.Output.Clear();
@@ -594,7 +594,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
             Float(0.5));
@@ -603,8 +603,8 @@ public sealed class StateEditingUseCasesTests
             () => first.Dsp.PublishCount > firstPublishCount &&
                 second.Dsp.PublishCount > secondPublishCount,
             TimeSpan.FromSeconds(1)));
-        Assert.Equal(0.5F, first.Dsp.Latest.CompressorAttack);
-        Assert.Equal(0.5F, second.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.5F, first.Dsp.Latest.DynamicsCompressionAttack);
+        Assert.Equal(0.5F, second.Dsp.Latest.DynamicsCompressionAttack);
     }
 
     [Fact]
@@ -737,7 +737,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("compressor"));
+            Symbol("compression"));
         application.Send(first, "set_instance_active", Integer(1));
 
         application.Send(
@@ -747,7 +747,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
             Float(0.25));
@@ -759,7 +759,7 @@ public sealed class StateEditingUseCasesTests
         var rangeChange = Assert.Single(
             first.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "compressor.attack");
+                message.Atoms[1].Symbol == "compression.attack");
         Assert.Equal(0.25, rangeChange.Atoms[2].Float);
         Assert.Equal(0.25, rangeChange.Atoms[6].Float);
         Assert.Equal(1.0, rangeChange.Atoms[7].Float);
@@ -770,12 +770,12 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("compressor"));
+            Symbol("compression"));
         var threshold = Assert.Single(
             second.Output.Messages,
             message => message.Selector == "target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)threshold.Atoms[6].Integer)
-            .Single(index => threshold.Atoms[7 + index * 6].Symbol == "compressor.attack");
+            .Single(index => threshold.Atoms[7 + index * 6].Symbol == "compression.attack");
         Assert.Equal(0.25, threshold.Atoms[11 + thresholdIndex * 6].Float);
         Assert.Equal(1.0, threshold.Atoms[12 + thresholdIndex * 6].Float);
 
@@ -785,7 +785,7 @@ public sealed class StateEditingUseCasesTests
         var restoredRange = Assert.Single(
             first.Output.Messages,
             message => message.Selector == "state_changed" &&
-                message.Atoms[1].Symbol == "compressor.attack");
+                message.Atoms[1].Symbol == "compression.attack");
         Assert.Equal(0.25, restoredRange.Atoms[2].Float);
         Assert.Equal(0.0, restoredRange.Atoms[6].Float);
         Assert.Equal(1.0, restoredRange.Atoms[7].Float);
@@ -817,7 +817,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
             Float(0.25));
@@ -828,7 +828,7 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(source.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("compressor"));
+            Symbol("compression"));
 
         Assert.DoesNotContain(
             source.Output.Messages,
@@ -837,7 +837,7 @@ public sealed class StateEditingUseCasesTests
             source.Output.Messages,
             message => message.Selector == "target_state_snapshot" &&
                 Enumerable.Range(0, (int)message.Atoms[6].Integer).Any(index =>
-                    message.Atoms[7 + index * 6].Symbol == "compressor.attack" &&
+                    message.Atoms[7 + index * 6].Symbol == "compression.attack" &&
                     message.Atoms[11 + index * 6].Float == 0.0 &&
                     message.Atoms[12 + index * 6].Float == 1.0));
     }
@@ -877,7 +877,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
             Float(0.25));
@@ -900,11 +900,11 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(target.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("compressor"));
+            Symbol("compression"));
         var snapshot = target.Output.Single("target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
             .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
-                "compressor.attack");
+                "compression.attack");
         Assert.Equal(0.0, snapshot.Atoms[11 + thresholdIndex * 6].Float);
         Assert.Equal(1.0, snapshot.Atoms[12 + thresholdIndex * 6].Float);
     }
@@ -925,7 +925,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -938,7 +938,7 @@ public sealed class StateEditingUseCasesTests
             "read",
             Integer(1),
             Symbol("query"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -949,14 +949,14 @@ public sealed class StateEditingUseCasesTests
             second.Output.Messages,
             message => message.Selector == "state_changed" &&
                 message.Atoms[1].Symbol ==
-                    "compressor.detector.filter.1.frequency");
+                    "compression.detector.filter.1.frequency");
 
         application.Send(
             second,
             "observe_target",
             Symbol(first.InstanceId.Value.ToString()),
             Integer(6),
-            Symbol("compressor"));
+            Symbol("compression"));
         second.Output.Clear();
         application.Send(
             second,
@@ -965,7 +965,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -978,14 +978,14 @@ public sealed class StateEditingUseCasesTests
             "observe_target",
             Symbol(second.InstanceId.Value.ToString()),
             Integer(1),
-            Symbol("compressor"));
+            Symbol("compression"));
         second.Output.Clear();
         application.Send(
             second,
             "read",
             Integer(1),
             Symbol("query"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -1198,7 +1198,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("0"),
             Integer(2),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -1206,7 +1206,7 @@ public sealed class StateEditingUseCasesTests
             Symbol("value"),
             Float(2000.0),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),
@@ -1228,7 +1228,7 @@ public sealed class StateEditingUseCasesTests
             "read",
             Integer(1),
             Symbol("query"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("detector"),
             Symbol("filter"),
             Integer(1),

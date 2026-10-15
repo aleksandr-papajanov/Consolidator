@@ -1,12 +1,12 @@
-#include "Features/Equalizer/Controls/GroupTrackList.h"
+#include "Features/Tracks/Navigation/Controls/GroupTrackList.h"
 
-#include <algorithm>
 #include <utility>
 
+#include "Features/Tracks/Controls/TrackLevelRenderer.h"
 #include "Shared/Theme/UiColors.h"
 #include "Shared/Theme/UiMetrics.h"
 
-namespace consolidator::vst3::features::equalizer::controls
+namespace consolidator::vst3::features::tracks::navigation::controls
 {
 
 GroupTrackList::GroupTrackList(const tracks::viewmodels::TracksViewModel& tracks,
@@ -21,30 +21,24 @@ GroupTrackList::GroupTrackList(const tracks::viewmodels::TracksViewModel& tracks
     addAndMakeVisible(list_);
 }
 
-void GroupTrackList::Refresh()
+void GroupTrackList::Refresh(std::optional<std::uint32_t> group)
 {
-    std::vector<TrackRow> rows;
-    const auto group = tracks_.FocusedGroup();
-    for (const auto& track : tracks_.Rows())
-    {
-        const auto bank = std::find_if(track.banks.begin(), track.banks.end(),
-            [group](const auto& bank) { return bank.group == group; });
-        if (group && bank != track.banks.end())
-        {
-            rows.push_back({ track.id, bank->index, track.label });
-        }
-        else if (!group && track.id == tracks_.FocusedInstance())
-        {
-            rows.push_back({ track.id, tracks_.FocusedBank(), track.label });
-        }
-    }
+    const bool groupChanged = group_ != group;
+    group_ = group;
+    auto rows = tracks_.GroupTracks(group);
     if (rows_ != rows)
     {
         rows_ = std::move(rows);
         list_.updateContent();
     }
+    if (groupChanged && !rows_.empty())
+    {
+        list_.scrollToEnsureRowIsOnscreen(0);
+    }
     list_.repaint();
 }
+
+void GroupTrackList::RefreshLevels() { list_.repaint(); }
 
 int GroupTrackList::getNumRows() { return static_cast<int>(rows_.size()); }
 
@@ -55,14 +49,16 @@ void GroupTrackList::paintListBoxItem(int row, juce::Graphics& graphics, int wid
         return;
     }
     const auto& track = rows_[static_cast<std::size_t>(row)];
-    const bool focused = track.instance == tracks_.FocusedInstance();
+    const bool focused = track.instance == tracks_.FocusedInstance() && track.bank == tracks_.FocusedBank();
     if (focused)
     {
         graphics.fillAll(shared::ui::kLines);
     }
+    const auto labelBounds = tracks::controls::TrackLevelRenderer::Draw(graphics,
+        { 6, 0, width - 12, height }, tracks_.OutputAlphaFor(track.instance));
     graphics.setColour(isEnabled() ? (focused ? shared::ui::kActiveText : shared::ui::kText) : shared::ui::kDisabled);
     graphics.setFont(shared::ui::ControlFont());
-    graphics.drawText(juce::String(track.name), 6, 0, width - 12, height,
+    graphics.drawText(juce::String(track.name), labelBounds,
         juce::Justification::centredLeft);
 }
 
@@ -85,4 +81,4 @@ void GroupTrackList::listBoxItemClicked(int row, const juce::MouseEvent& event)
     emit_({ tracks::bindings::TrackIntentKind::SelectBank, instance, bank });
 }
 
-} // namespace consolidator::vst3::features::equalizer::controls
+} // namespace consolidator::vst3::features::tracks::navigation::controls

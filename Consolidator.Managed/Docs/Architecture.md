@@ -38,6 +38,8 @@ StatePipeline — связь с DSP; устройство описывает т�
 - [Bank Index Contract](Aspects/BankIndexContract.md)
 - [Managed Coordination](Aspects/Coordinator.md)
 - [Gain Staging state and DSP projection](Aspects/GainStaging.md)
+- [Shaper state and DSP projection](Aspects/Shaper.md)
+- [Compression state and DSP projection](Aspects/Compression.md)
 - [Instance controls and registry status](Aspects/InstanceControls.md)
 - [Managed Protocol](Aspects/ManagedProtocol.md)
 - [Peer propagation and constraints](Aspects/PeerPropagation.md)

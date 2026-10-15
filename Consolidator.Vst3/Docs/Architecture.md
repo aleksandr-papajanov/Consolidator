@@ -7,9 +7,9 @@ VST3 разделён на host adapter и disposable presentation. Managed ос
 | --- | --- |
 | `Host/Plugin` | AudioProcessor/editor, runtime registration, audio и host state callbacks |
 | `Host/Editor` | Композиция features, focus/activation, event routing и размещение |
-| `Features/Tracks` | Track/bank selection presentation и intents действий |
+| `Features/Tracks` | Bank Manager, reusable track/bank/group navigation, selection presentation и intents действий |
 | `Features/ChannelStrip` | Processor control composition и bindings |
-| `Features/Equalizer` | Graph, sources, overlays, banks и EQ action presentation |
+| `Features/Equalizer` | Graph, spectrum presentation, sources, overlays, analyzer client и EQ actions; размещает навигацию Tracks |
 | `Shared` | Typed clients/protocol, ViewModels, generic controls, gesture transport и theme |
 
 ```text

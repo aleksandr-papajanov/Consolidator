@@ -1,5 +1,6 @@
 #include "Features/Tracks/Controllers/TrackController.h"
 
+#include <stdexcept>
 #include <utility>
 
 namespace consolidator::vst3::features::tracks::controllers
@@ -30,21 +31,17 @@ void TrackController::Execute(const features::tracks::bindings::TrackIntent& int
         commands_.Send(selector, { target, editScope, value,
             std::string(intent.additive ? "additive" : "exclusive") }, std::move(completion));
     }
-    else if (intent.kind == features::tracks::bindings::TrackIntentKind::SetProcessorBypass)
-    {
-        commands_.Send("set_processor_bypass", { target, intent.processor, scope, value }, std::move(completion));
-    }
     else if (intent.kind == features::tracks::bindings::TrackIntentKind::SetBankBypass)
     {
         commands_.Send("set_bank_bypass", { target, static_cast<std::int64_t>(intent.bank), scope, value },
             std::move(completion));
     }
-    else
+    else if (intent.kind == features::tracks::bindings::TrackIntentKind::ResetBank ||
+        intent.kind == features::tracks::bindings::TrackIntentKind::ResetInstance)
     {
         const auto bankReset = intent.kind == features::tracks::bindings::TrackIntentKind::ResetBank;
         const auto instanceReset = intent.kind == features::tracks::bindings::TrackIntentKind::ResetInstance;
-        const auto parts = shared::protocol::EncodePath(bankReset ? "equalizer.bank" : instanceReset ? "dsp" :
-            intent.processor);
+        const auto parts = shared::protocol::EncodePath(bankReset ? "equalizer.bank" : "dsp");
         std::vector<shared::protocol::ProtocolValue> body;
         if (instanceReset)
         {
@@ -54,11 +51,14 @@ void TrackController::Execute(const features::tracks::bindings::TrackIntent& int
         else
         {
             body = { std::string("target"), target,
-                bankReset ? shared::protocol::ProtocolValue(static_cast<std::int64_t>(intent.bank)) :
-                    shared::protocol::ProtocolValue(std::string("none")), std::string("0"), scope };
+                static_cast<std::int64_t>(intent.bank), std::string("0"), scope };
         }
         body.insert(body.end(), parts.begin(), parts.end());
         commands_.Send("reset", std::move(body), std::move(completion));
+    }
+    else
+    {
+        throw std::invalid_argument("Unsupported track action.");
     }
 }
 
@@ -82,14 +82,6 @@ void TrackController::Ungroup(const shared::clients::UiTarget& target, Completio
 void TrackController::Clear(Completion completion)
 {
     commands_.Send("clear_topology", {}, std::move(completion));
-}
-
-void TrackController::Process(const std::string& selector, const shared::clients::UiTarget& target,
-    bool groupScope, Completion completion)
-{
-    // Optimization handlers own their history advancement.
-    commands_.Send(selector, { std::to_string(target.instance), static_cast<std::int64_t>(target.bank),
-        std::string(groupScope ? "group" : "local") }, std::move(completion));
 }
 
 } // namespace consolidator::vst3::features::tracks::controllers

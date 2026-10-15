@@ -6,7 +6,10 @@ Managed remains the FFT producer. The existing 1024-sample, 513-bin wire frame,
 latest-only delivery and 30 Hz message-thread drain are unchanged. No analysis,
 protocol or Native DSP behavior is moved into the frontend.
 
-`AnalyzerViewModel` owns smoothed bins and normalized presentation values.
+`AnalyzerViewModel` composes SpectrumPresentation for smoothed bins, display
+resolution and normalized spectrum values, while retaining filter edits and
+response/all-bank composition. AnalyzerScale owns the common frequency and gain
+coordinate mapping used by spectra, responses, grid lines and pointer interaction.
 `AnalyzerControl` owns marker interaction and its `AnalyzerRenderer`.
 The renderer owns reusable JUCE Paths for frequency reference lines, response curves,
 spectra, plot clip and Gain marker. All are accessed on the message thread.

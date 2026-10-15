@@ -63,7 +63,7 @@ void AnalyzerControl::FinishPreview()
     Refresh();
 }
 
-void AnalyzerControl::ApplySpectrum(shared::clients::AnalyzerSpectrum spectrum)
+void AnalyzerControl::ApplySpectrum(features::equalizer::clients::AnalyzerSpectrum spectrum)
 {
     model_.ApplySpectrum(std::move(spectrum));
     renderer_.UpdateSpectrum(model_.SourceSpectrum(), model_.GroupSpectrum());
@@ -71,7 +71,7 @@ void AnalyzerControl::ApplySpectrum(shared::clients::AnalyzerSpectrum spectrum)
     repaint(Plot().getSmallestIntegerContainer());
 }
 
-void AnalyzerControl::ApplyBankSnapshots(shared::clients::BankSnapshots banks)
+void AnalyzerControl::ApplyBankSnapshots(features::equalizer::clients::BankSnapshots banks)
 {
     model_.ApplyBankSnapshots(std::move(banks));
     renderer_.UpdateCurves(model_.Curves(), model_.AllBanksCurve(), model_.CurvesRevision());

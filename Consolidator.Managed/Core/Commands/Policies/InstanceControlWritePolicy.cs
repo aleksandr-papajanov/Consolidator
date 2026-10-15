@@ -23,7 +23,8 @@ internal sealed class InstanceControlWritePolicy : IStateWritePolicy
             nodes[0] == StateNodeIds.Dsp &&
             (nodes[1] == StateNodeIds.GainStaging ||
                 nodes[1] == StateNodeIds.Saturator ||
-                nodes[1] == StateNodeIds.Compressor ||
+                nodes[1] == StateNodeIds.Shaper ||
+                nodes[1] == StateNodeIds.Compression ||
                 nodes[1] == StateNodeIds.Equalizer) &&
             (nodes[2] == StateNodeIds.Bypass ||
                 nodes[2] == StateNodeIds.Solo);

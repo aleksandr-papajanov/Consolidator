@@ -11,14 +11,17 @@ internal sealed class ResetStateCommandHandler
 {
     private readonly StateHistory _history;
     private readonly GainStagingEdits _gainStaging;
+    private readonly CompressionEdits _compression;
 
     public ResetStateCommandHandler(
         StateHistory history,
-        GainStagingEdits gainStaging)
+        GainStagingEdits gainStaging,
+        CompressionEdits compression)
     {
         ArgumentNullException.ThrowIfNull(history);
         _history = history;
         _gainStaging = gainStaging;
+        _compression = compression;
     }
 
     public override ValueTask<CommandAcknowledgement> HandleAsync(
@@ -40,14 +43,12 @@ internal sealed class ResetStateCommandHandler
                 command.ResetMode is ResetScope.Group,
                 transaction);
         }
-        var resetCount = node.PrepareResetRecursive(transaction);
-        if (resetCount == 0)
+        _compression.PrepareReset(context, path, command.ResetMode is ResetScope.Group, transaction);
+        node.PrepareResetRecursive(transaction);
+        if (_history.HasHistoryChanges(transaction))
         {
-            throw new InvalidOperationException(
-                $"Reset target contains no resettable state values: {command.Target}.");
+            _history.AdvanceHistoryPoint();
         }
-
-        _history.AdvanceHistoryPoint();
         transaction.Commit();
 
         return ValueTask.FromResult(new CommandAcknowledgement());

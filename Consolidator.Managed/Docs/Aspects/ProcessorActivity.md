@@ -1,6 +1,6 @@
 # Processor Activity
 
-The processor set is Gain Staging, Saturator, Compressor, Equalizer and Polish.
+The processor set is Gain Staging, Saturator, Shaper, Compression, Equalizer and Polish.
 Polish activity is derived from
 its `thick` and `air` macro values. Bypass is exposed separately so an active
 device can be rendered with a disabled marker color.
@@ -21,13 +21,13 @@ bypass is carried separately for presentation.
 Activity uses a small epsilon of `0.0001` to distinguish neutral from changed
 control values. Gain Staging is active for non-zero input/output level, Width
 different from neutral 1, either Leveler enabled, or Limit below 0 dB. Saturator
-is active for non-zero drive/output; Compressor for non-zero attack, sustain,
-compression/output; Polish for non-zero thick/air. The equalizer definition is
+is active for non-zero drive/output; Shaper for non-zero attack/sustain/output;
+Compression for non-zero reduction/output; Polish for non-zero thick/air. The equalizer definition is
 unchanged: a bank is active when it is not bypassed and contains at least one
 non-bypassed filter whose gain exceeds that epsilon.
 
 Processor changes are published as one revisioned
-`registry_processor_changed` delta. A registry snapshot contains all five
+`registry_processor_changed` delta. A registry snapshot contains all six
 statuses for every instance. The VST3 registry client applies deltas only when
 the previous revision matches; a gap requests a complete snapshot.
 

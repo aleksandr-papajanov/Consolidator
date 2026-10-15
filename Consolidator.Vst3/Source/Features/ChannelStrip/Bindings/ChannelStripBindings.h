@@ -10,6 +10,7 @@ struct ChannelStripUpdate
 {
     bool parameterChanged;
     bool runtimeOverlayChanged;
+    bool availabilityChanged;
 };
 
 class ChannelStripBindings final

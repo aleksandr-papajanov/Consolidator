@@ -1,4 +1,4 @@
-#include "Features/Equalizer/Controls/BankColumnControl.h"
+#include "Features/Tracks/Navigation/Controls/BankColumnControl.h"
 
 #include <cmath>
 #include <utility>
@@ -7,7 +7,7 @@
 #include "Shared/Theme/UiColors.h"
 #include "Shared/Theme/UiMetrics.h"
 
-namespace consolidator::vst3::features::equalizer::controls
+namespace consolidator::vst3::features::tracks::navigation::controls
 {
 
 BankColumnControl::BankColumnControl(tracks::viewmodels::TracksViewModel& model,
@@ -67,4 +67,4 @@ void BankColumnControl::mouseDrag(const juce::MouseEvent& event)
     }
 }
 
-} // namespace consolidator::vst3::features::equalizer::controls
+} // namespace consolidator::vst3::features::tracks::navigation::controls

@@ -43,14 +43,25 @@ belongs to a group and navigation is available. It does not opt into preserved
 accepted-value disabled text, so Local visibly dims when no group choice exists.
 Parameter toggle group dots are supplied as an ARGB theme property and drawn
 inside the button's top-right corner by the shared JUCE renderer. The toggle
-wrapper has the same 88 x 28 bounds as its button, centered in the original
-fixed channel-strip slot; dials and choice controls keep their existing bounds.
+wrapper has the same 96 x 28 bounds as its button. Feature-owned grid geometry
+aligns toggles in one toolbar and uses uniform 112 x 92 slots for continuous
+and choice dials.
 
+BankManagerControl owns the title/action/table composition and its internal
+geometry. Compact analyzer source/overlay rows use shared MarkerRowControl;
+it reuses MarkerControl drawing and leaves selection policy to the feature.
 Bank Manager rows have a fixed 24-unit height. Bank cells and S/M/R/B buttons are
-24 x 24 squares. Processor markers are 8 x 8, centered in 12 x 24 hit slots;
-active outlines and effect/bypass dots retain the accepted registry indicators.
+24 x 24 squares. Processor markers are 8 x 8, centered at a 12-unit pitch.
+Device identities and colors come from Shared/Presentation/ProcessorPresentation,
+with named theme colors instead of positional indexes. The six table squares
+are passive activity/bypass indicators. Both table and header squares use Shared
+MarkerControl: ActivityObserver's effectActive selects fill versus outline,
+and bypass independently selects gray versus the device color. There is one
+shared rendering policy and no frontend activity calculation.
 Each row keeps its original horizontal order.
-Track output-level dots are 9 units in diameter, centered vertically; bank
+Track output-level dots in Bank Manager and the EQ group ListBox share
+TrackLevelRenderer: 9 units in diameter, centered vertically, with a 4-unit
+gap before the label and opacity from TracksViewModel.OutputAlphaFor. Bank
 activity/bypass badges are 8-unit squares with a one-pixel contrasting border.
 The table width grows with the wider processor slots, preserving track-label
 space, and the label inset includes the enlarged level dot.

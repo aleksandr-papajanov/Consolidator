@@ -5,15 +5,30 @@ using Consolidator.Managed.State.Tree;
 
 namespace Consolidator.Managed.Core.State.Models.Dsp;
 
-public sealed record CompressorState(
+public sealed record ShaperState(
     StateValue<float> Attack,
     StateValue<float> Sustain,
-    StateValue<float> Compression,
-    StateValue<int> Character,
-    StateValue<bool> Parallel,
     StateValue<float> OutputDb,
+    StateValue<bool> Bypass);
+
+public sealed record CompressionState(
+    StateValue<int> Type,
+    StateValue<float> Reduction,
+    StateValue<float> OutputDb,
+    StateValue<float> Attack,
+    StateValue<float> Release,
+    StateValue<float> Ratio,
     StateValue<bool> Bypass,
+    StateValue<bool> Parallel,
+    CompressionProfile[] Profiles,
     DetectorState Detector);
+
+public sealed record CompressionProfile(
+    StateValue<float> Reduction,
+    StateValue<float> OutputDb,
+    StateValue<float> Attack,
+    StateValue<float> Release,
+    StateValue<float> Ratio);
 
 public sealed record DetectorState(FilterState[] Filters);
 
@@ -22,21 +37,24 @@ public sealed record DspState
     internal DspState(
         GainStagingState gainStaging,
         SaturatorState saturator,
-        CompressorState compressor,
+        ShaperState shaper,
+        CompressionState compression,
         PolishState polish,
         EqualizerState equalizer,
         ActivityObserver activity)
     {
         ArgumentNullException.ThrowIfNull(gainStaging);
         ArgumentNullException.ThrowIfNull(saturator);
-        ArgumentNullException.ThrowIfNull(compressor);
+        ArgumentNullException.ThrowIfNull(shaper);
+        ArgumentNullException.ThrowIfNull(compression);
         ArgumentNullException.ThrowIfNull(polish);
         ArgumentNullException.ThrowIfNull(equalizer);
         ArgumentNullException.ThrowIfNull(activity);
 
         GainStaging = gainStaging;
         Saturator = saturator;
-        Compressor = compressor;
+        Shaper = shaper;
+        Compression = compression;
         Polish = polish;
         Equalizer = equalizer;
         Activity = activity;
@@ -44,7 +62,8 @@ public sealed record DspState
 
     public GainStagingState GainStaging { get; }
     public SaturatorState Saturator { get; }
-    public CompressorState Compressor { get; }
+    public ShaperState Shaper { get; }
+    public CompressionState Compression { get; }
     public PolishState Polish { get; }
     public EqualizerState Equalizer { get; }
     internal ActivityObserver Activity { get; }

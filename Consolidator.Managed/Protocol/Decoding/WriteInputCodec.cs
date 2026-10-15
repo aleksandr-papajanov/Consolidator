@@ -132,11 +132,11 @@ internal sealed class WriteInputCodec : IInputCodec
             return new DecodedValue(ReadGroup(atom), typeof(GroupId?));
         }
 
-        if (node == StateNodeIds.Character)
+        if (node == StateNodeIds.Type)
         {
-            if (atom.Type != AtomType.Integer || atom.Integer is < 0 or > 2)
+            if (atom.Type != AtomType.Integer || atom.Integer is < 0 or > 3)
             {
-                throw new FormatException("Expected a compressor character value.");
+                throw new FormatException("Expected a compression type value.");
             }
 
             return new DecodedValue((int)atom.Integer, typeof(int));

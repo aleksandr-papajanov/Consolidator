@@ -6,7 +6,7 @@
 
 #include "Features/Tracks/Controllers/BankCellInteraction.h"
 
-namespace consolidator::vst3::features::equalizer::controls
+namespace consolidator::vst3::features::tracks::navigation::controls
 {
 
 class BankColumnControl final : public juce::Component
@@ -24,4 +24,4 @@ private:
     tracks::controllers::BankCellInteraction interaction_;
 };
 
-} // namespace consolidator::vst3::features::equalizer::controls
+} // namespace consolidator::vst3::features::tracks::navigation::controls

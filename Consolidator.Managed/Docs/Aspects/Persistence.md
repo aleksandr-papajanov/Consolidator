@@ -37,12 +37,14 @@ Undo/Redo cannot expose pre-load values. Observers receive only effective active
 value changes; dirty notifications are suppressed for the restored instance
 while its baseline transaction runs.
 
-## Schema 6
+## Schema 8
 
 - Instance mute, solo and bypass; group membership for all seven banks.
 - Unified Gain Staging: input/output Level, Target, Leveler, Limit, Width,
   shared Bypass and input-detector filters.
-- Saturator/Compressor values, bypass and detector filters.
+- Saturator values, bypass and detector filters.
+- Independent Shaper and Compression values/bypasses; Compression type profiles,
+  parallel mix and detector filters. Active values must match the selected profile.
 - Polish values/bypass; EQ processor/bank bypass and every filter in every bank.
 
 Instance IDs, host labels, UI selection/zoom, analyzer presentation, runtime

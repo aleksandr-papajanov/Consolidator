@@ -1,13 +1,15 @@
 #include "Features/Tracks/Controls/TrackListControl.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
-#include <utility>
 #include <unordered_set>
+#include <utility>
 
 #include "Features/Tracks/Controls/BankCellRenderer.h"
+#include "Features/Tracks/Controls/TrackLevelRenderer.h"
 
+#include "Shared/Controls/MarkerControl.h"
+#include "Shared/Presentation/ProcessorPresentation.h"
 #include "Shared/Theme/UiColors.h"
 #include "Shared/Theme/UiMetrics.h"
 
@@ -20,13 +22,10 @@ namespace
 {
 constexpr int kProcessorSlotWidth = 12;
 constexpr int kProcessorMarkerSize = 8;
-constexpr int kLevelMarkerSize = 9;
 constexpr int kRowHeight = shared::ui::kBankCellSize;
 constexpr int kHorizontalPadding = 4;
 constexpr int kGap = 5;
-const std::array<std::string, 5> kProcessors{ "gain_staging", "saturator", "compressor", "equalizer", "polish" };
-
-}
+} // namespace
 
 TrackListControl::TrackListControl(
     features::tracks::viewmodels::TracksViewModel& model,
@@ -92,7 +91,7 @@ TrackListControl::Layout TrackListControl::GetLayout() const
 {
     const auto controls = getWidth() - kHorizontalPadding - 4 * shared::ui::kBankCellSize;
     const auto banks = controls - kGap - 7 * shared::ui::kBankCellSize;
-    const auto markers = banks - kGap - static_cast<int>(kProcessors.size()) * kProcessorSlotWidth;
+    const auto markers = banks - kGap - static_cast<int>(shared::presentation::kProcessors.size()) * kProcessorSlotWidth;
     return { markers, banks, controls, std::max(0, markers - kGap - kHorizontalPadding) };
 }
 
@@ -110,34 +109,26 @@ void TrackListControl::paint(juce::Graphics& graphics)
             continue;
         }
         const auto& row = rows[index];
-        const auto alpha = static_cast<float>(model_.OutputAlphaFor(row.id));
-        graphics.setColour(shared::ui::kActive.withAlpha(alpha));
-        graphics.fillEllipse(static_cast<float>(kHorizontalPadding),
-            static_cast<float>(top + (kRowHeight - kLevelMarkerSize) / 2),
-            static_cast<float>(kLevelMarkerSize), static_cast<float>(kLevelMarkerSize));
+        const auto labelBounds = TrackLevelRenderer::Draw(graphics,
+            { kHorizontalPadding, top, layout.labelWidth, kRowHeight }, model_.OutputAlphaFor(row.id));
         graphics.setColour(model_.Local(row.id) ? shared::ui::kActive : shared::ui::kText);
         graphics.drawText(juce::String(features::tracks::viewmodels::TracksViewModel::Label(row)),
-            kHorizontalPadding + kLevelMarkerSize + 4, top,
-            std::max(0, layout.labelWidth - kLevelMarkerSize - 4), kRowHeight,
+            labelBounds,
             juce::Justification::centredLeft, true);
         const int markerTop = top + (kRowHeight - kProcessorMarkerSize) / 2;
-        for (std::size_t processor = 0; processor < kProcessors.size(); ++processor)
+        for (std::size_t processor = 0; processor < shared::presentation::kProcessors.size(); ++processor)
         {
             const auto found = std::find_if(row.processors.begin(), row.processors.end(),
-                [processor](const auto& item) { return item.id == kProcessors[processor]; });
+                [processor](const auto& item) { return item.id == shared::presentation::kProcessors[processor].id; });
             if (found == row.processors.end())
             {
                 continue;
             }
             const auto x = layout.markers + static_cast<int>(processor) * kProcessorSlotWidth;
             const int markerLeft = x + (kProcessorSlotWidth - kProcessorMarkerSize) / 2;
-            const bool bypass = model_.Feedback().Bypass(row.id, found->id, found->bypass);
-            graphics.setColour(found->active ? shared::ui::kProcessors[processor] : shared::ui::kLines);
-            graphics.drawRect(markerLeft, markerTop, kProcessorMarkerSize, kProcessorMarkerSize, 1);
-            graphics.setColour(found->marker
-                ? bypass ? shared::ui::kDisabled : shared::ui::kProcessors[processor]
-                : shared::ui::kBackground);
-            graphics.fillRect(markerLeft + 1, markerTop + 1, kProcessorMarkerSize - 2, kProcessorMarkerSize - 2);
+            shared::controls::MarkerControl::DrawSquare(graphics,
+                juce::Rectangle<int>{ markerLeft, markerTop, kProcessorMarkerSize, kProcessorMarkerSize }.toFloat(),
+                shared::presentation::kProcessors[processor].color, found->active, found->bypass);
         }
         for (const auto& bank : row.banks)
         {
@@ -176,35 +167,11 @@ void TrackListControl::SelectAt(const juce::MouseEvent& event, bool dragging)
     const auto& row = model_.Rows()[static_cast<std::size_t>(rowIndex)];
     const auto layout = GetLayout();
     const auto x = event.position.x;
-    const auto control = !dragging && event.mods.isCtrlDown();
     if (x >= layout.banks && x < layout.banks + 7 * shared::ui::kBankCellSize)
     {
         const auto index = static_cast<int>((x - layout.banks) / shared::ui::kBankCellSize);
         bankInteraction_.Handle(row.id, index, event, dragging);
         repaint();
-    }
-    else if (!dragging && x >= layout.markers
-        && x < layout.markers + static_cast<int>(kProcessors.size()) * kProcessorSlotWidth)
-    {
-        const auto index = static_cast<std::size_t>((x - layout.markers) / kProcessorSlotWidth);
-        const auto found = std::find_if(row.processors.begin(), row.processors.end(),
-            [index](const auto& item) { return item.id == kProcessors[index]; });
-        if (found != row.processors.end())
-        {
-            if (!control && !model_.InstanceFocused(row.id))
-            {
-                model_.ClearSelection();
-            }
-            const bool bypass = !model_.Feedback().Bypass(row.id, found->id, found->bypass);
-            if (control && event.getNumberOfClicks() == 1)
-            {
-                model_.Feedback().SetBypass(row.id, found->id, bypass);
-            }
-            emit_({ control ? event.getNumberOfClicks() > 1 ? TrackIntentKind::ResetProcessor :
-                TrackIntentKind::SetProcessorBypass : TrackIntentKind::SelectProcessor,
-                row.id, model_.FocusedBank(), found->id, bypass });
-            repaint();
-        }
     }
     else if (!dragging && x < layout.markers)
     {

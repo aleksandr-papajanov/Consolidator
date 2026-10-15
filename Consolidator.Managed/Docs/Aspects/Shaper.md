@@ -1,0 +1,15 @@
+# Shaper state and DSP projection
+
+Shaper is an independent processor with the state prefix `shaper`. Its state
+values are `attack`, `sustain`, `output` and `bypass`. It is independently
+observable, resettable, bypassable and persisted under the `shaper` property
+of the DSP persistence object.
+
+Defaults, physical ranges and history policy belong to
+`StateValueDefinitions.Shaper`; state composition only attaches observers.
+Bypass defaults to false, matching other devices. Processor reset restores the
+device to its enabled state.
+
+The Managed projection publishes the existing shaper transport fields in the
+fixed Native snapshot. Native audio behavior remains unchanged for this state
+split.

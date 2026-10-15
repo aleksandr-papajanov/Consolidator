@@ -153,6 +153,7 @@ public static class ManagedServices
         services.AddSingleton<IStateWritePolicy, BankGroupWritePolicy>();
         services.AddSingleton<IStateWritePolicy, InstanceControlWritePolicy>();
         services.AddSingleton<GainStagingEdits>();
+        services.AddSingleton<CompressionEdits>();
         services.AddSingleton<ICommandHandler, WriteStateCommandHandler>();
         services.AddSingleton<ICommandHandler, ResetStateCommandHandler>();
         services.AddSingleton<ICommandHandler, BeginHistoryCommandHandler>();

@@ -27,10 +27,10 @@ public sealed class PersistenceUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
-            Float(-18.0));
+            Float(0.5));
 
         var payload = protocol.ExecuteControlBarrier(() =>
             persistence.CaptureCommitted(instance.InstanceId));
@@ -42,10 +42,10 @@ public sealed class PersistenceUseCasesTests
             Symbol("0"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
-            Float(-12.0));
+            Float(0.25));
         instance.Output.Clear();
 
         protocol.ExecuteControlBarrier(() =>
@@ -54,15 +54,15 @@ public sealed class PersistenceUseCasesTests
             return true;
         });
 
-        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.5F, instance.Dsp.Latest.DynamicsCompressionAttack);
         Assert.DoesNotContain(
             instance.Output.Messages,
             message => message.Selector == "persistence_dirty");
 
         application.Send(instance, "jump_history", Integer(0));
-        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.5F, instance.Dsp.Latest.DynamicsCompressionAttack);
         application.Send(instance, "jump_history", Integer(2));
-        Assert.Equal(0.0F, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.5F, instance.Dsp.Latest.DynamicsCompressionAttack);
     }
 
     [Fact]
@@ -74,15 +74,15 @@ public sealed class PersistenceUseCasesTests
         var payload = persistence.CaptureCommitted(instance.InstanceId);
         var invalidPayload = Encoding.UTF8.GetBytes(
             Encoding.UTF8.GetString(payload).Replace(
-                "\"schema\":6",
+                "\"schema\":8",
                 "\"schema\":3",
                 StringComparison.Ordinal));
-        var before = instance.Dsp.Latest.CompressorAttack;
+        var before = instance.Dsp.Latest.DynamicsCompressionAttack;
         var beforePublishCount = instance.Dsp.PublishCount;
 
         Assert.Throws<InvalidDataException>(() =>
             persistence.Restore(instance.InstanceId, invalidPayload));
-        Assert.Equal(before, instance.Dsp.Latest.CompressorAttack);
+        Assert.Equal(before, instance.Dsp.Latest.DynamicsCompressionAttack);
         Assert.Equal(beforePublishCount, instance.Dsp.PublishCount);
     }
 

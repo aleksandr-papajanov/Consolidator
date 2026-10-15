@@ -225,13 +225,13 @@ public sealed class HistoryUseCasesTests
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
             Integer(1),
-            Symbol("compressor"));
+            Symbol("compression"));
         application.Send(
             editor,
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
             Integer(1),
-            Symbol("compressor"));
+            Symbol("compression"));
         application.Send(editor, "set_instance_active", Integer(1));
         application.Send(observer, "set_instance_active", Integer(1));
         editor.Output.Clear();
@@ -245,13 +245,13 @@ public sealed class HistoryUseCasesTests
             Symbol("41"),
             Integer(1),
             Symbol("entry"),
-            Symbol("compressor"),
+            Symbol("compression"),
             Symbol("attack"),
             Symbol("value"),
             Float(0.5));
         application.Send(editor, "end_history", Symbol("41"));
 
-        Assert.Equal(0.5F, editor.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.5F, editor.Dsp.Latest.DynamicsCompressionAttack);
         Assert.Contains(
             observer.Output.Messages,
             message => message.Selector == "history_state" &&
@@ -262,7 +262,7 @@ public sealed class HistoryUseCasesTests
         observer.Output.Clear();
         application.Send(editor, "jump_history", Integer(0));
 
-        Assert.Equal(0.0F, editor.Dsp.Latest.CompressorAttack);
+        Assert.Equal(0.0F, editor.Dsp.Latest.DynamicsCompressionAttack);
         Assert.Contains(
             observer.Output.Messages,
             message => message.Selector == "history_state" &&
@@ -277,11 +277,11 @@ public sealed class HistoryUseCasesTests
             "observe_target",
             Symbol(editor.InstanceId.Value.ToString()),
             Integer(1),
-            Symbol("compressor"));
+            Symbol("compression"));
         var snapshot = editor.Output.Single("target_state_snapshot");
         var thresholdIndex = Enumerable.Range(0, (int)snapshot.Atoms[6].Integer)
             .Single(index => snapshot.Atoms[7 + index * 6].Symbol ==
-                "compressor.attack");
+                "compression.attack");
         Assert.Equal(0.0, snapshot.Atoms[8 + thresholdIndex * 6].Float);
     }
 

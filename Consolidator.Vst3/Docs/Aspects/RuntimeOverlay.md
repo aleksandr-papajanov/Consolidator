@@ -8,7 +8,9 @@ While enabled, its outer ring displays `gain_staging.input_level` from the exist
 `gain_staging.input_level_fast` draws a smaller relative arc centered at zero over
 the existing -6/+6 dB display range. It does not move the outer knob.
 
-Telemetry is accepted only for the current Gain Staging target and a newer revision,
+ChannelStrip/GainStaging/Clients/InputTelemetryClient decodes and validates the
+wire telemetry; GainStaging bindings own its presentation. Telemetry is accepted
+only for the current Gain Staging target and a newer revision,
 after its snapshot is ready and audio is prepared. Both values are validated
 before updating the presentation. Target/audio-configuration transitions clear
 the runtime display; disabling Leveler hides the inner arc and restores the
